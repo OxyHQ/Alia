@@ -1,3 +1,4 @@
+import { loadImageDataUrl } from '../lib/deferred/image-data-url';
 import type { AliaAttachment } from '../types';
 
 export type MessageContentPart =
@@ -60,9 +61,9 @@ export async function buildMessageContent(
 
   const parts: MessageContentPart[] = [{ type: 'text', text }];
 
-  // The readers need the platform's file access, loaded on the first attachment: a turn of plain
-  // text (and everything that imports this module) never touches it.
-  const { imageUriToDataUrl } = await import('../lib/image-data-url');
+  // The readers need the platform's file access, loaded on the first attachment: on native a turn
+  // of plain text (and everything that imports this module) never touches it.
+  const { imageUriToDataUrl } = await loadImageDataUrl();
   for (const att of usable) {
     if (att.type !== 'image' && upload !== undefined) {
       try {

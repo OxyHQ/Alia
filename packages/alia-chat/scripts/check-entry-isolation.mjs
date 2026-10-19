@@ -28,6 +28,15 @@
  * Metro does not tree-shake, so one `useOxy` from it ships them all to every
  * consumer. `@oxy.so/services/ui/client` exports the same hooks without them.
  *
+ * And it holds that on WEB the SDK draws no async chunk boundary of its own, but the one of
+ * `@alia.onl/sdk/ask`. Metro's web serializer hoists every module two async chunks share into
+ * `__common.js`, an unconditional `<script>` loaded at first paint. An `import()` inside the SDK
+ * makes a second chunk next to the app's own: an app that lazy-loads its Alia sheet (the root
+ * entry, behind its own `import()`) then got the whole chat and the Bloom it draws with in its
+ * first paint (21.3.x: ~770 KB of SDK plus ~1.7 MB of Bloom moved into `__common`). So every
+ * native-only lazy load has a `.web` fork that imports statically, and the web walk below
+ * resolves files the way Metro does for web (`x.web.tsx` before `x.tsx`).
+ *
  * Type-only imports are ignored — they are erased before the bundler sees them.
  */
 
@@ -50,9 +59,23 @@ const PLATFORM_SUFFIXES = ['', '.native', '.web', '.ios', '.android'];
 const SPECIFIER_PATTERN =
   /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?[^;'"]*?from\s*['"]([^'"]+)['"]|(?:^|\n)\s*import\s*['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-/** Every on-disk file a relative specifier can resolve to, platform forks included. */
-function resolveRelative(fromFile, specifier) {
+/**
+ * Every on-disk file a relative specifier can resolve to, platform forks included; with
+ * `platform: 'web'`, the one file Metro picks for web (`.web` fork first, then the plain file).
+ */
+function resolveRelative(fromFile, specifier, platform) {
   const base = path.resolve(path.dirname(fromFile), specifier);
+  if (platform === 'web') {
+    for (const stem of [base, path.join(base, 'index')]) {
+      for (const extension of EXTENSIONS) {
+        for (const suffix of ['.web', '']) {
+          const candidate = `${stem}${suffix}${extension}`;
+          if (fs.existsSync(candidate)) return [candidate];
+        }
+      }
+    }
+    return [];
+  }
   const resolved = [];
   for (const suffix of PLATFORM_SUFFIXES) {
     for (const extension of EXTENSIONS) {
@@ -66,16 +89,17 @@ function resolveRelative(fromFile, specifier) {
 }
 
 /**
- * Breadth-first walk of runtime imports; returns the graph and any paths to
+ * Breadth-first walk of runtime imports; returns the graph, any paths to
  * `target` (the package or any of its subpaths, or with `exact`, only the bare
- * specifier itself).
+ * specifier itself) and every lazy `import()` it met (`dynamic`).
  */
-function walk(entry, target, { exact = false, staticOnly = false } = {}) {
+function walk(entry, target, { exact = false, staticOnly = false, platform } = {}) {
   const start = path.join(SRC, entry);
   const visited = new Set([start]);
   const importedBy = new Map();
   const queue = [start];
   const hits = [];
+  const dynamic = [];
 
   while (queue.length > 0) {
     const file = queue.shift();
@@ -87,6 +111,7 @@ function walk(entry, target, { exact = false, staticOnly = false } = {}) {
       const specifier = match[1] ?? match[2] ?? match[3];
       if (!specifier) continue;
       if (/^\s*(?:import|export)\s+type\s/.test(match[0])) continue;
+      if (match[3]) dynamic.push({ file, specifier });
 
       if (specifier === target || (!exact && specifier.startsWith(`${target}/`))) {
         hits.push(file);
@@ -94,7 +119,7 @@ function walk(entry, target, { exact = false, staticOnly = false } = {}) {
       }
       if (!specifier.startsWith('.')) continue;
 
-      for (const next of resolveRelative(file, specifier)) {
+      for (const next of resolveRelative(file, specifier, platform)) {
         if (visited.has(next)) continue;
         visited.add(next);
         importedBy.set(next, file);
@@ -103,7 +128,7 @@ function walk(entry, target, { exact = false, staticOnly = false } = {}) {
     }
   }
 
-  return { visited, importedBy, hits };
+  return { visited, importedBy, hits, dynamic };
 }
 
 function chainTo(file, importedBy) {
@@ -289,6 +314,66 @@ if (
   );
 }
 
+/**
+ * Web: no async chunk boundary inside the SDK. The leaf entries and the root draw none; the ask
+ * entry draws exactly its one (`AliaAskProviderLazy` -> `AliaAskSheet`), and nothing behind it
+ * draws another.
+ */
+const ASK_BOUNDARY = {
+  file: path.join(SRC, 'components', 'AliaAskProviderLazy.tsx'),
+  specifier: './AliaAskSheet',
+};
+const describeSites = (sites, importedBy) =>
+  sites
+    .map(({ file, specifier }) => `    import('${specifier}') in ${chainTo(file, importedBy)}`)
+    .join('\n');
+for (const entry of [
+  'index.ts',
+  'voice.ts',
+  'runtime/index.ts',
+  'runtime/model.ts',
+  'avatar.ts',
+  'tools.ts',
+  'csp.ts',
+  'lib/content-utils.ts',
+]) {
+  const web = walk(entry, RETIRED_MODULES[0], { platform: 'web' });
+  if (web.dynamic.length > 0) {
+    failures.push(
+      `On web, src/${entry} reaches a lazy import(): an async chunk boundary inside the SDK, so ` +
+        "Metro hoists every module it shares with the app's chunk into __common.js (first paint). " +
+        'Give the lazy load a `.web` fork that imports statically (see lib/deferred/).\n' +
+        describeSites(web.dynamic, web.importedBy),
+    );
+  }
+}
+const askWeb = walk('ask.ts', RETIRED_MODULES[0], { platform: 'web' });
+const askExtra = askWeb.dynamic.filter(
+  ({ file, specifier }) => file !== ASK_BOUNDARY.file || specifier !== ASK_BOUNDARY.specifier,
+);
+if (askExtra.length > 0) {
+  failures.push(
+    'On web, src/ask.ts reaches a lazy import() besides its one boundary to the sheet. Behind ' +
+      'that boundary everything must import statically, or Metro splits the sheet and hoists ' +
+      'what the chunks share into __common.js.\n' +
+      describeSites(askExtra, askWeb.importedBy),
+  );
+}
+if (askWeb.dynamic.length === askExtra.length) {
+  failures.push(
+    'On web, src/ask.ts no longer loads components/AliaAskSheet.tsx lazily, so the chat is in the ' +
+      'entry bundle of every app that mounts the ask provider — or the walker stopped resolving.',
+  );
+}
+// Positive control: natively, the root does reach a lazy import() (the call's audio engine), so
+// the web walk passes because of the `.web` forks, not because the walker misses `import()`.
+if (walk('index.ts', RETIRED_MODULES[0]).dynamic.length === 0) {
+  failures.push(
+    'src/index.ts reaches no lazy import() on native either: the web check proves nothing (the ' +
+      'walker stopped matching import(), or the call is no longer loaded lazily on native).',
+  );
+}
+
 if (failures.length > 0) {
   console.error('Entry isolation check FAILED:\n');
   for (const failure of failures) console.error(`  - ${failure}\n`);
@@ -298,5 +383,6 @@ if (failures.length > 0) {
 console.log(
   `Entry check OK — the voice call and ${AUDIO_ENGINE} are reachable from src/index.ts ` +
     `(${root.visited.size} modules walked) and src/voice.ts; ` +
-    `${RETIRED_MODULES.join(' and ')} are reachable from neither.`,
+    `${RETIRED_MODULES.join(' and ')} are reachable from neither; on web the SDK's only async ` +
+    "chunk boundary is the ask entry's sheet.",
 );

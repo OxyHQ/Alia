@@ -1,5 +1,20 @@
 # @alia.onl/sdk
 
+## 21.3.2
+
+### Fixed
+
+- **On web the SDK draws no async chunk boundary of its own**, so an app that lazy-loads its Alia
+  sheet keeps the chat in that chunk instead of its first paint. Expo's Metro serializer hoists
+  every module two async chunks share into `__common.js`, loaded at first paint; the SDK's own
+  `import()` calls (the call's `VoiceSession`, the root entry's `AliaAskProvider` sheet, the
+  `expo-audio`, document-picker and image readers) made such chunks inside the app's, and moved the
+  whole chat and the Bloom it draws with into `__common.js`. On web those now import statically
+  (`.web` forks); native keeps its lazy loads. The root entry's `AliaAskProvider` imports its sheet
+  statically on every platform (the root already holds the chat); `@alia.onl/sdk/ask` keeps its
+  one lazy boundary. CrowdSource's reviewer: first-paint JS 1.57 MiB gzip → 1.23 MiB, largest
+  file 5.05 MiB → 3.79 MiB, its lazy Alia chunk 29 KiB → 404 KiB gzip. `check:entries` holds it.
+
 ## 21.3.1
 
 - Ask Alia follows the active account language resolved by Oxy Services instead of defaulting to

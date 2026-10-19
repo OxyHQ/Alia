@@ -9,6 +9,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import type { AudioPlayer, AudioSource } from 'expo-audio';
+import { loadExpoAudio } from '../lib/deferred/expo-audio';
 import type { AgentState } from '../types';
 
 export type SoundName = 'thinking' | 'toolCall' | 'voiceConnect' | 'voiceDisconnect';
@@ -37,7 +38,7 @@ export function useSoundEffects(enabled: boolean = false, sounds: SoundSources =
 
     (async () => {
       try {
-        const { createAudioPlayer } = await import('expo-audio');
+        const { createAudioPlayer } = await loadExpoAudio();
         if (!mounted) return;
 
         for (const name of SOUND_NAMES) {

@@ -5,6 +5,7 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
 import { createAudioLevelMeter } from '../lib/audio-level';
+import { loadExpoAudio } from '../lib/deferred/expo-audio';
 import { requestSpeechClip } from '../lib/speech-synthesis';
 import { ALIA_API_URL } from '../lib/origins';
 
@@ -142,7 +143,7 @@ export function useTTS(options: UseTTSOptions = {}) {
 
       (async () => {
         try {
-          const { createAudioPlayer } = await import('expo-audio');
+          const { createAudioPlayer } = await loadExpoAudio();
           if (signal.aborted) return;
           /**
            * `crossOrigin` is web-only and ignored elsewhere, and it is what makes
