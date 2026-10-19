@@ -1,4 +1,4 @@
-import { DisplayCurrencySelector, useDisplayPrice } from '@oxy.so/services';
+import { DisplayCurrencySelector, useDisplayPrice } from '@oxy.so/services/ui/client';
 import { Announcement } from '@oxy.so/bloom/announcement';
 import { Button } from '@oxy.so/bloom/button';
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from '@oxy.so/bloom/card';
