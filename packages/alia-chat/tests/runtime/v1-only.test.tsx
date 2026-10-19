@@ -17,7 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const wire = vi.hoisted(() => ({ urls: [] as string[] }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({
+vi.mock('@oxy.so/services/ui/client', async () => ({
+  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     isAuthenticated: true,
     user: { id: 'u1' },

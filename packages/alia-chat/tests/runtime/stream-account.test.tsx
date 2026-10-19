@@ -26,7 +26,8 @@ const stream = vi.hoisted(() => ({
     return { ok: true, status: 200, body };
   },
 }));
-vi.mock('@oxy.so/services/ui/client', () => ({
+vi.mock('@oxy.so/services/ui/client', async () => ({
+  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     user:
       typeof harness !== 'undefined' && 'user' in harness

@@ -130,7 +130,7 @@ function useSidebarProps() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isLoading } =
     useConversations();
   const { data: myAgents } = useMyAgents();
-  const { isAuthenticated, showBottomSheet } = useOxy();
+  const { isAuthenticated } = useOxy();
   const { signIn } = useAuth();
   const projects = useProjectsStore((state) => state.projects);
   const toggleProject = useProjectsStore((state) => state.toggleProject);
@@ -673,7 +673,6 @@ function useSidebarProps() {
     <ProfileButton
       expanded={!collapsed}
       placement="up"
-      onNavigateManage={() => showBottomSheet?.('ManageAccount')}
       onAddAccount={() => {
         signIn().catch(() => {});
       }}

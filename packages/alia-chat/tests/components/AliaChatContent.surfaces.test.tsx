@@ -59,7 +59,8 @@ vi.mock('../../src/runtime/agents', async (importOriginal) => ({
 }));
 vi.mock('../../src/runtime/oxy-files', () => ({ useDocumentUpload: () => async () => 'file-1' }));
 vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: () => null }));
-vi.mock('@oxy.so/services/ui/client', () => ({
+vi.mock('@oxy.so/services/ui/client', async () => ({
+  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     user: world.signedIn ? { id: 'u1' } : null,
     isAuthenticated: world.signedIn,

@@ -50,7 +50,8 @@ const stream = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({
+vi.mock('@oxy.so/services/ui/client', async () => ({
+  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     user: null,
     oxyServices: {

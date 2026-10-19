@@ -1,16 +1,14 @@
-import { vi } from 'vitest';
-
 /**
- * The host's `OxyProvider` app assertion (ADR 0021), for every suite.
+ * A host with no app assertion (ADR 0021), for a suite's `@oxy.so/services/ui/client` mock.
  *
- * `@oxy.so/services/ui` is the real package entry the SDK reads
- * `useAppAssertion` from; no suite mounts an `OxyProvider`, so each would
- * otherwise load the whole entry for a hook it cannot use. This is a host with
- * no assertion. A suite about the header mocks the entry itself.
+ * The SDK reads `useAppAssertion` from the same entry as `useOxy`, and no suite mounts an
+ * `OxyProvider`, so a suite that reaches the stream or the call spreads this into its mock:
+ * `...(await import('../support/app-assertion-host')).hostWithoutAppAssertion`. A suite about
+ * the header returns its own `useAppAssertion`.
  */
-vi.mock('@oxy.so/services/ui', () => ({
+export const hostWithoutAppAssertion = {
   useAppAssertion: () => ({
     getAppAssertion: async () => null,
     getAppAssertionHeaders: async () => ({}),
   }),
-}));
+};
