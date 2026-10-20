@@ -314,8 +314,16 @@ export function useConversationStream({
     // which is the same conversation; any other change is a different one.
     const was = conversationRef.current;
     conversationRef.current = conversationId;
-    if (was !== undefined && was !== conversationId) hostOutcomesRef.current.clear();
-  }, [conversationId]);
+    if (was !== undefined && was !== conversationId) {
+      hostOutcomesRef.current.clear();
+      // The reply still streaming belongs to the thread that was left: cut it, drop what it had
+      // batched (it would land on this thread's last message) and let the screen be idle.
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      dropPendingUpdates();
+      setIsLoading(false);
+    }
+  }, [conversationId, dropPendingUpdates]);
 
   /**
    * A different account is a different person: the thread on screen is not
@@ -601,14 +609,21 @@ export function useConversationStream({
       /** The request's own controller: `finally` asks it whether the person stopped the turn. */
       let controller: AbortController | null = null;
       let linked: ReturnType<typeof oxyServices.createLinkedClient> | null = null;
+      /** Cut THIS turn's stream. Never the ref's: by now it may hold a later turn's controller. */
+      const abortThisTurn = (): void => {
+        controller?.abort();
+        if (abortControllerRef.current === controller) abortControllerRef.current = null;
+      };
 
       try {
-        // Collect device info (will be available to AI via tool if needed)
-        const deviceInfo = host.deviceInfo ? await host.deviceInfo() : undefined;
-
-        // Create abort controller for this request
+        // Create the abort controller before the first await, so `stop()` and an account or
+        // conversation change reach a turn that is still collecting device info.
         controller = new AbortController();
         abortControllerRef.current = controller;
+
+        // Collect device info (will be available to AI via tool if needed)
+        const deviceInfo = host.deviceInfo ? await host.deviceInfo() : undefined;
+        if (controller.signal.aborted) return 'aborted';
 
         /**
          * Read at send time rather than closed over: the capability switches
@@ -1021,9 +1036,8 @@ export function useConversationStream({
                 const lockedFeature = lockedFeatureOf(err);
                 if (lockedFeature !== null) {
                   setIsLoading(false);
-                  abortControllerRef.current?.abort();
-                  abortControllerRef.current = null;
-                  reader.cancel();
+                  abortThisTurn();
+                  reader.cancel().catch(() => {});
                   host.onFeatureLocked?.(lockedFeature);
                   return settleError();
                 }
@@ -1068,11 +1082,8 @@ export function useConversationStream({
                 const msg = getErrorMessage(err) || 'Something went wrong. Please try again.';
                 setError(new Error(msg));
                 setIsLoading(false);
-                if (abortControllerRef.current) {
-                  abortControllerRef.current.abort();
-                  abortControllerRef.current = null;
-                }
-                reader.cancel();
+                abortThisTurn();
+                reader.cancel().catch(() => {});
                 // A turn that failed after it started carries a run reference:
                 // its card says code and reference, never the server's English
                 // prose. A refusal without one (a gate, a bad request) keeps its
@@ -1239,13 +1250,10 @@ export function useConversationStream({
                 setIsLoading(false);
 
                 // Abort the stream
-                if (abortControllerRef.current) {
-                  abortControllerRef.current.abort();
-                  abortControllerRef.current = null;
-                }
+                abortThisTurn();
 
                 // Break out of the streaming loop
-                reader.cancel();
+                reader.cancel().catch(() => {});
                 return keepFailedTurn(true, errMsg);
               }
             } catch (frameError: unknown) {
@@ -1342,13 +1350,17 @@ export function useConversationStream({
           clearTimeout(flushTimerRef.current);
           flushTimerRef.current = null;
         }
-        abortControllerRef.current = null;
+        // Only the turn that still owns the ref clears it and the loading flag: after Stop and a new
+        // send, this `finally` belongs to the old turn and must not idle the new one.
+        const ownsTurn =
+          abortControllerRef.current === null || abortControllerRef.current === controller;
+        if (abortControllerRef.current === controller) abortControllerRef.current = null;
         linked?.dispose();
         // A turn that is still streaming here ended without an error path
         // settling it: on its own, or because `stop()` aborted the controller.
         // (The error paths abort it too, but they have settled it first.)
         settleAssistant(controller?.signal.aborted === true ? 'cancelled' : 'completed');
-        setIsLoading(false);
+        if (ownsTurn) setIsLoading(false);
         /*
          * The answer replaces your own line in the sidebar — once per turn rather
          * than once per token. Read from what this turn received, not from the

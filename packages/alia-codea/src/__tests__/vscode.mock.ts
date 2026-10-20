@@ -48,7 +48,19 @@ export const window = {
   showErrorMessage: () => undefined,
 };
 
+const workspaceFolderListeners: Array<() => void> = [];
+
+export function fireWorkspaceFolders(): void {
+  for (const listener of workspaceFolderListeners) listener();
+}
+
 export const workspace = {
+  workspaceFolders: undefined as { uri: { fsPath: string } }[] | undefined,
+  /** Listeners a test can fire with `fireWorkspaceFolders`. */
+  onDidChangeWorkspaceFolders: (listener: () => void) => {
+    workspaceFolderListeners.push(listener);
+    return { dispose: () => undefined };
+  },
   getConfiguration: () => ({
     get: <T>(_key: string, fallback: T): T => fallback,
   }),
@@ -65,4 +77,9 @@ export const env = {
 
 export const Uri = {
   parse: (value: string) => ({ toString: () => value }),
+  file: (path: string) => ({ fsPath: path, toString: () => path }),
+  joinPath: (base: { fsPath: string }, ...parts: string[]) => ({
+    fsPath: [base.fsPath, ...parts].join('/'),
+    toString: () => [base.fsPath, ...parts].join('/'),
+  }),
 };

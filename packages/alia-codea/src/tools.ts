@@ -231,9 +231,19 @@ export const fileTools = [
 export class ToolExecutor {
   private workspaceRootUri: vscode.Uri | undefined;
 
+  private readonly folderListener: vscode.Disposable | undefined;
+
   constructor() {
-    const folders = vscode.workspace.workspaceFolders;
-    this.workspaceRootUri = folders?.[0]?.uri;
+    this.workspaceRootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    // A folder added to or removed from the window moves the root the tools resolve against;
+    // read once, it would keep pointing at a folder that is gone (or at none).
+    this.folderListener = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      this.workspaceRootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+    });
+  }
+
+  dispose(): void {
+    this.folderListener?.dispose();
   }
 
   private resolveUri(relativePath: string | undefined): vscode.Uri {

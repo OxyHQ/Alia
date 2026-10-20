@@ -1,6 +1,6 @@
 import { streamChat } from './api.js';
 import { executeTool } from '../tools/executor.js';
-import { ApprovalMode, needsApproval } from './approval.js';
+import { type ApprovalMode, needsApproval } from './approval.js';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -125,8 +125,19 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
       let hasAnySuccess = false;
       let hasAnyExecution = false;
 
-      for (const tc of toolCalls) {
-        if (!isActive()) break;
+      for (const [index, tc] of toolCalls.entries()) {
+        if (!isActive()) {
+          // Stopped between tools: the ones not run are answered as cancelled, so the saved
+          // session never holds a tool call without its result (the server refuses that history).
+          for (const skipped of toolCalls.slice(index)) {
+            messages.push({
+              role: 'tool',
+              tool_call_id: skipped.id,
+              content: 'Error: Cancelled by the user before this tool ran.',
+            });
+          }
+          break;
+        }
 
         let args: Record<string, unknown>;
         try {
@@ -220,8 +231,6 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
       } else if (hasAnyExecution) {
         consecutiveFailures = 0;
       }
-
-      continue;
     } else {
       if (fullContent) {
         messages.push({ role: 'assistant', content: fullContent });

@@ -89,6 +89,11 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = [];
   private _currentConversationId: string | null = null;
   private _abortController?: AbortController;
+  /** The turn that owns the provider: a stopped turn finishing late must not touch the next one. */
+  private _turnSeq = 0;
+  private _currentTurn = 0;
+  /** Settles when the latest turn has wound down; a stopped one may still be finishing a tool. */
+  private _settled: Promise<void> = Promise.resolve();
   private _userName: string | null = null;
   private _toolExecutor: ToolExecutor;
   private _isProcessing: boolean = false;
@@ -175,6 +180,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     // because synthetic errors are not pushed, but clear any leftover state)
     this._isProcessing = true;
     const { baseUrl, accessToken, model, clientContext } = this._lastRequestParams;
+    await this._settled;
     await this.processConversation(baseUrl, accessToken, model, clientContext);
   }
 
@@ -704,6 +710,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       }
     }
 
+    // A stopped turn may still be finishing a tool: its result belongs in the history before
+    // this message does.
+    await this._settled;
+    if (this._isProcessing) return;
     this._messages.push({ role: 'user', content: enhancedContent });
     this._view?.webview.postMessage({
       type: 'addMessage',
@@ -784,7 +794,17 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     clientContext: string,
   ): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
-    this._abortController = new AbortController();
+    const turn = ++this._turnSeq;
+    this._currentTurn = turn;
+    const controller = new AbortController();
+    this._abortController = controller;
+    let settle!: () => void;
+    this._settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    /** Whether this turn is still the one the person is looking at: not stopped, not replaced. */
+    const live = (): boolean =>
+      this._currentTurn === turn && this._isProcessing && !controller.signal.aborted;
 
     let currentToken = accessToken;
     let retriedSynthetic = false;
@@ -812,8 +832,9 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
             baseUrl,
             accessToken: token,
             body: request(finalRound),
-            signal: this._abortController?.signal,
+            signal: controller.signal,
           }),
+          live,
         );
       try {
         return await attempt(currentToken);
@@ -830,15 +851,22 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     };
 
     try {
-      for (let round = 0; this._isProcessing; round++) {
+      for (let round = 0; live(); round++) {
         const lastRound = round >= MAX_TOOL_ROUNDS;
         if (lastRound)
           log.warn(`[Codea] Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`);
 
         const outcome = await streamOnce(lastRound);
 
+        if (!live()) {
+          // Stopped mid-stream: what arrived is kept as text only. Its tool calls are cut off
+          // part-way (truncated arguments) and nothing will answer them.
+          if (outcome.text) this._messages.push({ role: 'assistant', content: outcome.text });
+          break;
+        }
+
         if (outcome.synthetic !== null) {
-          if (!retriedSynthetic) {
+          if (outcome.synthetic.retryable && !retriedSynthetic) {
             // Once, after a short wait: the busy stand-in is usually momentary.
             retriedSynthetic = true;
             log.info('[Codea] Synthetic response detected, retrying in 2s...');
@@ -849,8 +877,10 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
           }
           this._view?.webview.postMessage({
             type: 'error',
-            message: 'The service is temporarily unavailable. Please try again.',
-            retryable: true,
+            message: outcome.synthetic.retryable
+              ? 'The service is temporarily unavailable. Please try again.'
+              : 'Alia could not answer that request.',
+            retryable: outcome.synthetic.retryable,
           });
           return;
         }
@@ -866,8 +896,19 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
         if (outcome.toolCalls.length === 0 || lastRound) break;
 
-        for (const toolCall of outcome.toolCalls) {
-          if (!this._isProcessing) break;
+        for (const [index, toolCall] of outcome.toolCalls.entries()) {
+          if (!live()) {
+            // Stopped between tools: the ones not run are answered as cancelled, so the saved
+            // history never holds a request without its result.
+            for (const skipped of outcome.toolCalls.slice(index)) {
+              this._messages.push({
+                role: 'tool',
+                tool_call_id: skipped.id,
+                content: 'Error: Cancelled by the user before this tool ran.',
+              });
+            }
+            break;
+          }
           await this.runToolCall(toolCall);
         }
       }
@@ -884,13 +925,21 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         vscode.window.showErrorMessage(`Codea: ${errorMsg}`);
       }
     } finally {
-      this._isProcessing = false;
-      this.saveCurrentConversation();
+      // A newer turn has taken over: it owns the flag and will save the conversation itself.
+      if (this._currentTurn === turn) {
+        this._isProcessing = false;
+        if (this._abortController === controller) this._abortController = undefined;
+        this.saveCurrentConversation();
+      }
+      settle();
     }
   }
 
   /** Forward a stream to the webview and collect what the history needs. */
-  private async consume(stream: AsyncIterable<AliaStreamEvent>): Promise<StreamOutcome> {
+  private async consume(
+    stream: AsyncIterable<AliaStreamEvent>,
+    live: () => boolean,
+  ): Promise<StreamOutcome> {
     let text = '';
     const toolCalls: StreamedToolCall[] = [];
     let synthetic: StreamOutcome['synthetic'] = null;
@@ -898,7 +947,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     for await (const event of stream) {
       // `stopGeneration` aborts the controller, which ends the iteration with
       // an AbortError; this is the guard for the frames already in flight.
-      if (!this._isProcessing) break;
+      if (!live()) break;
 
       switch (event.type) {
         case 'content':

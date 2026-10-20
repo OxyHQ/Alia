@@ -159,9 +159,20 @@ export class AuthProvider {
   private scheduler: { dispose(): void } | null = null;
   private polling = false;
   private username: string | null = null;
+  /** Called once a sign-in has produced a session (the stored one is restored through `restore`). */
+  onSignedIn: (() => void) | null = null;
 
   constructor(mainWindow: BrowserWindow) {
     this.mainWindow = mainWindow;
+  }
+
+  /** The window a macOS `activate` creates after the last one closed takes over from the old one. */
+  setWindow(mainWindow: BrowserWindow): void {
+    this.mainWindow = mainWindow;
+  }
+
+  private send(channel: string, data?: unknown): void {
+    if (!this.mainWindow.isDestroyed()) this.mainWindow.webContents.send(channel, data);
   }
 
   /**
@@ -219,7 +230,7 @@ export class AuthProvider {
 
     try {
       const handle = await oxy.auth.commons.start({ clientId: OXY_CLIENT_ID });
-      this.mainWindow.webContents.send('auth:code', {
+      this.send('auth:code', {
         code: handle.authorizeCode,
         url: handle.qrPayload,
         expiresAt: handle.expiresAt,
@@ -227,7 +238,7 @@ export class AuthProvider {
 
       for (;;) {
         if (Date.now() >= handle.expiresAt) {
-          this.mainWindow.webContents.send('auth:error', {
+          this.send('auth:error', {
             message: 'The sign-in code expired. Try again.',
           });
           return;
@@ -235,11 +246,11 @@ export class AuthProvider {
 
         const status = await oxy.auth.commons.poll(handle.sessionToken);
         if (status.status === 'cancelled') {
-          this.mainWindow.webContents.send('auth:error', { message: 'The sign-in was declined.' });
+          this.send('auth:error', { message: 'The sign-in was declined.' });
           return;
         }
         if (status.status === 'expired') {
-          this.mainWindow.webContents.send('auth:error', {
+          this.send('auth:error', {
             message: 'The sign-in code expired. Try again.',
           });
           return;
@@ -258,7 +269,7 @@ export class AuthProvider {
             expiresAt: claimed.expiresAt,
           });
           if (!durable) {
-            this.mainWindow.webContents.send('auth:error', {
+            this.send('auth:error', {
               message: 'Could not save the session to disk.',
             });
             return;
@@ -266,9 +277,10 @@ export class AuthProvider {
           oxy.session.setAccessToken(claimed.accessToken);
           this.username = claimed.user.username;
           this.installRefresh();
-          this.mainWindow.webContents.send('auth:success', {
+          this.send('auth:success', {
             userInfo: { username: claimed.user.username },
           });
+          this.onSignedIn?.();
           return;
         }
 
@@ -276,7 +288,7 @@ export class AuthProvider {
       }
     } catch (error: unknown) {
       logger.error('sign-in failed', error);
-      this.mainWindow.webContents.send('auth:error', {
+      this.send('auth:error', {
         message: error instanceof Error ? error.message : String(error),
       });
     } finally {
@@ -302,7 +314,7 @@ export class AuthProvider {
     await store.clear();
     oxy.session.clear();
     this.username = null;
-    this.mainWindow.webContents.send('auth:signedOut');
+    this.send('auth:signedOut');
   }
 
   /**

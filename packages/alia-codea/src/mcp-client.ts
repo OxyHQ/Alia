@@ -13,7 +13,8 @@ import { errorMessage } from './errors';
 import { log } from './logger';
 
 const JSON_RPC_TIMEOUT_MS = 15_000;
-const RECONNECT_DELAY_MS = 5_000;
+const RECONNECT_BASE_DELAY_MS = 5_000;
+const RECONNECT_MAX_DELAY_MS = 5 * 60_000;
 const MAX_STDOUT_BUFFER = 1024 * 1024; // 1 MiB
 
 interface McpServerConfig {
@@ -92,6 +93,8 @@ export class McpLocalClient implements vscode.Disposable {
   private servers = new Map<string, LocalServer>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  /** Consecutive failed connections: the exponent of the reconnect delay. */
+  private reconnectAttempts = 0;
 
   constructor(private readonly authProvider: AliaAuthenticationProvider) {}
 
@@ -107,7 +110,7 @@ export class McpLocalClient implements vscode.Disposable {
         await this.spawnServer(config);
       }
 
-      this.connectRelay(token);
+      void this.connectRelay();
     } catch (err) {
       log.error('[MCP] Failed to start:', err);
     }
@@ -172,11 +175,31 @@ export class McpLocalClient implements vscode.Disposable {
         log.warn(`[MCP:${config.name}] ${chunk.toString().trim()}`);
       });
 
+      const dropServer = (): void => {
+        if (this.servers.get(config.id) !== server) return;
+        this.servers.delete(config.id);
+        for (const pending of server.pending.values()) {
+          clearTimeout(pending.timer);
+          pending.reject(new Error(`${config.name} stopped`));
+        }
+        server.pending.clear();
+        this.sendMessage({ type: 'unregister-tools', serverId: config.id });
+      };
+
       proc.on('exit', (code) => {
         log.info(`[MCP:${config.name}] exited (code ${code})`);
-        this.servers.delete(config.id);
-        this.sendMessage({ type: 'unregister-tools', serverId: config.id });
+        dropServer();
       });
+
+      // A command that does not exist is an 'error' event, not an exit: unhandled it throws in the
+      // extension host. A closed pipe is an 'error' on stdin the same way.
+      proc.on('error', (err) => {
+        log.error(`[MCP:${config.name}] process error:`, err);
+        dropServer();
+      });
+      proc.stdin!.on('error', (err) => log.warn(`[MCP:${config.name}] stdin error:`, err));
+      proc.stdout!.on('error', (err) => log.warn(`[MCP:${config.name}] stdout error:`, err));
+      proc.stderr!.on('error', (err) => log.warn(`[MCP:${config.name}] stderr error:`, err));
 
       this.servers.set(config.id, server);
 
@@ -185,6 +208,12 @@ export class McpLocalClient implements vscode.Disposable {
       log.info(`[MCP:${config.name}] Started with ${server.tools.length} tools`);
     } catch (err) {
       log.error(`[MCP:${config.name}] Failed to spawn:`, err);
+      // Half-started: initialisation failed or timed out. Do not leave a process nobody can use.
+      const half = this.servers.get(config.id);
+      if (half) {
+        this.servers.delete(config.id);
+        half.process.kill('SIGTERM');
+      }
     }
   }
 
@@ -203,7 +232,12 @@ export class McpLocalClient implements vscode.Disposable {
       server.pending.set(id, { resolve, reject, timer });
 
       const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params: params || {} }) + '\n';
-      server.process.stdin!.write(msg);
+      server.process.stdin!.write(msg, (err) => {
+        if (!err) return;
+        clearTimeout(timer);
+        server.pending.delete(id);
+        reject(err);
+      });
     });
   }
 
@@ -254,8 +288,26 @@ export class McpLocalClient implements vscode.Disposable {
     }));
   }
 
-  private connectRelay(token: string): void {
+  /** Delay before the next reconnect: doubles per failed attempt, capped, with jitter. */
+  private reconnectDelay(): number {
+    const base = Math.min(
+      RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts,
+      RECONNECT_MAX_DELAY_MS,
+    );
+    this.reconnectAttempts += 1;
+    return Math.round(base * (0.75 + Math.random() * 0.5));
+  }
+
+  private async connectRelay(): Promise<void> {
     if (this.stopped) return;
+    // Read now, not at start-up: the token is rotated, and a reconnect that sent the first one
+    // would be refused once it expired.
+    const token = await this.getToken();
+    if (this.stopped) return;
+    if (!token) {
+      log.info('[MCP] relay not connected: signed out');
+      return;
+    }
 
     const wsUrl = this.getBaseUrl().replace(/^http/, 'ws') + '/ws/mcp';
 
@@ -278,8 +330,9 @@ export class McpLocalClient implements vscode.Disposable {
 
       this.ws.onclose = () => {
         if (this.stopped) return;
-        log.info('[MCP] relay disconnected, reconnecting...');
-        this.reconnectTimer = setTimeout(() => this.connectRelay(token), RECONNECT_DELAY_MS);
+        const delay = this.reconnectDelay();
+        log.info(`[MCP] relay disconnected, reconnecting in ${delay} ms`);
+        this.reconnectTimer = setTimeout(() => void this.connectRelay(), delay);
       };
 
       this.ws.onerror = () => {
@@ -287,12 +340,14 @@ export class McpLocalClient implements vscode.Disposable {
       };
     } catch (err) {
       log.error('[MCP] Failed to connect relay:', err);
+      this.reconnectTimer = setTimeout(() => void this.connectRelay(), this.reconnectDelay());
     }
   }
 
   private handleRelayMessage(msg: RelayMessage): void {
     switch (msg.type) {
       case 'auth-ok':
+        this.reconnectAttempts = 0;
         for (const server of this.servers.values()) {
           this.sendMessage({
             type: 'register-tools',
