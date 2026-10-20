@@ -64,9 +64,9 @@
     "@oxy.so/bloom": "15.0.0",
     "@oxy.so/core": "6.1.0",
     "@oxy.so/services": "12.4.0",
-    "@tanstack/query-sync-storage-persister": "^5.102.8",
-    "@tanstack/react-query": "^5.102.8",
-    "@tanstack/react-query-persist-client": "^5.102.8",
+    "@tanstack/query-sync-storage-persister": "^5.104.3",
+    "@tanstack/react-query": "^5.104.3",
+    "@tanstack/react-query-persist-client": "^5.104.3",
     "zustand": "^5.0.15"
   },
   "overrides": {
