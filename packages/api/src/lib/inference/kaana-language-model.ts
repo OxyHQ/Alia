@@ -23,12 +23,10 @@
  *
  * ## The parts that are deliberately absent
  *
- * Images and audio in the PROMPT are refused with a warning rather than
- * dropped: the current Oxy inference surface serves text today and answers any
- * other modality with `unsupported_modality`, so silently discarding an image
- * would produce an answer about a question the user did not ask. A warning is
- * what the AI SDK has for "I could not do this part", and `streamText` surfaces
- * it.
+ * Audio in the PROMPT is refused with a warning rather than dropped. IMAGES
+ * are sent as the contract's `image` part: a model that cannot see answers
+ * `unsupported_modality`, a typed error, instead of an answer about a question
+ * the user did not ask because the picture was silently discarded.
  *
  * A DOCUMENT in a user message is the one exception, and it is sent: a turn
  * only carries one when its model's catalogue entry takes `file` input
@@ -221,6 +219,29 @@ function toolResultText(output: LanguageModelV3ToolResultOutput): {
   }
 }
 
+/**
+ * An image as the contract carries it.
+ *
+ * It is SENT, never dropped: whether the model can see is the edge's call, and
+ * it answers a model that cannot with a typed `unsupported_modality`, which
+ * reaches the person as an error they can act on (pick a model that sees)
+ * rather than as an answer about a picture the model never received.
+ */
+function imagePart(part: LanguageModelV3FilePart): InferenceContentPart {
+  return {
+    type: 'image',
+    source:
+      part.data instanceof URL
+        ? { kind: 'url', url: part.data.href }
+        : {
+            kind: 'inline',
+            mediaType: part.mediaType,
+            data:
+              typeof part.data === 'string' ? part.data : Buffer.from(part.data).toString('base64'),
+          },
+  };
+}
+
 /** A document as the contract carries it: inline base64, or the URL it lives at. */
 function documentPart(part: LanguageModelV3FilePart): InferenceContentPart {
   const source =
@@ -304,8 +325,8 @@ function translatePrompt(
         messages.push({
           role: 'user',
           content: message.content.flatMap((part) =>
-            part.type === 'file' && !part.mediaType.startsWith('image/')
-              ? [documentPart(part)]
+            part.type === 'file'
+              ? [part.mediaType.startsWith('image/') ? imagePart(part) : documentPart(part)]
               : textOf([part]),
           ),
         });

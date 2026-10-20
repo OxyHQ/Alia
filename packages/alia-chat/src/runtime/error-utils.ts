@@ -102,3 +102,43 @@ export function errorName(err: unknown): string | undefined {
 export function errorResponseData(err: unknown): ErrorResponseData | undefined {
   return asObject(err).response?.data;
 }
+
+/** A refusal body is a small JSON envelope; more than this is not one. */
+const MAX_ERROR_BODY_BYTES = 64 * 1024;
+
+/**
+ * The whole body of a non-OK streaming response, parsed as JSON, or `null`.
+ *
+ * A streaming fetch is body-oriented (`.json()` is not reliable on it), so the
+ * body is read through its reader. ONE `read()` is not the body: a network that
+ * splits the envelope across chunks handed `JSON.parse` half of it, which threw,
+ * and the typed `code` and `reference` were lost for a generic "Server error".
+ * It reads to the end, bounded, and always releases the reader.
+ */
+export async function readErrorResponseBody(response: {
+  body?: ReadableStream<Uint8Array> | null;
+}): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  const decoder = new TextDecoder();
+  let text = '';
+  let bytes = 0;
+  try {
+    while (bytes < MAX_ERROR_BODY_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return JSON.parse(text);
+  } catch {
+    return null;
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // Already closed: nothing left to release.
+    }
+  }
+}

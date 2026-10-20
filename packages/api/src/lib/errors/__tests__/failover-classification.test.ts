@@ -148,3 +148,39 @@ describe('a request over the Oxy input budget', () => {
     },
   );
 });
+
+describe('the edge detail an operator needs to diagnose a failure', () => {
+  const refusal = (
+    code: 'provider_error' | 'context_length_exceeded' | 'invalid_request',
+    message = 'boom',
+  ) =>
+    new OxyInferenceError({
+      code,
+      message,
+      retryable: false,
+      requestId: 'chatcmpl-abc',
+      status: 502,
+    });
+
+  it('keeps the original code, request id and status on the AliaError, off the user message', () => {
+    const error = toAliaError(refusal('provider_error', 'upstream azure-eastus failed'));
+    expect(error.code).toBe(AliaErrorCode.PROVIDER_UNAVAILABLE);
+    expect(error.oxy).toEqual({ code: 'provider_error', requestId: 'chatcmpl-abc', status: 502 });
+    expect(error.userMessage).not.toMatch(/azure|chatcmpl|provider_error/);
+  });
+
+  it('finds a refusal wrapped by another layer, so context_length_exceeded stays CONTEXT_TOO_LONG', () => {
+    const wrapped = new Error('Stream failed', { cause: refusal('context_length_exceeded') });
+    expect(classifyError(wrapped)).toBe('context_length');
+    const error = toAliaError(wrapped);
+    expect(error.code).toBe(AliaErrorCode.CONTEXT_TOO_LONG);
+    expect(error.oxy?.code).toBe('context_length_exceeded');
+  });
+
+  it("reads a provider's own context-window wording under a generic code", () => {
+    const error = toAliaError(
+      refusal('invalid_request', "This model's maximum context length is 128000 tokens"),
+    );
+    expect(error.code).toBe(AliaErrorCode.CONTEXT_TOO_LONG);
+  });
+});

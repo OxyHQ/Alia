@@ -119,7 +119,7 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     },
   );
 
-  it('sends a document to a model as the contract file part, and still refuses an image', async () => {
+  it('sends a document to a model as the contract file part, and sends an image rather than dropping it', async () => {
     const model = kaanaLanguageModel({
       target: { kind: 'model', model: 'acme/reader-1' },
       modelId: 'acme/reader-1',
@@ -150,8 +150,9 @@ describe('Kaana AI SDK adapter through Oxy', () => {
         source: { kind: 'inline', mediaType: 'application/pdf', data: 'JVBERg==' },
         filename: 'lease.pdf',
       },
+      { type: 'image', source: { kind: 'inline', mediaType: 'image/png', data: 'AQ==' } },
     ]);
-    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings).toHaveLength(0);
   });
 
   it('sends the exact catalogue model and delegated user to Oxy', async () => {

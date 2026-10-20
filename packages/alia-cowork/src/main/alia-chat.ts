@@ -179,17 +179,50 @@ export class AliaChatError extends Error {
   readonly status: number | null;
   readonly code: string | null;
   readonly retryable: boolean;
+  /** Alia's run reference (`Ref …`), the key support traces a failed turn by. */
+  readonly reference: string | null;
 
   constructor(
     message: string,
-    options: { status?: number | null; code?: string | null; retryable?: boolean } = {},
+    options: {
+      status?: number | null;
+      code?: string | null;
+      retryable?: boolean;
+      reference?: string | null;
+    } = {},
   ) {
     super(message);
     this.name = 'AliaChatError';
     this.status = options.status ?? null;
     this.code = options.code ?? null;
     this.retryable = options.retryable ?? false;
+    this.reference = options.reference ?? null;
   }
+}
+
+/** The codes that mean the account is out of credits. `QUOTA_EXCEEDED` is NOT one: that is the service's quota. */
+const CREDIT_CODES: ReadonlySet<string> = new Set(['INSUFFICIENT_CREDITS', 'CREDITS_INSUFFICIENT']);
+
+/** Whether a refusal is the account being out of credits, by its code and not by its status alone. */
+export function isCreditsRefusal(error: AliaChatError): boolean {
+  if (error.code !== null) return CREDIT_CODES.has(error.code);
+  return error.status === 402;
+}
+
+/**
+ * `CODE · Ref chatcmpl-…`: the two language-free halves support needs to trace a
+ * failed turn. Empty when the server sent neither.
+ */
+export function failureDetail(error: AliaChatError): string {
+  return [error.code, error.reference === null ? null : `Ref ${error.reference}`]
+    .filter((part): part is string => part !== null && part !== '')
+    .join(' · ');
+}
+
+/** A refusal's message with its code and reference appended, for a line a person can quote. */
+export function withFailureDetail(message: string, error: AliaChatError): string {
+  const detail = failureDetail(error);
+  return detail === '' ? message : `${message} (${detail})`;
 }
 
 // ── Request ─────────────────────────────────────────────────────────────────
@@ -240,7 +273,8 @@ function errorFrom(payload: unknown, status: number | null): AliaChatError {
   const message = typeof detail?.message === 'string' ? detail.message : fallback;
   const code = typeof detail?.code === 'string' ? detail.code : null;
   const retryable = detail?.retryable === true || isRetryableStatus(status);
-  return new AliaChatError(message, { status, code, retryable });
+  const reference = typeof detail?.reference === 'string' ? detail.reference : null;
+  return new AliaChatError(message, { status, code, retryable, reference });
 }
 
 function isRetryableStatus(status: number | null): boolean {
@@ -393,17 +427,30 @@ export async function* streamAliaChat(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const frames = createSseFrameReader();
+  /** The server closed the turn: `[DONE]` or a finish reason. A bare close is not that. */
+  let finished = false;
 
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) return;
-      // `{ stream: true }`: a multi-byte character split across two reads
-      // decodes to U+FFFD without it.
-      for (const frame of frames.push(decoder.decode(value, { stream: true }))) {
+      // On close, flush the decoder and terminate the last line: a final
+      // `data:` frame the server did not newline-terminate is still a frame.
+      const text = done ? `${decoder.decode()}\n` : decoder.decode(value, { stream: true });
+      for (const frame of frames.push(text)) {
         const events = interpretFrame(frame);
         if (events === null) return;
-        for (const event of events) yield event;
+        for (const event of events) {
+          if (event.type === 'finish') finished = true;
+          yield event;
+        }
+      }
+      if (done) {
+        // A connection cut mid-answer is an error, never a finished answer.
+        if (finished) return;
+        throw new AliaChatError('Alia’s response ended before it was complete.', {
+          code: 'STREAM_INCOMPLETE',
+          retryable: true,
+        });
       }
     }
   } finally {

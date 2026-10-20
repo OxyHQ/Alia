@@ -76,6 +76,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
   while (isActive()) {
     let fullContent = '';
     let toolCalls: ToolCall[] | undefined;
+    let failed = false;
 
     onEvent({ type: 'thinking' });
 
@@ -94,6 +95,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
             toolCalls = tcs;
           },
           onError: (error) => {
+            failed = true;
             onEvent({ type: 'error', message: error.message });
           },
         },
@@ -104,6 +106,10 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
       onEvent({ type: 'error', message });
       break;
     }
+
+    // The turn failed: the error was reported, and what streamed before it is
+    // not an answer. It is neither saved to the session nor closed with `done`.
+    if (failed) break;
 
     if (!isActive()) break;
 

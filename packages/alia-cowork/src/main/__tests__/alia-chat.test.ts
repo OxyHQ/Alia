@@ -3,9 +3,12 @@ import {
   AliaChatError,
   completedToolCalls,
   createSseFrameReader,
+  failureDetail,
   interpretFrame,
+  isCreditsRefusal,
   mergeToolCallDeltas,
   streamAliaChat,
+  withFailureDetail,
   type AliaStreamEvent,
   type StreamedToolCall,
 } from '../alia-chat';
@@ -384,5 +387,67 @@ describe('a turn that failed before any output', () => {
       code: 'PROVIDER_UNAVAILABLE',
       retryable: false,
     });
+  });
+});
+
+describe('a typed failure keeps what support needs, and a cut stream is an error', () => {
+  const run = (wire: string) =>
+    streamAliaChat({
+      baseUrl: 'u',
+      accessToken: 't',
+      body: { model: 'm', messages: [] },
+      fetch: async () => new Response(wire, { headers: { 'content-type': 'text/event-stream' } }),
+    });
+
+  it('carries the run reference and formats code and Ref for a person to quote', async () => {
+    const wire = `data: ${JSON.stringify({
+      error: {
+        message: 'Down',
+        code: 'PROVIDER_UNAVAILABLE',
+        retryable: true,
+        reference: 'chatcmpl-9',
+      },
+    })}\n\n`;
+    const error = await run(wire)
+      .next()
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AliaChatError);
+    expect((error as AliaChatError).reference).toBe('chatcmpl-9');
+    expect(failureDetail(error as AliaChatError)).toBe('PROVIDER_UNAVAILABLE · Ref chatcmpl-9');
+    expect(withFailureDetail('Down', error as AliaChatError)).toBe(
+      'Down (PROVIDER_UNAVAILABLE · Ref chatcmpl-9)',
+    );
+  });
+
+  it('is out of credits only by a credits code, never by QUOTA_EXCEEDED or the status alone', () => {
+    expect(
+      isCreditsRefusal(new AliaChatError('x', { status: 402, code: 'INSUFFICIENT_CREDITS' })),
+    ).toBe(true);
+    expect(isCreditsRefusal(new AliaChatError('x', { status: 402, code: 'QUOTA_EXCEEDED' }))).toBe(
+      false,
+    );
+    expect(isCreditsRefusal(new AliaChatError('x', { status: 402 }))).toBe(true);
+  });
+
+  it('throws when the connection closes after content without [DONE] or a finish reason', async () => {
+    const seen: AliaStreamEvent[] = [];
+    let thrown: unknown = null;
+    try {
+      for await (const event of run(chunk({ content: 'cut off' }))) seen.push(event);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(seen).toEqual([{ type: 'content', text: 'cut off' }]);
+    expect(thrown).toMatchObject({ code: 'STREAM_INCOMPLETE', retryable: true });
+  });
+
+  it('accepts a finish reason without [DONE], and reads a last frame with no trailing newline', async () => {
+    const wire = chunk({ content: 'whole' }, {}, 'stop').trimEnd();
+    const seen: AliaStreamEvent[] = [];
+    for await (const event of run(wire)) seen.push(event);
+    expect(seen).toEqual([
+      { type: 'content', text: 'whole' },
+      { type: 'finish', reason: 'stop' },
+    ]);
   });
 });
