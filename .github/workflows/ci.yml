@@ -154,7 +154,8 @@ jobs:
   # `packages/api` alone (no workspace dependency, no test reaching outside it)
   # and `Integrations (Postgres)` reads `packages/integrations` alone. Shared
   # inputs — the lockfile, the root manifest, bunfig and this workflow — mark
-  # both affected.
+  # both affected. `Deploy Script Tests` reads only `.github/`, the Dockerfiles
+  # and their .dockerignore files, the Canvas manifest and the bun-pin script.
   changes:
     name: Changes
     if: github.event_name == 'pull_request'
@@ -167,6 +168,7 @@ jobs:
       api: ${{ steps.filter.outputs.api }}
       integrations: ${{ steps.filter.outputs.integrations }}
       computer_host: ${{ steps.filter.outputs.computer_host }}
+      deploy_scripts: ${{ steps.filter.outputs.deploy_scripts }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
@@ -188,6 +190,14 @@ jobs:
               - *shared
               - 'packages/alia-computer-host/**'
               - '.github/scripts/smoke-computer-host-image.sh'
+            deploy_scripts:
+              - *shared
+              - '.github/**'
+              - '**/Dockerfile'
+              - '**/Dockerfile.*'
+              - '**/.dockerignore'
+              - 'packages/alia-canvas/package.json'
+              - 'scripts/check-bun-pin.mjs'
 
   # Gates the rollout logic deploy-aws.yml runs against production. The script
   # and this harness are byte-identical copies of Mention's, so they share its
@@ -196,6 +206,11 @@ jobs:
     name: Deploy Script Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    needs: changes
+    # `changes` is skipped outside pull requests; see `Build API`.
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' || needs.changes.outputs.deploy_scripts == 'true')
     steps:
       - uses: actions/checkout@v7
 
