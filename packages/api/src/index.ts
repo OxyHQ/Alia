@@ -137,6 +137,10 @@ app.use(
       'X-Device-Info',
       'X-Oxy-Edge-Region',
       'X-Oxy-Activity-Id',
+      // The Oxy-signed app assertion the SDK sends beside the session
+      // (ADR 0045, lib/app-surface.ts). Unlisted, a browser's preflight
+      // refused every SDK request that carried it.
+      'X-Oxy-App-Assertion',
     ],
     // A deprecation header a browser client cannot read is not a signal. Without
     // this, `Deprecation`, `Sunset` and `Link` are stripped from every
