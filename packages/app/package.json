@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "*",
-    "@clarity.surf/sdk": "^0.4.0",
+    "@clarity.surf/sdk": "^0.6.1",
     "@expo/vector-icons": "^15.1.1",
     "@oxy.so/app-preset": "^3.3.0",
     "@oxy.so/bloom": "15.0.0",
