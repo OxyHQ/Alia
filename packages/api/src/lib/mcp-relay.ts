@@ -7,6 +7,7 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
+import { randomUUID } from 'node:crypto';
 import type http from 'http';
 import { log } from './logger.js';
 import { authenticateSocketToken } from './socket-session-auth.js';
@@ -31,6 +32,8 @@ interface ConnectedClient {
 }
 
 interface PendingCall {
+  /** The account the call was sent to; only its socket may answer. */
+  userId: string;
   resolve: (result: string) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
@@ -54,7 +57,6 @@ const TOOL_CALL_TIMEOUT_MS = 60_000;
 let wss: WebSocketServer | null = null;
 const clients = new Map<string, ConnectedClient>();
 const pendingCalls = new Map<string, PendingCall>();
-let nextCallId = 0;
 
 /** The MCP relay's path on the shared HTTP server. */
 export const MCP_RELAY_PATH = '/ws/mcp';
@@ -120,7 +122,8 @@ export function mcpRelayRoute(
 
     ws.on('close', () => {
       clearTimeout(authTimer);
-      if (userId) {
+      // A reconnect replaces this socket's entry; only drop our own.
+      if (userId && clients.get(userId)?.ws === ws) {
         clients.delete(userId);
         log.general.info({ userId }, 'MCP relay client disconnected');
       }
@@ -169,7 +172,7 @@ function handleClientMessage(userId: string, msg: RelayMessage): void {
     case 'tool-result': {
       if (!msg.callId) return;
       const pending = pendingCalls.get(msg.callId);
-      if (!pending) return;
+      if (!pending || pending.userId !== userId) return;
       clearTimeout(pending.timer);
       pendingCalls.delete(msg.callId);
       pending.resolve(typeof msg.result === 'string' ? msg.result : JSON.stringify(msg.result));
@@ -179,7 +182,7 @@ function handleClientMessage(userId: string, msg: RelayMessage): void {
     case 'tool-error': {
       if (!msg.callId) return;
       const pending = pendingCalls.get(msg.callId);
-      if (!pending) return;
+      if (!pending || pending.userId !== userId) return;
       clearTimeout(pending.timer);
       pendingCalls.delete(msg.callId);
       pending.reject(new Error(msg.error || 'Local tool call failed'));
@@ -221,13 +224,13 @@ export function callLocalTool(
       return reject(new Error('Local MCP client not connected'));
     }
 
-    const callId = `mcp-${++nextCallId}`;
+    const callId = randomUUID();
     const timer = setTimeout(() => {
       pendingCalls.delete(callId);
       reject(new Error(`Local tool call timed out after ${TOOL_CALL_TIMEOUT_MS / 1000}s`));
     }, TOOL_CALL_TIMEOUT_MS);
 
-    pendingCalls.set(callId, { resolve, reject, timer });
+    pendingCalls.set(callId, { userId, resolve, reject, timer });
 
     client.ws.send(JSON.stringify({ type: 'tool-call', callId, serverId, toolName, args }));
   });

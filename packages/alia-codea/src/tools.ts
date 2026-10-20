@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { errorMessage } from './errors';
 
@@ -244,23 +245,29 @@ export class ToolExecutor {
     if (!relativePath || relativePath === '' || relativePath === '.') {
       return this.workspaceRootUri;
     }
-    // Handle absolute paths (starts with /)
-    if (relativePath.startsWith('/')) {
-      return vscode.Uri.file(relativePath);
+    // Absolute paths are accepted only when they already point into the workspace.
+    const target = path.isAbsolute(relativePath)
+      ? vscode.Uri.file(relativePath)
+      : vscode.Uri.joinPath(this.workspaceRootUri, relativePath);
+    if (!this.isInsideWorkspace(target)) {
+      throw new Error(`Refused: '${relativePath}' is outside the workspace`);
     }
-    return vscode.Uri.joinPath(this.workspaceRootUri, relativePath);
+    return target;
+  }
+
+  private isInsideWorkspace(uri: vscode.Uri): boolean {
+    if (!this.workspaceRootUri) return false;
+    const rel = path.relative(this.workspaceRootUri.fsPath, uri.fsPath);
+    return (
+      rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
+    );
   }
 
   private getRelativePath(uri: vscode.Uri): string {
-    if (!this.workspaceRootUri) {
+    if (!this.workspaceRootUri || !this.isInsideWorkspace(uri)) {
       return uri.fsPath;
     }
-    const workspacePath = this.workspaceRootUri.fsPath;
-    const filePath = uri.fsPath;
-    if (filePath.startsWith(workspacePath)) {
-      return filePath.slice(workspacePath.length + 1); // +1 for the separator
-    }
-    return filePath;
+    return path.relative(this.workspaceRootUri.fsPath, uri.fsPath);
   }
 
   async execute(
@@ -365,7 +372,7 @@ export class ToolExecutor {
         };
       }
 
-      const newContent = content.replace(args.old_text, args.new_text);
+      const newContent = content.replace(args.old_text, () => args.new_text);
       await vscode.workspace.fs.writeFile(fileUri, new TextEncoder().encode(newContent));
 
       // Open the file in the editor

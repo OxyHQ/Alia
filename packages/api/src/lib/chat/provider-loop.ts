@@ -405,6 +405,17 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
             requestId,
             modelId,
             resolved,
+            onFollowUpUsage: (usage) => {
+              const input = usage.inputTokens ?? 0;
+              const output = usage.outputTokens ?? 0;
+              tokenUsage = {
+                ...tokenUsage,
+                promptTokens: tokenUsage.promptTokens + input,
+                completionTokens: tokenUsage.completionTokens + output,
+                totalTokens: tokenUsage.totalTokens + (usage.totalTokens ?? input + output),
+                reasoningTokens: (tokenUsage.reasoningTokens ?? 0) + (usage.reasoningTokens ?? 0),
+              };
+            },
           })
         ).assistantResponse;
 

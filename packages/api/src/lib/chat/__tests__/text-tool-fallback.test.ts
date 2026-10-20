@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
 import type { ToolSet } from 'ai';
 import type { ToolInvocation } from '../stream-runner.js';
 
@@ -8,7 +9,8 @@ const { mockStreamText } = vi.hoisted(() => ({
   mockStreamText: vi.fn(),
 }));
 
-vi.mock('ai', () => ({
+vi.mock('ai', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('ai')>()),
   streamText: (...args: unknown[]) => mockStreamText(...args),
 }));
 
@@ -135,8 +137,8 @@ describe('runTextToolFallback', () => {
       result: 'json-tool-output',
     });
 
-    // Format-2 clears the raw JSON from the assistant text after execution
-    expect(result.assistantResponse).toBe('');
+    // Format-2 drops the raw JSON; the saved text is what the follow-up streamed
+    expect(result.assistantResponse).toBe('Follow-up reply');
   });
 
   it('skips a text tool call that references an unknown tool', async () => {
@@ -195,5 +197,71 @@ describe('runTextToolFallback', () => {
     expect(toolInvocations).toHaveLength(1);
     // Untouched — the fallback only runs when no native tool calls were made
     expect(result.assistantResponse).toBe('<function(testTool)>{"foo":"bar"}</function>');
+  });
+
+  it('does not execute a tool whose args fail its input schema', async () => {
+    const execute = vi.fn().mockResolvedValue('unused');
+    const tools = {
+      testTool: {
+        execute,
+        inputSchema: z.object({ n: z.number() }),
+      },
+    } as unknown as ToolSet;
+    const result = await runTextToolFallback({
+      assistantResponse: '<function(testTool)>{"n":"nope"}</function>',
+      toolInvocations: [],
+      tools,
+      baseConfig: { messages: [] },
+      res: createMockRes() as never,
+      requestId: 'r',
+      modelId: 'm',
+      resolved: { provider: 'openai', modelId: 'gpt-4o' },
+    });
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.assistantResponse).toBe('');
+  });
+
+  it('does not execute a tool the router has not activated', async () => {
+    const execute = vi.fn().mockResolvedValue('unused');
+    const res = createMockRes();
+    const tools = { testTool: { execute }, other: { execute: vi.fn() } } as unknown as ToolSet;
+    await runTextToolFallback({
+      assistantResponse: '<function(testTool)>{}</function>',
+      toolInvocations: [],
+      tools,
+      baseConfig: { messages: [], activeTools: ['other'] },
+      res: res as never,
+      requestId: 'r',
+      modelId: 'm',
+      resolved: { provider: 'openai', modelId: 'gpt-4o' },
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('accumulates follow-up text and reports follow-up usage', async () => {
+    const execute = vi.fn().mockResolvedValue('out');
+    mockStreamText.mockImplementation((cfg: { onFinish: (r: unknown) => void }) => ({
+      fullStream: (async function* () {
+        yield { type: 'text-delta', text: 'Hello ' };
+        yield { type: 'text-delta', text: 'world' };
+        cfg.onFinish({ usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 } });
+      })(),
+    }));
+    const onFollowUpUsage = vi.fn();
+    const result = await runTextToolFallback({
+      assistantResponse: '<function(testTool)>{}</function>',
+      toolInvocations: [],
+      tools: { testTool: { execute } } as unknown as ToolSet,
+      baseConfig: { messages: [] },
+      res: createMockRes() as never,
+      requestId: 'r',
+      modelId: 'm',
+      resolved: { provider: 'openai', modelId: 'gpt-4o' },
+      onFollowUpUsage,
+    });
+    expect(result.assistantResponse).toBe('Hello world');
+    expect(onFollowUpUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ inputTokens: 3, outputTokens: 4, totalTokens: 7 }),
+    );
   });
 });
