@@ -38,6 +38,7 @@
  */
 
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 
 interface Hunk {
@@ -95,14 +96,33 @@ export function resolveInside(
    *  tools, whose default argument is `.`. */
   allowBase = false,
 ): string | null {
-  const base = path.resolve(basePath);
-  const target = path.resolve(base, relative);
+  const base = canonicalize(path.resolve(basePath));
+  const target = canonicalize(path.resolve(base, relative));
   const rel = path.relative(base, target);
   if (rel === '') return allowBase ? target : null;
   if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     return null;
   }
   return target;
+}
+
+/**
+ * `absolute` with symlinks resolved. The nearest ancestor that exists is
+ * `realpath`ed and the not-yet-existing tail is re-attached, so a link inside
+ * the base that points out of it cannot carry a write across the boundary.
+ */
+function canonicalize(absolute: string): string {
+  let existing = absolute;
+  while (!fsSync.existsSync(existing) && path.dirname(existing) !== existing) {
+    existing = path.dirname(existing);
+  }
+  let real: string;
+  try {
+    real = fsSync.realpathSync(existing);
+  } catch {
+    return absolute;
+  }
+  return path.join(real, path.relative(existing, absolute));
 }
 
 export function parsePatch(patchText: string): FilePatch[] {

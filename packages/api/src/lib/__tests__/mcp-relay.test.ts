@@ -2,7 +2,7 @@ import http from 'node:http';
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getLocalTools, mcpRelayRoute, shutdownMcpRelay } from '../mcp-relay.js';
+import { callLocalTool, getLocalTools, mcpRelayRoute, shutdownMcpRelay } from '../mcp-relay.js';
 import { routeWebSocketUpgrades } from '../websocket-upgrades.js';
 
 /**
@@ -246,5 +246,60 @@ describe('MCP relay authentication', () => {
 
     expect(reply.type).toBe('auth-error');
     expect(fetchCalls).toEqual([]);
+  });
+});
+
+describe('MCP relay client lifecycle', () => {
+  const registerEcho = (socket: WebSocket) =>
+    socket.send(
+      JSON.stringify({
+        type: 'register-tools',
+        serverId: 'srv-1',
+        tools: [{ name: 'echo', description: 'echo', inputSchema: {} }],
+      }),
+    );
+
+  it('keeps the new client when the replaced socket finishes closing', async () => {
+    sessions.set('sess-1', { id: 'u1' });
+    const token = relayToken({ userId: 'u1', sessionId: 'sess-1' });
+
+    const first = await authenticate(token);
+    const second = await authenticate(token);
+    expect(second.reply.type).toBe('auth-ok');
+    registerEcho(second.socket);
+    await vi.waitFor(() => expect(getLocalTools('u1')).toHaveLength(1));
+
+    await new Promise<void>((resolve) => {
+      if (first.socket.readyState === WebSocket.CLOSED) resolve();
+      else first.socket.on('close', () => resolve());
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(getLocalTools('u1')).toHaveLength(1);
+  });
+
+  it('uses unguessable call ids and ignores results from another account', async () => {
+    sessions.set('sess-a', { id: 'alice' });
+    sessions.set('sess-b', { id: 'bob' });
+    const alice = await authenticate(relayToken({ userId: 'alice', sessionId: 'sess-a' }));
+    const bob = await authenticate(relayToken({ userId: 'bob', sessionId: 'sess-b' }));
+
+    const received = new Promise<{ callId: string }>((resolve) => {
+      alice.socket.on('message', (data) => {
+        const m = JSON.parse(data.toString());
+        if (m.type === 'tool-call') resolve(m);
+      });
+    });
+    registerEcho(alice.socket);
+    await vi.waitFor(() => expect(getLocalTools('alice')).toHaveLength(1));
+
+    const call = callLocalTool('alice', 'srv-1', 'echo', {});
+    const { callId } = await received;
+    expect(callId).toMatch(/^[0-9a-f-]{36}$/);
+
+    // Bob learns the id and tries to answer for Alice: ignored.
+    bob.socket.send(JSON.stringify({ type: 'tool-result', callId, result: 'forged' }));
+    await new Promise((r) => setTimeout(r, 30));
+    alice.socket.send(JSON.stringify({ type: 'tool-result', callId, result: 'genuine' }));
+    await expect(call).resolves.toBe('genuine');
   });
 });
