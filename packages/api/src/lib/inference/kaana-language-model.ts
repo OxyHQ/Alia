@@ -938,7 +938,8 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
           if (textOpen) controller.enqueue({ type: 'text-end', id: TEXT_BLOCK_ID });
 
           /**
-           * A call the stream never completed is still emitted.
+           * A call the stream never completed is still emitted — unless the
+           * stream failed (below).
            *
            * Its arguments are whatever arrived, which for a truncated stream is
            * invalid JSON — and the AI SDK reporting an unparseable tool input is
@@ -946,7 +947,20 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
            * instead would hand a consumer a `tool-input-start` with no end,
            * which is a hang rather than an error.
            */
-          for (const [id, pending] of calls) closeCall(id, pending);
+          if (finishReason.unified === 'error') {
+            // A stream that FAILED is not a truncated one: the half-received
+            // arguments are not something the model decided to call, and running
+            // the tool on them would act on a turn that already ended in error.
+            // The input block is closed (a start with no end is a hang); the
+            // call itself is never emitted.
+            for (const [id, pending] of calls) {
+              if (pending.closed || pending.name === null) continue;
+              controller.enqueue({ type: 'tool-input-end', id });
+              pending.closed = true;
+            }
+          } else {
+            for (const [id, pending] of calls) closeCall(id, pending);
+          }
 
           const providerMetadata = resolvedModelMetadata(resolvedModelReference);
           controller.enqueue({

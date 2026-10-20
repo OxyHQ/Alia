@@ -106,9 +106,17 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
   // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
   const GLOBAL_TIMEOUT_MS = 80_000;
+  /**
+   * The provider call's own abort controller, created here so the timer below
+   * can stop the call it answers the client about. Answering without aborting
+   * left the model running (and a non-streaming turn free to save and charge
+   * after the client had already been told it timed out).
+   */
+  const providerAbort = new AbortController();
   const globalTimer = setTimeout(() => {
     state.globalTimedOut = true;
     log.v1.error('Global request timeout after 80s');
+    providerAbort.abort(new Error('Global request timeout after 80s'));
     /**
      * The agent turn fails NOW, with the response the person is shown.
      *
@@ -420,6 +428,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       requestStartTime,
       globalTimer,
       globalTimeoutMs: GLOBAL_TIMEOUT_MS,
+      providerAbort,
+      agentTurn: linkedAgent != null,
       state,
       body,
       messages,

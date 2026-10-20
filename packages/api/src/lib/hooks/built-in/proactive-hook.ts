@@ -77,6 +77,9 @@ registerHook({
   priority: 300, // Run after style-learning (200)
   afterChat: async (ctx) => {
     if (!ctx.userId) return;
+    // Suggestions are Alia's, from Alia's answered turns: not an agent's, and
+    // not a turn that failed (there is no answer to classify).
+    if (ctx.agentTurn || ctx.errorClass) return;
 
     // Only analyze substantive conversations (not one-liners)
     const userMessages = ctx.messages

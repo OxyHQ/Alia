@@ -245,37 +245,39 @@ export async function dispatchStructuredAutomation(
     const reservation = await reserveAutomationRun(automation, trigger);
     if (!reservation) return { status: 'denied', reason: 'insufficient_credits' };
     const runId = uuidv7();
-    const session = await getDb().transaction(async (transaction) => {
-      const claimed = await claimAutomationRunPlan({
-        db: transaction,
-        runId,
-        automationId: automation.id,
-        requesterAccountId,
-        triggerEventId: trigger.id,
-        stages: runStages,
-      });
-      if (!claimed) return null;
-      if (automation.inputs.runOnce === true) {
-        const disabled = await setAutomationEnabled(
-          transaction,
-          automation.id,
-          automation.ownerAccountId,
-          false,
-        );
-        if (!disabled) throw new Error('Claimed one-off task could not be disabled');
-      }
-      const task = renderAutomationStageTask(taskInputs[0] ?? {});
-      return createAgentSession(transaction, {
-        agentId: agent.id,
-        oxyUserId: automation.ownerAccountId,
-        automationRunId: runId,
-        automationStage: 0,
-        task,
-        status: 'queued',
-        messages: [{ role: 'user', content: task, timestamp: new Date() }],
-        creditReservation: reservation,
-      });
-    });
+    const session = await claimHoldingCredits(reservation, () =>
+      getDb().transaction(async (transaction) => {
+        const claimed = await claimAutomationRunPlan({
+          db: transaction,
+          runId,
+          automationId: automation.id,
+          requesterAccountId,
+          triggerEventId: trigger.id,
+          stages: runStages,
+        });
+        if (!claimed) return null;
+        if (automation.inputs.runOnce === true) {
+          const disabled = await setAutomationEnabled(
+            transaction,
+            automation.id,
+            automation.ownerAccountId,
+            false,
+          );
+          if (!disabled) throw new Error('Claimed one-off task could not be disabled');
+        }
+        const task = renderAutomationStageTask(taskInputs[0] ?? {});
+        return createAgentSession(transaction, {
+          agentId: agent.id,
+          oxyUserId: automation.ownerAccountId,
+          automationRunId: runId,
+          automationStage: 0,
+          task,
+          status: 'queued',
+          messages: [{ role: 'user', content: task, timestamp: new Date() }],
+          creditReservation: reservation,
+        });
+      }),
+    );
     if (!session) {
       await safeRefund(reservation, 'duplicate automation run');
       return { status: 'duplicate' };
@@ -353,29 +355,31 @@ export async function dispatchStructuredAutomation(
   const reservation = await reserveAutomationRun(automation, trigger);
   if (!reservation) return { status: 'denied', reason: 'insufficient_credits' };
   const runId = uuidv7();
-  const session = await getDb().transaction(async (transaction) => {
-    const claimed = await claimAutomationRunPlan({
-      db: transaction,
-      runId,
-      automationId: automation.id,
-      requesterAccountId,
-      triggerEventId: trigger.id,
-      stages: runStages,
-    });
-    if (!claimed) return null;
-    const first = stages[0];
-    const task = renderAutomationStageTask(taskInputs[0] ?? {});
-    return createAgentSession(transaction, {
-      agentId: first.agentId,
-      oxyUserId: automation.ownerAccountId,
-      automationRunId: runId,
-      automationStage: first.stage,
-      task,
-      status: 'queued',
-      messages: [{ role: 'user', content: task, timestamp: new Date() }],
-      creditReservation: reservation,
-    });
-  });
+  const session = await claimHoldingCredits(reservation, () =>
+    getDb().transaction(async (transaction) => {
+      const claimed = await claimAutomationRunPlan({
+        db: transaction,
+        runId,
+        automationId: automation.id,
+        requesterAccountId,
+        triggerEventId: trigger.id,
+        stages: runStages,
+      });
+      if (!claimed) return null;
+      const first = stages[0];
+      const task = renderAutomationStageTask(taskInputs[0] ?? {});
+      return createAgentSession(transaction, {
+        agentId: first.agentId,
+        oxyUserId: automation.ownerAccountId,
+        automationRunId: runId,
+        automationStage: first.stage,
+        task,
+        status: 'queued',
+        messages: [{ role: 'user', content: task, timestamp: new Date() }],
+        creditReservation: reservation,
+      });
+    }),
+  );
   if (!session) {
     await safeRefund(reservation, 'duplicate automation run');
     return { status: 'duplicate' };
@@ -468,6 +472,24 @@ async function tickAliaWatch(
 }
 
 /**
+ * Claim a run the credits are already held for. The hold is taken BEFORE the
+ * claim, so a claim that throws (a lost connection, a one-off task that could
+ * not be disabled) leaves a hold nothing will ever settle: it is given back
+ * here, then the failure goes on.
+ */
+async function claimHoldingCredits<T>(
+  reservation: CreditReservation,
+  claim: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await claim();
+  } catch (error: unknown) {
+    await safeRefund(reservation, 'automation run could not be claimed');
+    throw error;
+  }
+}
+
+/**
  * A task Alia is responsible for: no agent, no session. The run is claimed with
  * Alia as its actor and handed to the `alia-tasks` queue, whose job runs one
  * Alia turn for the owner and posts the answer into the task's conversation.
@@ -526,29 +548,31 @@ async function dispatchAliaTask(
   const reservation = await reserveAutomationRun(automation, trigger);
   if (!reservation) return { status: 'denied', reason: 'insufficient_credits' };
   const runId = uuidv7();
-  const claimed = await getDb().transaction(async (transaction) => {
-    const inserted = await claimAutomationRunPlan({
-      db: transaction,
-      runId,
-      automationId: automation.id,
-      requesterAccountId,
-      triggerEventId: trigger.id,
-      stages: runStages,
-      actorType: 'alia',
-      creditReservation: reservation,
-    });
-    if (!inserted) return false;
-    if (automation.inputs.runOnce === true) {
-      const disabled = await setAutomationEnabled(
-        transaction,
-        automation.id,
-        automation.ownerAccountId,
-        false,
-      );
-      if (!disabled) throw new Error('Claimed one-off task could not be disabled');
-    }
-    return true;
-  });
+  const claimed = await claimHoldingCredits(reservation, () =>
+    getDb().transaction(async (transaction) => {
+      const inserted = await claimAutomationRunPlan({
+        db: transaction,
+        runId,
+        automationId: automation.id,
+        requesterAccountId,
+        triggerEventId: trigger.id,
+        stages: runStages,
+        actorType: 'alia',
+        creditReservation: reservation,
+      });
+      if (!inserted) return false;
+      if (automation.inputs.runOnce === true) {
+        const disabled = await setAutomationEnabled(
+          transaction,
+          automation.id,
+          automation.ownerAccountId,
+          false,
+        );
+        if (!disabled) throw new Error('Claimed one-off task could not be disabled');
+      }
+      return true;
+    }),
+  );
   if (!claimed) {
     await safeRefund(reservation, 'duplicate automation run');
     return { status: 'duplicate' };

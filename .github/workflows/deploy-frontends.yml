@@ -29,7 +29,7 @@ env:
 jobs:
   deploy-app:
     needs: scope
-    if: needs.scope.outputs.app == 'true'
+    if: github.ref == 'refs/heads/main' && needs.scope.outputs.app == 'true'
     # One Worker upload at a time; never cancelled mid-upload. On the job, not
     # the workflow, so that only a run `scope` judged to be main's head can
     # queue here and an older commit cannot displace a newer pending release.
@@ -109,7 +109,7 @@ jobs:
 
   deploy-canvas:
     needs: scope
-    if: needs.scope.outputs.canvas == 'true'
+    if: github.ref == 'refs/heads/main' && needs.scope.outputs.canvas == 'true'
     # One Worker upload at a time; never cancelled mid-upload. On the job, not
     # the workflow, so that only a run `scope` judged to be main's head can
     # queue here and an older commit cannot displace a newer pending release.

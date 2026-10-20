@@ -346,4 +346,40 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     ]);
     expect((parts.at(-1)?.usage as { outputTokens: { total: number } }).outputTokens.total).toBe(1);
   });
+
+  it('never emits a tool call from a stream that errored part-way', async () => {
+    // Arguments cut off by a failure are not something the model decided to
+    // call: running the tool would act on a turn that already failed.
+    mocks.events.push(
+      { type: 'tool_call', toolCallId: 'call-1', name: 'webSearch', argumentsDelta: '{"q":"al' },
+      { type: 'error', error: { code: 'upstream_error', message: 'cut', retryable: true } },
+    );
+    const model = kaanaLanguageModel({
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
+      surface: 'chat',
+    });
+    const parts = await drain((await model.doStream({ prompt } as never)).stream);
+
+    expect(parts.some((part) => part.type === 'tool-call')).toBe(false);
+    expect(parts.some((part) => part.type === 'error')).toBe(true);
+    // The input block is still closed: a start with no end is a hang.
+    expect(parts.filter((part) => part.type === 'tool-input-end')).toHaveLength(1);
+    expect((parts.at(-1)?.finishReason as { unified: string }).unified).toBe('error');
+  });
+
+  it('control: a call cut off by a clean `done` is still emitted for the SDK to reject', async () => {
+    mocks.events.push(
+      { type: 'tool_call', toolCallId: 'call-1', name: 'webSearch', argumentsDelta: '{"q":"al' },
+      { type: 'done', finishReason: 'length' },
+    );
+    const model = kaanaLanguageModel({
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
+      surface: 'chat',
+    });
+    const parts = await drain((await model.doStream({ prompt } as never)).stream);
+
+    expect(parts.filter((part) => part.type === 'tool-call')).toHaveLength(1);
+  });
 });

@@ -113,18 +113,22 @@ export async function buildTurnSkills(input: {
   readonly selectedSkillNames?: string[] | null;
 }): Promise<SkillRuntime | null> {
   const { oxyUserId, linkedAgent } = input;
-  return buildSkillRuntime({
-    db: getDb(),
-    oxyUserId,
-    selectedNames: input.selectedSkillNames,
-    agentSkillIds: linkedAgent
-      ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id)
-      : [],
-    includeUserInstalled: linkedAgent === null,
-  }).catch((err) => {
+  try {
+    return await buildSkillRuntime({
+      db: getDb(),
+      oxyUserId,
+      selectedNames: input.selectedSkillNames,
+      agentSkillIds: linkedAgent
+        ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id)
+        : [],
+      includeUserInstalled: linkedAgent === null,
+    });
+  } catch (err) {
+    // The agent-skill lookup is inside the guard too: a fault there is a turn
+    // without skills, not a turn that throws after credits were reserved.
     log.v1.warn({ err }, 'Skill runtime unavailable for this turn');
     return null;
-  });
+  }
 }
 
 /** Memories recalled for this turn by the before-chat hooks, if any. */

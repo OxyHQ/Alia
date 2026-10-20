@@ -39,6 +39,12 @@ export interface AfterChatContext extends ChatHookContext {
   timeToFirstTokenMs: number | null;
   /** The `AliaErrorCode` the turn ended with, or null when it succeeded. */
   errorClass: string | null;
+  /**
+   * The turn ran as an agent. Memory is per actor, so the hooks that learn about
+   * the person for ALIA (writing style, proactive suggestions) skip it; the usage
+   * record does not.
+   */
+  agentTurn?: boolean;
   /** Whether the caller withdrew before the turn finished. */
   cancelled: boolean;
   /**

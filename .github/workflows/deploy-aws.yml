@@ -543,10 +543,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/deploy-scope.sh gate
       # The `paths-ignore` this workflow had on `push`: everything but Markdown
-      # and docs/ ships in the API image or its deploy.
+      # and docs/ ships in the API image or its deploy. EXCEPT the Markdown the
+      # API reads at runtime: packages/api/prompts/** and packages/api/skills/**
+      # are the system prompts and skills, so a change there must release. ERE has
+      # no negative lookahead, so the ignore lists the Markdown that does NOT ship
+      # (root, other packages, the API's own README and src/) instead of `\.md$`.
       - name: Decide whether anything the API ships changed
         id: api
         if: steps.gate.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/deploy-scope.sh target api exclude '(\.md$|^docs/)' alia-release-api-
+        run: bash .github/scripts/deploy-scope.sh target api exclude '(^docs/|^[^/]+\.md$|^packages/(alia-[^/]+|app|integrations)/.*\.md$|^packages/api/([^/]+\.md|src/.*\.md)$)' alia-release-api-

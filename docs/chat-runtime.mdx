@@ -406,6 +406,20 @@ exist). The provider loop returns `exhausted` with the typed `AliaError` when
 nothing was streamed, and rethrows when something was; the 80s global timeout
 uses `failTurn` too.
 
+The deadlines are three, and the last one really stops the call: the streaming
+first-byte clock (20s, ended by the first CONTENT chunk — `start` is not one),
+an inactivity watchdog on the stream (45s of silence, held while one of Alia's
+own tools runs), and the 80s global timeout, which aborts the provider call
+through the route's `providerAbort`. A non-streaming call has no first byte and
+gets its own 70s budget. After the global timeout nothing is stored or charged
+(`assertLive` in the provider loop) and the hold is refunded.
+
+A turn that ends with no text, no tool call and no agent answer (for example a
+`length` stop spent thinking) fails typed (`EMPTY_RESPONSE`, or
+`CONTENT_FILTERED`); it is not a success. `finish_reason` is OpenAI's
+vocabulary (`stop`, `length`, `tool_calls`, `content_filter`). A turn is billed
+on `totalUsage` (every step), summed across the tools-disabled synthesis pass.
+
 On the clients: the app draws its failed-turn card — its own i18n line, `code ·
 Ref reference` and Retry — for the frame and for the HTTP envelope alike,
 keeping partial output when there was some. `@alia.onl/sdk` raises an

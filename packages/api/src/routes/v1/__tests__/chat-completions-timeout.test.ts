@@ -981,3 +981,169 @@ describe('routing policy refusals - /v1/chat/completions', () => {
     expect(mockResolveModel).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The deadlines. The 80s guard used to answer the client and leave the provider
+ * call running; a non-streaming turn could then save, charge and `res.json`
+ * AFTER it had been told it timed out. And the 20s "first byte" timer aborted
+ * every non-streaming call that took longer than 20s, which is any real one.
+ */
+describe('deadlines - /v1/chat/completions', () => {
+  let handler: (req: any, res: any, next: any) => Promise<void>;
+  const body = (stream: boolean) => ({
+    messages: [{ role: 'user', content: 'Hi' }],
+    model: 'acme/chat-1',
+    stream,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    handler = getHandler();
+    mockResolveModel.mockResolvedValue(VALID_RESOLVED_MODEL);
+    mockReserveCredits.mockResolvedValue(VALID_RESERVATION);
+    mockGetOrCreateUserCredits.mockResolvedValue({});
+    mockGetUserById.mockResolvedValue(null);
+    mockBuildSystemPrompt.mockResolvedValue('You are Alia.');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('aborts the provider call when the global timeout fires', async () => {
+    let release: (() => void) | undefined;
+    mockStreamText.mockImplementation(() => ({
+      fullStream: (async function* () {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        yield { type: 'finish', finishReason: 'stop' };
+      })(),
+    }));
+
+    const pending = handler(createMockReq({ body: body(true) }), createMockRes(), vi.fn());
+    await vi.advanceTimersByTimeAsync(1_000);
+    const signal: AbortSignal = mockStreamText.mock.calls[0][0].abortSignal;
+    expect(signal.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(80_000);
+    expect(signal.aborted).toBe(true);
+
+    release?.();
+    await vi.runAllTimersAsync();
+    await pending;
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+
+  it('does not abort a long non-streaming call at the 20s first-byte mark', async () => {
+    let finish: ((value: unknown) => void) | undefined;
+    mockGenerateText.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+
+    const res = createMockRes();
+    const pending = handler(createMockReq({ body: body(false) }), res, vi.fn());
+    await vi.advanceTimersByTimeAsync(30_000);
+    const signal: AbortSignal = mockGenerateText.mock.calls[0][0].abortSignal;
+    expect(signal.aborted).toBe(false);
+
+    finish?.({
+      text: 'A long answer',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      totalUsage: { inputTokens: 40, outputTokens: 9, totalTokens: 49 },
+      toolCalls: [],
+      toolResults: [],
+      finishReason: 'stop',
+    });
+    await vi.runAllTimersAsync();
+    await pending;
+
+    expect(res.json).toHaveBeenCalledTimes(1);
+    const sent = res.json.mock.calls[0][0];
+    expect(sent.choices[0].message.content).toBe('A long answer');
+    // Billed on every step (`totalUsage`), not on the last one alone.
+    expect(sent.usage.total_tokens).toBe(49);
+    expect(mockFinalizeCredits).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ totalTokens: 49 }),
+      expect.anything(),
+    );
+  });
+
+  it('neither saves, charges nor answers twice when the call finishes after the timeout', async () => {
+    const { saveConversation } = await import('../../../lib/conversation-saver.js');
+    let finish: ((value: unknown) => void) | undefined;
+    mockGenerateText.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+
+    const res = createMockRes();
+    const pending = handler(
+      createMockReq({ body: { ...body(false), conversationId: 'conv-1' } }),
+      res,
+      vi.fn(),
+    );
+    await vi.advanceTimersByTimeAsync(80_001);
+    expect(res.json).toHaveBeenCalledTimes(1);
+
+    finish?.({
+      text: 'Too late',
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      toolCalls: [],
+      toolResults: [],
+      finishReason: 'stop',
+    });
+    await vi.runAllTimersAsync();
+    await pending;
+
+    expect(res.json).toHaveBeenCalledTimes(1);
+    expect(saveConversation).not.toHaveBeenCalled();
+    expect(mockFinalizeCredits).not.toHaveBeenCalled();
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+
+  it('fails a non-streaming answer with no words, refunds it and stores nothing', async () => {
+    const { saveConversation } = await import('../../../lib/conversation-saver.js');
+    mockGenerateText.mockResolvedValueOnce({
+      text: '',
+      usage: { inputTokens: 10, outputTokens: 500, totalTokens: 510 },
+      toolCalls: [],
+      toolResults: [],
+      finishReason: 'length',
+    });
+
+    const res = createMockRes();
+    await handler(
+      createMockReq({ body: { ...body(false), conversationId: 'conv-1' } }),
+      res,
+      vi.fn(),
+    );
+
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain('choices');
+    expect(saveConversation).not.toHaveBeenCalled();
+    expect(mockFinalizeCredits).not.toHaveBeenCalled();
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+
+  it('words a non-streaming tool turn in OpenAI vocabulary', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: 'Calling it',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      toolCalls: [{ toolCallId: 'c1', toolName: 'client_tool', input: { a: 1 } }],
+      toolResults: [],
+      finishReason: 'tool-calls',
+    });
+
+    const res = createMockRes();
+    await handler(createMockReq({ body: body(false) }), res, vi.fn());
+
+    expect(res.json.mock.calls[0][0].choices[0].finish_reason).toBe('tool_calls');
+  });
+});
