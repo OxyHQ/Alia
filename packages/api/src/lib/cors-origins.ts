@@ -141,6 +141,10 @@ export function createInternalCors(webUrl: string | undefined): RequestHandler {
       'X-Workspace-Id',
       'X-Oxy-Edge-Region',
       'X-Oxy-Activity-Id',
+      // The Oxy-signed app assertion the SDK sends beside the session
+      // (ADR 0045, lib/app-surface.ts). Unlisted, a browser's preflight
+      // refused every SDK request that carried it.
+      'X-Oxy-App-Assertion',
     ],
   });
 }
