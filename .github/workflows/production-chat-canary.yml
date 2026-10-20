@@ -104,7 +104,16 @@ jobs:
           trap cleanup EXIT
           trap 'exit 130' INT
           trap 'exit 143' TERM
-          run=$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-definition "$live" --network-configuration "$(jq -cn --argjson n "$network" '{awsvpcConfiguration:$n}')" --overrides "$overrides" --started-by "gh-alia-chat-canary-${GITHUB_RUN_ID}" --tags "key=OxyOperation,value=AliaProductionChatCanary" "key=OxyTaskFamily,value=oxy-alia" "key=OxyRunId,value=${GITHUB_RUN_ID}" --output json)
+          # Where the alia service runs: its capacity provider strategy when it
+          # has one (oxy-cluster's EC2 capacity, EC2-only revisions), otherwise
+          # its launch type.
+          strategy=$(jq -c '.capacityProviderStrategy // []' <<<"$service_json")
+          if [ "$strategy" != "[]" ]; then
+            placement=(--capacity-provider-strategy "$strategy")
+          else
+            placement=(--launch-type "$(jq -r '.launchType // "FARGATE"' <<<"$service_json")")
+          fi
+          run=$(aws ecs run-task --cluster "$CLUSTER" "${placement[@]}" --task-definition "$live" --network-configuration "$(jq -cn --argjson n "$network" '{awsvpcConfiguration:$n}')" --overrides "$overrides" --started-by "gh-alia-chat-canary-${GITHUB_RUN_ID}" --tags "key=OxyOperation,value=AliaProductionChatCanary" "key=OxyTaskFamily,value=oxy-alia" "key=OxyRunId,value=${GITHUB_RUN_ID}" --output json)
           task=$(jq -r '.tasks[0].taskArn // empty' <<<"$run")
           [ -n "$task" ] && [ "$(jq '.failures | length' <<<"$run")" = 0 ] || { echo '::error::ECS refused the canary task'; exit 1; }
           aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task"
