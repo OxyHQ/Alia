@@ -163,6 +163,7 @@ describe('the assistant message’s lifecycle stamp', () => {
     expect(reply()).toMatchObject({ content: 'The answer', isStreaming: true });
     expect(api.isLoading).toBe(true);
 
+    await deliver('data: [DONE]\n\n');
     await close();
     expect(await outcome).toBe('sent');
     expect(reply()).toMatchObject({
@@ -171,6 +172,21 @@ describe('the assistant message’s lifecycle stamp', () => {
       turnOutcome: 'completed',
     });
     expect(api.isLoading).toBe(false);
+  });
+
+  it('is failed, with the cut-off answer kept, when the stream closes without [DONE]', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(contentFrame('Half an answ'));
+    await close();
+
+    expect(await outcome).toBe('sent');
+    expect(reply()).toMatchObject({
+      content: 'Half an answ',
+      isStreaming: false,
+      turnOutcome: 'failed',
+    });
+    expect(api.failedTurn).toMatchObject({ partial: true, retryable: true });
   });
 
   it('is cancelled when the person stops it, keeping the partial output', async () => {

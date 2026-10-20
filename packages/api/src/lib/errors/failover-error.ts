@@ -55,6 +55,9 @@ const OXY_ERROR_REASONS: Record<InferenceErrorCode, FailoverReason> = {
 
 /** The Oxy edge's refusal of a request whose controlled input is over its budget. */
 const INPUT_BUDGET_RE = /controlled input exceeds|exceeds the (internal )?(pilot|input) budget/i;
+/** The providers' own wording for a prompt over the model's window, when the edge relays it under a generic code. */
+const CONTEXT_LENGTH_RE =
+  /maximum context length|context (length|window).{0,40}(exceed|too (long|large))|prompt is too long|input is too long|reduce the length of the messages/i;
 const TIMEOUT_HINT_RE = /timeout|timed out|deadline exceeded|context deadline exceeded/i;
 const ABORT_TIMEOUT_RE = /request was aborted|request aborted/i;
 const RATE_LIMIT_RE = /rate.?limit|too many requests/i;
@@ -71,6 +74,26 @@ const GEO_RESTRICTION_RE =
 const TIMEOUT_ERROR_CODES = new Set(['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET', 'ECONNABORTED']);
 
 // ============== ERROR INTROSPECTION HELPERS ==============
+
+/**
+ * The edge's refusal, wherever it sits in the error chain.
+ *
+ * The AI SDK and our own stream layers wrap what they catch (`cause`), and a
+ * wrapped refusal read only by `instanceof` on the outer error loses its code:
+ * `context_length_exceeded` then falls to the HTTP-400 rule and is reported as
+ * `INVALID_REQUEST`. Bounded, and cycle-safe.
+ */
+export function findOxyInferenceError(err: unknown): OxyInferenceError | undefined {
+  const seen = new Set<unknown>();
+  let current: unknown = err;
+  for (let depth = 0; depth < 6 && current && typeof current === 'object'; depth += 1) {
+    if (current instanceof OxyInferenceError) return current;
+    if (seen.has(current)) return undefined;
+    seen.add(current);
+    current = (current as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
 
 export function getStatusCode(err: unknown): number | undefined {
   if (!err || typeof err !== 'object') {
@@ -283,15 +306,16 @@ export function classifyError(err: unknown): FailoverReason {
   if (err instanceof AliaError) {
     return err.reason;
   }
-  if (err instanceof OxyInferenceError) {
+  const oxyError = findOxyInferenceError(err);
+  if (oxyError !== undefined) {
     // A permission refusal the EDGE returns (401/403) is about the caller. The
     // same code arriving inside the stream (the edge's 502) is the upstream
     // refusing THIS MODEL for the platform's account — e.g. OpenRouter's
     // "requires 18+ age verification" on meta/muse-spark-1.3. That is not the
     // user's authentication, and "try a different model" is what they can do.
     if (
-      (err.code === 'permission_denied' || err.code === 'commercial_permission_denied') &&
-      err.status >= 500
+      (oxyError.code === 'permission_denied' || oxyError.code === 'commercial_permission_denied') &&
+      oxyError.status >= 500
     ) {
       return 'model_not_found';
     }
@@ -299,8 +323,10 @@ export function classifyError(err: unknown): FailoverReason {
     // exceeds the internal pilot budget"), and has answered it under codes that
     // read as a malformed request. Whatever the code, a request over the budget
     // is fixed by sending less, which is the one thing the person can act on.
-    if (INPUT_BUDGET_RE.test(err.message)) return 'context_length';
-    return OXY_ERROR_REASONS[err.code];
+    if (INPUT_BUDGET_RE.test(oxyError.message) || CONTEXT_LENGTH_RE.test(oxyError.message)) {
+      return 'context_length';
+    }
+    return OXY_ERROR_REASONS[oxyError.code];
   }
 
   /**
@@ -404,6 +430,7 @@ export function classifyError(err: unknown): FailoverReason {
   if (message) {
     if (RATE_LIMIT_RE.test(message)) return 'rate_limit';
     if (OVERLOADED_RE.test(message)) return 'rate_limit';
+    if (CONTEXT_LENGTH_RE.test(message)) return 'context_length';
     if (BILLING_RE.test(message)) return 'billing';
     if (AUTH_RE.test(message)) return 'auth';
     if (GEO_RESTRICTION_RE.test(message)) return 'provider_unavailable';
@@ -517,6 +544,7 @@ export function toAliaError(
   const originalMessage = getErrorMessage(err) || String(err);
   const status = getStatusCode(err);
   const retryAfterHeader = getRetryAfterHeader(err);
+  const oxyError = findOxyInferenceError(err);
 
   // Build internal message with provider context (for server logs only)
   const providerPrefix = context?.provider
@@ -529,15 +557,23 @@ export function toAliaError(
     message: internalMessage,
     // userMessage is intentionally omitted -- the AliaError constructor
     // will use the safe default from DEFAULT_USER_MESSAGES
-    retryable: err instanceof OxyInferenceError ? err.retryable : mapping.retryable,
-    retryAfter:
-      err instanceof OxyInferenceError
-        ? err.retryable && err.retryAfterMs !== undefined
-          ? Math.ceil(err.retryAfterMs / 1000)
-          : undefined
-        : (retryAfterHeader ?? mapping.defaultRetryAfter),
+    retryable: oxyError ? oxyError.retryable : mapping.retryable,
+    retryAfter: oxyError
+      ? oxyError.retryable && oxyError.retryAfterMs !== undefined
+        ? Math.ceil(oxyError.retryAfterMs / 1000)
+        : undefined
+      : (retryAfterHeader ?? mapping.defaultRetryAfter),
     reason,
-    httpStatus: err instanceof OxyInferenceError ? undefined : status,
+    httpStatus: oxyError ? undefined : status,
+    ...(oxyError
+      ? {
+          oxy: {
+            code: oxyError.code,
+            ...(oxyError.requestId ? { requestId: oxyError.requestId } : {}),
+            status: oxyError.status,
+          },
+        }
+      : {}),
     cause: err instanceof Error ? err : undefined,
   });
 }

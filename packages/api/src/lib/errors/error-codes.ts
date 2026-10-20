@@ -137,6 +137,21 @@ interface AliaErrorParams {
   reason: FailoverReason;
   httpStatus?: number;
   cause?: unknown;
+  oxy?: AliaErrorOxyDetail;
+}
+
+/**
+ * What the Oxy inference edge said, kept for the operator who has to diagnose a
+ * `PROVIDER_UNAVAILABLE`. Never rendered: it is read by logs, not by
+ * `formatErrorResponse`, so the product surface stays free of route detail.
+ */
+export interface AliaErrorOxyDetail {
+  /** The edge's own `InferenceErrorCode`, before it was folded into a product code. */
+  readonly code: string;
+  /** The edge's request id (`chatcmpl-…`), the key to find the failure upstream. */
+  readonly requestId?: string;
+  /** The HTTP status the edge answered with. */
+  readonly status?: number;
 }
 
 export class AliaError extends Error {
@@ -147,6 +162,8 @@ export class AliaError extends Error {
   readonly httpStatus: number;
   /** Product surface. Route detail is concealed here; `message` is not. */
   readonly userMessage: string;
+  /** Operator-only: the edge's original code, request id and status. */
+  readonly oxy?: AliaErrorOxyDetail;
 
   constructor(params: AliaErrorParams) {
     super(params.message, { cause: params.cause });
@@ -157,6 +174,7 @@ export class AliaError extends Error {
     this.reason = params.reason;
     this.httpStatus = params.httpStatus ?? DEFAULT_HTTP_STATUS[params.code] ?? 500;
     this.userMessage = params.userMessage ?? DEFAULT_USER_MESSAGES[params.code];
+    this.oxy = params.oxy;
   }
 }
 

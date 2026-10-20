@@ -6,9 +6,11 @@ import { accessToken, restoreSession } from './oxy-session.js';
 import {
   AliaChatError,
   completedToolCalls,
+  isCreditsRefusal,
   mergeToolCallDeltas,
   streamAliaChat,
   type StreamedToolCall,
+  withFailureDetail,
 } from './alia-chat.js';
 
 interface StreamCallbacks {
@@ -280,8 +282,10 @@ export async function streamChat(
 function extractErrorMessage(error: unknown): string {
   if (error instanceof AliaChatError) {
     if (error.status === 401) return 'Your Alia session has expired. Run `codea login` again.';
-    if (error.status === 402) return 'Insufficient credits. Add more at alia.onl.';
-    return error.message;
+    if (error.status === 402 && isCreditsRefusal(error)) {
+      return 'Insufficient credits. Add more at alia.onl.';
+    }
+    return withFailureDetail(error.message, error);
   }
   if (typeof error === 'string') return error;
   if (typeof error !== 'object' || error === null) return 'Unknown error occurred';

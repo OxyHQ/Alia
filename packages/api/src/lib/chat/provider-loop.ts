@@ -523,17 +523,26 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         // Clean up timers on inference failure.
         sse.stopKeepAlive();
         clearFirstByteTimer();
-        log.v1.error(
-          { err: inferenceError, modelId: resolved.modelId, reference: requestId },
-          'Kaana inference failed',
-        );
-        const errorReason = classifyError(inferenceError);
-
         // The class this failure would end the turn with, if nothing after it
         // succeeds. `toAliaError` owns the reason -> code table, so this is the
         // same classification the client is answered with rather than a second
         // one that can disagree with it.
         failure = toAliaError(inferenceError);
+        // The edge's own code, request id and status ride next to the product
+        // code: `PROVIDER_UNAVAILABLE` alone cannot be diagnosed.
+        log.v1.error(
+          {
+            err: inferenceError,
+            modelId: resolved.modelId,
+            reference: requestId,
+            failureCode: failure.code,
+            oxyCode: failure.oxy?.code,
+            oxyRequestId: failure.oxy?.requestId,
+            oxyStatus: failure.oxy?.status,
+          },
+          'Kaana inference failed',
+        );
+        const errorReason = classifyError(inferenceError);
 
         if (TERMINAL_STREAM_ERRORS.has(errorReason)) {
           if (streamState.hasStreamedContent) {
