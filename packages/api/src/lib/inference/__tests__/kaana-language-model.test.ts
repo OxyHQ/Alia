@@ -35,7 +35,7 @@ vi.mock('../oxy-inference.js', () => ({
   }),
 }));
 
-import { kaanaLanguageModel } from '../kaana-language-model.js';
+import { DEFAULT_MAX_OUTPUT_TOKENS, kaanaLanguageModel } from '../kaana-language-model.js';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import { toAliaError } from '../../errors/failover-error.js';
 
@@ -175,6 +175,19 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     expect(mocks.requests[0]).not.toHaveProperty('reasoning');
     expect(mocks.options[0]).toMatchObject({ delegatedUserId: 'user-id' });
     expect(result.content).toEqual([{ type: 'text', text: 'hola' }]);
+  });
+
+  it('leaves room for reasoning when the caller sets no output ceiling', async () => {
+    const model = kaanaLanguageModel({
+      target: { kind: 'routingProfile', routingProfile: 'auto' },
+      modelId: 'auto',
+      surface: 'chat',
+    });
+    await model.doGenerate({ prompt } as never);
+
+    // 4096 was spent on reasoning before a tool-using turn wrote its answer.
+    expect(DEFAULT_MAX_OUTPUT_TOKENS).toBeGreaterThan(4096);
+    expect(mocks.requests[0]).toMatchObject({ maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS });
   });
 
   it('sends a power level as routingProfile, never as a model, and reports the model Oxy chose', async () => {

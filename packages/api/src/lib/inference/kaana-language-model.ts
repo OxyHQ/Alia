@@ -601,6 +601,18 @@ function targetLabel(target: OxyInferenceTarget): string {
   return target.kind === 'model' ? target.model : target.routingProfile;
 }
 
+/**
+ * The output ceiling of a call that sets none of its own.
+ *
+ * Oxy counts a model's reasoning against `maxOutputTokens`, and Oxy — not Alia
+ * — picks the model behind a power level, so a chat turn cannot know how much
+ * of the ceiling the model will spend thinking. At 4096 a tool-using turn on a
+ * reasoning model finished `length` with no answer (production 2026-10-20,
+ * `auto`). A ceiling, not a spend: a model that does not reason, or answers
+ * briefly, uses none of the rest.
+ */
+export const DEFAULT_MAX_OUTPUT_TOKENS = 16_384;
+
 export function requestFor(
   modelOptions: KaanaModelOptions,
   options: LanguageModelV3CallOptions,
@@ -616,7 +628,7 @@ export function requestFor(
       ? {}
       : { reasoning: { effort: modelOptions.reasoningEffort } }),
     input: translation.messages,
-    maxOutputTokens: options.maxOutputTokens ?? 4096,
+    maxOutputTokens: options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     ...(options.topP === undefined ? {} : { topP: options.topP }),
     ...(options.stopSequences === undefined ? {} : { stopSequences: options.stopSequences }),
