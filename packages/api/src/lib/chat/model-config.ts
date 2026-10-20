@@ -29,6 +29,72 @@ import type { StreamRunnerState } from './stream-runner.js';
 import type { ReasoningEffort } from '../models/catalogue.js';
 import type { ToolRouting } from '../tool-budget.js';
 
+/**
+ * The stream's inactivity timer: aborts the attempt when the provider goes
+ * quiet for {@link STREAM_IDLE_TIMEOUT_MS} mid-stream.
+ *
+ * The first-byte timer only covers the wait for the first token. A stream that
+ * answers, then stalls (a dropped upstream connection a proxy keeps open) would
+ * otherwise hold the turn until the 80s global timeout. Time spent inside one of
+ * Alia's own tools is not the provider being quiet — a slow search must not
+ * abort the answer waiting on it — so the timer is held while any tool runs.
+ */
+export interface StreamWatchdog {
+  /** A chunk arrived: restart the countdown. */
+  touch(): void;
+  toolStarted(): void;
+  toolFinished(): void;
+  /** Disarm for good (the attempt is over, however it ended). */
+  stop(): void;
+}
+
+export const STREAM_IDLE_TIMEOUT_MS = 45_000;
+
+/** Create the watchdog; it arms on the first `touch()`. */
+export function createStreamWatchdog(
+  abort: (reason: Error) => void,
+  timeoutMs = STREAM_IDLE_TIMEOUT_MS,
+): StreamWatchdog {
+  let timer: NodeJS.Timeout | null = null;
+  let toolsRunning = 0;
+  let stopped = false;
+  const disarm = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  const arm = (): void => {
+    disarm();
+    if (stopped || toolsRunning > 0) return;
+    timer = setTimeout(() => {
+      timer = null;
+      log.v1.warn({ timeoutMs }, 'Provider stream idle timeout');
+      abort(new Error('Provider stream idle timeout'));
+    }, timeoutMs);
+  };
+  return {
+    touch: arm,
+    toolStarted: () => {
+      toolsRunning += 1;
+      disarm();
+    },
+    toolFinished: () => {
+      toolsRunning = Math.max(0, toolsRunning - 1);
+      arm();
+    },
+    stop: () => {
+      stopped = true;
+      disarm();
+    },
+  };
+}
+
+/**
+ * How long a NON-streaming attempt may run before it is aborted. `generateText`
+ * returns one whole answer (several tool steps), so "20s to the first byte" is
+ * not a thing it can meet; it gets a budget of its own, inside the 80s global one.
+ */
+export const NON_STREAMING_TIMEOUT_MS = 70_000;
+
 export interface BuildBaseConfigParams {
   /** The resolved provider/model for this attempt. */
   resolved: ResolvedModel;
@@ -54,6 +120,11 @@ export interface BuildBaseConfigParams {
   oxyUserId?: string;
   /** A verified inbound product credential, used only for an app-bound agent turn. */
   serviceToken?: string;
+  /**
+   * The attempt's abort controller. The route owns it so its global timeout can
+   * stop the provider call, not only answer the client; absent, one is made.
+   */
+  providerAbort?: AbortController;
   /** Called from `onFinish` to hand captured usage back to the route's `let`. */
   onUsage: (usage: CreditUsage) => void;
   /**
@@ -73,6 +144,8 @@ export interface BaseConfigResult {
   config: any;
   providerAbort: AbortController;
   clearFirstByteTimer: () => void;
+  /** Inactivity timer for the streaming path; the stream runner feeds it. */
+  watchdog: StreamWatchdog;
 }
 
 /**
@@ -114,6 +187,20 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     onResolvedModel,
     onInferenceRequest,
   } = params;
+  const providerAbort = params.providerAbort ?? new AbortController();
+
+  /**
+   * Usage summed over every `onFinish` this config sees. The config is reused by
+   * the tools-disabled synthesis pass (`stream-runner.ts`), whose `onFinish` would
+   * otherwise REPLACE the turn's usage with the follow-up's alone.
+   */
+  const spent: CreditUsage = {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    systemPromptTokens,
+    reasoningTokens: 0,
+  };
 
   const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, {
     reasoningEffort,
@@ -138,6 +225,19 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     // `askUserQuestion` ends the turn: its answers are the next message.
     stopWhen: [stepCountIs(5), hasToolCall(ASK_USER_QUESTION_TOOL)],
     onFinish: async (result: {
+      /**
+       * Every step of the call, which is what was spent. `usage` is the LAST
+       * step's alone in `ai@6`: a turn that searched, read and answered billed
+       * only its answer.
+       */
+      totalUsage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+        outputTokenDetails?: { reasoningTokens?: number };
+        reasoningTokens?: number;
+      };
+      /** The last step's usage; only a fallback for a version with no `totalUsage`. */
       usage?: {
         inputTokens?: number;
         outputTokens?: number;
@@ -161,16 +261,17 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
        */
       const reference = result.providerMetadata?.kaana?.resolvedModelReference;
       if (typeof reference === 'string' && reference !== '') onResolvedModel?.(reference);
-      // Capture token usage from AI SDK
-      if (result.usage) {
-        const usage: CreditUsage = {
-          promptTokens: result.usage.inputTokens || 0,
-          completionTokens: result.usage.outputTokens || 0,
-          totalTokens: result.usage.totalTokens || 0,
-          systemPromptTokens, // Keep our estimated system prompt tokens
-          reasoningTokens:
-            result.usage.outputTokenDetails?.reasoningTokens ?? result.usage.reasoningTokens ?? 0,
-        };
+      // Capture token usage from AI SDK: the whole call, every step.
+      const total = result.totalUsage ?? result.usage;
+      if (total) {
+        spent.promptTokens += total.inputTokens || 0;
+        spent.completionTokens += total.outputTokens || 0;
+        spent.totalTokens +=
+          total.totalTokens || (total.inputTokens || 0) + (total.outputTokens || 0);
+        spent.reasoningTokens =
+          (spent.reasoningTokens ?? 0) +
+          (total.outputTokenDetails?.reasoningTokens ?? total.reasoningTokens ?? 0);
+        const usage: CreditUsage = { ...spent };
         onUsage(usage);
         log.v1.info({ usage }, 'Token usage captured');
       }
@@ -210,22 +311,27 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     );
   }
 
-  // Per-provider first-byte timeout — abort if no response within 20s
+  // Per-provider first-byte timeout — abort if the stream says nothing within 20s.
+  // A non-streaming call has no first byte to wait for (`generateText` answers
+  // once, whole): it is held to its own, longer budget instead.
   const FIRST_BYTE_TIMEOUT_MS = 20_000;
-  const providerAbort = new AbortController();
+  const streaming = body.stream === true;
+  const attemptTimeoutMs = streaming ? FIRST_BYTE_TIMEOUT_MS : NON_STREAMING_TIMEOUT_MS;
   let firstByteTimer: NodeJS.Timeout | null = setTimeout(() => {
     if (!streamState.hasStreamedContent) {
       log.v1.warn(
         {
           provider: resolved.provider,
           modelId: resolved.modelId,
-          timeoutMs: FIRST_BYTE_TIMEOUT_MS,
+          timeoutMs: attemptTimeoutMs,
         },
-        'Provider first-byte timeout',
+        streaming ? 'Provider first-byte timeout' : 'Provider response timeout',
       );
-      providerAbort.abort(new Error('Provider first-byte timeout'));
+      providerAbort.abort(
+        new Error(streaming ? 'Provider first-byte timeout' : 'Provider response timeout'),
+      );
     }
-  }, FIRST_BYTE_TIMEOUT_MS);
+  }, attemptTimeoutMs);
   baseConfig.abortSignal = providerAbort.signal;
   const clearFirstByteTimer = () => {
     if (firstByteTimer) {
@@ -233,6 +339,7 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
       firstByteTimer = null;
     }
   };
+  const watchdog = createStreamWatchdog((reason) => providerAbort.abort(reason));
 
-  return { config: baseConfig, providerAbort, clearFirstByteTimer };
+  return { config: baseConfig, providerAbort, clearFirstByteTimer, watchdog };
 }

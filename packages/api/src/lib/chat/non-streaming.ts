@@ -19,6 +19,7 @@ import type { Request, Response } from 'express';
 import { generateText } from 'ai';
 import {
   saveConversationResult,
+  turnProducedOutput,
   generateTitleAsync,
   finalizeChatCredits,
   runPostChatHooks,
@@ -32,6 +33,7 @@ import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { SkillRuntime } from '../skills/runtime.js';
 import { isInvalidToolCall } from './tool-calls.js';
+import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
 import { servedModelId } from '../models/power-levels.js';
 
 export interface NonStreamingParams {
@@ -67,6 +69,13 @@ export interface NonStreamingParams {
   observation: TurnObservation;
   /** Marked when the charge lands; see {@link finalizeChatCredits}. */
   settlement: { creditsSettled: boolean };
+  /**
+   * Throws when the request's global timeout already answered the client. Asked
+   * before anything is stored or charged: a turn that timed out is neither.
+   */
+  assertLive?: () => void;
+  /** The turn runs as an agent: Alia's after-chat learning skips it. */
+  agentTurn?: boolean;
 }
 
 /** Handle one non-streaming provider attempt end to end; writes the JSON response. */
@@ -93,12 +102,15 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     toolNameMapping,
     observation,
     settlement,
+    assertLive,
+    agentTurn,
   } = params;
 
   log.v1.info('Non-streaming request, using generateText');
 
   const result = await generateText(baseConfig);
   clearFirstByteTimer();
+  assertLive?.();
 
   // Capture token usage (AI SDK uses inputTokens/outputTokens)
   let tokenUsage: CreditUsage = {
@@ -107,12 +119,15 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     totalTokens: 0,
     systemPromptTokens,
   };
-  if (result.usage) {
+  // `usage` is the last step's alone; a multi-step tool loop spent `totalUsage`.
+  const spent = result.totalUsage ?? result.usage;
+  if (spent) {
     tokenUsage = {
-      promptTokens: result.usage.inputTokens || 0,
-      completionTokens: result.usage.outputTokens || 0,
-      totalTokens: result.usage.totalTokens || 0,
+      promptTokens: spent.inputTokens || 0,
+      completionTokens: spent.outputTokens || 0,
+      totalTokens: spent.totalTokens || (spent.inputTokens || 0) + (spent.outputTokens || 0),
       systemPromptTokens,
+      reasoningTokens: spent.outputTokenDetails?.reasoningTokens ?? spent.reasoningTokens ?? 0,
     };
     log.v1.info({ usage: tokenUsage }, 'Token usage');
   }
@@ -132,6 +147,13 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
       };
     });
 
+  // Nothing to show for the turn: no words, no tool call. Typed failure — the
+  // hold is refunded by the route's release point, nothing is stored. This is
+  // asked before anything below stores or charges.
+  if (!turnProducedOutput(assistantResponse, nonStreamToolInvocations)) {
+    throw emptyResponseError(result.finishReason);
+  }
+
   // Build lifecycle context for post-request operations
   const lifecycleCtx: LifecycleContext = {
     userId: req.user?.id,
@@ -146,14 +168,19 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     requestStartTime,
     skillNames: skills.activated().map((skill) => skill.name),
     autonomyRuntime,
+    ...(agentTurn ? { agentTurn: true } : {}),
     ...(originApp === undefined ? {} : { originApp }),
   };
+
+  assertLive?.();
 
   // Save conversation + generate title
   await saveConversationResult(lifecycleCtx, assistantResponse, nonStreamToolInvocations);
   if (conversationId && req.user?.id && assistantResponse) {
     generateTitleAsync(req.user.id, conversationId, messages);
   }
+
+  assertLive?.();
 
   // Finalize credits + detect anomalies
   const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(
@@ -173,6 +200,9 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     function: { name: call.toolName, arguments: JSON.stringify(call.args ?? {}) },
   }));
 
+  // The global timeout may have answered while the save above was in flight.
+  if (res.headersSent || res.writableEnded) return;
+
   // Return OpenAI-compatible non-streaming response
   res.json(
     buildCompletionResponse({
@@ -181,7 +211,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
       // one Oxy chose (ADR 0014); the request's own id when none was reported.
       model: servedModelId(modelId, observation.resolvedModelReference),
       content: assistantResponse,
-      finishReason: result.finishReason || 'stop',
+      finishReason: toOpenAIFinishReason(result.finishReason),
       toolCalls,
       usage: tokenUsage,
       aliaUsage: {
