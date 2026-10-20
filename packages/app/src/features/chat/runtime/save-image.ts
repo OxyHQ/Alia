@@ -21,6 +21,13 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   'image/svg+xml': 'svg',
 };
 
+/** The MIME type an image file name's extension stands for (`jpg` is `image/jpeg`), or `image/*`. */
+export function imageMimeType(filename: string): string {
+  const extension = /\.([a-z0-9]{2,4})$/i.exec(filename)?.[1]?.toLowerCase();
+  const found = Object.entries(EXTENSION_BY_MIME).find(([, ext]) => ext === extension);
+  return found?.[0] ?? 'image/*';
+}
+
 /** `name` with an image extension, taken from a data URI's type or the URL's path when it has none. */
 export function imageFilename(name: string, uri: string): string {
   const base =
@@ -72,15 +79,30 @@ export async function saveImage(uri: string, filename: string): Promise<void> {
 
   if (!canSaveImage()) throw new Error('Saving an image is not supported on this platform');
   const file = new File(Paths.cache, filename);
-  const data = /^data:[^,]*;base64,(.*)$/s.exec(uri)?.[1];
-  if (data !== undefined) {
-    await file.write(data, { encoding: 'base64' });
-  } else {
-    await File.downloadFileAsync(uri, file, { idempotent: true });
+  try {
+    const data = /^data:[^,]*;base64,(.*)$/s.exec(uri)?.[1];
+    if (data !== undefined) {
+      await file.write(data, { encoding: 'base64' });
+    } else {
+      await File.downloadFileAsync(uri, file, { idempotent: true });
+    }
+    if (Platform.OS === 'android') {
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Sharing is not available on this device');
+      }
+      await Sharing.shareAsync(file.uri, {
+        dialogTitle: filename,
+        mimeType: imageMimeType(filename),
+      });
+      return;
+    }
+    await Share.share({ url: file.uri, title: filename });
+  } finally {
+    // The copy in the cache only exists to be handed to the share sheet.
+    try {
+      if (file.exists) file.delete();
+    } catch {
+      /* the system may already have reclaimed it */
+    }
   }
-  if (Platform.OS === 'android') {
-    await Sharing.shareAsync(file.uri, { dialogTitle: filename });
-    return;
-  }
-  await Share.share({ url: file.uri, title: filename });
 }

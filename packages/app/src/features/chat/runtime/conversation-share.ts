@@ -11,12 +11,11 @@ import { File, Paths } from 'expo-file-system';
  *
  * On a phone the document is written to the CACHE directory (the system may
  * reclaim it, which is right for a file whose only purpose is to be handed
- * on) and offered through React Native's own share sheet. `expo-sharing` is
- * NOT a dependency of this app, so it is not used: iOS's sheet takes a file
- * `url` and shares the `.md` itself, while Android's `Share.share` accepts
- * only `message`, so there the sheet carries the document's text. Adding
- * `expo-sharing` is what would let Android share the file rather than its
- * contents.
+ * on) and offered through React Native's own share sheet: iOS's sheet takes a
+ * file `url` and shares the `.md` itself, while Android's `Share.share` accepts
+ * only `message`, so there the sheet carries the document's text. (`expo-sharing`
+ * is a dependency and `save-image.ts` uses it to share an image as a file on
+ * Android; a Markdown document is text, so the text is what is handed over.)
  */
 export async function deliverMarkdownFile(
   filename: string,

@@ -18,6 +18,7 @@ vi.mock('vscode', () => {
     FileType: { Directory: 2, File: 1 },
     workspace: {
       workspaceFolders: [{ uri: uri('/work/space') }],
+      onDidChangeWorkspaceFolders: () => ({ dispose() {} }),
       fs: {
         readFile: async (u: { fsPath: string }) =>
           new TextEncoder().encode(files.get(u.fsPath) ?? ''),

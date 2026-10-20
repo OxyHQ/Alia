@@ -34,6 +34,8 @@ const chat = vi.hoisted(() => ({
   setTo: null as unknown,
   /** What the next `append` reports; 'failed' exercises the rollback path. */
   outcome: 'sent' as 'sent' | 'failed' | 'errored',
+  /** Whether a reply is streaming. */
+  loading: false,
   /** The options the streaming hook recorded per user turn it sent. */
   turnOptions: {} as Record<string, unknown>,
 }));
@@ -46,7 +48,7 @@ vi.mock('../../src/runtime/use-conversation-stream', () => ({
       chat.appendedOptions.push(options);
       return chat.outcome;
     }),
-    isLoading: false,
+    isLoading: chat.loading,
     error: null,
     clearError: vi.fn(),
     setMessages: vi.fn((next: unknown) => {
@@ -119,6 +121,7 @@ beforeEach(() => {
   chat.appendedOptions = [];
   chat.setTo = null;
   chat.outcome = 'sent';
+  chat.loading = false;
   chat.turnOptions = {};
   turnStarts.length = 0;
   useComposerDraftStore.setState({ account: null, drafts: {} });
@@ -132,6 +135,23 @@ const DOCUMENT = {
 };
 
 describe('regenerateMessage', () => {
+  it('does not truncate the thread under a reply that is still streaming', async () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'question' },
+      { id: 'a1', role: 'assistant', content: 'answer' },
+    ];
+    chat.loading = true;
+    await mount();
+
+    let sent = true;
+    await act(async () => {
+      sent = await api.regenerateMessage('a1');
+    });
+
+    expect(sent).toBe(false);
+    expect(chat.appended).toEqual([]);
+  });
+
   it('replays the user turn immediately before the answer, not a later one', async () => {
     chat.messages = [
       { id: 'u1', role: 'user', content: 'first question' },

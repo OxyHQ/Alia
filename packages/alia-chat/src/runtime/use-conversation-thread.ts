@@ -375,6 +375,9 @@ export function useConversationThread({
       const draft = useComposerDraftStore.getState().address(conversationId ?? null);
       const original = messages.find((msg) => msg.id === messageId);
       if (original === undefined) return false;
+      // Like a send: while a reply streams, truncating the thread under it would let the old
+      // stream keep writing into the new turn. The composer gets the words back.
+      if (isLoading) return false;
       // A string edit keeps the original turn's attachments; only a full parts
       // array replaces them. See `EditedContent`.
       let content = mergeEditedContent(original.content, newContent);
@@ -423,7 +426,7 @@ export function useConversationThread({
       releaseAttachments(attachments ?? []);
       return true;
     },
-    [setMessages, append, messages, conversationId, host, labels, upload],
+    [setMessages, append, messages, conversationId, host, labels, upload, isLoading],
   );
 
   /** The user turn a reply answers: the nearest one before it, or `undefined`. */

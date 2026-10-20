@@ -29,9 +29,11 @@ const logger = createLogger('Main');
 
 // State
 let mainWindow: BrowserWindow | null = null;
-let toolExecutor: ToolExecutor;
-let chatProvider: ChatProvider;
-let authProvider: AuthProvider;
+// Created once, with the first window: on macOS the app outlives its window and `activate` opens a
+// new one, which must not start a second chat, auth session or MCP client.
+let toolExecutor: ToolExecutor | undefined;
+let chatProvider: ChatProvider | undefined;
+let authProvider: AuthProvider | undefined;
 let windowStateManager: WindowStateManager;
 let mcpClient: McpLocalClient | null = null;
 let isFullScreen = false;
@@ -74,6 +76,12 @@ function createWindow(): void {
     }),
   });
 
+  // A destroyed window must not be written to: drop the reference when it closes.
+  const created = mainWindow;
+  created.on('closed', () => {
+    if (mainWindow === created) mainWindow = null;
+  });
+
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
@@ -98,22 +106,52 @@ function createWindow(): void {
   // Load the app
   mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
 
-  // Initialize services
-  toolExecutor = new ToolExecutor(mainWindow);
-  chatProvider = new ChatProvider(mainWindow, toolExecutor);
-  authProvider = new AuthProvider(mainWindow);
-  // Restore before the renderer asks: the device secret on disk re-mints a
-  // token, so a returning user is signed in without touching the sign-in flow.
-  void authProvider.restore();
-  stopDeviceRegistration?.();
-  stopDeviceRegistration = startCoworkDeviceRegistration();
-
-  // Start local MCP client (non-blocking)
-  mcpClient = new McpLocalClient();
-  mcpClient.start().catch((err) => logger.error('MCP startup failed:', err));
+  // Initialize services (once; a later window is handed to the ones that exist)
+  if (toolExecutor && chatProvider && authProvider) {
+    toolExecutor.setWindow(mainWindow);
+    chatProvider.setWindow(mainWindow);
+    authProvider.setWindow(mainWindow);
+  } else {
+    const executor = new ToolExecutor(mainWindow);
+    const chat = new ChatProvider(mainWindow, executor);
+    const auth = new AuthProvider(mainWindow);
+    toolExecutor = executor;
+    chatProvider = chat;
+    authProvider = auth;
+    // The MCP relay needs the session: it starts when one is restored or created, not before.
+    auth.onSignedIn = startMcpClient;
+    // Restore before the renderer asks: the device secret on disk re-mints a
+    // token, so a returning user is signed in without touching the sign-in flow.
+    void restoreSession(auth, chat);
+    stopDeviceRegistration?.();
+    stopDeviceRegistration = startCoworkDeviceRegistration();
+  }
 
   // Register keyboard shortcuts
   mainWindow.webContents.on('before-input-event', handleKeyboardShortcuts);
+}
+
+/** Start the local MCP client once there is a session to authenticate its relay with. */
+function startMcpClient(): void {
+  if (!mcpClient) mcpClient = new McpLocalClient();
+  mcpClient.start().catch((err) => logger.error('MCP startup failed:', err));
+}
+
+/**
+ * Wait for the stored session to be restored, then tell the renderer (which may have asked
+ * `auth:getState` before the restore finished and drawn the sign-in) and start the MCP client.
+ */
+async function restoreSession(auth: AuthProvider, chat: ChatProvider): Promise<void> {
+  try {
+    if (!(await auth.restore())) return;
+    startMcpClient();
+    const userInfo = (await chat.getUserInfo()) ?? {};
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auth:success', { userInfo });
+    }
+  } catch (error) {
+    logger.error('Session restore failed:', error);
+  }
 }
 
 function handleKeyboardShortcuts(event: Electron.Event, input: Electron.Input): void {
@@ -149,7 +187,7 @@ function toggleFullScreen(): boolean {
     if (savedBounds) {
       mainWindow.setBounds(savedBounds);
     }
-    mainWindow.setAlwaysOnTop(true);
+    mainWindow.setAlwaysOnTop(false);
     isFullScreen = false;
   } else {
     // Enter fullscreen - save current bounds and maximize to full display
@@ -270,7 +308,8 @@ function processFiles(filePaths: string[], basePath?: string): ProcessedFile[] {
         // Read image as base64
         const imageBuffer = readFileSync(filePath);
         const base64 = imageBuffer.toString('base64');
-        const mimeType = `image/${extname(filePath).slice(1).toLowerCase()}`;
+        const extension = extname(filePath).slice(1).toLowerCase();
+        const mimeType = `image/${extension === 'jpg' ? 'jpeg' : extension}`;
 
         results.push({
           type: 'file',
@@ -350,19 +389,19 @@ function setupIPC(): void {
 
   // Chat
   ipcMain.handle('chat:send', async (_, message, mode, model, context) => {
-    return chatProvider.handleMessage(message, mode, model, context);
+    return chatProvider?.handleMessage(message, mode, model, context);
   });
 
-  ipcMain.handle('chat:stop', () => chatProvider.stop());
+  ipcMain.handle('chat:stop', () => chatProvider?.stop());
 
-  ipcMain.handle('chat:clear', () => chatProvider.clear());
+  ipcMain.handle('chat:clear', () => chatProvider?.clear());
 
   // User & Models
-  ipcMain.handle('user:get', () => chatProvider.getUserInfo());
-  ipcMain.handle('models:list', () => chatProvider.getModels());
-  ipcMain.handle('models:getSelected', () => chatProvider.getSelectedModel());
+  ipcMain.handle('user:get', () => chatProvider?.getUserInfo());
+  ipcMain.handle('models:list', () => chatProvider?.getModels());
+  ipcMain.handle('models:getSelected', () => chatProvider?.getSelectedModel());
   ipcMain.handle('models:select', (_, modelId: unknown) =>
-    chatProvider.selectModel(typeof modelId === 'string' ? modelId : null),
+    chatProvider?.selectModel(typeof modelId === 'string' ? modelId : null),
   );
 
   // File selection
@@ -401,7 +440,7 @@ function setupIPC(): void {
       return null;
     }
 
-    for (const filePath of result.filePaths) toolExecutor.grantRoot(filePath);
+    for (const filePath of result.filePaths) toolExecutor?.grantRoot(filePath);
     return processFiles(result.filePaths);
   });
 
@@ -417,7 +456,7 @@ function setupIPC(): void {
     }
 
     const folderPath = result.filePaths[0];
-    toolExecutor.grantRoot(folderPath);
+    toolExecutor?.grantRoot(folderPath);
 
     // Return folder info only, let AI decide what to read
     return [
@@ -487,15 +526,15 @@ function setupIPC(): void {
 
   // Authentication
   ipcMain.handle('auth:signIn', async () => {
-    await authProvider.startAuth();
+    await authProvider?.startAuth();
   });
 
   ipcMain.handle('auth:signOut', async () => {
-    await authProvider.signOut();
+    await authProvider?.signOut();
   });
 
   ipcMain.handle('auth:getState', () => {
-    return authProvider.getAuthState();
+    return authProvider?.getAuthState() ?? { isAuthenticated: false };
   });
 
   // Help

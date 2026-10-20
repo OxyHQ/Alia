@@ -28,6 +28,17 @@ export class ToolExecutor {
   private mainWindow?: BrowserWindow;
   private stagehand?: Stagehand;
 
+  /** The window a macOS `activate` creates after the last one closed takes over from the old one. */
+  setWindow(mainWindow: BrowserWindow): void {
+    this.mainWindow = mainWindow;
+  }
+
+  private sendToWindow(channel: string, data: unknown): void {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send(channel, data);
+    }
+  }
+
   constructor(mainWindow?: BrowserWindow) {
     this.homeDir = os.homedir();
     this.mainWindow = mainWindow;
@@ -428,7 +439,7 @@ export class ToolExecutor {
       // Initialize Stagehand if not already initialized
       if (!this.stagehand) {
         logger.debug('Initializing Stagehand in headless mode...');
-        this.stagehand = new Stagehand({
+        const stagehand = new Stagehand({
           env: 'LOCAL',
           verbose: 1,
           experimental: true, // Required for agent callbacks
@@ -436,7 +447,15 @@ export class ToolExecutor {
             headless: true, // Run browser invisibly - no visible window
           },
         });
-        await this.stagehand.init();
+        try {
+          await stagehand.init();
+        } catch (error) {
+          // A half-initialised instance would be reused by the next call and fail the same way
+          // (or worse); drop it so the next browser action starts clean.
+          await stagehand.close().catch(() => undefined);
+          throw error;
+        }
+        this.stagehand = stagehand;
         logger.debug(
           'Stagehand initialized in headless mode - browser runs invisibly, screenshots sent to app',
         );
@@ -451,7 +470,7 @@ export class ToolExecutor {
 
       // Send initial browser opened event
       if (this.mainWindow) {
-        this.mainWindow.webContents.send('browser:opened', {});
+        this.sendToWindow('browser:opened', {});
       }
 
       // Helper to capture and send screenshot
@@ -460,7 +479,7 @@ export class ToolExecutor {
           const screenshot = await page.screenshot({ type: 'png', fullPage: false });
           const base64 = screenshot.toString('base64');
           if (this.mainWindow) {
-            this.mainWindow.webContents.send('browser:preview', {
+            this.sendToWindow('browser:preview', {
               screenshot: `data:image/png;base64,${base64}`,
             });
           }
@@ -580,7 +599,7 @@ export class ToolExecutor {
 
       // Send error to frontend
       if (this.mainWindow) {
-        this.mainWindow.webContents.send('browser:error', {
+        this.sendToWindow('browser:error', {
           error: msg,
         });
       }
@@ -599,7 +618,7 @@ export class ToolExecutor {
         this.stagehand = undefined;
 
         if (this.mainWindow) {
-          this.mainWindow.webContents.send('browser:closed', {});
+          this.sendToWindow('browser:closed', {});
         }
 
         return 'Browser closed';

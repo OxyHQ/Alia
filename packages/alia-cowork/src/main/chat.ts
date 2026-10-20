@@ -17,10 +17,10 @@
  * model answers in text or the round budget is spent.
  */
 
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import type OpenAI from 'openai';
 import Store from 'electron-store';
-import { ToolExecutor } from './tools';
+import type { ToolExecutor } from './tools';
 import { errorMessage, errorName, errorStack } from './errors';
 import { createLogger } from './logger';
 import { isModelId, loadCatalogue, resolveModelId, type Catalogue } from './catalogue';
@@ -313,6 +313,14 @@ interface StreamOutcome {
   synthetic: { retryable: boolean } | null;
 }
 
+/** One user message's run: its id tells a turn that was stopped from the one that replaced it. */
+interface Turn {
+  id: number;
+  controller: AbortController;
+}
+
+const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'AbortError' });
+
 interface TurnRequest {
   baseUrl: string;
   /** Omitted from the request when `undefined`: the server uses its default. */
@@ -358,9 +366,12 @@ export class ChatProvider {
   private window: BrowserWindow;
   private toolExecutor: ToolExecutor;
   private messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = [];
-  private isProcessing = false;
   private currentMode = 'ask';
-  private abortController?: AbortController;
+  /** The turn the renderer is showing, or `null`. `stop()` clears it before the turn has wound down. */
+  private activeTurn: Turn | null = null;
+  private turnSeq = 0;
+  /** Settles when the latest turn has fully wound down (a stopped one may still be finishing a tool). */
+  private settled: Promise<void> = Promise.resolve();
   private browserUsedInCurrentTurn = false;
   /** Whether any real answer text reached the renderer this turn. */
   private streamedTextThisTurn = false;
@@ -370,8 +381,19 @@ export class ChatProvider {
     this.toolExecutor = toolExecutor;
   }
 
+  /** The window a macOS `activate` creates after the last one closed takes over from the old one. */
+  setWindow(window: BrowserWindow): void {
+    this.window = window;
+  }
+
   private send(channel: string, data: unknown): void {
+    if (this.window.isDestroyed()) return;
     this.window.webContents.send(channel, data);
+  }
+
+  /** Tell the renderer something about `turn`: nothing, once the turn was stopped or replaced. */
+  private emit(turn: Turn, channel: string, data: unknown): void {
+    if (this.activeTurn === turn) this.send(channel, data);
   }
 
   async handleMessage(
@@ -380,73 +402,96 @@ export class ChatProvider {
     model?: string,
     context?: ContextItem[],
   ): Promise<void> {
-    if (this.isProcessing) return;
+    // Claimed before the first await: two sends in the same tick must not both start a turn.
+    if (this.activeTurn !== null) return;
 
     if (currentAccessToken() === null) {
       this.send('chat:error', { message: 'Sign in to Alia to start a conversation.' });
       return;
     }
 
-    const baseUrl = store.get('apiBaseUrl') as string;
-    /**
-     * Resolved once, here, and then carried through every tool-round
-     * continuation of this message. Resolving per request could change the
-     * model mid-conversation if the catalogue shifted underneath it.
-     * `undefined` — nothing chosen, or a choice the catalogue no longer lists —
-     * omits `model` and the server answers with its default.
-     */
-    const requestedModel = model || store.get('model');
-    const selectedModel = await resolveModelId(
-      baseUrl,
-      requestedModel,
-      currentAccessToken() ?? undefined,
-    );
-    const enableTools = store.get('enableTools') as boolean;
+    const turn: Turn = { id: ++this.turnSeq, controller: new AbortController() };
+    this.activeTurn = turn;
+    const previous = this.settled;
+    const run = this.runMessage(turn, previous, content, mode, model, context);
+    this.settled = run.catch(() => undefined);
+    await run;
+  }
 
-    this.currentMode = mode;
-    this.isProcessing = true;
-    this.browserUsedInCurrentTurn = false;
-    this.streamedTextThisTurn = false;
-
-    this.messages.push(buildUserMessage(content, context));
-    if (this.messages.length === 1) {
-      this.messages.unshift({ role: 'system', content: this.buildSystemMessage() });
-    }
-
-    this.send('chat:start', {});
-    this.abortController = new AbortController();
-
-    logger.debug('===== NEW MESSAGE =====');
-    logger.debug('Mode:', mode);
-    logger.debug('Model:', selectedModel ?? '(server default)');
-    logger.debug('Base URL:', baseUrl);
-    logger.debug('Tools enabled:', enableTools);
-    logger.debug('Message count:', this.messages.length);
-
+  private async runMessage(
+    turn: Turn,
+    previous: Promise<void>,
+    content: string,
+    mode: string,
+    model: string | undefined,
+    context: ContextItem[] | undefined,
+  ): Promise<void> {
     try {
-      await this.runTurn({
+      // A stopped turn may still be finishing a tool: its results belong in the history before
+      // this message does.
+      await previous;
+      if (turn.controller.signal.aborted) return;
+
+      const baseUrl = store.get('apiBaseUrl') as string;
+      /**
+       * Resolved once, here, and then carried through every tool-round
+       * continuation of this message. Resolving per request could change the
+       * model mid-conversation if the catalogue shifted underneath it.
+       * `undefined` — nothing chosen, or a choice the catalogue no longer lists —
+       * omits `model` and the server answers with its default.
+       */
+      const requestedModel = model || store.get('model');
+      const selectedModel = await resolveModelId(
         baseUrl,
-        model: selectedModel,
-        tools: enableTools ? COWORK_TOOLS : undefined,
-      });
-      this.send('chat:end', {});
-    } catch (error: unknown) {
-      if (errorName(error) === 'AbortError') {
-        logger.debug('Stream aborted by user');
-        this.send('chat:end', {});
-      } else {
-        logger.error('===== STREAM ERROR =====');
-        logger.error('Error name:', errorName(error));
-        logger.error('Error message:', errorMessage(error));
-        logger.error('Error stack:', errorStack(error));
-        /**
-         * `chat:error` discards whatever the renderer was still streaming, so
-         * an answer that was interrupted part-way is committed first — the
-         * renderer commits on `chat:end` — and the error lands under it. That
-         * is what the app does with a synthetic tail after real output.
-         */
-        if (this.streamedTextThisTurn) this.send('chat:end', {});
-        this.send('chat:error', { message: this.formatErrorMessage(error) });
+        requestedModel,
+        currentAccessToken() ?? undefined,
+      );
+      if (turn.controller.signal.aborted) return;
+      const enableTools = store.get('enableTools') as boolean;
+
+      this.currentMode = mode;
+      this.browserUsedInCurrentTurn = false;
+      this.streamedTextThisTurn = false;
+
+      this.messages.push(buildUserMessage(content, context));
+      if (this.messages.length === 1) {
+        this.messages.unshift({ role: 'system', content: this.buildSystemMessage() });
+      }
+
+      this.emit(turn, 'chat:start', {});
+
+      logger.debug('===== NEW MESSAGE =====');
+      logger.debug('Mode:', mode);
+      logger.debug('Model:', selectedModel ?? '(server default)');
+      logger.debug('Base URL:', baseUrl);
+      logger.debug('Tools enabled:', enableTools);
+      logger.debug('Message count:', this.messages.length);
+
+      try {
+        await this.runTurn(turn, {
+          baseUrl,
+          model: selectedModel,
+          tools: enableTools ? COWORK_TOOLS : undefined,
+        });
+        this.emit(turn, 'chat:end', {});
+      } catch (error: unknown) {
+        if (errorName(error) === 'AbortError') {
+          logger.debug('Stream aborted by user');
+          this.emit(turn, 'chat:end', {});
+        } else {
+          logger.error('===== STREAM ERROR =====');
+          logger.error('Error name:', errorName(error));
+          logger.error('Error message:', errorMessage(error));
+          logger.error('Error stack:', errorStack(error));
+          /**
+           * `chat:error` discards whatever the renderer was still streaming, so
+           * an answer that was interrupted part-way is committed first — the
+           * renderer commits on `chat:end` — and the error lands under it. That
+           * is what the app does with a synthetic tail after real output.
+           */
+          if (this.streamedTextThisTurn) this.emit(turn, 'chat:end', {});
+          this.emit(turn, 'chat:error', { message: this.formatErrorMessage(error) });
+        }
       }
     } finally {
       if (this.browserUsedInCurrentTurn) {
@@ -459,9 +504,12 @@ export class ChatProvider {
       }
       logger.debug('===== SESSION END =====');
       logger.debug('Final message count:', this.messages.length);
-      this.isProcessing = false;
-      this.abortController = undefined;
-      this.browserUsedInCurrentTurn = false;
+      // Only the turn that still owns the provider hands it back: a stopped turn finishing late
+      // must not end the one that replaced it.
+      if (this.activeTurn === turn) {
+        this.activeTurn = null;
+        this.browserUsedInCurrentTurn = false;
+      }
     }
   }
 
@@ -471,20 +519,25 @@ export class ChatProvider {
    * The final round is sent with `tool_choice: 'none'` so a model that would
    * keep calling tools is made to answer instead of being cut off silently.
    */
-  private async runTurn(request: TurnRequest): Promise<void> {
+  private async runTurn(turn: Turn, request: TurnRequest): Promise<void> {
     for (let round = 0; ; round++) {
+      // A stopped turn that finished a tool does not start another request.
+      if (turn.controller.signal.aborted) throw abortError();
       const lastRound = round >= MAX_TOOL_ROUNDS;
       if (lastRound)
         logger.warn(`Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`);
 
-      const outcome = await this.streamOnce(request, lastRound);
+      const outcome = await this.streamOnce(turn, request, lastRound);
 
-      if (outcome.text || outcome.toolCalls.length > 0) {
+      // A stand-in turn never runs its tools, so its `tool_calls` are not remembered either: an
+      // assistant message that asks for tools nobody answers is a history the server refuses.
+      const remembered = outcome.synthetic === null ? outcome.toolCalls : [];
+      if (outcome.text || remembered.length > 0) {
         const assistant: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
           role: 'assistant',
           content: outcome.text || null,
         };
-        if (outcome.toolCalls.length > 0) assistant.tool_calls = outcome.toolCalls;
+        if (remembered.length > 0) assistant.tool_calls = remembered;
         this.messages.push(assistant);
       }
 
@@ -503,10 +556,24 @@ export class ChatProvider {
 
       logger.debug('===== EXECUTING TOOLS =====');
       logger.debug('Number of tools to execute:', outcome.toolCalls.length);
-      for (const toolCall of outcome.toolCalls) {
-        await this.runToolCall(toolCall);
+      for (const [index, toolCall] of outcome.toolCalls.entries()) {
+        if (turn.controller.signal.aborted) {
+          // Stopped between tools: the ones not run are answered as cancelled, so the saved
+          // history never holds a request without its result.
+          for (const skipped of outcome.toolCalls.slice(index)) this.pushCancelledTool(skipped);
+          throw abortError();
+        }
+        await this.runToolCall(turn, toolCall);
       }
     }
+  }
+
+  private pushCancelledTool(toolCall: StreamedToolCall): void {
+    this.messages.push({
+      role: 'tool',
+      tool_call_id: toolCall.id,
+      content: 'Error: Cancelled by the user before this tool ran.',
+    });
   }
 
   /**
@@ -516,7 +583,11 @@ export class ChatProvider {
    * `./auth` normally rotates the token before it expires; this is the path
    * for a laptop that slept through the rotation.
    */
-  private async streamOnce(request: TurnRequest, finalRound: boolean): Promise<StreamOutcome> {
+  private async streamOnce(
+    turn: Turn,
+    request: TurnRequest,
+    finalRound: boolean,
+  ): Promise<StreamOutcome> {
     const body = {
       ...(request.model === undefined ? {} : { model: request.model }),
       messages: this.messages,
@@ -531,7 +602,7 @@ export class ChatProvider {
         baseUrl: request.baseUrl,
         accessToken,
         body,
-        signal: this.abortController?.signal,
+        signal: turn.controller.signal,
       });
 
     const token = currentAccessToken();
@@ -539,33 +610,37 @@ export class ChatProvider {
       throw new AliaChatError('Sign in to Alia to start a conversation.', { status: 401 });
 
     try {
-      return await this.consume(attempt(token));
+      return await this.consume(turn, attempt(token));
     } catch (error: unknown) {
       if (!(error instanceof AliaChatError) || error.status !== 401) throw error;
       const fresh = await refreshAccessToken();
       if (fresh === null || fresh === token) throw error;
       logger.debug('Retrying after re-minting the session token');
-      return await this.consume(attempt(fresh));
+      return await this.consume(turn, attempt(fresh));
     }
   }
 
   /** Forward a stream to the renderer and collect what the history needs. */
-  private async consume(stream: AsyncIterable<AliaStreamEvent>): Promise<StreamOutcome> {
+  private async consume(
+    turn: Turn,
+    stream: AsyncIterable<AliaStreamEvent>,
+  ): Promise<StreamOutcome> {
     let text = '';
     const toolCalls: StreamedToolCall[] = [];
     let synthetic: StreamOutcome['synthetic'] = null;
     let chunkCount = 0;
 
     for await (const event of stream) {
+      if (turn.controller.signal.aborted) throw abortError();
       chunkCount++;
       switch (event.type) {
         case 'content':
           text += event.text;
           this.streamedTextThisTurn = true;
-          this.send('chat:stream', { content: event.text });
+          this.emit(turn, 'chat:stream', { content: event.text });
           break;
         case 'reasoning':
-          this.send('chat:thinking', { content: event.text });
+          this.emit(turn, 'chat:thinking', { content: event.text });
           break;
         case 'tool_calls':
           mergeToolCallDeltas(toolCalls, event.deltas);
@@ -596,7 +671,7 @@ export class ChatProvider {
   }
 
   /** Execute one tool call locally and append its result to the history. */
-  private async runToolCall(toolCall: StreamedToolCall): Promise<void> {
+  private async runToolCall(turn: Turn, toolCall: StreamedToolCall): Promise<void> {
     const toolName = toolCall.function.name;
     logger.debug(`Executing tool: ${toolName}`);
     logger.debug(`Tool call ID: ${toolCall.id}`);
@@ -615,7 +690,7 @@ export class ChatProvider {
         tool_call_id: toolCall.id,
         content: 'Error: Malformed tool arguments. Please retry with valid JSON.',
       });
-      this.send('chat:toolResult', {
+      this.emit(turn, 'chat:toolResult', {
         tool: toolName,
         success: false,
         result: 'Malformed tool arguments',
@@ -626,10 +701,10 @@ export class ChatProvider {
     if (toolName === 'set_mode') {
       logger.debug(`Setting mode to: ${args.mode}`);
       this.currentMode = String(args.mode ?? this.currentMode);
-      this.send('chat:modeChanged', { mode: this.currentMode });
+      this.emit(turn, 'chat:modeChanged', { mode: this.currentMode });
     }
 
-    this.send('chat:tool', { tool: toolName, args, status: 'running' });
+    this.emit(turn, 'chat:tool', { tool: toolName, args, status: 'running' });
 
     try {
       let result = await this.executeTool(toolName, args);
@@ -644,7 +719,11 @@ export class ChatProvider {
       }
 
       this.messages.push({ role: 'tool', tool_call_id: toolCall.id, content: result });
-      this.send('chat:toolResult', { tool: toolName, success: true, result: result.slice(0, 500) });
+      this.emit(turn, 'chat:toolResult', {
+        tool: toolName,
+        success: true,
+        result: result.slice(0, 500),
+      });
     } catch (error: unknown) {
       const errorMsg = errorMessage(error);
       logger.error(`Tool ${toolName} execution failed:`, errorMsg);
@@ -654,7 +733,7 @@ export class ChatProvider {
         tool_call_id: toolCall.id,
         content: `Error: ${errorMsg}`,
       });
-      this.send('chat:toolResult', { tool: toolName, success: false, result: errorMsg });
+      this.emit(turn, 'chat:toolResult', { tool: toolName, success: false, result: errorMsg });
     }
   }
 
@@ -726,11 +805,11 @@ export class ChatProvider {
   }
 
   stop(): void {
-    this.isProcessing = false;
-    if (this.abortController) {
-      this.abortController.abort();
-      this.abortController = undefined;
-    }
+    // Release the provider now (a new message may start at once) and cut the stopped turn's
+    // stream; the turn winds down on its own, and the next one waits for it.
+    const turn = this.activeTurn;
+    this.activeTurn = null;
+    turn?.controller.abort();
     this.send('chat:end', {});
   }
 

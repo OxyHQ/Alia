@@ -16,7 +16,8 @@ const store = new Store();
 const logger = createLogger('MCP');
 
 const JSON_RPC_TIMEOUT_MS = 15_000;
-const RECONNECT_DELAY_MS = 5_000;
+const RECONNECT_BASE_DELAY_MS = 5_000;
+const RECONNECT_MAX_DELAY_MS = 5 * 60_000;
 const MAX_STDOUT_BUFFER = 1024 * 1024; // 1 MiB
 
 interface McpServerConfig {
@@ -86,11 +87,16 @@ export class McpLocalClient {
   private servers = new Map<string, LocalServer>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  /** Whether `start` has gone as far as connecting the relay: a second `start` is then a no-op. */
+  private running = false;
+  /** Consecutive failed connections: the exponent of the reconnect delay. */
+  private reconnectAttempts = 0;
 
   /**
    * Start the MCP client: fetch local servers, spawn them, and connect to relay.
    */
   async start(): Promise<void> {
+    if (this.running || this.stopped) return;
     const apiKey = currentAccessToken();
     if (!apiKey) return;
 
@@ -99,10 +105,12 @@ export class McpLocalClient {
       if (!configs.length) return;
 
       for (const config of configs) {
+        if (this.servers.has(config.id)) continue;
         await this.spawnServer(config);
       }
 
-      this.connectRelay(apiKey);
+      this.running = true;
+      this.connectRelay();
     } catch (err) {
       logger.error('Failed to start:', err);
     }
@@ -159,11 +167,31 @@ export class McpLocalClient {
         logger.warn(`${config.name}: ${chunk.toString().trim()}`);
       });
 
+      const dropServer = (): void => {
+        if (this.servers.get(config.id) !== server) return;
+        this.servers.delete(config.id);
+        for (const pending of server.pending.values()) {
+          clearTimeout(pending.timer);
+          pending.reject(new Error(`${config.name} stopped`));
+        }
+        server.pending.clear();
+        this.sendMessage({ type: 'unregister-tools', serverId: config.id });
+      };
+
       proc.on('exit', (code) => {
         logger.info(`${config.name} exited (code ${code})`);
-        this.servers.delete(config.id);
-        this.sendMessage({ type: 'unregister-tools', serverId: config.id });
+        dropServer();
       });
+
+      // A command that does not exist is an 'error' event, not an exit: unhandled it throws in the
+      // main process. A closed pipe is an 'error' on stdin the same way.
+      proc.on('error', (err) => {
+        logger.error(`${config.name} process error:`, err);
+        dropServer();
+      });
+      proc.stdin!.on('error', (err) => logger.warn(`${config.name} stdin error:`, err));
+      proc.stdout!.on('error', (err) => logger.warn(`${config.name} stdout error:`, err));
+      proc.stderr!.on('error', (err) => logger.warn(`${config.name} stderr error:`, err));
 
       this.servers.set(config.id, server);
 
@@ -172,6 +200,12 @@ export class McpLocalClient {
       logger.info(`${config.name} started with ${server.tools.length} tools`);
     } catch (err) {
       logger.error(`${config.name} failed to spawn:`, err);
+      // Half-started: initialisation failed or timed out. Do not leave a process nobody can use.
+      const half = this.servers.get(config.id);
+      if (half) {
+        this.servers.delete(config.id);
+        half.process.kill('SIGTERM');
+      }
     }
   }
 
@@ -190,7 +224,12 @@ export class McpLocalClient {
       server.pending.set(id, { resolve, reject, timer });
 
       const msg = JSON.stringify({ jsonrpc: '2.0', id, method, params: params || {} }) + '\n';
-      server.process.stdin!.write(msg);
+      server.process.stdin!.write(msg, (err) => {
+        if (!err) return;
+        clearTimeout(timer);
+        server.pending.delete(id);
+        reject(err);
+      });
     });
   }
 
@@ -241,8 +280,26 @@ export class McpLocalClient {
     }));
   }
 
-  private connectRelay(apiKey: string): void {
+  /** Delay before the next reconnect: doubles per failed attempt, capped, with jitter. */
+  private reconnectDelay(): number {
+    const base = Math.min(
+      RECONNECT_BASE_DELAY_MS * 2 ** this.reconnectAttempts,
+      RECONNECT_MAX_DELAY_MS,
+    );
+    this.reconnectAttempts += 1;
+    return Math.round(base * (0.75 + Math.random() * 0.5));
+  }
+
+  private connectRelay(): void {
     if (this.stopped) return;
+    // Read now, not at start-up: the token is rotated in the background, and a reconnect
+    // that sent the first one would be refused once it expired.
+    const apiKey = currentAccessToken();
+    if (!apiKey) {
+      logger.info('MCP relay not connected: signed out');
+      this.running = false;
+      return;
+    }
 
     const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl';
     const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/mcp';
@@ -266,8 +323,9 @@ export class McpLocalClient {
 
       this.ws.onclose = () => {
         if (this.stopped) return;
-        logger.info('MCP relay disconnected, reconnecting...');
-        this.reconnectTimer = setTimeout(() => this.connectRelay(apiKey), RECONNECT_DELAY_MS);
+        const delay = this.reconnectDelay();
+        logger.info(`MCP relay disconnected, reconnecting in ${delay} ms`);
+        this.reconnectTimer = setTimeout(() => this.connectRelay(), delay);
       };
 
       this.ws.onerror = () => {
@@ -275,12 +333,14 @@ export class McpLocalClient {
       };
     } catch (err) {
       logger.error('Failed to connect relay:', err);
+      this.reconnectTimer = setTimeout(() => this.connectRelay(), this.reconnectDelay());
     }
   }
 
   private handleRelayMessage(msg: RelayMessage): void {
     switch (msg.type) {
       case 'auth-ok':
+        this.reconnectAttempts = 0;
         for (const server of this.servers.values()) {
           this.sendMessage({
             type: 'register-tools',
