@@ -498,3 +498,76 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     expect(H.timeline).toContain('learn:writingStyle(mem-ws13)');
   });
 });
+
+// ===========================================================================
+// Whose turn, and did it work: what Alia learns, and from what
+// ===========================================================================
+
+describe('Alia only learns from Alia’s answered turns', () => {
+  const suggestion =
+    '{"category":"reminder","title":"Remind me about the visa","description":"Remind me about my visa renewal in March"}';
+
+  it('control: an ordinary turn learns the style and may suggest', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    H.state.classification = suggestion;
+    runPostChatHooks(lifecycleContext(), 'answer', OBSERVED, null);
+    await settle();
+
+    expect(H.timeline).toContain('learn:writingStyle(mem-ws13)');
+    expect(H.timeline).toContain('learn:suggestion');
+    vi.restoreAllMocks();
+  });
+
+  it('skips writing style, suggestions and run scoring on an agent turn, but still records usage', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    H.state.classification = suggestion;
+    const runtime = await runAutonomyBeforeChat({
+      userId: 'user-ws13',
+      messages: [{ role: 'user', content: RESEARCH_ASK }],
+    });
+    H.timeline.length = 0;
+
+    runPostChatHooks(
+      lifecycleContext({ agentTurn: true, autonomyRuntime: runtime }),
+      'answer',
+      OBSERVED,
+      null,
+    );
+    await settle();
+
+    expect(H.timeline.filter((entry) => entry.startsWith('learn:'))).toEqual([
+      'learn:analytics(acme/chat-1,60)',
+    ]);
+    expect(H.timeline).not.toContain('proactive:classify');
+    vi.restoreAllMocks();
+  });
+
+  it('skips writing style and suggestions on a failed turn, but still records the failure', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    H.state.classification = suggestion;
+
+    runPostChatHooks(lifecycleContext(), '', OBSERVED, AliaErrorCode.TIMEOUT);
+    await settle();
+
+    expect(H.timeline).toContain('learn:analytics(acme/chat-1,60)');
+    expect(H.timeline).not.toContain('learn:writingStyle(mem-ws13)');
+    expect(H.timeline).not.toContain('proactive:classify');
+    vi.restoreAllMocks();
+  });
+
+  it('analyses the new message only, not the history again', async () => {
+    const analyzer = await import('../style/style-analyzer.js');
+    const analysed: string[] = [];
+    const real = analyzer.analyzeMessage;
+    vi.spyOn(analyzer, 'analyzeMessage').mockImplementation((message, profile) => {
+      analysed.push(message);
+      return real(message, profile);
+    });
+
+    runPostChatHooks(lifecycleContext(), 'answer', OBSERVED, null);
+    await settle();
+
+    expect(analysed).toEqual(['remind me why we chose that ordering']);
+    vi.restoreAllMocks();
+  });
+});

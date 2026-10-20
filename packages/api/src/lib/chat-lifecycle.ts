@@ -35,6 +35,12 @@ export interface LifecycleContext {
   requestStartTime: number;
   skillNames?: string[];
   autonomyRuntime: AutonomyRuntimeContext | null;
+  /**
+   * The turn ran as an AGENT. Memory is per actor: what Alia learns about the
+   * person (writing style, proactive suggestions, run scoring) comes from
+   * Alia's turns, never from an agent's.
+   */
+  agentTurn?: boolean;
   /** The embedding app (`host.app`), which labels a conversation this turn creates. */
   originApp?: string;
 }
@@ -289,6 +295,7 @@ export function runPostChatHooks(
     requestStartTime,
     skillNames,
     autonomyRuntime,
+    agentTurn,
   } = ctx;
 
   runAfterChatHooks({
@@ -310,8 +317,11 @@ export function runPostChatHooks(
     errorClass,
     cancelled: observation.cancelled,
     resolvedModelReference: observation.resolvedModelReference,
+    agentTurn: agentTurn === true,
   }).catch((err) => log.v1.error({ err }, 'Error in afterChat hooks'));
 
+  // Alia's run scoring is about Alia's turns.
+  if (agentTurn) return;
   runAutonomyAfterChat({
     userId,
     runtimeContext: autonomyRuntime,

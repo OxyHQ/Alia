@@ -329,4 +329,41 @@ describe('an Alia task run', () => {
     expect(state.refund).not.toHaveBeenCalled();
     expect(state.post).not.toHaveBeenCalled();
   });
+
+  describe('a run that ends without a word', () => {
+    beforeEach(() => {
+      state.generate.mockResolvedValue({
+        text: '   ',
+        totalUsage: { inputTokens: 1200, outputTokens: 300 },
+      });
+    });
+
+    it('is a typed failure the queue retries, not a filler message', async () => {
+      await expect(runAliaTask(job, { finalAttempt: false })).rejects.toMatchObject({
+        code: 'EMPTY_RESPONSE',
+      });
+
+      // Neither charged nor closed: the retry starts from the same hold.
+      expect(state.finalize).not.toHaveBeenCalled();
+      expect(state.markRun).not.toHaveBeenCalledWith(database, 'run-1', 'succeeded');
+      expect(state.refund).not.toHaveBeenCalled();
+      expect(state.post).not.toHaveBeenCalled();
+    });
+
+    it('on the last attempt refunds, fails the run and tells the person it did not run', async () => {
+      await expect(runAliaTask(job, { finalAttempt: true })).rejects.toMatchObject({
+        code: 'EMPTY_RESPONSE',
+      });
+
+      expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'Alia task failed');
+      expect(state.markRun).toHaveBeenLastCalledWith(database, 'run-1', 'failed');
+      expect(state.post).toHaveBeenCalledTimes(1);
+      expect(state.post).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining("couldn't complete this scheduled task"),
+        }),
+      );
+      expect(JSON.stringify(state.post.mock.calls)).not.toContain('Task finished.');
+    });
+  });
 });

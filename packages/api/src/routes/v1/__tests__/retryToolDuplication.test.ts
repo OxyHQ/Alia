@@ -89,7 +89,13 @@ vi.mock('../../../lib/chat-core.js', () => ({
     provider: UPSTREAM_PROVIDER,
     modelId: UPSTREAM_MODEL_ID,
     supportedUrls: {},
-    doGenerate: async () => ({ content: [], finishReason: 'stop', usage: V3_USAGE, warnings: [] }),
+    doGenerate: async () => ({
+      // An answer with words: a completion with none is a typed failure.
+      content: [{ type: 'text', text: 'Recovered.' }],
+      finishReason: 'stop',
+      usage: V3_USAGE,
+      warnings: [],
+    }),
     doStream: async (options: { tools?: Array<{ name: string }> }) => {
       H.state.modelCalls += 1;
       const offeredTools = (options.tools ?? []).length > 0;

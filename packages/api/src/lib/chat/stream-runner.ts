@@ -42,6 +42,8 @@ import {
 import type { SSEWriter } from './sse-writer.js';
 import { isInvalidToolCall, toolRoundTrip } from './tool-calls.js';
 import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
+import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
+import type { StreamWatchdog } from './model-config.js';
 
 /**
  * The consultation's result: another agent's whole answer, with its identity.
@@ -88,6 +90,23 @@ function sizeForLog(value: unknown): number {
 }
 
 const MAX_TOOL_CALLS = 15;
+
+/** Whether a chunk carries something the model produced, as opposed to stream bookkeeping. */
+function isContentChunk(chunk: { type: string; text?: string }): boolean {
+  switch (chunk.type) {
+    case 'text-delta':
+      return Boolean(chunk.text);
+    case 'reasoning-delta':
+    case 'tool-input-start':
+    case 'tool-input-delta':
+    case 'tool-call':
+    case 'tool-result':
+    case 'tool-error':
+      return true;
+    default:
+      return false;
+  }
+}
 
 /**
  * A tool that ran but could not do its job answers `{ error: '…' }` — the shape
@@ -140,8 +159,23 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   toolCallCount: number;
   /** Shared with the first-byte timer + provider-retry catch; mutated in place. */
   state: StreamRunnerState;
-  /** Clears the route's first-byte timer once the provider responds. */
+  /**
+   * Called with every chunk that carries CONTENT — text, reasoning, tool input,
+   * a tool call or its result — and only those: the lifecycle chunks the SDK
+   * emits before the model has said anything (`start`, `start-step`) are not a
+   * first byte. Clears the route's first-byte timer and times the first token.
+   */
   onFirstChunk: () => void;
+  /** Resets the stream's inactivity timer on every chunk; see {@link StreamWatchdog}. */
+  idle?: StreamWatchdog;
+}
+
+/** Token usage summed over the `finish-step` chunks this attempt delivered. */
+export interface StepUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  reasoningTokens: number;
 }
 
 export interface RunStreamResult {
@@ -150,6 +184,12 @@ export interface RunStreamResult {
   hasStreamedText: boolean;
   chunkCount: number;
   toolCallCount: number;
+  /**
+   * What the finished steps spent. The AI SDK's `onFinish` reports the turn's
+   * usage, but never fires for a stream this function abandons (the tool-call
+   * limit), so the steps seen are the only record of what that turn cost.
+   */
+  usage: StepUsage;
 }
 
 /** The closing turn of the tools-disabled synthesis pass. */
@@ -176,6 +216,7 @@ export async function runStream<TOOLS extends ToolSet>(
     agentMessages,
     state,
     onFirstChunk,
+    idle,
   } = params;
 
   // Tool tracking for observability
@@ -188,6 +229,16 @@ export async function runStream<TOOLS extends ToolSet>(
   let assistantResponse = ''; // Track assistant's response for conversation save
   let hasStreamedText = false; // Track whether actual text (not just tool calls) was streamed
   const toolInvocations: ToolInvocation[] = [];
+  const usage: StepUsage = {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    reasoningTokens: 0,
+  };
+  /** OpenAI's `tool_calls[].index`: one per call of the message, so parallel calls stay apart. */
+  let nextToolIndex = 0;
+  let toolLimitHit = false;
+  let finished = false;
   const invalidToolCallIds = new Set<string>();
 
   /**
@@ -245,11 +296,16 @@ export async function runStream<TOOLS extends ToolSet>(
 
     const retryAbort = new AbortController();
     const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
+    // The turn's own abort (global timeout, idle watchdog) reaches this pass too.
+    const turnSignal: AbortSignal | undefined = baseConfig.abortSignal;
+    const retrySignal = turnSignal
+      ? AbortSignal.any([retryAbort.signal, turnSignal])
+      : retryAbort.signal;
 
     try {
       const retryResult = streamText({
         ...baseConfig,
-        abortSignal: retryAbort.signal,
+        abortSignal: retrySignal,
         messages: followUpMessages,
         tools: undefined,
         stopWhen: undefined,
@@ -273,6 +329,8 @@ export async function runStream<TOOLS extends ToolSet>(
           // it here turned every upstream refusal of the synthesis pass into
           // "produced no assistant answer" and lost the actual cause.
           throw retryChunk.error ?? new Error('The tool-result synthesis stream failed');
+        } else if (retryChunk.type === 'finish' && retryChunk.finishReason === 'error') {
+          throw new Error('The tool-result synthesis stream finished with an error');
         }
       }
       return hasStreamedText;
@@ -283,8 +341,9 @@ export async function runStream<TOOLS extends ToolSet>(
 
   for await (const chunk of result.fullStream) {
     chunkCount++;
-    // Clear first-byte timer on first chunk (provider responded)
-    onFirstChunk();
+    // Any chunk proves the stream is alive; only content ends the first-byte wait.
+    idle?.touch();
+    if (isContentChunk(chunk)) onFirstChunk();
     // Log chunk type (skip high-frequency text-delta to reduce noise)
     if (chunk.type !== 'text-delta') {
       log.v1.debug({ chunkCount, chunkType: chunk.type }, 'Stream chunk');
@@ -349,7 +408,7 @@ export async function runStream<TOOLS extends ToolSet>(
               delta: {
                 tool_calls: [
                   {
-                    index: 0,
+                    index: nextToolIndex++,
                     id: chunk.toolCallId,
                     type: 'function',
                     function: {
@@ -375,6 +434,7 @@ export async function runStream<TOOLS extends ToolSet>(
 
       // Track tool call timing (start)
       toolTimers.set(chunk.toolCallId, Date.now());
+      idle?.toolStarted();
       toolCallCount++;
 
       // Tool iteration guard
@@ -386,9 +446,11 @@ export async function runStream<TOOLS extends ToolSet>(
           code: 'TOOL_LIMIT_EXCEEDED',
           message: `Exceeded ${MAX_TOOL_CALLS} tool calls`,
         });
+        toolLimitHit = true;
         break;
       }
     } else if (chunk.type === 'tool-result') {
+      idle?.toolFinished();
       sse.ensureHeaders();
       state.hasStreamedContent = true;
 
@@ -456,6 +518,7 @@ export async function runStream<TOOLS extends ToolSet>(
       }
     } else if (chunk.type === 'tool-error') {
       if (invalidToolCallIds.has(chunk.toolCallId)) continue;
+      idle?.toolFinished();
       sse.ensureHeaders();
       state.hasStreamedContent = true;
 
@@ -487,6 +550,16 @@ export async function runStream<TOOLS extends ToolSet>(
       // Source/file/raw events - no action needed
     } else if (chunk.type === 'finish-step') {
       log.v1.debug('Step finished');
+      const step = chunk.usage;
+      if (step) {
+        const input = step.inputTokens ?? 0;
+        const output = step.outputTokens ?? 0;
+        usage.promptTokens += input;
+        usage.completionTokens += output;
+        usage.totalTokens += step.totalTokens ?? input + output;
+        usage.reasoningTokens +=
+          step.outputTokenDetails?.reasoningTokens ?? step.reasoningTokens ?? 0;
+      }
     } else if (chunk.type === 'error') {
       log.v1.error({ err: chunk.error }, 'Error chunk received');
 
@@ -531,7 +604,12 @@ export async function runStream<TOOLS extends ToolSet>(
     } else if (chunk.type === 'finish') {
       log.v1.debug('Finish chunk received');
       sse.ensureHeaders();
-      let finishReason = chunk.finishReason || 'stop';
+      if (chunk.finishReason === 'error') {
+        // The adapter reports the cause as an `error` chunk first; this is the
+        // closing frame of a failed stream and must never read as a finished turn.
+        throw new Error('The inference stream finished with an error');
+      }
+      let finishReason: string = chunk.finishReason || 'stop';
 
       // A normal, bounded agent loop can finish immediately after its last
       // tool result. Unless another agent already supplied the answer as its
@@ -557,6 +635,13 @@ export async function runStream<TOOLS extends ToolSet>(
           synthesisFailure = synthesisError;
         }
 
+        if (synthesisFailure !== undefined) {
+          // A pass that failed part-way leaves a truncated sentence behind; that
+          // is a failed turn, not an answer ("it streamed some text" is not "it
+          // finished"). Thrown whatever was already written.
+          throw synthesisFailure;
+        }
+
         if (!hasStreamedText) {
           // The real cause when the pass failed (its classification decides the
           // client's code: timeout, budget, provider); a typed error of its own
@@ -574,7 +659,14 @@ export async function runStream<TOOLS extends ToolSet>(
         }
       }
 
-      writeStopChunk(res, requestId, modelId, finishReason);
+      // Nothing to show for the turn: no words, no tool, no agent answer. A
+      // `length` stop that spent the whole budget thinking lands here too.
+      if (assistantResponse === '' && toolInvocations.length === 0 && agentMessages.length === 0) {
+        throw emptyResponseError(finishReason);
+      }
+
+      writeStopChunk(res, requestId, modelId, toOpenAIFinishReason(finishReason));
+      finished = true;
     } else {
       // The type, never the chunk: an unrecognised frame is the one case where
       // nothing here knows what the payload holds, and "unknown" is exactly
@@ -583,5 +675,11 @@ export async function runStream<TOOLS extends ToolSet>(
     }
   }
 
-  return { assistantResponse, toolInvocations, hasStreamedText, chunkCount, toolCallCount };
+  // The limit cut the stream before the adapter's `finish`: close the turn here,
+  // as truncated, so a client that waits for a finish_reason is not left waiting.
+  if (toolLimitHit && !finished) {
+    writeStopChunk(res, requestId, modelId, 'length');
+  }
+
+  return { assistantResponse, toolInvocations, hasStreamedText, chunkCount, toolCallCount, usage };
 }

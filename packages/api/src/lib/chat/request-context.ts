@@ -824,63 +824,64 @@ export async function buildChatRequestContext(
           modelAcceptsFiles: resolved.catalogue?.inputModalities.includes('file') === true,
         });
 
-  const [admitted, creditResult, { userMemory, oxyUser, entitlements, turnAgent }] =
-    await Promise.all([
-      admission,
-      // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
-      // Skip for internal service requests (no credits charged)
-      /**
-       * A local turn reserves nothing. It is not a discount — no inference of
-       * Alia's is spent — and the skip has to be here rather than a refund later:
-       * any exit that neither charges nor refunds silently costs the person the
-       * reserved credit.
-       */
-      admission.then((admitted) =>
-        admitted.ok && creditAccountId !== undefined && !req.serviceApp && localRuntime === null
-          ? (async () => {
-              await getOrCreateUserCredits(creditAccountId);
-              // The rolling window first (`lib/usage-window.ts`): a turn that
-              // would start with it spent reserves nothing and is refused below.
-              // It fails OPEN — a window that cannot be read never stops a turn;
-              // the balance still bounds it.
-              const productCreditSnapshot =
-                req.user?.id === creditAccountId
-                  ? await readConfiguredProductCreditSnapshot(
-                      creditAccountId,
-                      req.accessToken,
-                    ).catch(() => undefined)
-                  : undefined;
-              const window = await usageWindowFor(
-                creditAccountId,
-                productCreditPlanId(productCreditSnapshot, creditAccountId),
-              );
-              if (window?.exhausted) {
-                return { reservation: null, error: false as const, window };
-              }
-              const priceBook = await captureCreditPriceBook();
-              const reservation = await reserveCredits(creditAccountId, undefined, {
-                priceBook,
-                requestedModel,
-                aliaRequestId,
-                productCreditSnapshot,
-              });
-              if (reservation?.productAllocationId)
-                reservation.refreshProductCreditSnapshot = () =>
-                  readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken);
-              return { reservation, error: false as const, window: null };
-            })().catch((error) => {
-              log.v1.error({ err: error }, 'Error reserving credits');
-              return { reservation: null, error: true as const, window: null };
-            })
-          : {
-              reservation: null,
-              error: false as const,
-              window: null as UsageWindow | null,
-            },
-      ),
+  /**
+   * The reservation promise is kept apart from the batch: a sibling read that
+   * rejects must not strand a reservation that lands afterwards. It never
+   * rejects itself (its own catch turns a fault into `error: true`).
+   */
+  const reserve = admission.then((admitted) =>
+    admitted.ok && creditAccountId !== undefined && !req.serviceApp && localRuntime === null
+      ? (async () => {
+          await getOrCreateUserCredits(creditAccountId);
+          // The rolling window first (`lib/usage-window.ts`): a turn that
+          // would start with it spent reserves nothing and is refused below.
+          // It fails OPEN — a window that cannot be read never stops a turn;
+          // the balance still bounds it.
+          const productCreditSnapshot =
+            req.user?.id === creditAccountId
+              ? await readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken).catch(
+                  () => undefined,
+                )
+              : undefined;
+          const window = await usageWindowFor(
+            creditAccountId,
+            productCreditPlanId(productCreditSnapshot, creditAccountId),
+          );
+          if (window?.exhausted) {
+            return { reservation: null, error: false as const, window };
+          }
+          const priceBook = await captureCreditPriceBook();
+          const reservation = await reserveCredits(creditAccountId, undefined, {
+            priceBook,
+            requestedModel,
+            aliaRequestId,
+            productCreditSnapshot,
+          });
+          if (reservation?.productAllocationId)
+            reservation.refreshProductCreditSnapshot = () =>
+              readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken);
+          return { reservation, error: false as const, window: null };
+        })().catch((error) => {
+          log.v1.error({ err: error }, 'Error reserving credits');
+          return { reservation: null, error: true as const, window: null };
+        })
+      : {
+          reservation: null,
+          error: false as const,
+          window: null as UsageWindow | null,
+        },
+  );
 
-      turnInputs,
-    ]);
+  let batch: [FeatureAdmission, Awaited<typeof reserve>, Awaited<typeof turnInputs>];
+  try {
+    batch = await Promise.all([admission, reserve, turnInputs]);
+  } catch (error) {
+    // A reservation taken while the batch was failing is released, not leaked.
+    const landed = await reserve.catch(() => null);
+    if (landed?.reservation) await refundReservation(landed.reservation);
+    throw error;
+  }
+  const [admitted, creditResult, { userMemory, oxyUser, entitlements, turnAgent }] = batch;
 
   log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
 
@@ -902,209 +903,220 @@ export async function buildChatRequestContext(
   // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
   // not if there was a DB error (original behavior: continue without credits on error)
   const creditReservation = creditResult.reservation;
-  /**
-   * A local turn arrives here with no reservation and no error, which is
-   * exactly the shape this branch reads as "out of credits" — so the skip has
-   * to be repeated here and not only where the reservation is taken. Missed,
-   * every local turn 402s before reaching a model, and the person is told to
-   * buy credits for running a model on their own hardware.
-   */
-  /**
-   * The plan's rolling window is spent. A 429 the clients already read as a
-   * limit to wait out: `retryAfter` is when the oldest spending turn in the
-   * window ages out, and it drives the usage dialog's countdown.
-   */
-  if (creditResult.window?.exhausted) {
-    clearTimeout(globalTimer);
-    const window = creditResult.window;
-    const windowError = {
-      message: `You've reached your ${window.hours}-hour usage limit. It frees up as your earlier messages age out.`,
-      type: 'rate_limit_error',
-      param: null,
-      code: 'USAGE_WINDOW_EXCEEDED',
-      retryAfter: secondsUntilReset(window),
-      suggestedAction: 'wait',
-      details: {
-        limitType: 'usage_window',
-        current: window.used,
-        limit: window.limit,
-        tier: entitlements?.planId ?? null,
-      },
-    };
-    if (sse.sent) {
-      sse.writeError(windowError);
-    } else {
-      res.status(429).json({ error: windowError });
+  try {
+    /**
+     * A local turn arrives here with no reservation and no error, which is
+     * exactly the shape this branch reads as "out of credits" — so the skip has
+     * to be repeated here and not only where the reservation is taken. Missed,
+     * every local turn 402s before reaching a model, and the person is told to
+     * buy credits for running a model on their own hardware.
+     */
+    /**
+     * The plan's rolling window is spent. A 429 the clients already read as a
+     * limit to wait out: `retryAfter` is when the oldest spending turn in the
+     * window ages out, and it drives the usage dialog's countdown.
+     */
+    if (creditResult.window?.exhausted) {
+      clearTimeout(globalTimer);
+      const window = creditResult.window;
+      const windowError = {
+        message: `You've reached your ${window.hours}-hour usage limit. It frees up as your earlier messages age out.`,
+        type: 'rate_limit_error',
+        param: null,
+        code: 'USAGE_WINDOW_EXCEEDED',
+        retryAfter: secondsUntilReset(window),
+        suggestedAction: 'wait',
+        details: {
+          limitType: 'usage_window',
+          current: window.used,
+          limit: window.limit,
+          tier: entitlements?.planId ?? null,
+        },
+      };
+      if (sse.sent) {
+        sse.writeError(windowError);
+      } else {
+        res.status(429).json({ error: windowError });
+      }
+      return null;
     }
-    return null;
-  }
 
-  if (
-    req.user &&
-    !req.serviceApp &&
-    !creditReservation &&
-    !creditResult.error &&
-    localRuntime === null
-  ) {
-    clearTimeout(globalTimer);
-    const creditError = {
-      message: "You've run out of credits. Add more or upgrade your plan to continue.",
-      type: 'invalid_request_error',
-      param: null,
-      code: 'INSUFFICIENT_CREDITS',
-    };
-    if (sse.sent) {
-      sse.writeError(creditError);
-    } else {
-      res.status(402).json({ error: creditError });
+    if (
+      req.user &&
+      !req.serviceApp &&
+      !creditReservation &&
+      !creditResult.error &&
+      localRuntime === null
+    ) {
+      clearTimeout(globalTimer);
+      const creditError = {
+        message: "You've run out of credits. Add more or upgrade your plan to continue.",
+        type: 'invalid_request_error',
+        param: null,
+        code: 'INSUFFICIENT_CREDITS',
+      };
+      if (sse.sent) {
+        sse.writeError(creditError);
+      } else {
+        res.status(402).json({ error: creditError });
+      }
+      return null;
     }
-    return null;
-  }
 
-  /**
-   * A turn that named an agent we could not verify is REFUSED, never answered
-   * by somebody else.
-   *
-   * This is the second, independent cause of the symptom `#453` fixed: the
-   * client goes on rendering the agent's name and colour around the reply, so
-   * substituting Alia tells the person they are talking to Claudio while Alia
-   * answers. An identity failure cannot resolve to "you are someone else"; it
-   * either fails or says so out loud, and this is the surface with nowhere to
-   * say it.
-   *
-   * 502 because nothing about the request is wrong and retrying may work, and
-   * it is `refusalStatus`/`refusalMessage`'s own answer for this refusal rather
-   * than a second opinion about it. The reservation is refunded, matching every
-   * other branch here that rejects a request after credits were held — an exit
-   * that neither charges nor refunds silently costs the person a credit.
-   */
-  if (turnAgent.kind === 'identity_unavailable') {
+    /**
+     * A turn that named an agent we could not verify is REFUSED, never answered
+     * by somebody else.
+     *
+     * This is the second, independent cause of the symptom `#453` fixed: the
+     * client goes on rendering the agent's name and colour around the reply, so
+     * substituting Alia tells the person they are talking to Claudio while Alia
+     * answers. An identity failure cannot resolve to "you are someone else"; it
+     * either fails or says so out loud, and this is the surface with nowhere to
+     * say it.
+     *
+     * 502 because nothing about the request is wrong and retrying may work, and
+     * it is `refusalStatus`/`refusalMessage`'s own answer for this refusal rather
+     * than a second opinion about it. The reservation is refunded, matching every
+     * other branch here that rejects a request after credits were held — an exit
+     * that neither charges nor refunds silently costs the person a credit.
+     */
+    if (turnAgent.kind === 'identity_unavailable') {
+      if (creditReservation) await refundReservation(creditReservation);
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: refusalMessage('identity_unavailable'),
+        type: 'server_error',
+        param: 'agentId',
+        code: 'IDENTITY_UNAVAILABLE',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(refusalStatus('identity_unavailable')).json({ error: refusal });
+      }
+      return null;
+    }
+
+    if (turnAgent.kind === 'resolution_unavailable') {
+      if (creditReservation) await refundReservation(creditReservation);
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: 'The selected agent could not be resolved. Please try again.',
+        type: 'server_error',
+        param: 'agentId',
+        code: 'AGENT_RESOLUTION_UNAVAILABLE',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(503).json({ error: refusal });
+      }
+      return null;
+    }
+
+    /**
+     * Missing and unauthorised are deliberately the same public refusal. The
+     * typed internal reason remains useful for tests and telemetry, but exposing
+     * it would let a caller probe private agent ids. Most importantly, neither
+     * outcome falls through to `linkedAgent = null`, which is ordinary Alia.
+     */
+    if (turnAgent.kind === 'unavailable') {
+      if (creditReservation) await refundReservation(creditReservation);
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: 'The selected agent is unavailable.',
+        type: 'invalid_request_error',
+        param: 'agentId',
+        code: 'agent_unavailable',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(404).json({ error: refusal });
+      }
+      return null;
+    }
+
+    const linkedAgent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
+
+    // The caller's already verified machine bearer reaches only Oxy inference,
+    // which revalidates it and derives the application's payer. Never fall back
+    // to Alia's process credential for this lane. An agent turn has no payer of
+    // its own: the person present pays (ADR 0020 §4).
+    const inferenceServiceToken: string | undefined = machineTurn?.bearer;
+
+    /**
+     * Skills, after the batch rather than inside it: the candidate set includes
+     * the skills linked to whichever agent this conversation runs, and that agent
+     * is one of the things the batch resolves.
+     *
+     * Available to API-key callers too, unlike the prompt fragment this replaces.
+     * Authorization is now an install owned by `req.user.id`, and a developer key
+     * carries its owner's account — so scoping it to interactive sessions would
+     * withhold a person's own skills from their own API key for no reason.
+     */
+    const skills = req.user?.id
+      ? await buildTurnSkills({
+          oxyUserId: req.user.id,
+          linkedAgent,
+          selectedSkillNames,
+        })
+      : null;
+
+    log.v1.info({ provider: resolved.provider, modelId }, 'Using provider');
+
+    // An agent's memory is its own (`agent_memory_documents`): Alia's recall is
+    // for Alia's turns only.
+    const recalledMemories =
+      req.user?.id && linkedAgent === null
+        ? await recallTurnMemories({
+            oxyUserId: req.user.id,
+            conversationId,
+            messages,
+            modelId,
+            selectedSkillNames,
+          })
+        : undefined;
+
+    return {
+      body,
+      messages,
+      conversationId,
+      assistantMessageId,
+      reasoningEffort,
+      responseMode: body.responseMode === 'voice' ? 'voice' : null,
+      host,
+      files: admitted.files,
+      featureUses,
+      deepResearch,
+      webSearch,
+      mcpServerId,
+      includeUsage,
+      isDirectUserSession,
+      requestedModel,
+      surface,
+      isLocalRuntime: localRuntime !== null,
+      clientContext,
+      userMemory,
+      oxyUser,
+      skills: skills ?? EMPTY_SKILL_RUNTIME,
+      entitlements,
+      linkedAgent,
+      surfaceApplicationId,
+      inferenceServiceToken,
+      creditReservation,
+      resolved,
+      modelId,
+      autonomyRuntime,
+      recalledMemories,
+    };
+  } catch (error) {
+    // Everything below can throw (a skills lookup, a memory recall). Whatever
+    // is thrown, the route never receives this context, so its single release
+    // point cannot see the reservation: it is given back here.
     if (creditReservation) await refundReservation(creditReservation);
-    clearTimeout(globalTimer);
-    const refusal = {
-      message: refusalMessage('identity_unavailable'),
-      type: 'server_error',
-      param: 'agentId',
-      code: 'IDENTITY_UNAVAILABLE',
-    };
-    if (sse.sent) {
-      sse.writeError(refusal);
-    } else {
-      res.status(refusalStatus('identity_unavailable')).json({ error: refusal });
-    }
-    return null;
+    throw error;
   }
-
-  if (turnAgent.kind === 'resolution_unavailable') {
-    if (creditReservation) await refundReservation(creditReservation);
-    clearTimeout(globalTimer);
-    const refusal = {
-      message: 'The selected agent could not be resolved. Please try again.',
-      type: 'server_error',
-      param: 'agentId',
-      code: 'AGENT_RESOLUTION_UNAVAILABLE',
-    };
-    if (sse.sent) {
-      sse.writeError(refusal);
-    } else {
-      res.status(503).json({ error: refusal });
-    }
-    return null;
-  }
-
-  /**
-   * Missing and unauthorised are deliberately the same public refusal. The
-   * typed internal reason remains useful for tests and telemetry, but exposing
-   * it would let a caller probe private agent ids. Most importantly, neither
-   * outcome falls through to `linkedAgent = null`, which is ordinary Alia.
-   */
-  if (turnAgent.kind === 'unavailable') {
-    if (creditReservation) await refundReservation(creditReservation);
-    clearTimeout(globalTimer);
-    const refusal = {
-      message: 'The selected agent is unavailable.',
-      type: 'invalid_request_error',
-      param: 'agentId',
-      code: 'agent_unavailable',
-    };
-    if (sse.sent) {
-      sse.writeError(refusal);
-    } else {
-      res.status(404).json({ error: refusal });
-    }
-    return null;
-  }
-
-  const linkedAgent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
-
-  // The caller's already verified machine bearer reaches only Oxy inference,
-  // which revalidates it and derives the application's payer. Never fall back
-  // to Alia's process credential for this lane. An agent turn has no payer of
-  // its own: the person present pays (ADR 0020 §4).
-  const inferenceServiceToken: string | undefined = machineTurn?.bearer;
-
-  /**
-   * Skills, after the batch rather than inside it: the candidate set includes
-   * the skills linked to whichever agent this conversation runs, and that agent
-   * is one of the things the batch resolves.
-   *
-   * Available to API-key callers too, unlike the prompt fragment this replaces.
-   * Authorization is now an install owned by `req.user.id`, and a developer key
-   * carries its owner's account — so scoping it to interactive sessions would
-   * withhold a person's own skills from their own API key for no reason.
-   */
-  const skills = req.user?.id
-    ? await buildTurnSkills({
-        oxyUserId: req.user.id,
-        linkedAgent,
-        selectedSkillNames,
-      })
-    : null;
-
-  log.v1.info({ provider: resolved.provider, modelId }, 'Using provider');
-
-  const recalledMemories = req.user?.id
-    ? await recallTurnMemories({
-        oxyUserId: req.user.id,
-        conversationId,
-        messages,
-        modelId,
-        selectedSkillNames,
-      })
-    : undefined;
-
-  return {
-    body,
-    messages,
-    conversationId,
-    assistantMessageId,
-    reasoningEffort,
-    responseMode: body.responseMode === 'voice' ? 'voice' : null,
-    host,
-    files: admitted.files,
-    featureUses,
-    deepResearch,
-    webSearch,
-    mcpServerId,
-    includeUsage,
-    isDirectUserSession,
-    requestedModel,
-    surface,
-    isLocalRuntime: localRuntime !== null,
-    clientContext,
-    userMemory,
-    oxyUser,
-    skills: skills ?? EMPTY_SKILL_RUNTIME,
-    entitlements,
-    linkedAgent,
-    surfaceApplicationId,
-    inferenceServiceToken,
-    creditReservation,
-    resolved,
-    modelId,
-    autonomyRuntime,
-    recalledMemories,
-  };
 }
 
 /**

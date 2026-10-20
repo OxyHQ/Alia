@@ -57,6 +57,7 @@ describe('reasoning on the wire', () => {
       { type: 'reasoning-delta', id: 'r', text: ' ' },
       { type: 'reasoning-delta', id: 'r', text: '' },
       { type: 'reasoning-delta', id: 'r', text: 'b' },
+      { type: 'text-delta', id: 't', text: 'Hola' },
       { type: 'finish', finishReason: 'stop' },
     ]);
 
