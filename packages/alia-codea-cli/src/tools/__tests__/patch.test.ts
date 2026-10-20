@@ -20,7 +20,7 @@
  * these tests ask.
  */
 
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -349,5 +349,24 @@ describe('ordinary application', () => {
     // That is what `git apply` does too; it is recorded here so a later reader
     // knows it was measured rather than assumed.
     expect(await read('ws.ts')).toBe('const a = 1;\nconst b = 3;\n');
+  });
+});
+
+describe('resolveInside follows symlinks', () => {
+  it('refuses a path that goes through a link pointing out of the base', async () => {
+    const outside = await mkdtemp(path.join(tmpdir(), 'alia-outside-'));
+    try {
+      await symlink(outside, path.join(base, 'link'));
+      expect(resolveInside(base, 'link/escape.txt')).toBeNull();
+      expect(resolveInside(base, 'link')).toBeNull();
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('still accepts a link that stays inside the base', async () => {
+    await mkdir(path.join(base, 'real'));
+    await symlink(path.join(base, 'real'), path.join(base, 'alias'));
+    expect(resolveInside(base, 'alias/new.txt')).not.toBeNull();
   });
 });

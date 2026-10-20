@@ -8,10 +8,12 @@ import { fetchPickerCatalogue, resolveModelId } from './catalogue';
 import {
   AliaChatError,
   completedToolCalls,
+  isCreditsRefusal,
   mergeToolCallDeltas,
   streamAliaChat,
   type AliaStreamEvent,
   type StreamedToolCall,
+  withFailureDetail,
 } from './aliaChat';
 
 /**
@@ -1049,11 +1051,18 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
    */
   private formatErrorMessage(error: unknown): string {
     if (error instanceof AliaChatError) {
+      // A typed refusal says what it is: its message, its code and its run
+      // reference. The status-only wording is for refusals that carry no code.
+      if (error.code !== null && !isCreditsRefusal(error) && error.status !== 401) {
+        return withFailureDetail(error.message, error);
+      }
       switch (error.status) {
         case 401:
           return 'Authentication failed. Please sign in again using the "Codea: Sign In" command.';
         case 402:
-          return 'Insufficient credits. Please add more credits at alia.onl';
+          return isCreditsRefusal(error)
+            ? 'Insufficient credits. Please add more credits at alia.onl'
+            : withFailureDetail(error.message, error);
         case 429:
           return 'Rate limit exceeded. Please wait a moment and try again.';
         case 500:
@@ -1063,7 +1072,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         case 504:
           return 'Service unavailable. Please try again later.';
         default:
-          return error.message;
+          return withFailureDetail(error.message, error);
       }
     }
 

@@ -39,7 +39,7 @@ describe('a turn that ends at a question', () => {
 
     expect(hasStreamedText).toBe(false);
     expect(toolInvocations).toMatchObject([{ toolName: 'askUserQuestion', state: 'result' }]);
-    expect(written.some((frame) => frame.includes('"finish_reason":"tool-calls"'))).toBe(true);
+    expect(written.some((frame) => frame.includes('"finish_reason":"tool_calls"'))).toBe(true);
   });
 
   it('control: any other tool with no text still demands an answer', async () => {

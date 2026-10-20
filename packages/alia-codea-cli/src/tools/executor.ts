@@ -102,7 +102,7 @@ async function editFile(filePath: string, oldText: string, newText: string): Pro
 
   // Try exact match first
   if (content.includes(oldText)) {
-    const newContent = content.replace(oldText, newText);
+    const newContent = content.replace(oldText, () => newText);
     await fs.writeFile(absolutePath, newContent, 'utf-8');
     return { success: true, result: `File edited: ${filePath}` };
   }

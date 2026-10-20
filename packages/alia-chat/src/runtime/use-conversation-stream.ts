@@ -5,7 +5,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLabels } from '../lib/labels';
 import { useAppAssertionHeaders } from './app-assertion';
 import { type AliaArtifact, useAliaRuntime } from './config';
-import { errorCode, errorMessage as getErrorMessage, errorName, errorStatus } from './error-utils';
+import {
+  errorCode,
+  errorMessage as getErrorMessage,
+  errorName,
+  errorStatus,
+  readErrorResponseBody,
+} from './error-utils';
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
 import { aliaQueryKeys } from './query-keys';
 import { createRandomUuid } from './random-uuid';
@@ -675,21 +681,7 @@ export function useConversationStream({
         });
 
         if (!response.ok) {
-          let errorData: StreamErrorResponse | null = null;
-          try {
-            // A streaming fetch is body-oriented; .json() may not work for error responses.
-            // Read the body manually via the ReadableStream reader.
-            if (response.body) {
-              const errReader = response.body.getReader();
-              const { value } = await errReader.read();
-              if (value) {
-                errorData = JSON.parse(new TextDecoder().decode(value));
-              }
-            }
-          } catch {
-            // Best-effort: if the error body isn't readable/JSON, fall through to
-            // the generic status-based error message below.
-          }
+          const errorData = (await readErrorResponseBody(response)) as StreamErrorResponse | null;
 
           // An agent's feature gate refused the turn: the host shows its own upsell, and the
           // person's words go back to the composer for after.
@@ -749,14 +741,18 @@ export function useConversationStream({
           // own line, with code and reference — never the server's English.
           const failed =
             errorData?.error && typeof errorData.error === 'object' ? errorData.error : null;
-          if (failed && typeof failed.reference === 'string') {
+          if (
+            failed &&
+            (typeof failed.reference === 'string' ||
+              (response.status >= 500 && typeof failed.code === 'string'))
+          ) {
             setError(new Error(getErrorMessage(failed) || `Server error (${response.status})`));
             setIsLoading(false);
             return keepFailedTurn(
               failed.retryable !== false,
               failureDetail({
                 code: typeof failed.code === 'string' ? failed.code : undefined,
-                reference: failed.reference,
+                reference: typeof failed.reference === 'string' ? failed.reference : undefined,
               }),
             );
           }
@@ -805,6 +801,8 @@ export function useConversationStream({
          */
         const sse = createSseFrameReader();
         let lastOutputAt = 0;
+        /** The server closed the turn: `[DONE]`, or a chunk that carries a finish reason. */
+        let sawTerminal = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -823,6 +821,13 @@ export function useConversationStream({
               setError(new Error('No response received from AI'));
               return keepFailedTurn(true);
             }
+            // The connection closed before the server said the turn was over:
+            // what is on screen is a cut-off answer, not a finished one. Kept
+            // as an interrupted tail with Retry, never settled as complete.
+            if (!sawTerminal) {
+              setError(new Error('The response ended before it was complete'));
+              return keepFailedTurn(true);
+            }
             break;
           }
 
@@ -836,6 +841,7 @@ export function useConversationStream({
 
             // Skip [DONE] marker
             if (data === '[DONE]') {
+              sawTerminal = true;
               continue;
             }
 
@@ -1113,6 +1119,7 @@ export function useConversationStream({
               // Handle OpenAI-compatible format
               const choice = parsed.choices?.[0];
               if (!choice) continue;
+              if (choice.finish_reason) sawTerminal = true;
 
               const delta = choice.delta;
               if (!delta) continue;

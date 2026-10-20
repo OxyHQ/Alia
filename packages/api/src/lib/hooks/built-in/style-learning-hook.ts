@@ -20,12 +20,16 @@ registerHook({
   priority: 200, // Run after analytics (100)
   afterChat: async (ctx) => {
     if (!ctx.userId) return;
+    // Alia's profile of the person comes from Alia's turns; a failed turn has
+    // nothing to learn from either.
+    if (ctx.agentTurn || ctx.errorClass) return;
 
-    // Extract user messages only, skip very short ones
-    const userMessages = ctx.messages
-      .filter((m: any) => m.role === 'user')
-      .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
-      .filter((text: string) => text.length > 5);
+    // Only the message this turn added. The history is the same text the
+    // earlier turns already analysed, and counting it again would weight every
+    // old message once per turn that followed it.
+    const latest = [...ctx.messages].reverse().find((m: any) => m.role === 'user');
+    const text = typeof latest?.content === 'string' ? latest.content : '';
+    const userMessages = text.length > 5 ? [text] : [];
 
     if (userMessages.length === 0) return;
 
@@ -33,7 +37,7 @@ registerHook({
       const memory = await getOrCreateUserMemory(ctx.userId);
       let profile = memory.writingStyle || null;
 
-      // Analyze each user message in this conversation turn
+      // Analyze this turn's message
       for (const msg of userMessages) {
         profile = analyzeMessage(msg, profile);
       }
@@ -50,7 +54,12 @@ registerHook({
       if (shouldRefine) {
         try {
           const { refineStyleWithLLM } = await import('../../style/style-refiner.js');
-          const recentMessages = userMessages.slice(-30);
+          // The refinement reads a sample of the person's recent writing, not only today's line.
+          const recentMessages = ctx.messages
+            .filter((m: any) => m.role === 'user' && typeof m.content === 'string')
+            .map((m: any) => m.content as string)
+            .filter((message: string) => message.length > 5)
+            .slice(-30);
           const refinement = await refineStyleWithLLM(ctx.userId, profile, recentMessages);
           Object.assign(profile, refinement);
           profile.lastLLMRefinedAt = new Date();

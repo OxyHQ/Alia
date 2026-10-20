@@ -123,6 +123,16 @@ export interface ProviderLoopParams {
   inferenceServiceToken?: string;
   /** Release durable turn state before the client is told it may send again. */
   beforeStreamClose?: () => Promise<void>;
+  /**
+   * The abort controller of the provider call, owned by the route so its global
+   * timeout can actually stop the call it answered the client about.
+   */
+  providerAbort?: AbortController;
+  /**
+   * The turn runs as an agent. An agent's learning and memory are its own, so
+   * Alia's after-chat hooks (writing style, proactive suggestions) skip it.
+   */
+  agentTurn?: boolean;
 }
 
 export type ProviderLoopResult =
@@ -167,6 +177,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     skills,
     inferenceServiceToken,
     beforeStreamClose,
+    providerAbort,
+    agentTurn,
   } = params;
 
   // Track token usage (streaming path; the non-streaming path owns its own)
@@ -214,6 +226,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     requestStartTime,
     skillNames: skills.activated().map((skill: { name: string }) => skill.name),
     autonomyRuntime,
+    ...(agentTurn ? { agentTurn: true } : {}),
     ...(originApp === undefined ? {} : { originApp }),
   });
 
@@ -236,6 +249,15 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       retryable: true,
       reason: 'timeout',
     });
+
+  /**
+   * Throws the timeout once the route's global timer has answered the client.
+   * Asked before anything is stored or charged: a turn that timed out is
+   * neither, and its hold is refunded by the route's release point.
+   */
+  const assertLive = (): void => {
+    if (state.globalTimedOut) throw timedOut();
+  };
 
   /**
    * The usage record for a turn that did not complete.
@@ -275,7 +297,12 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       const streamState: StreamRunnerState = { hasStreamedContent: false };
 
       // Build common config for both streaming and non-streaming, plus first-byte abort
-      const { config: baseConfig, clearFirstByteTimer } = buildBaseConfig({
+      const {
+        config: baseConfig,
+        clearFirstByteTimer,
+        watchdog,
+      } = buildBaseConfig({
+        ...(providerAbort === undefined ? {} : { providerAbort }),
         resolved,
         body,
         convertedMessages,
@@ -321,6 +348,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
             autonomyRuntime,
             toolNameMapping,
             observation,
+            assertLive,
+            ...(agentTurn ? { agentTurn: true } : {}),
           });
           // Stable, metadata-free positive signal for the passive public status
           // alarm. It is emitted only after the hosted turn completed.
@@ -372,6 +401,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           agentMessages,
           toolCallCount,
           state: streamState,
+          idle: watchdog,
           onFirstChunk: () => {
             // Called on EVERY chunk, so the first one wins: time to FIRST token,
             // not time to the most recent one.
@@ -385,6 +415,14 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
             clearFirstByteTimer();
           },
         });
+        watchdog?.stop();
+        assertLive();
+        // The SDK's `onFinish` reports the turn's usage — but not for a stream
+        // the runner abandoned (tool-call limit). The steps it saw are then the
+        // only record of what the turn spent.
+        if (tokenUsage.totalTokens === 0 && (streamResult.usage?.totalTokens ?? 0) > 0) {
+          tokenUsage = { ...streamResult.usage, systemPromptTokens };
+        }
         let assistantResponse = streamResult.assistantResponse;
         const toolInvocations = streamResult.toolInvocations;
         toolCallCount = streamResult.toolCallCount;
@@ -405,8 +443,21 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
             requestId,
             modelId,
             resolved,
+            onFollowUpUsage: (usage) => {
+              const input = usage.inputTokens ?? 0;
+              const output = usage.outputTokens ?? 0;
+              tokenUsage = {
+                ...tokenUsage,
+                promptTokens: tokenUsage.promptTokens + input,
+                completionTokens: tokenUsage.completionTokens + output,
+                totalTokens: tokenUsage.totalTokens + (usage.totalTokens ?? input + output),
+                reasoningTokens: (tokenUsage.reasoningTokens ?? 0) + (usage.reasoningTokens ?? 0),
+              };
+            },
           })
         ).assistantResponse;
+
+        assertLive();
 
         // Build lifecycle context for post-stream operations
         const lifecycleCtx = lifecycleContext();
@@ -445,6 +496,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
          * charge — a person pays for an answer that never arrived. Left unsettled,
          * the handler's release point refunds it.
          */
+        assertLive();
         const producedOutput = turnProducedOutput(assistantResponse, toolInvocations);
         const { creditsCharged, creditsRemaining, creditWarning } = producedOutput
           ? await finalizeChatCredits(lifecycleCtx, req, state, observation.resolvedModelReference)
@@ -523,17 +575,27 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         // Clean up timers on inference failure.
         sse.stopKeepAlive();
         clearFirstByteTimer();
-        log.v1.error(
-          { err: inferenceError, modelId: resolved.modelId, reference: requestId },
-          'Kaana inference failed',
-        );
-        const errorReason = classifyError(inferenceError);
-
+        watchdog?.stop();
         // The class this failure would end the turn with, if nothing after it
         // succeeds. `toAliaError` owns the reason -> code table, so this is the
         // same classification the client is answered with rather than a second
         // one that can disagree with it.
         failure = toAliaError(inferenceError);
+        // The edge's own code, request id and status ride next to the product
+        // code: `PROVIDER_UNAVAILABLE` alone cannot be diagnosed.
+        log.v1.error(
+          {
+            err: inferenceError,
+            modelId: resolved.modelId,
+            reference: requestId,
+            failureCode: failure.code,
+            oxyCode: failure.oxy?.code,
+            oxyRequestId: failure.oxy?.requestId,
+            oxyStatus: failure.oxy?.status,
+          },
+          'Kaana inference failed',
+        );
+        const errorReason = classifyError(inferenceError);
 
         if (TERMINAL_STREAM_ERRORS.has(errorReason)) {
           if (streamState.hasStreamedContent) {

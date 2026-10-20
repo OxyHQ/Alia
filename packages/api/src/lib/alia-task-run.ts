@@ -49,6 +49,7 @@ import { getAIModel, resolveDefaultModel } from './chat-core.js';
 import { finalizeCredits, safeRefund, type CreditUsage } from './credits-manager.js';
 import { servedModelId, servedReferenceOf } from './models/power-levels.js';
 import { buildIdentityGuard } from './identity-guard.js';
+import { AliaError, AliaErrorCode } from './errors/error-codes.js';
 import { log } from './logger.js';
 import { sendNotification } from './notification-service.js';
 import { ToolPipeline } from './tool-pipeline.js';
@@ -227,6 +228,20 @@ export async function runAliaTask(
       abortSignal: AbortSignal.timeout(ALIA_TASK_TIMEOUT_MS),
     });
 
+    // A run that ended with no words did not answer. It fails typed, before the
+    // hold is charged or the run closed: the queue retries it, and on the last
+    // attempt the hold is refunded and the person told — never a filler
+    // "Task finished." posted as if the task had been done.
+    const reply = result.text.trim();
+    if (!reply) {
+      throw new AliaError({
+        code: AliaErrorCode.EMPTY_RESPONSE,
+        message: 'The Alia task run finished without any reply text',
+        retryable: true,
+        reason: 'provider_unavailable',
+      });
+    }
+
     // Every step, not only the last: a run that searched three times spent that.
     const usage: CreditUsage = {
       promptTokens: result.totalUsage.inputTokens ?? 0,
@@ -256,7 +271,6 @@ export async function runAliaTask(
       await safeRefund(data.creditReservation, 'Alia task settlement failed');
     }
 
-    const reply = result.text.trim();
     if (
       watchRun &&
       (reply === WATCH_NOTHING_TO_REPORT || reply.startsWith(WATCH_NOTHING_TO_REPORT))
@@ -269,7 +283,7 @@ export async function runAliaTask(
         automationId: automation.id,
         objective: automation.objective,
         conversationId: automation.conversationId,
-        content: reply || 'Task finished.',
+        content: reply,
       });
     } catch (err: unknown) {
       log.agents.warn({ err, runId: data.runId }, 'Failed to deliver an Alia task result');

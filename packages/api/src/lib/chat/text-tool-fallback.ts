@@ -17,7 +17,7 @@
  * the route used inline so the timeout suite's module mocks keep intercepting them.
  */
 import type { Response } from 'express';
-import { streamText, type ModelMessage, type ToolSet } from 'ai';
+import { asSchema, streamText, type ModelMessage, type ToolSet } from 'ai';
 import { log } from '../logger.js';
 import { writeTextChunk, makeChunk } from '../streaming-helpers.js';
 import type { ResolvedModel } from '../chat-core.js';
@@ -36,6 +36,13 @@ export interface TextToolFallbackParams {
   requestId: string;
   modelId: string;
   resolved: Pick<ResolvedModel, 'provider' | 'modelId'>;
+  /** Usage of the follow-up completion, so it is billed like the main stream. */
+  onFollowUpUsage?: (usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    reasoningTokens?: number;
+  }) => void;
 }
 
 const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
@@ -43,15 +50,43 @@ const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/f
 export async function runTextToolFallback(
   params: TextToolFallbackParams,
 ): Promise<{ assistantResponse: string }> {
-  const { toolInvocations, tools, baseConfig, res, requestId, modelId, resolved } = params;
+  const { toolInvocations, tools, baseConfig, res, requestId, modelId, resolved, onFollowUpUsage } =
+    params;
   let assistantResponse = params.assistantResponse;
 
   let textToolCallIdx = 0;
+  /** Everything the follow-up completions streamed, across every executed call. */
+  let followUpTotal = '';
   async function executeTextToolCall(toolName: string, args: unknown): Promise<boolean> {
     const toolFn = tools[toolName];
     if (!toolFn?.execute) {
       log.v1.warn({ toolName }, 'Text tool call references unknown tool, skipping');
       return false;
+    }
+
+    // Only a tool the router has opened this step may run: a model that writes
+    // a call for a deferred or unlisted tool must not reach it by text.
+    const active: string[] | undefined =
+      typeof baseConfig.prepareStep === 'function'
+        ? baseConfig.prepareStep()?.activeTools
+        : baseConfig.activeTools;
+    if (Array.isArray(active) && active.length > 0 && !active.includes(toolName)) {
+      log.v1.warn({ toolName }, 'Text tool call references an inactive tool, skipping');
+      return false;
+    }
+
+    // The native path validates against the tool's schema; so does this one.
+    if (toolFn.inputSchema) {
+      try {
+        const checked = await asSchema(toolFn.inputSchema).validate?.(args);
+        if (checked && !checked.success) {
+          log.v1.warn({ toolName }, 'Text tool call args failed schema validation, skipping');
+          return false;
+        }
+      } catch (err) {
+        log.v1.warn({ err, toolName }, 'Text tool call schema check failed, skipping');
+        return false;
+      }
     }
 
     const toolCallId = `text-fallback-${Date.now()}-${textToolCallIdx++}-${toolName}`;
@@ -110,14 +145,27 @@ export async function runTextToolFallback(
           messages: followUpMessages,
           tools: undefined,
           stopWhen: undefined,
-          onFinish: undefined,
+          onFinish: (result: {
+            usage?: Parameters<NonNullable<typeof onFollowUpUsage>>[0] & {
+              outputTokenDetails?: { reasoningTokens?: number };
+            };
+          }) => {
+            const u = result.usage;
+            if (!u) return;
+            onFollowUpUsage?.({
+              inputTokens: u.inputTokens,
+              outputTokens: u.outputTokens,
+              totalTokens: u.totalTokens,
+              reasoningTokens: u.outputTokenDetails?.reasoningTokens ?? u.reasoningTokens,
+            });
+          },
         });
 
         for await (const followUpChunk of followUpResult.fullStream) {
           if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
             const followUpText = writeTextChunk(res, requestId, modelId, followUpChunk.text);
             if (followUpText) {
-              assistantResponse = followUpText;
+              followUpTotal += followUpText;
             }
           }
         }
@@ -153,7 +201,7 @@ export async function runTextToolFallback(
         }
         await executeTextToolCall(match[1], args);
       }
-      assistantResponse = assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
+      assistantResponse = followUpTotal || assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
     }
 
     // Format 2: entire response is a JSON tool call (OpenAI format)
@@ -171,7 +219,7 @@ export async function runTextToolFallback(
             'Detected JSON tool call in text response — executing fallback',
           );
           await executeTextToolCall(parsed.name, parsed.parameters);
-          assistantResponse = '';
+          assistantResponse = followUpTotal;
         }
       } catch {
         /* not JSON — no action needed */

@@ -620,6 +620,29 @@ describe('a task Alia is responsible for', () => {
     expect(state.enqueueAlia).not.toHaveBeenCalled();
   });
 
+  it('gives the hold back when the claim itself fails', async () => {
+    state.createRun.mockRejectedValueOnce(new Error('connection lost'));
+
+    await expect(dispatchStructuredAutomation(aliaTask(), scheduleTrigger)).rejects.toThrow(
+      'connection lost',
+    );
+    expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'automation run could not be claimed');
+    expect(state.enqueueAlia).not.toHaveBeenCalled();
+  });
+
+  it('gives the hold back when a one-off task cannot be disabled in the claim', async () => {
+    state.disable.mockResolvedValueOnce(false);
+
+    await expect(
+      dispatchStructuredAutomation(
+        aliaTask({ inputs: { instructions: 'Remind me', runOnce: true } }),
+        scheduleTrigger,
+      ),
+    ).rejects.toThrow('could not be disabled');
+    expect(state.refund).toHaveBeenCalledWith(RESERVATION, 'automation run could not be claimed');
+    expect(state.enqueueAlia).not.toHaveBeenCalled();
+  });
+
   it('fails the run and refunds when the job cannot be queued', async () => {
     state.enqueueAlia.mockRejectedValueOnce(new Error('redis down'));
 

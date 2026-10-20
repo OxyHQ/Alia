@@ -3,7 +3,7 @@
  * Executes tools locally in the Electron environment
  */
 
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -17,6 +17,7 @@ import { resolveRequiredModelId } from './catalogue';
 import { currentAccessToken } from './auth';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const store = new Store();
 const logger = createLogger('ToolExecutor');
 
@@ -46,8 +47,8 @@ export class ToolExecutor {
   /** Explicit user selection is the only operation that widens filesystem scope. */
   grantRoot(root: string): void {
     const resolved = fs.realpathSync(root);
-    const directory = fs.statSync(resolved).isDirectory() ? resolved : path.dirname(resolved);
-    this.allowedRoots.add(directory);
+    // Selecting a file grants that file, never the folder it sits in.
+    this.allowedRoots.add(resolved);
   }
 
   private isWithinAllowedRoot(candidate: string): boolean {
@@ -141,7 +142,7 @@ export class ToolExecutor {
       throw new Error(`Could not find the specified text in ${args.path}`);
     }
 
-    const newContent = content.replace(args.old_text, args.new_text);
+    const newContent = content.replace(args.old_text, () => args.new_text);
     fs.writeFileSync(filePath, newContent, 'utf-8');
 
     return `Successfully edited ${args.path}`;
@@ -187,15 +188,17 @@ export class ToolExecutor {
     const searchPath = this.resolvePath(args.path);
     const platform = process.platform;
 
-    let command: string;
-    if (platform === 'win32') {
-      command = `findstr /s /n /i "${args.pattern}" *.*`;
-    } else {
-      command = `grep -rn "${args.pattern}" .`;
-    }
+    // No shell: the model-supplied pattern is an argument, never command text.
+    const [file, fileArgs] =
+      platform === 'win32'
+        ? ['findstr', ['/s', '/n', '/i', `/c:${args.pattern}`, '*.*']]
+        : ['grep', ['-rn', '--', args.pattern, '.']];
 
     try {
-      const { stdout } = await execAsync(command, { cwd: searchPath, maxBuffer: 1024 * 1024 });
+      const { stdout } = await execFileAsync(file as string, fileArgs as string[], {
+        cwd: searchPath,
+        maxBuffer: 1024 * 1024,
+      });
       return stdout.slice(0, 5000);
     } catch (error: unknown) {
       if (errorCode(error) === 1) {
@@ -229,7 +232,11 @@ export class ToolExecutor {
       return `${args.application_name} is already open. DO NOT call open_application again for this application. Task is complete.`;
     }
 
-    await shell.openPath(args.application_name);
+    // openPath resolves to an error message (empty on success); it does not throw.
+    const failure = await shell.openPath(args.application_name);
+    if (failure) {
+      throw new Error(`Could not open ${args.application_name}: ${failure}`);
+    }
     this.openedApplications.add(args.application_name);
     return `Successfully opened ${args.application_name}. Application is now running. DO NOT call open_application again for this application.`;
   }

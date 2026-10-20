@@ -16,7 +16,13 @@ const app = vi.hoisted(() => ({
   consumed: true,
   keys: [] as string[],
 }));
-const turn = vi.hoisted(() => ({ agent: null as Record<string, unknown> | null }));
+const turn = vi.hoisted(() => ({
+  agent: null as Record<string, unknown> | null,
+  /** A later step of the context throws, after the credit was reserved. */
+  failAfterReserve: false,
+  recalls: 0,
+  prefetchFails: false,
+}));
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: async (id: string) =>
@@ -92,14 +98,23 @@ const resolvedWith = vi.hoisted(() => [] as unknown[]);
 
 vi.mock('../turn-inputs.js', () => ({
   EMPTY_SKILL_RUNTIME: { index: '', active: '', tools: {}, candidateIds: [] },
-  prefetchTurnInputs: async () => ({
-    userMemory: null,
-    oxyUser: null,
-    entitlements: null,
-    turnAgent: turn.agent === null ? { kind: 'none' } : { kind: 'agent', agent: turn.agent },
-  }),
-  buildTurnSkills: async () => null,
-  recallTurnMemories: async () => undefined,
+  prefetchTurnInputs: async () => {
+    if (turn.prefetchFails) throw new Error('inputs down');
+    return {
+      userMemory: null,
+      oxyUser: null,
+      entitlements: null,
+      turnAgent: turn.agent === null ? { kind: 'none' } : { kind: 'agent', agent: turn.agent },
+    };
+  },
+  buildTurnSkills: async () => {
+    if (turn.failAfterReserve) throw new Error('skills down');
+    return null;
+  },
+  recallTurnMemories: async () => {
+    turn.recalls += 1;
+    return undefined;
+  },
 }));
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
@@ -184,6 +199,9 @@ beforeEach(() => {
   app.consumed = true;
   app.keys.length = 0;
   turn.agent = SINDI;
+  turn.failAfterReserve = false;
+  turn.prefetchFails = false;
+  turn.recalls = 0;
 });
 
 describe('a gated attachment', () => {
@@ -348,5 +366,48 @@ describe('a gated deep research or power level', () => {
     turn.agent = null;
     const { ctx } = await run({ model: 'auto', messages: [withLease()] });
     expect(ctx?.featureUses.map((use) => use.feature)).toEqual(['attachments.documents']);
+  });
+});
+
+describe('a credit held for a turn that then fails', () => {
+  it('is given back when a later step of the context throws', async () => {
+    turn.agent = null;
+    turn.failAfterReserve = true;
+
+    await expect(run({ messages: [{ role: 'user', content: 'hola' }] })).rejects.toThrow(
+      'skills down',
+    );
+
+    expect(sequence).toEqual(['reserve', 'refund']);
+  });
+
+  it('is given back when a sibling read fails while the reservation lands', async () => {
+    turn.agent = null;
+    turn.prefetchFails = true;
+
+    await expect(run({ messages: [{ role: 'user', content: 'hola' }] })).rejects.toThrow(
+      'inputs down',
+    );
+
+    expect(sequence).toEqual(['reserve', 'refund']);
+  });
+
+  it('control: a turn that goes through is not refunded', async () => {
+    turn.agent = null;
+    await run({ messages: [{ role: 'user', content: 'hola' }] });
+    expect(sequence).toEqual(['reserve']);
+  });
+});
+
+describe('Alia’s memory recall', () => {
+  it('runs for Alia’s turns', async () => {
+    turn.agent = null;
+    await run({ messages: [{ role: 'user', content: 'hola' }] });
+    expect(turn.recalls).toBe(1);
+  });
+
+  it('does not run for an agent’s turn: its memory is its own', async () => {
+    await run({ agentId: 'sindi', messages: [{ role: 'user', content: 'hola' }] });
+    expect(turn.recalls).toBe(0);
   });
 });
