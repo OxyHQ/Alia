@@ -344,6 +344,12 @@ jobs:
       - name: Typecheck API
         run: bun run --filter @alia/api typecheck
 
+      # Every migration keeps its locks short: one RDS serves every Oxy app, so a
+      # migration that holds ACCESS EXCLUSIVE on a hot table while it backfills
+      # stalls this service (oxy 2026-10-16). Rules: @oxy.so/db's lock gate.
+      - name: Verify migrations keep their locks short
+        run: bun run --filter @alia/api check:migration-locks
+
       - name: Run API tests
         run: bun run --filter @alia/api test
 
@@ -766,6 +772,12 @@ jobs:
 
       - name: Typecheck integrations
         run: bun run --filter @alia/integrations type-check
+
+      # Every migration keeps its locks short: one RDS serves every Oxy app, so a
+      # migration that holds ACCESS EXCLUSIVE on a hot table while it backfills
+      # stalls this service (oxy 2026-10-16). Rules: @oxy.so/db's lock gate.
+      - name: Verify migrations keep their locks short
+        run: bun run --filter @alia/integrations check:migration-locks
 
       # The suite creates its own throwaway, fully-migrated database per run via
       # the REAL src/db/migrate.ts entrypoint, so this also exercises the phase

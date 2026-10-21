@@ -19,6 +19,7 @@
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/db/migrate.ts",
+    "check:migration-locks": "oxy-db-check-migration-locks --migrations=drizzle --after=102 --hot-tables=agents,conversations,messages,organizations,organization_members,subscriptions,user_credits",
     "test:pg": "vitest run --config vitest.pg.config.ts",
     "test:bun-runtime": "bun test src/lib/__tests__/websocket-upgrades.test.ts",
     "scan:credentials": "bun src/scripts/scan-credential-history.ts"

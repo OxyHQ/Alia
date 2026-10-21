@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "bun src/db/migrate.ts"
+    "db:migrate": "bun src/db/migrate.ts",
+    "check:migration-locks": "oxy-db-check-migration-locks --migrations=drizzle --after=0 --hot-tables=whatsapp_sessions,telegram_sessions,signal_sessions,mcp_connector_auths"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
