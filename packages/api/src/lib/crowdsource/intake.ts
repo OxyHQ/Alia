@@ -5,7 +5,7 @@ import {
   type StoredReport,
 } from '../../db/moderation/reportRepository.js';
 import { reportSubmitEventId } from '../../db/moderation/outboxRepository.js';
-import { ReportCategory, ReportedType } from '../../domain/report.js';
+import { type ReportCategory, ReportedType } from '../../domain/report.js';
 import { subjectProviderFor } from './subjects/registry.js';
 
 /**

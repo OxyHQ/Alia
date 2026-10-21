@@ -1,5 +1,5 @@
-import { Message, Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
-import { APIClient } from '../../shared/api-client';
+import { type Message, type Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
+import type { APIClient } from '../../shared/api-client';
 import {
   currentModelLabel,
   defaultLabel,

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import ArrowUp from 'lucide-react-native/icons/arrow-up';
 import Square from 'lucide-react-native/icons/square';
 import { cn } from '../../../lib/utils';

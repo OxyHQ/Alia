@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import { Marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';
 import { ToolCallCard } from './ToolCallCard.js';
-import { ToolExecution } from '../utils/conversation.js';
+import type { ToolExecution } from '../utils/conversation.js';
 
 export interface DisplayMessage {
   id: string;

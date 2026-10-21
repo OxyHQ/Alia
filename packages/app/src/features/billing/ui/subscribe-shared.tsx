@@ -22,7 +22,8 @@ import {
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import type React from 'react';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, {
   Easing,

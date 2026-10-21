@@ -901,7 +901,6 @@ async function driveAgentSession(
 
         totalSteps++;
         if (totalSteps >= session.config.maxSteps) break;
-        continue;
       }
     }
 

@@ -9,8 +9,8 @@ import {
   upsertContextEdge,
   upsertContextNode,
 } from '../../db/autonomy/contextGraphRepository.js';
-import { type ContextSourceKind } from '../../domain/context-source.js';
-import { type AutonomyIntent } from '../../domain/retrieval-strategy.js';
+import type { ContextSourceKind } from '../../domain/context-source.js';
+import type { AutonomyIntent } from '../../domain/retrieval-strategy.js';
 import {
   createLearningRule,
   findActiveLearningRules,

@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import * as readline from 'readline';
-import { getSessions, getSession, configuredModel, Session } from '../utils/config.js';
+import { getSessions, getSession, configuredModel, type Session } from '../utils/config.js';
 import { startRepl } from './repl.js';
 
 export async function listSessions(): Promise<void> {

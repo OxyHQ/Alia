@@ -7,7 +7,7 @@ import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
 import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
-import { UsageLimitError } from '@/features/billing/model/usage-limit-error';
+import type { UsageLimitError } from '@/features/billing/model/usage-limit-error';
 import { useTranslation } from '@/shared/i18n/use-translation';
 
 interface UsageLimitDialogProps {

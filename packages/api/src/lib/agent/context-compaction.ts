@@ -16,7 +16,7 @@
 import { generateText } from 'ai';
 import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
-import { EventStream, type EventStreamEntry } from './event-stream.js';
+import type { EventStream, EventStreamEntry } from './event-stream.js';
 
 /** Token thresholds for triggering compaction */
 const COMPACTION_TRIGGER_TOKENS = 40_000;

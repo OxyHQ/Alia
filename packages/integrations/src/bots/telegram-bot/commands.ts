@@ -4,7 +4,7 @@
  * Uses the shared APIClient (channels API) instead of the legacy /telegram/ routes.
  */
 
-import { Context, Markup } from 'telegraf';
+import { type Context, Markup } from 'telegraf';
 import { randomUUID } from 'node:crypto';
 import { APIClient } from '../../shared/api-client';
 import {

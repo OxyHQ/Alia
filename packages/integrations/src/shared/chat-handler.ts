@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { APIClient } from './api-client';
+import type { APIClient } from './api-client';
 import { chunkText } from './utils';
 import { createLogger } from './logger';
 

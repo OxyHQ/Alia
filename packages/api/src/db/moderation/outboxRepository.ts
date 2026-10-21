@@ -35,7 +35,7 @@
 
 import { and, eq, gt, isNotNull, lte, or, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../index';
-import { moderationOutboxes, MODERATION_OUTBOX_KINDS } from '../schema/moderation';
+import { moderationOutboxes, type MODERATION_OUTBOX_KINDS } from '../schema/moderation';
 
 export type ModerationOutboxKind = (typeof MODERATION_OUTBOX_KINDS)[number];
 

@@ -148,14 +148,14 @@ export function installProbes({ ctaText }) {
   const realSetInterval = window.setInterval;
   const realClearInterval = window.clearInterval;
   const liveIntervals = new Set();
-  window.setInterval = function (...args) {
+  window.setInterval = (...args) => {
     const id = realSetInterval.apply(window, args);
     liveIntervals.add(id);
     state.live.intervals = liveIntervals.size;
     state.totals.intervalsSet += 1;
     return id;
   };
-  window.clearInterval = function (id) {
+  window.clearInterval = (id) => {
     if (liveIntervals.delete(id)) state.totals.intervalsCleared += 1;
     state.live.intervals = liveIntervals.size;
     return realClearInterval.call(window, id);
@@ -164,7 +164,7 @@ export function installProbes({ ctaText }) {
   const realSetTimeout = window.setTimeout;
   const realClearTimeout = window.clearTimeout;
   const liveTimeouts = new Set();
-  window.setTimeout = function (handler, ...rest) {
+  window.setTimeout = (handler, ...rest) => {
     // Wrapping the callback is what makes this count *pending* timeouts rather
     // than every timeout ever scheduled: a fired timeout is no longer live.
     let id;
@@ -182,7 +182,7 @@ export function installProbes({ ctaText }) {
     state.totals.timeoutsSet += 1;
     return id;
   };
-  window.clearTimeout = function (id) {
+  window.clearTimeout = (id) => {
     liveTimeouts.delete(id);
     state.live.timeouts = liveTimeouts.size;
     return realClearTimeout.call(window, id);
@@ -192,14 +192,14 @@ export function installProbes({ ctaText }) {
     const realCreate = window.URL.createObjectURL;
     const realRevoke = window.URL.revokeObjectURL;
     const liveUrls = new Set();
-    window.URL.createObjectURL = function (object) {
+    window.URL.createObjectURL = (object) => {
       const url = realCreate.call(window.URL, object);
       liveUrls.add(url);
       state.live.objectUrls = liveUrls.size;
       state.totals.objectUrlsCreated += 1;
       return url;
     };
-    window.URL.revokeObjectURL = function (url) {
+    window.URL.revokeObjectURL = (url) => {
       if (liveUrls.delete(url)) state.totals.objectUrlsRevoked += 1;
       state.live.objectUrls = liveUrls.size;
       return realRevoke.call(window.URL, url);

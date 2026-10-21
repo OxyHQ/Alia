@@ -18,7 +18,7 @@ import { resolveUtilityModel, getAIModel } from '../chat-core.js';
 import { generatePlan, type ExecutionPlan } from './planner-agent.js';
 import { executeSubtasks, type ExecutorResult } from './executor-pool.js';
 import { verifyResults, type VerificationResult } from './verifier-agent.js';
-import { EventStream } from './event-stream.js';
+import type { EventStream } from './event-stream.js';
 import { MAX_DELEGATION_DEPTH } from '../constants.js';
 
 export interface OrchestrationOptions {

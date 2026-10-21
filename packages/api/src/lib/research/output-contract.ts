@@ -137,9 +137,7 @@ const SHAPE_RULES: ShapeRule[] = [
   },
   {
     shape: 'words',
-    re: new RegExp(
-      String.raw`\b(?:in|en|de|under|max(?:imum|imo)?|at most|no more than|menos de|como maximo|hasta)?\s*(\d{1,4})[\s-]*(words?|palabras?)\b`,
-    ),
+    re: /\b(?:in|en|de|under|max(?:imum|imo)?|at most|no more than|menos de|como maximo|hasta)?\s*(\d{1,4})[\s-]*(words?|palabras?)\b/,
     countGroup: 1,
   },
   {

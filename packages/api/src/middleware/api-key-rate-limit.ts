@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { recordApiKeyUsage, usageWindow } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS, type ApiKeyUsageMethod } from '../domain/api-key-usage.js';
 import { getDb } from '../db/index.js';

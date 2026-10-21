@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { promisify } from 'util';
-import { clipboard, shell, desktopCapturer, BrowserWindow } from 'electron';
+import { clipboard, shell, desktopCapturer, type BrowserWindow } from 'electron';
 import { Stagehand } from '@browserbasehq/stagehand';
 import Store from 'electron-store';
 import { errorMessage, errorCode } from './errors';
@@ -317,7 +317,7 @@ export class ToolExecutor {
   async listInstalledApplications(): Promise<string> {
     try {
       const platform = process.platform;
-      let apps: string[] = [];
+      const apps: string[] = [];
 
       if (platform === 'win32') {
         // Windows: Use PowerShell to list installed apps from Start Menu

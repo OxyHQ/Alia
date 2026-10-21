@@ -31,5 +31,5 @@ export function formatFileSize(bytes: number): string {
    * `Math.log` of them is `NaN`, and `sizes[NaN]` is undefined too.
    */
   const i = Math.min(sizes.length - 1, Math.max(0, Math.floor(Math.log(bytes) / Math.log(k))));
-  return `${String(Math.round((bytes / Math.pow(k, i)) * 100) / 100)} ${sizes[i]}`;
+  return `${String(Math.round((bytes / k ** i) * 100) / 100)} ${sizes[i]}`;
 }

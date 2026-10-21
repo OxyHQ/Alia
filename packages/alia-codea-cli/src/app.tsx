@@ -1,17 +1,17 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Box, useApp, useInput } from 'ink';
 import { Header } from './components/Header.js';
-import { MessageList, DisplayMessage } from './components/MessageList.js';
+import { MessageList, type DisplayMessage } from './components/MessageList.js';
 import { InputBar } from './components/InputBar.js';
 import { ApprovalPrompt } from './components/ApprovalPrompt.js';
-import { processConversation, Message, ToolExecution } from './utils/conversation.js';
+import { processConversation, type Message, type ToolExecution } from './utils/conversation.js';
 import {
   buildSystemMessage,
   getCodebaseContext,
   loadProjectInstructions,
 } from './utils/context.js';
 import { createSession, saveSession } from './utils/config.js';
-import { ApprovalMode, parseApprovalMode } from './utils/approval.js';
+import { type ApprovalMode, parseApprovalMode } from './utils/approval.js';
 import {
   formatModelList,
   labelFor,

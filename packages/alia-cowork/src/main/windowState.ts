@@ -1,5 +1,5 @@
 import Store from 'electron-store';
-import { BrowserWindow, screen } from 'electron';
+import { type BrowserWindow, screen } from 'electron';
 
 interface WindowBounds {
   x: number;

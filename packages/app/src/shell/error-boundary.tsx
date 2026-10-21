@@ -3,7 +3,7 @@ import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { ErrorBoundary } from '@oxy.so/bloom/error-boundary';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
 import { Screen } from '@oxy.so/bloom/screen';
-import React from 'react';
+import type React from 'react';
 import { View } from 'react-native';
 
 interface AppErrorBoundaryProps {

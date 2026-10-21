@@ -7,7 +7,8 @@
  * `header` render prop that receives the live mark state.
  */
 
-import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import type React from 'react';
+import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';

@@ -1,5 +1,5 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
-import http from 'node:http';
+import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';

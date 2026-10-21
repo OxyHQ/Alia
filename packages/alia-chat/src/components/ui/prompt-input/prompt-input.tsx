@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Pressable, type TextInput as RNTextInput, type ViewStyle } from 'react-native';
 import { KeyboardAvoidingView } from '../../../lib/keyboard';
 import Maximize2 from 'lucide-react-native/icons/maximize-2';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { ToolExecution } from '../utils/conversation.js';
+import type { ToolExecution } from '../utils/conversation.js';
 import { formatToolArgs } from '../utils/format.js';
 
 interface ToolCallCardProps {

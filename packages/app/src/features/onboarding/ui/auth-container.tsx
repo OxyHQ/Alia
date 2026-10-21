@@ -1,4 +1,4 @@
-import * as React from 'react';
+import type * as React from 'react';
 import { View } from 'react-native';
 import { KeyboardAwareScrollView } from '@/shared/platform/keyboard';
 

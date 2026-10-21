@@ -61,8 +61,7 @@ vi.mock('@oxy.so/core', () => {
       },
     };
     constructor() {
-      const owner = this;
-      Object.defineProperty(this.session, 'accessToken', { get: () => owner.access });
+      Object.defineProperty(this.session, 'accessToken', { get: () => this.access });
     }
   }
   return { OxyServices };

@@ -56,8 +56,8 @@
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import type { CapabilityGrantSet } from '../../domain/capability-grants.js';
-import { BROWSER_ACTIONS, BrowserSession } from './browser-session.js';
-import { TodoManager } from './todo-manager.js';
+import { BROWSER_ACTIONS, type BrowserSession } from './browser-session.js';
+import type { TodoManager } from './todo-manager.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { analyzeThreat, formatThreatSummary } from './threat-detector.js';

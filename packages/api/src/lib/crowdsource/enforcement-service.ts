@@ -19,7 +19,7 @@ import {
   releaseEnforcementClaim,
   type ModerationPreviousState,
 } from '../../db/moderation/enforcementRepository.js';
-import { type ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
+import type { ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
 import { crowdSourceConfig, type ModerationEnforcementMode } from './config.js';
 import { planEnforcement, type PlannedEnforcementAction } from './enforcement-plan.js';
 import { log } from '../logger.js';

@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
@@ -282,7 +282,7 @@ class SessionManager {
       } else {
         const delay =
           Math.min(
-            SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
+            SessionManager.BASE_RECONNECT_MS * 2 ** (attempts - 1),
             SessionManager.MAX_RECONNECT_MS,
           ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 

@@ -5,7 +5,7 @@ import {
   getCodebaseContext,
   loadProjectInstructions,
 } from '../utils/context.js';
-import { processConversation, Message, ToolExecution } from '../utils/conversation.js';
+import { processConversation, type Message, type ToolExecution } from '../utils/conversation.js';
 import { parseApprovalMode } from '../utils/approval.js';
 import { formatToolArgs } from '../utils/format.js';
 

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { getChannel } from '../lib/channels/registry.js';
 import type { ChannelId } from '../lib/channels/types.js';
 

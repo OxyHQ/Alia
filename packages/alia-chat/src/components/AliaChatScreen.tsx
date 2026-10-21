@@ -17,7 +17,7 @@
  * `livekit-client` never enters the bundle.
  */
 
-import React from 'react';
+import type React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from '../lib/keyboard';

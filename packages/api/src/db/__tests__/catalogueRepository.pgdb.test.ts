@@ -28,7 +28,7 @@ import {
   selectPlanFeatures,
   upsertPlanFeature,
 } from '../billing/planFeatureRepository';
-import { creditPackages, planFeatures, plans } from '../schema/billing';
+import { creditPackages, planFeatures, type plans } from '../schema/billing';
 
 /**
  * The audited writer takes an actor and does not default one, so every call

@@ -9,7 +9,7 @@
  */
 
 import type { AccountNode, CreateAccountInput } from '@oxy.so/core';
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { View } from 'react-native';
 import { cn } from '../../../lib/utils';
 import { usePromptInput } from './context';

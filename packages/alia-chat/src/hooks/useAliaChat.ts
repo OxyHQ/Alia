@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOxy } from '@oxy.so/services/ui/client';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent } from '../lib/content-utils';

@@ -112,7 +112,6 @@ export function createSseFrameReader(): SseFrameReader {
         if (line.startsWith('data: ')) {
           frames.push({ event: currentEventType, data: line.slice(6).trim() });
           currentEventType = '';
-          continue;
         }
 
         // Comments (`: keep-alive`) and fields this client does not read.

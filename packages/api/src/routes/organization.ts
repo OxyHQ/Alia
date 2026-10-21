@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import multer from 'multer';
 import { authenticateToken } from '../middleware/auth';
 import { getDb } from '../db/index.js';

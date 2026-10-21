@@ -1,5 +1,5 @@
 import { effectiveCreditPlan, readCurrentProductAllowance } from '../lib/product-credit-read-model';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import Stripe from 'stripe';
 import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
 import { getDb } from '../db/index.js';

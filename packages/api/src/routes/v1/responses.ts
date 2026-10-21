@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, type Request, type Response, type NextFunction } from 'express';
 import { log } from '../../lib/logger.js';
 
 const router = Router();

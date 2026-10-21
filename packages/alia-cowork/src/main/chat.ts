@@ -17,10 +17,10 @@
  * model answers in text or the round budget is spent.
  */
 
-import { BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import type OpenAI from 'openai';
 import Store from 'electron-store';
-import { ToolExecutor } from './tools';
+import type { ToolExecutor } from './tools';
 import { errorMessage, errorName, errorStack } from './errors';
 import { createLogger } from './logger';
 import { isModelId, loadCatalogue, resolveModelId, type Catalogue } from './catalogue';

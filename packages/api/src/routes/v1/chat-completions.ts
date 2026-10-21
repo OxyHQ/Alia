@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Router, Request, Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';

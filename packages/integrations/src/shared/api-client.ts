@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { type AxiosInstance } from 'axios';
 import { errorCode, errorStatus } from './utils';
 import { parseCatalogue, resolveRequestModel, type Catalogue } from './catalogue';
 

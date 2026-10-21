@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { ApprovalMode } from '../utils/approval.js';
+import type { ApprovalMode } from '../utils/approval.js';
 
 interface HeaderProps {
   cwd: string;

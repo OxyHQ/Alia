@@ -86,7 +86,7 @@ describe('the drag count', () => {
   it('clears on drop, which sends no matching dragleave', () => {
     // A decrement here leaves the count at one and pins the overlay over the
     // composer for the rest of the session.
-    let depth = nextDragDepth(nextDragDepth(0, 'enter'), 'enter');
+    const depth = nextDragDepth(nextDragDepth(0, 'enter'), 'enter');
     expect(nextDragDepth(depth, 'drop')).toBe(0);
   });
 

@@ -116,7 +116,7 @@ function inspect() {
   };
   /** The box that actually shows: the element's rect cut by every clipping ancestor. */
   const shown = (el) => {
-    let rect = el.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
     let box = { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
     for (let p = el.parentElement; p; p = p.parentElement) {
       const s = getComputedStyle(p);

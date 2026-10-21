@@ -90,9 +90,6 @@ export async function getOrCreateReferral(db: ApiDatabase, userId: string): Prom
       // The row already existed — the empty `RETURNING` set IS that answer.
       const existing = await findReferralById(db, userId);
       if (existing) return existing;
-
-      // Deleted between the insert and the read. Try again.
-      continue;
     } catch (error: unknown) {
       // Only an invite-code collision is retryable; anything else propagates.
       if (isUniqueViolation(error) && attempt < INVITE_CODE_ATTEMPTS - 1) continue;

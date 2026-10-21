@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text, useInput } from 'ink';
-import { ToolExecution } from '../utils/conversation.js';
+import type { ToolExecution } from '../utils/conversation.js';
 import { formatApprovalDescription } from '../utils/format.js';
 
 interface ApprovalPromptProps {

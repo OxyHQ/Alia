@@ -23,7 +23,8 @@ import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloo
 import { useOxy } from '@oxy.so/services';
 import { useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import type React from 'react';
+import { useEffect, useMemo } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

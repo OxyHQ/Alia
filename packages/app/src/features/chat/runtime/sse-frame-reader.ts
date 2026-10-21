@@ -76,7 +76,6 @@ export function createSseFrameReader(): SseFrameReader {
           // consumed with it, so a second `data:` without its own `event:` is
           // correctly unnamed rather than inheriting.
           currentEventType = '';
-          continue;
         }
 
         // Comments (`: keep-alive`) and any field this client does not read

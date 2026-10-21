@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign as signBytes, type KeyObject } from 'node:crypto';
-import http from 'node:http';
+import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';

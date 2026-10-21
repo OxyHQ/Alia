@@ -42,7 +42,7 @@
  * purpose is also what the SDK's per-credential cache is designed for.
  */
 
-import { type OxyInferenceCredential } from '@oxy.so/core/inference';
+import type { OxyInferenceCredential } from '@oxy.so/core/inference';
 import { OxyServer, canAttestWorkloadIdentity } from '@oxy.so/core/server';
 
 /**

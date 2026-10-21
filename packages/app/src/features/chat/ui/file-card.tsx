@@ -1,5 +1,5 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { LibraryFile } from '@/features/library/runtime/library-store';
+import type { LibraryFile } from '@/features/library/runtime/library-store';
 import { formatFileSize } from '@/shared/format/format-file-size';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Button } from '@oxy.so/bloom/button';
