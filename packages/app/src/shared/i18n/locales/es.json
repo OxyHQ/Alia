@@ -190,19 +190,7 @@
     },
     "accentColor": {
       "title": "Color de la app",
-      "teal": "Verde azulado",
-      "blue": "Azul",
-      "green": "Verde",
-      "amber": "Ámbar",
-      "yellow": "Amarillo",
-      "red": "Rojo",
-      "purple": "Morado",
-      "pink": "Rosa",
-      "sky": "Celeste",
-      "orange": "Naranja",
-      "mint": "Menta",
-      "oxy": "Oxy",
-      "faircoin": "Faircoin"
+      "saveFailed": "No se pudo guardar tu color. Inténtalo de nuevo."
     },
     "localModels": {
       "title": "Modelos locales",

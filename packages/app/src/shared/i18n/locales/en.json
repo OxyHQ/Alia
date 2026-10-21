@@ -209,19 +209,7 @@
     },
     "accentColor": {
       "title": "App Color",
-      "teal": "Teal",
-      "blue": "Blue",
-      "green": "Green",
-      "amber": "Amber",
-      "yellow": "Yellow",
-      "red": "Red",
-      "purple": "Purple",
-      "pink": "Pink",
-      "sky": "Sky",
-      "orange": "Orange",
-      "mint": "Mint",
-      "oxy": "Oxy",
-      "faircoin": "Faircoin"
+      "saveFailed": "Could not save your color. Try again."
     },
     "localModels": {
       "title": "Local models",

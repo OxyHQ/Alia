@@ -5,7 +5,7 @@ import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
-import { OxyProvider, useOxy } from '@oxy.so/services/ui/client';
+import { OxyProvider, useAccountColor, useOxy } from '@oxy.so/services/ui/client';
 import * as Linking from 'expo-linking';
 import { Slot, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -38,6 +38,8 @@ const AUTH_REDIRECT_URI = Linking.createURL('/');
 
 function AuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useOxy();
+  // The account colour is the one every Oxy app wears; mounted once, below both providers.
+  useAccountColor();
 
   // Registered during render (not an effect) because children's mount effects
   // fire API calls before a parent effect would run; guarded so it only re-runs
