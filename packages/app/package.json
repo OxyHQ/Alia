@@ -52,6 +52,7 @@
     "expo-asset": "~58.0.16",
     "expo-audio": "~58.0.9",
     "expo-blur": "~58.0.4",
+    "expo-build-properties": "~58.0.11",
     "expo-clipboard": "~58.0.3",
     "expo-constants": "~58.0.12",
     "expo-crypto": "~58.0.7",

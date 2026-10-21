@@ -365,6 +365,7 @@
         "expo-asset": "~58.0.16",
         "expo-audio": "~58.0.9",
         "expo-blur": "~58.0.4",
+        "expo-build-properties": "~58.0.11",
         "expo-clipboard": "~58.0.3",
         "expo-constants": "~58.0.12",
         "expo-crypto": "~58.0.7",
@@ -2533,6 +2534,8 @@
     "expo-audio": ["expo-audio@58.0.9", "", { "peerDependencies": { "expo": "*", "expo-asset": "*", "react": "*", "react-native": "*" } }, "sha512-oLH9ocd3qVBytMUIqYtqwbgnQuSOWFgW0NCqbkyt2B+uHbuZNQcmAdaUfuBgRyXXPCdWCV8gnTWwKhZzFa7wAA=="],
 
     "expo-blur": ["expo-blur@58.0.4", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-GtRPQ+w2SGNiDUTtwLaVHuFnP+aGjYVjbD7kPEPhXWLmyT+Nan1J5/KbbGLJ14LXJezIqShS42JXXcRDfXuU+w=="],
+
+    "expo-build-properties": ["expo-build-properties@58.0.11", "", { "dependencies": { "@expo/schema-utils": "^58.0.2", "resolve-from": "^5.0.0", "semver": "^7.7.4" }, "peerDependencies": { "expo": "*" } }, "sha512-8vjp+RSD7VW/VeEpG9l1YON4ZqOqQXPmtMYFqmh41I7cBGwELRYybHFrh2P3uBgzWlRBuQrRLO5UAtAYfT7HLg=="],
 
     "expo-clipboard": ["expo-clipboard@58.0.3", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-OglmYYTXecF9dti5sOYJS9lXAJpk6VDNqFvOLTm9fRdUjQj2D6UQV7q00jNZbRpf0ztMxlQSassUnzngn9wmvQ=="],
 
@@ -5289,6 +5292,8 @@
     "execa/is-plain-obj": ["is-plain-obj@4.1.0", "", {}, "sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg=="],
 
     "execa/signal-exit": ["signal-exit@4.1.0", "", {}, "sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw=="],
+
+    "expo-build-properties/semver": ["semver@7.8.5", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA=="],
 
     "expo-modules-autolinking/chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 
