@@ -4,6 +4,11 @@
  * origin the SDK uses is an origin it declares.
  */
 
+// Declared here, not taken from the host's globals: Expo apps get `process` from Expo's types, a
+// Vite app has none unless it installs Node's, and every entry that reaches this file must
+// type-check alone (`check:entry-types`). Type-only; Metro still inlines the static access below.
+declare const process: { readonly env: { readonly EXPO_PUBLIC_ALIA_API_URL?: string } };
+
 /** Alia's API: `EXPO_PUBLIC_ALIA_API_URL`, then production. Chat, dictation, speech, voice. */
 export const ALIA_API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 

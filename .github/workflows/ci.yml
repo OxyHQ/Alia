@@ -387,6 +387,12 @@ jobs:
       - name: Check SDK entry isolation
         run: bun run --filter @alia.onl/sdk check:entries
 
+      # The SDK's own typecheck compiles every file at once, so it cannot see an entry that leans
+      # on something only another entry brings in (21.4.0–21.5.2: `/text` without NativeWind's
+      # `className` types). This compiles a consumer of each entry alone.
+      - name: Check SDK entry types
+        run: bun run --filter @alia.onl/sdk check:entry-types
+
       - name: Typecheck server SDK
         run: bun run --filter @alia.onl/server typecheck
 
