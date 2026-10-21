@@ -1,9 +1,5 @@
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
-import {
-  AiChatThread,
-  type AiChatThreadHandle,
-  useAiChatChromeInsets,
-} from '@oxy.so/bloom/ai-chat';
+import { AiChatThread, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
 import { Divider } from '@oxy.so/bloom/divider';
 import { Loading } from '@oxy.so/bloom/loading';
@@ -263,16 +259,12 @@ export const AliaThread = memo(function AliaThread({
     onScroll,
   });
 
-  const chromeInsets = useAiChatChromeInsets();
   const nothingToShow =
     rows.length === 0 && !conversationLoading && !isLoading && !loadingHistory && !voiceThinking;
   if (nothingToShow) {
     return (
-      // Above the floating composer: the container measures it for us.
-      <View
-        className="flex-1 justify-center px-4"
-        style={{ paddingBottom: chromeInsets?.bottom ?? 0 }}
-      >
+      // Screen reserves the composer; the empty state only owns its alignment.
+      <View className="flex-1 justify-center px-4">
         <View className="w-full max-w-[768px] self-center">{empty}</View>
       </View>
     );
