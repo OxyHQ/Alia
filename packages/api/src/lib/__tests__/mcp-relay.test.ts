@@ -2,7 +2,7 @@ import http from 'node:http';
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { oxyClient } from '../../middleware/auth.js';
+import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import { callLocalTool, getLocalTools, mcpRelayRoute, shutdownMcpRelay } from '../mcp-relay.js';
 import { routeWebSocketUpgrades } from '../websocket-upgrades.js';
 
@@ -115,11 +115,10 @@ const observeRelay = vi.fn();
 beforeEach(async () => {
   observeRelay.mockClear();
   sessions.clear();
-  // The SDK reuses a successful session validation on this process for 30 s
-  // (core 6.1.0). The fake Oxy forgets its sessions per test, so the cache
-  // does too: otherwise a test that asserts the round trip sees the previous
-  // test's answer and no fetch at all.
-  oxyClient.invalidateSessionValidations();
+  // No cache to clear between tests. Since core 6.9.0 the SDK reuses a session
+  // validation only while its own `/service-events` revocation feed from Oxy is
+  // live, and this process cannot mint a service token to open one, so every
+  // handshake asks Oxy — which is what the round-trip tests below measure.
   fetchCalls = [];
   vi.stubGlobal('fetch', vi.fn(fakeOxyApi));
 
@@ -206,6 +205,33 @@ describe('MCP relay authentication', () => {
     );
     expect(getLocalTools('attacker')).toEqual([]);
     expect(getLocalTools('victim')).toEqual([]);
+  });
+
+  /**
+   * core 6.9.0's contract (the fix for a revoked session that kept validating
+   * for up to 30 s per process): with no live revocation feed nothing is
+   * cached, so a session Oxy ended is refused on the very next handshake. A
+   * relay that kept its own cache, or an SDK that cached without the feed,
+   * would answer the second handshake `auth-ok` from memory.
+   */
+  it('asks Oxy on every handshake and refuses a revoked session on the next one', async () => {
+    // The precondition, stated: `middleware/auth.ts`'s `oxyClient` holds no
+    // service credential, and with no ECS task role to attest it cannot open
+    // the feed at all.
+    expect(canAttestWorkloadIdentity()).toBe(false);
+    sessions.set('sess-1', { id: 'user-from-session' });
+    const token = relayToken({ userId: 'user-from-session', sessionId: 'sess-1' });
+    const validations = () =>
+      fetchCalls.filter((url) => url.includes('/session/validate-header/sess-1')).length;
+
+    expect((await authenticate(token)).reply.type).toBe('auth-ok');
+    expect((await authenticate(token)).reply.type).toBe('auth-ok');
+    expect(validations()).toBe(2);
+
+    sessions.delete('sess-1');
+
+    expect((await authenticate(token)).reply.type).toBe('auth-error');
+    expect(validations()).toBe(3);
   });
 
   it('refuses a token that is bound to no session, without a round trip', async () => {
