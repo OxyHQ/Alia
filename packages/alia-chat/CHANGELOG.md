@@ -1,5 +1,23 @@
 # @alia.onl/sdk
 
+## 21.5.3
+
+### Fixed
+
+- **Every entry type-checks on its own.** `@alia.onl/sdk/text`, `/ask`, `/ask/text` and `/voice`
+  reach components that use NativeWind's `className`, but only the root entry carried
+  `/// <reference types="nativewind/types" />`. Expo apps load NativeWind's types themselves and
+  never noticed; a consumer that does not (a Vite app) got 65 `className` errors importing
+  `@alia.onl/sdk/text`. Each of those entries now carries the reference.
+- `@alia.onl/sdk/avatar` no longer needs the host to declare Node's `process`: the one
+  `process.env.EXPO_PUBLIC_ALIA_API_URL` read declares its own type (Metro still inlines it).
+
+### Added
+
+- `check:entry-types` (in `prepublishOnly` and CI): compiles a consumer of each entry in
+  `exports` alone, through a real `node_modules` link, with nothing loaded globally and the
+  strictest consumer's options.
+
 ## 21.5.2
 
 ### Fixed

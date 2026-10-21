@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "21.5.2",
+  "version": "21.5.3",
   "description": "Alia AI chat SDK — the conversation runtime, chat UI, voice calls and dictation for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
@@ -41,8 +41,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check:entries": "node scripts/check-entry-isolation.mjs",
+    "check:entry-types": "node scripts/check-entry-types.mjs",
     "render:avatar-still": "bun scripts/render-avatar-still.ts",
-    "prepublishOnly": "bun run typecheck && bun run test && bun run check:entries"
+    "prepublishOnly": "bun run typecheck && bun run test && bun run check:entries && bun run check:entry-types"
   },
   "dependencies": {
     "clsx": "^2.1.1",

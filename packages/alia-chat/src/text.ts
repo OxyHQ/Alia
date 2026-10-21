@@ -1,3 +1,4 @@
+/// <reference types="nativewind/types" />
 // @alia.onl/sdk/text — the chat without the voice call, and without bundling it
 // The same `AliaChatSheet`, `AliaChatScreen` and `AliaChatContent` as the root entry, but none of
 // them reaches the call's modules (its socket, protocol and audio engine): a text-only app takes
