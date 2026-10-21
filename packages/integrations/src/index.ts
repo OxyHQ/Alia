@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { startPlatformActivity } from './platform-activity';
 import express from 'express';
+import { oxyTrustProxy } from '@oxy.so/core/server';
 import { Server as WebSocketServer } from 'ws';
 import http from 'http';
 import { closePostgres, connectPostgres } from './db';
@@ -112,6 +113,9 @@ async function main() {
 
   // Express app
   const app = express();
+  // The real client behind the ALB (and Cloudflare, when proxied); see
+  // `oxyTrustProxy` in @oxy.so/core.
+  app.set('trust proxy', oxyTrustProxy);
   if (activity) app.use(activity.observeHttp);
   app.use(express.json());
 

@@ -35,6 +35,7 @@
  * response or a log line carries includes a command's text or a file's
  * content; logs name the actor by hash.
  */
+import { oxyTrustProxy } from '@oxy.so/core/server';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { AttestationError, type WorkloadAuthority } from './attestation.js';
@@ -97,6 +98,8 @@ export function createApp(options: {
   const { service, authority, log } = options;
   const app = express();
   app.disable('x-powered-by');
+  // The real client behind a load balancer (and Cloudflare); see `oxyTrustProxy`.
+  app.set('trust proxy', oxyTrustProxy);
   app.use(express.json({ limit: '400kb' }));
 
   app.get('/health', (_req, res) => {
