@@ -973,7 +973,6 @@ export function useStreamingChat(
                   abortControllerRef.current.abort();
                   abortControllerRef.current = null;
                 }
-                reader.cancel();
                 // A turn that failed after it started carries a run reference:
                 // its card says code and reference, never the server's English
                 // prose. A refusal without one (a gate, a bad request) keeps its
@@ -1217,8 +1216,9 @@ export function useStreamingChat(
                   abortControllerRef.current = null;
                 }
 
-                // Break out of the streaming loop
-                reader.cancel();
+                // Break out of the streaming loop. Aborting the request above
+                // already cancels its response body; calling reader.cancel()
+                // as well can reject an unobserved promise with AbortError.
                 return keepFailedTurn(true, errMsg);
               }
             } catch (frameError: unknown) {

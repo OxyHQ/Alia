@@ -385,12 +385,12 @@ describe('the sidebar list', () => {
   it('lists the agents in the same list, each opening its thread by handle', async () => {
     state.agents = [{ _id: 'a1', name: 'Pepe', handle: 'pepe', lastMessageAt: null }];
     await mount();
-    expect(flat()).toEqual(['agent:pepe', 'alpha', 'beta']);
-    expect(flatRow('agent:pepe').title).toBe('Pepe');
+    expect(flat()).toEqual(['agent:a1', 'alpha', 'beta']);
+    expect(flatRow('agent:a1').title).toBe('Pepe');
     // An agent has no chat menu.
-    expect(actionKeys('agent:pepe')).toEqual([]);
+    expect(actionKeys('agent:a1')).toEqual([]);
     act(() => {
-      state.sidebarProps!.onSelect('agent:pepe');
+      state.sidebarProps!.onSelect('agent:a1');
     });
     expect(state.push).toHaveBeenCalledWith({
       pathname: '/(app)/[username]',
@@ -424,7 +424,7 @@ describe('the sidebar list', () => {
     await act(async () => {
       state.sidebarProps!.onQueryChange('pep');
     });
-    expect(flat()).toEqual(['agent:pepe']);
+    expect(flat()).toEqual(['agent:a1']);
   });
 
   it('keeps the links in the account menu signed in, so only Settings is a row under the history', async () => {

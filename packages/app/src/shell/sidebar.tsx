@@ -16,8 +16,10 @@ import {
 import {
   agentDisplayName,
   agentHandle,
+  agentChatRoute,
   agentIdentityMatches,
 } from '@/features/agents/model/identity';
+import type { Agent } from '@/shared/contracts/agents';
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { queryKeys } from '@/shared/api/query-keys';
 import {
@@ -304,11 +306,9 @@ function useSidebarProps() {
   );
 
   const openAgent = React.useCallback(
-    (handle: string) => {
-      // An agent is opened by its handle; one Oxy did not resolve has no address.
-      if (!handle) return;
+    (agent: NonNullable<typeof myAgents>[number]) => {
       closeNav?.();
-      router.push({ pathname: '/(app)/[username]', params: { username: `@${handle}` } });
+      router.push(agentChatRoute(agent));
     },
     [router, closeNav],
   );
@@ -450,7 +450,9 @@ function useSidebarProps() {
       (isAuthenticated ? (myAgents ?? []) : [])
         .filter((agent) => !searchQuery.trim() || agentIdentityMatches(agent, searchQuery.trim()))
         .map((agent) => ({
-          id: `${AGENT_KEY}${agentHandle(agent)}`,
+          // Handles may be unresolved or temporarily missing. The database id
+          // is stable and unique, so rows and their navigation must use it.
+          id: `${AGENT_KEY}${agent._id}`,
           title: agentDisplayName(agent),
           description: agent.lastMessageAt
             ? shortTime(new Date(agent.lastMessageAt))
@@ -742,9 +744,13 @@ function useSidebarProps() {
       },
     },
     conversations: [...agentRows, ...chatRows],
-    activeId: selectedTreeItemForPath(pathname) ?? chatId?.id,
-    onSelect: (id: string) =>
-      id.startsWith(AGENT_KEY) ? openAgent(id.slice(AGENT_KEY.length)) : openConversation(id),
+    activeId: selectedTreeItemForPath(pathname, myAgents) ?? chatId?.id,
+    onSelect: (id: string) => {
+      if (!id.startsWith(AGENT_KEY)) return openConversation(id);
+      const agentId = id.slice(AGENT_KEY.length);
+      const agent = myAgents?.find((candidate) => candidate._id === agentId);
+      if (agent) openAgent(agent);
+    },
     query: searchQuery,
     onQueryChange: setSearchQuery,
     // The store button is the agents' catalogue.
@@ -801,9 +807,12 @@ function useSidebarProps() {
 }
 
 /** An agent thread's route (`/@pepe`) selects that agent's row. */
-function selectedTreeItemForPath(pathname: string): string | undefined {
+function selectedTreeItemForPath(pathname: string, agents?: Agent[]): string | undefined {
   const match = /^\/@([^/]+)$/.exec(pathname);
-  return match ? `${AGENT_KEY}${decodeURIComponent(match[1]!)}` : undefined;
+  if (!match) return undefined;
+  const handle = decodeURIComponent(match[1]!);
+  const agent = agents?.find((candidate) => agentHandle(candidate) === handle);
+  return agent ? `${AGENT_KEY}${agent._id}` : undefined;
 }
 
 /** Ghost rows while the first page of history loads; uneven, so they read as titles. */
