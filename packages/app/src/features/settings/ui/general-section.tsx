@@ -3,9 +3,10 @@ import { useCredits } from '@/features/billing/runtime/use-credits';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { SettingsGeneralPage, type SettingsPageSection } from '@oxy.so/bloom/settings-modal';
-import { APP_COLOR_NAMES, useBloomTheme } from '@oxy.so/bloom/theme';
+import { toast } from '@oxy.so/bloom/toast';
+import { COLOR_PRESET_REGISTRY, useBloomTheme } from '@oxy.so/bloom/theme';
 import { getNativeLanguageName } from '@oxy.so/core';
-import { useOxy } from '@oxy.so/services/ui/client';
+import { useAccountColorSave, useOxy } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
 import { SettingsPreferenceSelect } from './preference-select';
 import { useAliaSettings } from './settings-context';
@@ -15,7 +16,8 @@ import { useAliaSettings } from './settings-context';
  * app's own preferences. Signed out there is no plan and no limits.
  */
 export function GeneralSection() {
-  const { mode, setMode, colorPreset, setColorPreset } = useBloomTheme();
+  const { mode, setMode } = useBloomTheme();
+  const { colors, value: colorValue, saveColor } = useAccountColorSave();
   const { currentLanguage, currentLanguages, showBottomSheet, isAuthenticated } = useOxy();
   const { afterClose, open } = useAliaSettings();
   const { data: subscription } = useSubscription();
@@ -103,11 +105,14 @@ export function GeneralSection() {
           control: (
             <SettingsPreferenceSelect
               label={t('settings.accentColor.title')}
-              value={colorPreset}
-              onChange={setColorPreset}
-              items={APP_COLOR_NAMES.map((value) => ({
-                value,
-                label: value.charAt(0).toUpperCase() + value.slice(1),
+              value={colorValue}
+              onChange={(name) =>
+                saveColor(name).catch(() => toast.error(t('settings.accentColor.saveFailed')))
+              }
+              items={colors.map((name) => ({
+                value: name,
+                label:
+                  COLOR_PRESET_REGISTRY.find((preset) => preset.name === name)?.displayName ?? name,
               }))}
             />
           ),
