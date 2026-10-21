@@ -1,5 +1,20 @@
 # @alia.onl/sdk
 
+## 21.5.2
+
+### Fixed
+
+- Welcome and conversation sheets grow and shrink with their content up to Bloom’s
+  available-height limit, instead of filling the entire frame. Bloom owns the Screen
+  sizing, scrolling, keyboard clearance and safe areas.
+- The empty thread no longer adds composer clearance a second time. Growing and
+  shrinking a draft now changes the sheet height by the composer’s actual change.
+
+### Changed
+
+- The Bloom peer is `>=15.10.1 <16.0.0`, which provides intrinsic Screen sizing
+  inside content-sized sheets and clips decorative chat backgrounds.
+
 ## 21.5.1
 
 ### Fixed
