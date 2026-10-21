@@ -1,5 +1,19 @@
 # @alia.onl/sdk
 
+## 21.5.1
+
+### Fixed
+
+- Embedded welcome and conversation sheets now request Bloom's bounded `sizing="fill"`
+  presentation. After the chat moved to Screen composition, a content-sized sheet could
+  mount at zero height even though the conversation and composer had loaded. Bloom owns
+  the available height, keyboard clearance and safe areas; hosts need no viewport workaround.
+
+### Changed
+
+- The Bloom peer is `>=15.10.0 <16.0.0`, the first release with the bounded sheet contract.
+  The independent thought sheet keeps its existing content sizing.
+
 ## 21.5.0
 
 ### Fixed
