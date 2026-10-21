@@ -26,10 +26,9 @@ import { checkWindowLimit } from '../lib/sliding-window-limiter.js';
 const router = Router();
 
 /**
- * Reads of one link per minute. Keyed by the link rather than the reader: this
- * service sees the load balancer's address, not the reader's, and what the
- * limit protects is one forwarded link being hammered. Guessing a token is not
- * what it stops — 256 random bits do that.
+ * Reads of one link per minute. Keyed by the link rather than the reader: what
+ * the limit protects is one forwarded link being hammered, by however many
+ * readers. Guessing a token is not what it stops — 256 random bits do that.
  */
 const SHARED_READS_PER_MINUTE = 60;
 

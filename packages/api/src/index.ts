@@ -1,4 +1,5 @@
 import express from 'express';
+import { oxyTrustProxy } from '@oxy.so/core/server';
 import { startPlatformActivity } from './lib/platform-activity.js';
 import http from 'http';
 import type { WebSocket } from 'ws';
@@ -71,6 +72,10 @@ import { routeWebSocketUpgrades } from './lib/websocket-upgrades.js';
 initChannels();
 
 const app = express();
+// `req.ip` is the real client behind the ALB and, on a Cloudflare-proxied
+// hostname, behind Cloudflare too; a forged X-Forwarded-For is never believed.
+// Set before any middleware so everything after it sees the same address.
+app.set('trust proxy', oxyTrustProxy);
 // Local dev default only — ECS injects PORT explicitly (oxy-infra
 // terraform-uswest2/app-services-realtime.tf sets it to 3001). 4150 is the main
 // API's slot in Alia's 4150-4159 block of the per-app port map, so several Oxy

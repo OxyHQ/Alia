@@ -84,3 +84,9 @@ export const verifyFileEventSignature: OxyCoreServer['verifyFileEventSignature']
 export const FileEventVerificationError: OxyCoreServer['FileEventVerificationError'] =
   real.FileEventVerificationError;
 export type FileEvent = import('@oxy.so/core/server').FileEvent;
+
+/**
+ * REAL: which address `req.ip` reports behind the ALB and Cloudflare is the
+ * subject of `clientIp.test.ts`, and a stub would measure itself.
+ */
+export const oxyTrustProxy: OxyCoreServer['oxyTrustProxy'] = real.oxyTrustProxy;

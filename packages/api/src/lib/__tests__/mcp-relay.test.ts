@@ -2,6 +2,7 @@ import http from 'node:http';
 import { WebSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { oxyClient } from '../../middleware/auth.js';
 import { callLocalTool, getLocalTools, mcpRelayRoute, shutdownMcpRelay } from '../mcp-relay.js';
 import { routeWebSocketUpgrades } from '../websocket-upgrades.js';
 
@@ -92,8 +93,9 @@ const openSockets: WebSocket[] = [];
 /** Connect, send the `auth` message, and resolve with the relay's first reply. */
 async function authenticate(
   token: string,
+  targetPort = port,
 ): Promise<{ socket: WebSocket; reply: { type?: string } }> {
-  const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/mcp`);
+  const socket = new WebSocket(`ws://127.0.0.1:${targetPort}/ws/mcp`);
   openSockets.push(socket);
 
   const reply = await new Promise<{ type?: string }>((resolve, reject) => {
@@ -113,6 +115,11 @@ const observeRelay = vi.fn();
 beforeEach(async () => {
   observeRelay.mockClear();
   sessions.clear();
+  // The SDK reuses a successful session validation on this process for 30 s
+  // (core 6.1.0). The fake Oxy forgets its sessions per test, so the cache
+  // does too: otherwise a test that asserts the round trip sees the previous
+  // test's answer and no fetch at all.
+  oxyClient.invalidateSessionValidations();
   fetchCalls = [];
   vi.stubGlobal('fetch', vi.fn(fakeOxyApi));
 
@@ -301,5 +308,79 @@ describe('MCP relay client lifecycle', () => {
     await new Promise((r) => setTimeout(r, 30));
     alice.socket.send(JSON.stringify({ type: 'tool-result', callId, result: 'genuine' }));
     await expect(call).resolves.toBe('genuine');
+  });
+});
+
+/**
+ * The relay is idle between tool calls, and the ALB (60 s) and Cloudflare
+ * (100 s) cut a connection that carries no bytes. The server pings; a peer that
+ * misses one is terminated so its tools stop being offered.
+ */
+describe('MCP relay heartbeat', () => {
+  const HEARTBEAT_MS = 40;
+  let heartbeatServer: http.Server;
+  let heartbeatPort: number;
+
+  beforeEach(async () => {
+    heartbeatServer = http.createServer();
+    await new Promise<void>((resolve) => heartbeatServer.listen(0, '127.0.0.1', resolve));
+    const address = heartbeatServer.address();
+    if (address === null || typeof address === 'string') throw new Error('no TCP port');
+    heartbeatPort = address.port;
+    routeWebSocketUpgrades(heartbeatServer, {
+      socketIoPath: '/socket.io',
+      routes: [mcpRelayRoute(undefined, { heartbeatIntervalMs: HEARTBEAT_MS })],
+    });
+  });
+
+  afterEach(async () => {
+    for (const socket of openSockets) socket.terminate();
+    await new Promise<void>((resolve) => heartbeatServer.close(() => resolve()));
+  });
+
+  const registerEcho = (socket: WebSocket) =>
+    socket.send(
+      JSON.stringify({
+        type: 'register-tools',
+        serverId: 'srv-1',
+        tools: [{ name: 'echo', description: 'echo', inputSchema: {} }],
+      }),
+    );
+
+  it('pings an idle client and keeps it while it answers', async () => {
+    sessions.set('sess-hb', { id: 'hb-live' });
+    const { socket, reply } = await authenticate(
+      relayToken({ userId: 'hb-live', sessionId: 'sess-hb' }),
+      heartbeatPort,
+    );
+    expect(reply.type).toBe('auth-ok');
+    let pings = 0;
+    socket.on('ping', () => {
+      pings += 1;
+    });
+    registerEcho(socket);
+    await vi.waitFor(() => expect(getLocalTools('hb-live')).toHaveLength(1));
+
+    await new Promise((r) => setTimeout(r, HEARTBEAT_MS * 6));
+    expect(pings).toBeGreaterThanOrEqual(3);
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    expect(getLocalTools('hb-live')).toHaveLength(1);
+  });
+
+  it('terminates a client that stops answering pings', async () => {
+    sessions.set('sess-hb', { id: 'hb-dead' });
+    const { socket } = await authenticate(
+      relayToken({ userId: 'hb-dead', sessionId: 'sess-hb' }),
+      heartbeatPort,
+    );
+    registerEcho(socket);
+    await vi.waitFor(() => expect(getLocalTools('hb-dead')).toHaveLength(1));
+
+    // Stop reading: pings reach the socket but are never answered, as with a
+    // laptop that went to sleep or a network that silently dropped.
+    socket.pause();
+    await vi.waitFor(() => expect(getLocalTools('hb-dead')).toEqual([]), {
+      timeout: HEARTBEAT_MS * 20,
+    });
   });
 });

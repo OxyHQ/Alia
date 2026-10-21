@@ -52,6 +52,14 @@ interface RelayMessage {
 
 const AUTH_TIMEOUT_MS = 5_000;
 const TOOL_CALL_TIMEOUT_MS = 60_000;
+/**
+ * A relay is mostly idle between tool calls, and the ALB (60 s) and Cloudflare
+ * (100 s) cut a connection that carries no bytes. A ping every interval keeps
+ * the path open; a peer that has not answered the previous ping by the next one
+ * is gone (a sleeping laptop, a dropped network) and is terminated, so its tools
+ * stop being offered instead of timing out a call at 60 s.
+ */
+const HEARTBEAT_INTERVAL_MS = 25_000;
 
 // Singleton state
 let wss: WebSocketServer | null = null;
@@ -70,7 +78,9 @@ export const MCP_RELAY_PATH = '/ws/mcp';
  */
 export function mcpRelayRoute(
   observe?: (socket: WebSocket, headers: http.IncomingHttpHeaders) => void,
+  options: { heartbeatIntervalMs?: number } = {},
 ): WebSocketRoute {
+  const heartbeatIntervalMs = options.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS;
   const relayServer = new WebSocketServer({ noServer: true });
   wss = relayServer;
 
@@ -81,6 +91,21 @@ export function mcpRelayRoute(
     const authTimer = setTimeout(() => {
       if (!userId) ws.close(4001, 'Auth timeout');
     }, AUTH_TIMEOUT_MS);
+
+    let answeredPing = true;
+    ws.on('pong', () => {
+      answeredPing = true;
+    });
+    const heartbeat = setInterval(() => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      if (!answeredPing) {
+        ws.terminate();
+        return;
+      }
+      answeredPing = false;
+      ws.ping();
+    }, heartbeatIntervalMs);
+    heartbeat.unref?.();
 
     ws.on('message', async (data) => {
       let msg: RelayMessage;
@@ -122,6 +147,7 @@ export function mcpRelayRoute(
 
     ws.on('close', () => {
       clearTimeout(authTimer);
+      clearInterval(heartbeat);
       // A reconnect replaces this socket's entry; only drop our own.
       if (userId && clients.get(userId)?.ws === ws) {
         clients.delete(userId);
