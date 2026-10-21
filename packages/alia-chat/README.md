@@ -27,9 +27,9 @@ the default in Expo SDK 53+), because every icon import is a subpath.
 
 The chat is built from Bloom (`@oxy.so/bloom`, a peer dependency): mount Bloom's
 `BloomProvider` above it, with the one `KeyboardProvider` your app already has.
-The main and conversation sheets request Bloom's `sizing="fill"` presentation: the
-shared sheet owns the bounded height, safe areas and keyboard clearance that the
-chat's Screen needs. Hosts should not add window-height calculations or a second
+The main and conversation sheets use Bloom's default content sizing: they grow and
+shrink with the chat up to the shared viewport limit. Bloom coordinates the Screen
+content, safe areas and keyboard clearance. Hosts should not add window-height calculations or a second
 scroll container to make an embedded chat visible.
 
 Alia's avatar is Bloom's 3D character (`AgentAvatar`). It draws through a runtime of

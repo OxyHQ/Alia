@@ -81,10 +81,11 @@ function mounted() {
 const sheets = () => mounted().root.findAllByType('section');
 const chats = () => mounted().root.findAllByType('article');
 
-describe('Alia sheet bounded presentation', () => {
-  it('opens the main Screen with a bounded sheet, preserves it through resize and closes', () => {
+describe('Alia sheet content-sized presentation', () => {
+  it('lets Bloom size the main Screen to its content and preserves it through resize', () => {
     const ref = mount();
-    expect(sheets()[0].props).toMatchObject({ sizing: 'fill', scrollable: false, open: false });
+    expect(sheets()[0].props).toMatchObject({ scrollable: false, open: false });
+    expect(sheets()[0].props.sizing).toBeUndefined();
     act(() => ref.current?.present());
     expect(sheets()[0].props.open).toBe(true);
     const main = chats()[0];
@@ -92,19 +93,21 @@ describe('Alia sheet bounded presentation', () => {
     state.height = 480;
     act(() => mounted().update(<AliaChatSheet ref={ref} voice={false} />));
     expect(chats()[0]).toBe(main);
-    expect(sheets()[0].props).toMatchObject({ sizing: 'fill', detached: false, open: true });
+    expect(sheets()[0].props).toMatchObject({ detached: false, open: true });
+    expect(sheets()[0].props.sizing).toBeUndefined();
     expect(sheets()[0].props.style?.height).toBeUndefined();
     act(() => ref.current?.dismiss());
     expect(sheets().every((sheet) => !sheet.props.open)).toBe(true);
   });
 
-  it('opens a bounded conversation above the main sheet and retains its own presentation progress', () => {
+  it('opens a content-sized conversation above the main sheet with its own presentation progress', () => {
     const ref = mount();
     act(() => ref.current?.present());
     const mainProgress = chats()[0].props.presentedProgress;
     act(() => chats()[0].props.onStart({ text: 'A fixture draft' }));
     expect(sheets()).toHaveLength(3);
-    expect(sheets()[1].props).toMatchObject({ sizing: 'fill', scrollable: false, open: true });
+    expect(sheets()[1].props).toMatchObject({ scrollable: false, open: true });
+    expect(sheets()[1].props.sizing).toBeUndefined();
     expect(chats()[1].props.initialTurn).toEqual({ text: 'A fixture draft' });
     expect(chats()[1].props.presentedProgress).not.toBe(mainProgress);
     // The independent thought sheet keeps its own existing content sizing.
@@ -114,13 +117,13 @@ describe('Alia sheet bounded presentation', () => {
     expect(sheets().every((sheet) => !sheet.props.open)).toBe(true);
   });
 
-  it('resumes an existing conversation using the same bounded frame without an initial send', () => {
+  it('resumes an existing conversation using content sizing without an initial send', () => {
     const ref = mount();
     act(() => ref.current?.resume('existing-conversation'));
     expect(
       sheets()
         .slice(0, 2)
-        .every((sheet) => sheet.props.sizing === 'fill' && sheet.props.open),
+        .every((sheet) => sheet.props.sizing === undefined && sheet.props.open),
     ).toBe(true);
     expect(chats()[1].props.conversationId).toBe('existing-conversation');
     expect(chats()[1].props.initialTurn).toBeUndefined();

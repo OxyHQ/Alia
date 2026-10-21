@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * nothing else.
  */
 
+const chrome = vi.hoisted(() => ({ footer: null as number | null }));
 const counters = vi.hoisted(() => ({ markdown: 0, rows: 0 }));
 const thread = vi.hoisted(() => ({
   props: null as null | Record<string, unknown>,
@@ -66,7 +67,8 @@ vi.mock('@oxy.so/bloom/ai-chat', async () => {
     AiChatAssistantMessage: host('Assistant'),
     AiChatUserMessage: host('User'),
     AiChatMessageLine: host('Line'),
-    useAiChatChromeInsets: () => null,
+    useAiChatChromeInsets: () =>
+      chrome.footer === null ? null : { top: 40, bottom: chrome.footer },
   };
 });
 vi.mock('../../../src/components/ReplyMarkdown', async () => {
@@ -220,6 +222,7 @@ afterEach(() => {
   if (renderer !== null) act(() => renderer?.unmount());
   renderer = null;
   thread.props = null;
+  chrome.footer = null;
   thread.scrollToEnd = [];
   thread.scrollToOffset = [];
   timelinePositions.clear();
@@ -236,6 +239,16 @@ function update(props: TestProps): void {
     renderer?.update(<AliaThread {...toProps(props)} />);
   });
 }
+
+it.each([null, 68])('renders the empty state without owning its host footer (%s)', (footer) => {
+  chrome.footer = footer;
+  const result = mount({ messages: [], empty: <span>Ready to chat</span> });
+  expect(result.root.findByType('span').children).toEqual(['Ready to chat']);
+  expect(result.root.findAll((node) => (node.type as unknown) === 'Thread')).toHaveLength(0);
+  for (const view of result.root.findAll((node) => (node.type as unknown) === 'View')) {
+    expect(view.props.style?.paddingBottom ?? 0).toBe(0);
+  }
+});
 
 const CODE = '```ts\nconst answer = compute(input);\nconsole.log(answer);\n```';
 
