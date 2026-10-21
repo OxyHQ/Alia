@@ -20,8 +20,23 @@ import {
 
 // Initialize Oxy client
 export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+const OXY_API_REQUEST_TIMEOUT = (() => {
+  try {
+    const hostname = new URL(OXY_API_URL).hostname;
+    // Local Oxy may be using the production database through a development
+    // tunnel. Its session checks can exceed the SDK's 5s default under load.
+    // Keep the longer deadline scoped to loopback so hosted deployments retain
+    // the SDK default.
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
+      ? 15_000
+      : undefined;
+  } catch {
+    return undefined;
+  }
+})();
 export const oxyClient = new OxyServer({
   baseURL: OXY_API_URL,
+  requestTimeout: OXY_API_REQUEST_TIMEOUT,
 });
 
 // Extend Express Request for Oxy users and service tokens
