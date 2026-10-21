@@ -122,6 +122,10 @@ export function reanimatedModule() {
     useAnimatedReaction: () => {},
     useAnimatedRef: () => React.useRef(null),
     useAnimatedScrollHandler: () => () => {},
+    useComposedEventHandler:
+      (handlers: Array<((event: unknown) => void) | null>) => (event: unknown) => {
+        for (const handler of handlers) handler?.(event);
+      },
     useScrollViewOffset: () => ({ value: 0 }),
     scrollTo: () => {},
     measure: () => null,
@@ -180,6 +184,7 @@ export function gestureHandlerModule() {
 export const screensModule = () => ({ FullWindowOverlay: through, enableScreens: () => {} });
 
 export const safeAreaModule = () => ({
+  SafeAreaInsetsContext: React.createContext({ top: 0, bottom: 0, left: 0, right: 0 }),
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
   SafeAreaView: through,
   SafeAreaProvider: through,

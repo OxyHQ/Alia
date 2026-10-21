@@ -301,6 +301,7 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       <AgentAvatarProvider runtimeUrl={characterRuntimeUrl}>
         <BottomSheet
           ref={mainRef}
+          sizing="fill"
           detached={detached}
           scrollable={false}
           manualActivation
@@ -333,6 +334,7 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           <BottomSheet
             key={conversation.key}
             ref={conversationRef}
+            sizing="fill"
             detached={detached}
             scrollable={false}
             manualActivation
