@@ -35,4 +35,5 @@ export {
   createAliaForOxyService,
   createAliaTransportForOxyService,
   type OxyServiceTransportFactory,
+  type AliaOxyRequester,
 } from './oxy.js';
