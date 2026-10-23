@@ -339,19 +339,8 @@ export const agentKnowledge = pgTable(
   ],
 );
 
-/**
- * What of its owner's data an agent may use, one row per Oxy app (ADR 0015).
- *
- * The UI's source of truth for the three levels — `read` (Ver) and `act`
- * (Ver y actuar); no row is `none` (Nada). Oxy stays the AUTHORITY: each row is
- * mirrored by exactly one `DelegationGrant` whose id is `oxy_grant_id`, created,
- * updated and revoked with the owner's bearer by `lib/agent-oxy-apps.ts`. A row
- * is written only after Oxy accepted the grant, so a row always names one; when
- * the grant is revoked elsewhere (the accounts app's Agency tab), the next read
- * drops the row instead of showing a level Oxy no longer honours.
- *
- * `app_id` is the catalogue's app id, not a foreign key: the catalogue lives in
- * Oxy's registry.
+/** Historical rows only: retired app-level settings. No runtime readers/writers.
+ * Preserve audit data until the coordinated post-cutover archival migration.
  */
 export const agentOxyAppPermissions = pgTable(
   'agent_oxy_app_permissions',

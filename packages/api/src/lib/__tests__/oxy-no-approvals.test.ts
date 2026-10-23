@@ -1,3 +1,4 @@
+import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /**
  * No Oxy app call asks the person for approval (ADR 0020 §3): a payment and a
  * deletion execute exactly like any other effect, under the authority Oxy
@@ -109,7 +110,7 @@ beforeEach(() => {
     if (url.endsWith('/auth/service-token'))
       return json({ token: 'ALIA-SERVICE-TOKEN', expiresIn: 300 });
     if (url.endsWith('/capabilities/catalogs'))
-      return json({ registrations: [{ catalog: CATALOG }] });
+      return json({ registrations: [registeredCatalog(CATALOG)] });
     if (url.endsWith('/capabilities/service-identity'))
       return json({ service: { applicationId: 'alia-app', credentialId: 'alia-credential' } });
     if (url.endsWith('/capabilities/capability-map')) {
@@ -125,7 +126,10 @@ beforeEach(() => {
         ],
       });
     }
-    if (url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST')
+    if (
+      url.endsWith('/capabilities/foreground-execution-authorizations') &&
+      init?.method === 'POST'
+    )
       return json({ authorization: { id: 'DIRECT-1' } }, 201);
     if (url.endsWith('/capabilities/tickets'))
       return ticketAllowed

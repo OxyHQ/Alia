@@ -375,7 +375,7 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // that produces each. The limiter's last keyed branch is the signed-in user;
     // below it the function falls through to a bare `next()`.
     const context = canonical('lib/chat/request-context.ts');
-    expect(context).toContain(snippet('const creditAccountId = req.user?.id;'));
+    expect(context).toContain(snippet('const creditAccountId = localAccountId;'));
     // Parenthesised or not: the formatter drops redundant parentheses, and the
     // conjunction is the same either way.
     expect(context).toMatch(

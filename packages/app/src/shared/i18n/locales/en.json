@@ -1518,23 +1518,6 @@
     },
     "modelPinned": "Pinned model (%{model})",
     "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose.",
-    "oxyApps": {
-      "title": "Oxy apps",
-      "footer": "What of YOUR data this agent may use, app by app. None: nothing. View: it can read. View and act: it can read and act for you, without asking. It always has its own account (its own inbox) as well.",
-      "none": "None",
-      "read": "View",
-      "act": "View and act",
-      "levelLabel": "What %{app} access this agent has",
-      "loadFailed": "Couldn't load your Oxy apps. Try again later.",
-      "saveFailed": "Couldn't change %{app}. Nothing was changed."
-    },
-    "requesterApps": {
-      "title": "For whoever uses it",
-      "footer": "What this agent may do on the data of whoever uses it, app by app — always on that person's own account, never on yours. None: nothing. View: it can read. View and act: it can read and act for them.",
-      "levelLabel": "What this agent may do in %{app} for whoever uses it",
-      "loadFailed": "Couldn't load what this agent may do for the people who use it. Try again later.",
-      "saveFailed": "Couldn't change %{app}. Nothing was changed."
-    },
     "featureGates": {
       "title": "Features with requirements",
       "footer": "Put a feature behind an app's plan: whoever uses the agent gets it only if that app says they have it. None: it is free.",

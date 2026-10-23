@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { createOxyTask, revokeOxyTask } from '../oxy-task-authority.js';
 import { reserveBackgroundProductCredits } from '../product-credit-access';
 /**
  * Handing an agent session to a worker without losing the caller's credits, and
@@ -132,6 +134,7 @@ export async function startAgentSession(input: {
   readonly agent: HirableAgent;
   readonly userId: string;
   readonly task: string;
+  readonly requesterToken?: string;
   readonly origin: AgentSessionOrigin;
   readonly depth?: number;
   /**
@@ -185,10 +188,22 @@ export async function startAgentSession(input: {
   }
 
   let sessionId: string | null = null;
+  let oxyTaskId: string | null = null;
   try {
+    if (!input.requesterToken)
+      throw new Error('Starting background work requires its original requester');
+    const newSessionId = randomUUID();
+    oxyTaskId = await createOxyTask({
+      accessToken: input.requesterToken,
+      effectiveAccountId: userId,
+      actorAccountId: agent.oxyAccountId,
+      origin: { kind: 'goal', id: input.goalId ?? newSessionId },
+    });
     const session = await createAgentSession(getDb(), {
+      id: newSessionId,
       agentId: agent._id,
       oxyUserId: userId,
+      oxyTaskId,
       task,
       status: 'queued',
       depth: input.depth ?? 0,
@@ -259,6 +274,11 @@ export async function startAgentSession(input: {
             );
             return false;
           });
+
+    if (oxyTaskId)
+      await revokeOxyTask(oxyTaskId).catch((err: unknown) => {
+        log.agents.error({ err, sessionId }, 'Could not revoke failed task authority');
+      });
 
     if (neutralised) {
       await safeRefund(reservation, 'agent session handoff failed');

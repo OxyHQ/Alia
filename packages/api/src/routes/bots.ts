@@ -9,6 +9,7 @@ import { getDb } from '../db/index.js';
 import {
   deleteBot,
   findBotById,
+  findBotTaskIds,
   findBotByPlatformIdentity,
   findBotUser,
   findBotUserByAuthToken,
@@ -17,6 +18,7 @@ import {
   findOwnedBotWithToken,
   findSystemBot,
   linkBotUser,
+  replaceBotUserTask,
   listVisibleBots,
   logoutBotUser,
   registerBot,
@@ -291,6 +293,8 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
       return res.status(404).json({ error: 'Bot not found' });
     }
 
+    for (const taskId of await findBotTaskIds(db, bot.id)) await revokeOxyTask(taskId);
+
     // Best-effort removal of the Telegram webhook using the bot's own token.
     if (bot.platform === 'telegram' && bot.botToken) {
       try {
@@ -377,6 +381,42 @@ router.post('/:id/link', authenticateToken, async (req: express.Request<{ id: st
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// A present own-account session can resume its existing channel link silently.
+router.post(
+  '/:id/reauthorize',
+  authenticateToken,
+  async (req: express.Request<{ id: string }>, res) => {
+    if (!req.user?.id || !req.accessToken || req.serviceApp)
+      return res.status(401).json({ error: 'Authentication required' });
+    try {
+      const db = getDb();
+      const bot = await findBotById(db, req.params.id);
+      const link =
+        bot?.status === 'active' ? await findLinkedBotUser(db, bot.id, req.user.id) : null;
+      if (!link) return res.status(404).json({ error: 'Linked bot not found' });
+      if (link.oxyTaskState === 'active' && link.oxyTaskId)
+        return res.json({ success: true, oxyTaskState: 'active' });
+      const taskId = await createOxyTask({
+        accessToken: req.accessToken,
+        effectiveAccountId: req.user.id,
+        actor: { type: 'alia', ownerAccountId: req.user.id },
+        origin: { kind: 'automation', id: `channel:${link.id}` },
+      });
+      try {
+        if (link.oxyTaskId) await revokeOxyTask(link.oxyTaskId);
+        if (!(await replaceBotUserTask(db, link.id, req.user.id, link.oxyTaskId, taskId)))
+          throw new Error('Channel binding changed');
+      } catch (error) {
+        await revokeOxyTask(taskId);
+        throw error;
+      }
+      return res.json({ success: true, oxyTaskState: 'active' });
+    } catch {
+      return res.status(503).json({ error: 'channel_task_unavailable' });
+    }
+  },
+);
 
 // Unlink account from bot
 router.post('/:id/unlink', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
@@ -797,7 +837,7 @@ async function linkChannelTask(
   const requesterAccountId = req.user.id;
   const taskId = await createOxyTask({
     accessToken: req.accessToken,
-    requesterAccountId,
+    effectiveAccountId: requesterAccountId,
     actor: { type: 'alia', ownerAccountId: requesterAccountId },
     origin: { kind: 'automation', id: `channel:${botUser.id}` },
   });

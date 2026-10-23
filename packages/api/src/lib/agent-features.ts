@@ -37,7 +37,7 @@ import {
 } from '../domain/agent-features.js';
 import { usableMessageId } from '../domain/conversation.js';
 import type { ChatMessage } from './message-converter.js';
-import { oxyAppDisplayName } from './agent-oxy-apps.js';
+import { oxyAppDisplayName } from './oxy-app-catalog.js';
 import {
   callOxyFeatureTool,
   findOxyAppFeature,
@@ -78,15 +78,17 @@ export interface FeaturePerson {
   readonly accountId: string;
   /** The person's own live bearer. Without one no lane can be authorized. */
   readonly accessToken: string | undefined;
+  readonly taskId?: string;
   readonly runId: string;
 }
 
 function laneOf(agent: GatedAgent, person: FeaturePerson): OxyToolExecutionContext | null {
-  if (person.accessToken === undefined) return null;
+  if (person.accessToken === undefined && !person.taskId) return null;
   return presentPersonAgentContext({
     agent,
     personAccountId: person.accountId,
     accessToken: person.accessToken,
+    taskId: person.taskId,
     runId: person.runId,
   });
 }
