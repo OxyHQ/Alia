@@ -1,3 +1,4 @@
+import { accountOwnership } from '../../shared/account-ownership';
 /**
  * Gmail Account Adapter
  *
@@ -63,6 +64,7 @@ export class GmailAdapter implements AccountAdapter {
 
   getRouter(): RouterType {
     const router: RouterType = Router();
+    router.use(accountOwnership(async (id) => sessions.get(id)?.oxyUserId ?? null));
 
     // Create session with OAuth tokens
     router.post('/sessions/connect', async (req: AccountRequest, res: Response) => {

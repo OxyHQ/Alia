@@ -1,3 +1,5 @@
+import { APIClient } from '../../shared/api-client';
+const apiClient = new APIClient('whatsapp');
 import makeWASocket, {
   BufferJSON,
   DisconnectReason,
@@ -40,11 +42,9 @@ import {
   type WhatsAppMessageInsert,
 } from './repository';
 import { handleIncomingMessage } from '../../shared/chat-handler';
-import { APIClient } from '../../shared/api-client';
 import { createLogger } from '../../shared/logger';
 import { PendingQrs } from '../pending-qr';
 
-const apiClient = new APIClient('whatsapp', process.env.INTEGRATIONS_SECRET || '');
 const logger = createLogger('WhatsApp');
 
 /** Baileys timestamps are `number` or a protobuf `Long` (`{ low, high }`). */
@@ -247,7 +247,7 @@ class SessionManager {
           } else {
             const delay =
               Math.min(
-                SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
+                SessionManager.BASE_RECONNECT_MS * 2 ** (attempts - 1),
                 SessionManager.MAX_RECONNECT_MS,
               ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 

@@ -1,8 +1,9 @@
+import { internalAccount } from '../shared/internal-auth';
 /**
  * MCP Routes — Integrations Service
  *
  * Called by the API service (not directly by clients).
- * Authentication via X-Gateway-Secret middleware in index.ts.
+ * Exact Alia API workload and internal account context verified in index.ts.
  */
 
 import { Router, type Router as RouterType } from 'express';
@@ -15,6 +16,23 @@ const logger = createLogger('MCP');
 const VALID_TRANSPORTS = new Set(['stdio', 'sse', 'streamable-http']);
 
 const router: RouterType = Router();
+router.use((req, res, next) => {
+  const accountId = internalAccount(req);
+  if (!accountId) {
+    res.status(401).json({ error: 'Internal account context required' });
+    return;
+  }
+  if (req.body && typeof req.body === 'object') req.body.oxyUserId = accountId;
+  const match = /^\/servers\/([^/]+)/.exec(req.path);
+  if (match) {
+    const session = manager.getSession(decodeURIComponent(match[1]));
+    if (session && session.oxyUserId !== accountId) {
+      res.status(404).json({ error: 'Server session not found' });
+      return;
+    }
+  }
+  next();
+});
 
 /** POST /mcp/servers/:id/start */
 router.post('/servers/:id/start', async (req, res) => {
@@ -188,8 +206,12 @@ router.get('/servers/:id/status', (req, res) => {
 });
 
 /** GET /mcp/sessions */
-router.get('/sessions', (_req, res) => {
-  res.json({ sessions: manager.listSessions() });
+router.get('/sessions', (req, res) => {
+  res.json({
+    sessions: manager
+      .listSessions()
+      .filter((session) => session.oxyUserId === internalAccount(req)),
+  });
 });
 
 export { router as mcpRouter };

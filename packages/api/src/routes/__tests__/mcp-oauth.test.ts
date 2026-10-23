@@ -1,11 +1,10 @@
 // packages/api/src/routes/__tests__/mcp-oauth.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// INTEGRATIONS_URL/SECRET are captured into module-level consts at import time,
+// INTEGRATIONS_URL are captured into module-level consts at import time,
 // so they must be present BEFORE mcp.ts is imported. vi.hoisted runs first.
 vi.hoisted(() => {
   process.env.INTEGRATIONS_URL = 'http://integrations.test';
-  process.env.INTEGRATIONS_SECRET = 'integrations-secret';
   process.env.APP_URL = 'http://app.test';
 });
 
@@ -40,6 +39,11 @@ vi.mock('../../db/integrations/mcpOAuthStateRepository.js', () => ({
 // The handle is never used — every repository call is mocked — but `getDb()`
 // throws when Postgres is not connected, which is correct production behaviour
 // and would fail these unit tests for the wrong reason.
+vi.mock('../../lib/integrations-client.js', () => ({
+  integrationsFetch: (_account: string, path: string, init: RequestInit) =>
+    fetch(`http://integrations.test${path}`, init),
+}));
+
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
 vi.mock('@oxy.so/core/server', () => ({

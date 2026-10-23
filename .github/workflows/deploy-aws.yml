@@ -254,53 +254,14 @@ jobs:
           # the string-array contract deploy-ecs-image.sh validates.
           printf 'post_command=%s\n' "$(jq -cn --arg c "$CMD" '["/bin/sh","-c",$c]')" >>"$GITHUB_OUTPUT"
 
-      # Wire the API to the integrations service — the ONLY step that can.
-      #
-      # `packages/api/src/lib/tools/mcp.ts:48` gates every hosted MCP connector on
-      # `INTEGRATIONS_URL && INTEGRATIONS_SECRET`. Neither is on the running
-      # revision, so `buildMcpTools` returns an empty tool set and logs nothing;
-      # the registry, `POST /mcp/install` and the OAuth flow are all silently
-      # inert. (Local MCP is unaffected — that runs over `lib/mcp-relay.ts`.)
-      #
-      # Terraform cannot deliver either of them to a service that already exists.
-      # `modules/app-service/main.tf` carries `ignore_changes = [task_definition]`,
-      # so the service never adopts the revision an apply registers, and this
-      # script re-renders each revision from `services[0].taskDefinition` — the
-      # RUNNING one — so the CI chain never inherits Terraform's either. An entry
-      # added there lands in a revision nothing runs, with no error.
-      # `docs/runbooks/integrations-service-rollout.md` has the long version.
-      #
-      # SSM is the source of truth for the shared secret. GetParameter is
-      # resource-scoped to this exact ARN by IAM and explicitly leaves
-      # decryption disabled; the query returns only name and type. This is both
-      # narrower than account-wide DescribeParameters and keeps the value out of
-      # the runner output. A missing/wrong-type parameter fails before a task
-      # definition is created.
-      # The private URL is the exact Cloud Map service and namespace declared in
-      # oxy-infra: integrations.alia.internal.oxy.so.
+      # Own processes authenticate with their registered workload identities.
       - name: Stage the integrations service wiring
         id: integrations
         run: |
-          parameter_name="/oxy/$APP/INTEGRATIONS_SECRET"
-          metadata="$(aws ssm get-parameter \
-            --name "$parameter_name" \
-            --no-with-decryption \
-            --query 'Parameter.[Name,Type]' \
-            --output text)" || metadata=''
-          read -r actual_name actual_type <<<"$metadata"
-          if [ "$actual_name" != "$parameter_name" ] || [ "$actual_type" != "SecureString" ]; then
-            echo "::error::required SecureString metadata is absent for $parameter_name"
-            exit 1
-          fi
-
-          secret_overrides="$(jq -cn \
-            --arg arn "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET" \
-            '{INTEGRATIONS_SECRET: $arn}')"
           env_overrides="$(jq -cn \
             --arg url "http://integrations.alia.internal.oxy.so:3005" \
             '{INTEGRATIONS_URL: $url}')"
 
-          printf 'secret_overrides=%s\n' "$secret_overrides" >>"$GITHUB_OUTPUT"
           printf 'env_overrides=%s\n' "$env_overrides" >>"$GITHUB_OUTPUT"
 
       # Wire Alia only to Oxy's published inference edge. The SDK exchanges the
@@ -310,7 +271,6 @@ jobs:
       - name: Stage Oxy inference configuration
         id: kaana
         env:
-          INTEGRATIONS_SECRETS: ${{ steps.integrations.outputs.secret_overrides }}
           INTEGRATIONS_ENV: ${{ steps.integrations.outputs.env_overrides }}
         run: |
           # `/oxy/$APP/OXY_SERVICE_API_KEY` and `..._SECRET` are NOT checked here
@@ -347,17 +307,8 @@ jobs:
             ALIA_COMPUTER_HOST_INSTANCE_ID: $computer_instance_id
           }')"
 
-          # Nothing is merged in here any more: the Oxy service credential was
-          # the only thing this step contributed to `secret_overrides`, and the
-          # API no longer carries one. `INTEGRATIONS_SECRET` stays, from the step
-          # above, because it is a shared secret and not an identity.
-          #
-          # Normalised through `jq` rather than passed through, so an empty
-          # upstream output is still the `{}` the script validates.
-          merged_secrets="$(jq -c '.' <(echo "${INTEGRATIONS_SECRETS:-{\}}"))"
           merged_env="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$required_env"))"
 
-          printf 'secret_overrides=%s\n' "$merged_secrets" >>"$GITHUB_OUTPUT"
           printf 'env_overrides=%s\n' "$merged_env" >>"$GITHUB_OUTPUT"
 
       # RUN_MIGRATIONS is what turns on machinery deploy-ecs-image.sh has always
@@ -418,7 +369,6 @@ jobs:
           # `dockerfileRuntime.test.ts` holds this line and the Dockerfile together.
           MIGRATION_RUNTIME: bun
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
-          TASK_SECRET_OVERRIDES_JSON: ${{ steps.kaana.outputs.secret_overrides }}
           # Stop injecting a static IAM user's keys.
           #
           # The task definition declares `taskRoleArn: oxy-ecs-task` and ALSO
@@ -483,7 +433,7 @@ jobs:
           # the removal. The readiness task is still the final judge — it runs on
           # the revision this list produces, so if the probe above is wrong the
           # DEPLOY fails closed instead of shipping an Alia that cannot route.
-          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
+          TASK_SECRET_REMOVALS_JSON: '["INTEGRATIONS_SECRET","DISCORD_BOT_SECRET","SLACK_BOT_SECRET","WHATSAPP_BOT_SECRET","WHATSAPP_GATEWAY_SECRET","SIGNAL_BOT_SECRET","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
           # Remove every legacy plain Relay/direct-Kaana binding inherited from
           # the live task definition. Keeping a removal here is harmless after
           # the first clean revision and prevents a rollback descendant from

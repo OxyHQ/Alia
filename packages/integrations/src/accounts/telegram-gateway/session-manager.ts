@@ -1,3 +1,5 @@
+import { APIClient } from '../../shared/api-client';
+const apiClient = new APIClient('telegram-gateway');
 import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { NewMessage, Raw } from 'telegram/events';
@@ -24,12 +26,10 @@ import {
   upsertTelegramChat,
 } from './repository';
 import { handleIncomingMessage } from '../../shared/chat-handler';
-import { APIClient } from '../../shared/api-client';
 import { DedupSet, errorMessage } from '../../shared/utils';
 import { createLogger } from '../../shared/logger';
 import { PendingQrs } from '../pending-qr';
 
-const apiClient = new APIClient('telegram-gateway', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
 const logger = createLogger('Telegram');
 
@@ -487,7 +487,7 @@ class SessionManager {
 
     const delay =
       Math.min(
-        SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
+        SessionManager.BASE_RECONNECT_MS * 2 ** (attempts - 1),
         SessionManager.MAX_RECONNECT_MS,
       ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 

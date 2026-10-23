@@ -135,6 +135,9 @@ RUN chown bun:bun /app
 COPY --from=builder --chown=bun:bun /build/node_modules ./node_modules
 COPY --from=builder --chown=bun:bun /build/package.json /build/bun.lock ./
 COPY --from=builder --chown=bun:bun /build/packages/api/package.json ./packages/api/package.json
+# Workspace SDK remains external in the API bundle; preserve its symlink target.
+COPY --from=builder --chown=bun:bun /build/packages/alia-server/package.json ./packages/alia-server/package.json
+COPY --from=builder --chown=bun:bun /build/packages/alia-server/dist ./packages/alia-server/dist
 
 # Built application bundle.
 COPY --from=builder --chown=bun:bun /build/packages/api/dist ./packages/api/dist

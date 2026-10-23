@@ -33,7 +33,6 @@ export const whatsappPlugin: ChannelPlugin = {
         process.env.WHATSAPP_ACCESS_TOKEN &&
         process.env.WHATSAPP_VERIFY_TOKEN
       ),
-    getBotSecret: () => process.env.WHATSAPP_BOT_SECRET,
     getEnvPrefix: () => 'WHATSAPP',
   },
 

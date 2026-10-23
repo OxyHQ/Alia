@@ -1,3 +1,4 @@
+import { integrationsFetch } from '../integrations-client.js';
 /**
  * MCP Tools — Dynamic tool generation from user's MCP servers
  *
@@ -16,7 +17,6 @@ import { jsonSchemaToZod } from './mcp-schema.js';
 import { getLocalTools, callLocalTool } from '../mcp-relay.js';
 
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
-const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 const TOOL_CALL_TIMEOUT_MS = 60_000;
 
 /** Response shape returned by the integrations service tool-call endpoint. */
@@ -64,7 +64,7 @@ export async function buildMcpTools(
 
   try {
     // Server-side MCP tools (running in integrations service)
-    if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
+    if (INTEGRATIONS_URL) {
       const servers = await listRunnableMcpServersForUser(getDb(), oxyUserId, selectedServerIds);
 
       for (const server of servers) {
@@ -79,7 +79,7 @@ export async function buildMcpTools(
             continue;
           }
 
-          tools[toolName] = createServerTool(server.displayName, mcpTool, serverId);
+          tools[toolName] = createServerTool(server.displayName, mcpTool, serverId, oxyUserId);
         }
       }
     }
@@ -123,7 +123,12 @@ function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9]/g, '_');
 }
 
-function createServerTool(displayName: string, mcpTool: McpServerTool, serverId: string) {
+function createServerTool(
+  displayName: string,
+  mcpTool: McpServerTool,
+  serverId: string,
+  oxyUserId: string,
+) {
   let inputSchema;
   try {
     inputSchema = jsonSchemaToZod(mcpTool.inputSchema as Record<string, any>);
@@ -135,7 +140,7 @@ function createServerTool(displayName: string, mcpTool: McpServerTool, serverId:
     description: `[${displayName}] ${mcpTool.description || mcpTool.name}`,
     inputSchema,
     execute: async (args: Record<string, unknown>) => {
-      return callServerTool(serverId, mcpTool.name, args as Record<string, any>);
+      return callServerTool(oxyUserId, serverId, mcpTool.name, args as Record<string, any>);
     },
   });
 }
@@ -163,17 +168,18 @@ function createLocalTool(
 }
 
 async function callServerTool(
+  oxyUserId: string,
   serverId: string,
   toolName: string,
   args: Record<string, any>,
 ): Promise<string> {
-  const response = await fetch(
-    `${INTEGRATIONS_URL}/mcp/servers/${serverId}/tools/${encodeURIComponent(toolName)}/call`,
+  const response = await integrationsFetch(
+    oxyUserId,
+    `/mcp/servers/${serverId}/tools/${encodeURIComponent(toolName)}/call`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Gateway-Secret': INTEGRATIONS_SECRET!,
       },
       body: JSON.stringify({ arguments: args }),
       signal: AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS),

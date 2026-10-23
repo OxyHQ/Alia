@@ -1,4 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { accountOwnership } from '../../shared/account-ownership';
+import { findSignalSessionOwner } from './repository';
+import { Router, type Request, type Response } from 'express';
 import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
@@ -23,6 +25,7 @@ export class SignalAdapter implements AccountAdapter {
 
   getRouter(): Router {
     const router = Router();
+    router.use(accountOwnership((id) => findSignalSessionOwner(getDb(), id)));
 
     // POST /sessions/link — link a new Signal device for user
     router.post('/sessions/link', async (req: AccountRequest, res: Response) => {
