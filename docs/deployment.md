@@ -69,12 +69,13 @@ OXY_API_URL=https://api.oxy.so
 DATABASE_URL=<postgres-connection-string>
 ```
 
-**Neither service carries an Oxy service credential.** The API and
-`alia-integrations` each prove what they ARE by attesting their ECS task role
-and get a short-lived Oxy service token back (oxy ADR 0026); `@oxy.so/core`
->= 1.6.1 takes that path whenever `OXY_SERVICE_API_KEY` and
-`OXY_SERVICE_API_SECRET` are absent. Both remain local-development values —
-see `packages/api/.env.example`.
+**Both services use attested workload identity.** The API and
+`alia-integrations` exchange their temporary ECS task credentials for short-lived
+Oxy service tokens. They use different registered workloads with explicit
+environment and recipient binding; neither uses an Oxy client key or an internal
+shared secret. Local development uses the shared server-only AWS credential
+provider with a temporary IAM/SSO development role registered in Oxy. A role's
+environment comes from the server-owned binding, never a caller assertion.
 
 Because a release renders from the task definition the service is already
 RUNNING, removing the pair took an explicit entry in each lane's
@@ -104,7 +105,6 @@ Recommended, each disabling a feature when absent rather than blocking boot:
 REDIS_URL=rediss://...                 # BullMQ, rate limiting, Socket.IO adapter
 TOKEN_ENCRYPTION_KEY=<32-byte hex>     # see below — NOT optional for shows
 INTEGRATIONS_URL=https://...           # MCP tools and channel proxy
-INTEGRATIONS_SECRET=<32-byte hex>
 ALIA_COMPUTER_HOST_URL=http://computer.alia.internal.oxy.so:8080  # agents' computer (no secret: workload identity)
 ALIA_COMPUTER_HOST_INSTANCE_ID=i-...     # lets the API wake the host when it has stopped itself
 SYRA_API_URL=https://api.syra.fm       # where a show series is published
@@ -193,30 +193,22 @@ calling Kaana.
 OXY_API_URL=https://api.oxy.so
 ```
 
-That is the whole of it on a deployed task. The origin is still required —
-attestation says what this process IS, not where Oxy is, and a token with
-nowhere to present it is worth nothing — but the credential is the task role.
-A checkout, which can attest nothing, adds the pair:
-
-```bash
-OXY_SERVICE_API_KEY=<oxy-application-key>
-OXY_SERVICE_API_SECRET=<oxy-application-secret>
-```
-
-Boot refuses a process that can neither attest nor present a pair, and names
-both variables, because setting them is the thing to do there. It no longer
-refuses a task that carries neither — which it did until oxy ADR 0026, and which
-would have made this migration a boot crash, an ECS circuit-breaker rollback and
-a service reported stable with nothing naming the cause.
+The deployed process obtains temporary credentials from its task role. For
+local development, use `AWS_PROFILE` with an authenticated IAM/SSO development
+role through `createAwsWorkloadCredentialProvider()`; Oxy must have a live
+binding for that exact role and development environment. Do not substitute a
+customer API key. Boot checks the configured Oxy origin; the exchange validates
+the role and live binding when a request is made. A healthy process alone is
+not evidence that the workload can authenticate.
 
 `OXY_API_URL` is pinned to `https://api.oxy.so` in deployed environments. Local
 development may use loopback. Paths, query strings, embedded credentials,
 scheme downgrades and near-miss origins are rejected. Alia does not configure a
 Kaana URL, signing key, account/application/credential IDs or route list.
 
-The two `OXY_SERVICE_API_*` values are one Oxy ApplicationCredential, not a
-provider or Kaana credential. Their exact bindings are declared by
-`deploy-aws.yml`; no legacy spelling is accepted by the runtime.
+Own service callers do not request scopes. External API keys and external OAuth
+connections retain their scoped authority; they are not a development fallback
+for Alia's workload.
 
 Merging this configuration does not prove production cutover. The rollout must
 still verify the deployed Alia task revision, Oxy route and Kaana health, and
@@ -262,15 +254,18 @@ last good catalogue kept), but a token is the fix for the quota itself. It does 
 in `/oxy/alia/` today: the owner creates the parameter first, then binds it in the task
 definition, per the order above.
 
-`/oxy/alia/INTEGRATIONS_SECRET` and `/oxy/alia/TOKEN_ENCRYPTION_KEY` are bound by BOTH
-`alia` and `alia-integrations` — one parameter each, so a rotation reaches both services
-and both must be rolled. Deploys verify only the name and type of
-`/oxy/alia/INTEGRATIONS_SECRET` and `/oxy/alia-integrations/DATABASE_URL`, never
-retrieve, decrypt, log or overwrite their value. The old `/oxy/alia/OXY_SERVICE_API_*`
-pair is no longer injected (`TASK_SECRET_REMOVALS_JSON` in `deploy-aws.yml`):
-production Alia is an attested workload, so what it may do on Oxy is the
-`oxy-alia-task` binding's scopes — `capability-tickets:issue` included, or no
-Oxy app tool can run.
+`/oxy/alia/TOKEN_ENCRYPTION_KEY` is shared by the API and integrations, so
+rotation must re-encrypt stored rows and roll both processes. Authentication
+between those processes uses the shared `@alia.onl/server/internal` workload
+transport with the exact receiving process identity. `SERVICE_SECRET`,
+`INTEGRATIONS_SECRET` and the retired Oxy key pair are explicitly removed from
+rendered task definitions through `TASK_SECRET_REMOVALS_JSON`; merely deleting
+an input would leave a live inherited secret in place. Remove the corresponding
+SSM parameters only after the coordinated rollout and live readback prove that
+no task still uses them.
+
+Own tool access comes from the verified requester or durable task, plus live
+account/resource checks. Workload scopes do not enable own app tools.
 
 ## Startup behaviour
 
