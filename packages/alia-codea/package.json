@@ -3,6 +3,7 @@
   "displayName": "Codea by Alia",
   "description": "AI coding assistant powered by Alia",
   "version": "1.0.7",
+  "private": true,
   "publisher": "oxy",
   "license": "MIT",
   "repository": {

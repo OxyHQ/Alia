@@ -40,7 +40,6 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "prepublishOnly": "bun run typecheck && bun run test && bun run build && bun run check:entrypoints",
     "typecheck": "tsc --noEmit",
     "check:entrypoints": "node scripts/check-entrypoints.mjs",
     "test": "vitest run"

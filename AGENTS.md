@@ -25,8 +25,8 @@ inlinea `process.env.EXPO_PUBLIC_*` estático) son plugins GritQL en
 descripción: lo hace `scripts/check-ts-directives.mjs` en CI. Nunca `bun test`
 a pelo: los paquetes usan vitest.
 `bun.lock` va en el mismo commit que el `package.json` que lo cambia.
-npm: solo Actions → Release packages (workflow compartido de Oxy, OIDC); las puertas de
-cada paquete son su `prepublishOnly`; el SDK 15.x sale de `release/sdk-15.x` con su `dist_tag` —
+npm: fusionar el bump de versión en main lo publica (Release packages, workflow compartido de
+Oxy, OIDC, cuando CI pasó en ese commit); las puertas de cada paquete son CI —
 `~/Oxy/docs/npm-releases.md`.
 
 ## Reglas

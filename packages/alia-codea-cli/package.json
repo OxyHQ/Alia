@@ -17,8 +17,7 @@
     "start": "node dist/index.js",
     "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "prepublishOnly": "bun run typecheck && bun run test && bun run build"
+    "test": "vitest run"
   },
   "keywords": [
     "ai",
