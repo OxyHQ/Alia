@@ -13,7 +13,7 @@ import {
 import { currentModelLabel } from '../../shared/catalogue';
 import { createLogger } from '../../shared/logger';
 
-const apiClient = new APIClient('discord', process.env.DISCORD_BOT_SECRET || '');
+const apiClient = new APIClient('discord');
 const logger = createLogger('Discord');
 
 export class DiscordBotAdapter implements BotAdapter {
@@ -235,7 +235,10 @@ export class DiscordBotAdapter implements BotAdapter {
         // Load conversation history (user/assistant only)
         let messages_history: Array<{ role: string; content: string }> = [];
         try {
-          const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId);
+          const conversation = await apiClient.getConversation(
+            { kind: 'bot', platformUserId: botUser.platformUserId },
+            conversationId,
+          );
           if (conversation?.messages?.length) {
             messages_history = conversation.messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -264,12 +267,16 @@ export class DiscordBotAdapter implements BotAdapter {
           ...messages_history,
         ];
 
-        const result = await apiClient.chatCompletion(botUser.oxyUserId, apiMessages, {
-          // Unset, or no longer in the catalogue, means the request names no
-          // model and the server's default applies. See `shared/catalogue.ts`.
-          model: await apiClient.requestModel(botUser.preferredModel),
-          conversationId,
-        });
+        const result = await apiClient.chatCompletion(
+          { kind: 'bot', platformUserId: botUser.platformUserId },
+          apiMessages,
+          {
+            // Unset, or no longer in the catalogue, means the request names no
+            // model and the server's default applies. See `shared/catalogue.ts`.
+            model: await apiClient.requestModel(botUser.preferredModel),
+            conversationId,
+          },
+        );
 
         const fullResponse = result.content;
 

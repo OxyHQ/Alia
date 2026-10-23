@@ -65,7 +65,8 @@
     "ws": "^8.21.0",
     "yaml": "^2.9.0",
     "zod": "^3.25.76",
-    "@alia.onl/server": "workspace:*"
+    "@alia.onl/server": "workspace:*",
+    "@aws-sdk/credential-provider-node": "3.972.84"
   },
   "devDependencies": {
     "@ai-sdk/provider-utils": "4.0.38",

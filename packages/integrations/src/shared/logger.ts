@@ -45,9 +45,37 @@ export interface Logger {
   error(message: string, ...args: unknown[]): void;
 }
 
+const SECRET_KEY = /authorization|cookie|password|secret|token|api[-_]?key/i;
+function safeLog(value: unknown, depth = 0): unknown {
+  if (typeof value === 'string')
+    return value
+      .replace(/Bearer\s+[^\s"',}]+/gi, 'Bearer [REDACTED]')
+      .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[REDACTED]');
+  if (!value || typeof value !== 'object') return value;
+  if (depth >= 8) return '[TRUNCATED]';
+  if (value instanceof Error)
+    return {
+      name: value.name,
+      message: safeLog(value.message),
+      ...Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [
+          key,
+          SECRET_KEY.test(key) ? '[REDACTED]' : safeLog(entry, depth + 1),
+        ]),
+      ),
+    };
+  if (Array.isArray(value)) return value.map((entry) => safeLog(entry, depth + 1));
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [
+      key,
+      SECRET_KEY.test(key) ? '[REDACTED]' : safeLog(entry, depth + 1),
+    ]),
+  );
+}
+
 function emit(level: LogLevel, subsystem: string, message: string, args: unknown[]): void {
   if (LEVEL_WEIGHT[level] < threshold) return;
-  const line = format(`[${subsystem}] ${message}`, ...args);
+  const line = format(`[${subsystem}] ${safeLog(message)}`, ...args.map((arg) => safeLog(arg)));
   const stream = level === 'warn' || level === 'error' ? process.stderr : process.stdout;
   stream.write(`${line}\n`);
 }

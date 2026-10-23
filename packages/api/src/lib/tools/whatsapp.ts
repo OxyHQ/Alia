@@ -1,3 +1,6 @@
+import { getDb } from '../../db/index.js';
+import { findConnectedAccountForChannel } from '../../db/integrations/connectedAccountRepository.js';
+import { integrationsFetch } from '../integrations-client.js';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { log } from '../logger.js';
@@ -12,7 +15,7 @@ import { getErrorMessage } from '../errors/index.js';
  * environment's now.
  */
 export function whatsAppGatewayConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.WHATSAPP_GATEWAY_URL && env.WHATSAPP_GATEWAY_SECRET);
+  return Boolean(env.INTEGRATIONS_URL);
 }
 
 interface WhatsAppChatSummary {
@@ -30,24 +33,24 @@ interface WhatsAppMessageSummary {
   timestamp?: number;
 }
 
-async function gatewayFetch<T = unknown>(path: string, options?: RequestInit): Promise<T> {
-  const { WHATSAPP_GATEWAY_URL, WHATSAPP_GATEWAY_SECRET } = process.env;
-  if (!WHATSAPP_GATEWAY_URL || !WHATSAPP_GATEWAY_SECRET) {
-    throw new Error('WhatsApp gateway not configured');
-  }
-
-  const res = await fetch(`${WHATSAPP_GATEWAY_URL}${path}`, {
-    ...options,
-    headers: {
-      'X-Gateway-Secret': WHATSAPP_GATEWAY_SECRET,
-      'Content-Type': 'application/json',
-      ...options?.headers,
+async function gatewayFetch<T = unknown>(
+  userId: string,
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  const connection = await findConnectedAccountForChannel(getDb(), userId, 'whatsapp');
+  if (!connection?.sessionId) throw new Error('WhatsApp account is not connected');
+  const res = await integrationsFetch(
+    userId,
+    `/accounts/whatsapp/sessions/${encodeURIComponent(connection.sessionId)}${path}`,
+    {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
     },
-  });
+  );
 
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Gateway ${res.status}: ${body}`);
+    throw new Error(`WhatsApp integration request failed (${res.status})`);
   }
 
   return res.json() as Promise<T>;
@@ -63,9 +66,7 @@ export function createGetWhatsAppChatsTool(userId: string) {
     inputSchema: z.object({}),
     execute: async () => {
       try {
-        const data = await gatewayFetch<{ chats?: WhatsAppChatSummary[] }>(
-          `/sessions/${userId}/chats`,
-        );
+        const data = await gatewayFetch<{ chats?: WhatsAppChatSummary[] }>(userId, '/chats');
         const chats = data.chats || [];
 
         if (chats.length === 0) {
@@ -112,7 +113,8 @@ export function createGetWhatsAppMessagesTool(userId: string) {
     execute: async ({ jid, limit }) => {
       try {
         const data = await gatewayFetch<{ messages?: WhatsAppMessageSummary[] }>(
-          `/sessions/${userId}/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`,
+          userId,
+          `/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`,
         );
         const messages = data.messages || [];
 
@@ -153,7 +155,7 @@ export function createSendWhatsAppMessageTool(userId: string) {
     }),
     execute: async ({ jid, message }) => {
       try {
-        const data = await gatewayFetch<{ messageId?: string }>(`/sessions/${userId}/send`, {
+        const data = await gatewayFetch<{ messageId?: string }>(userId, '/send', {
           method: 'POST',
           body: JSON.stringify({ jid, text: message }),
         });

@@ -8,7 +8,13 @@ import { closePostgres, connectPostgres } from './db';
 import type { AccountAdapter } from './accounts/types';
 import type { BotAdapter } from './bots/types';
 import { setWss, type SessionWebSocket } from './realtime/wss-global';
-import { authorizeUpgrade, maySubscribe } from './realtime/subscription-auth';
+import { maySubscribe } from './realtime/subscription-auth';
+import {
+  requireAliaApi,
+  requireAccountContext,
+  internalAccount,
+  authorizeInternalUpgrade,
+} from './shared/internal-auth';
 import { createLogger } from './shared/logger';
 import { runShutdownSteps } from './shared/shutdown';
 
@@ -24,12 +30,6 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 const POSTGRES_URL: string = DATABASE_URL;
-
-if (!process.env.INTEGRATIONS_SECRET) {
-  logger.error('INTEGRATIONS_SECRET is required');
-  process.exit(1);
-}
-const INTEGRATIONS_SECRET: string = process.env.INTEGRATIONS_SECRET;
 
 let activityReady = false;
 const activity = startPlatformActivity(() => activityReady);
@@ -140,36 +140,14 @@ async function main() {
     });
   });
 
-  const { verifySecret } = await import('@oxy.so/core/server');
-
-  // Auth middleware
-  const requireSecret = (
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction,
-  ): void => {
-    const secret = req.headers['x-gateway-secret'] as string;
-    if (!secret || !verifySecret(secret, INTEGRATIONS_SECRET)) {
-      res.status(401).json({ error: 'Invalid gateway secret' });
-      return;
-    }
-    next();
-  };
-
-  /**
-   * Bind terminal/browser session access to the requesting user. The API
-   * gateway namespaces every session id as `${oxyUserId}:${clientSessionId}`
-   * and forwards the authoritative user id in `X-Oxy-User-Id`. We re-verify
-   * here so the in-memory session Map can never be addressed across users even
-   * if the gateway secret leaks or a path is forged.
-   */
+  /** Scope terminal/browser resources to the verified API operation account. */
   const requireSessionOwner = (
     req: express.Request,
     res: express.Response,
     next: express.NextFunction,
   ): void => {
-    const ownerUserId = req.headers['x-oxy-user-id'] as string | undefined;
-    if (!ownerUserId || !/^[a-f0-9]{24}$/i.test(ownerUserId)) {
+    const ownerUserId = internalAccount(req);
+    if (!ownerUserId) {
       res.status(401).json({ error: 'User context required' });
       return;
     }
@@ -185,7 +163,12 @@ async function main() {
 
   // Mount account adapter routes under /accounts/<platform>
   for (const adapter of accountAdapters) {
-    app.use(`/accounts/${adapter.name}`, requireSecret, adapter.getRouter());
+    app.use(
+      `/accounts/${adapter.name}`,
+      requireAliaApi,
+      requireAccountContext,
+      adapter.getRouter(),
+    );
     logger.info(`Mounted account routes: /accounts/${adapter.name}`);
   }
 
@@ -193,13 +176,13 @@ async function main() {
 
   // MCP server management routes
   const { mcpRouter } = await import('./mcp/routes');
-  app.use('/mcp', requireSecret, mcpRouter);
+  app.use('/mcp', requireAliaApi, requireAccountContext, mcpRouter);
   logger.info('Mounted routes: /mcp');
 
   // Browser routes (lazy-loaded)
   try {
     const { browserRouter } = await import('./routes/browser');
-    app.use('/browser', requireSecret, requireSessionOwner, browserRouter);
+    app.use('/browser', requireAliaApi, requireAccountContext, requireSessionOwner, browserRouter);
     logger.info('Mounted routes: /browser');
   } catch (err) {
     logger.info('Browser routes not available');
@@ -209,7 +192,13 @@ async function main() {
   // Terminal routes (lazy-loaded)
   try {
     const { terminalRouter } = await import('./routes/terminal');
-    app.use('/terminal', requireSecret, requireSessionOwner, terminalRouter);
+    app.use(
+      '/terminal',
+      requireAliaApi,
+      requireAccountContext,
+      requireSessionOwner,
+      terminalRouter,
+    );
     logger.info('Mounted routes: /terminal');
   } catch (err) {
     logger.info('Terminal routes not available');
@@ -221,28 +210,15 @@ async function main() {
 
   // WebSocket for real-time streaming (terminal output, browser screenshots)
   const wss = new WebSocketServer({ server, path: '/ws' });
-  /**
-   * The upgrade carries the SAME credentials the HTTP routes require, and the
-   * subscription is bound to the user they identify.
-   *
-   * Before this, `/ws` had no secret check and no user check: it took the
-   * session id straight off the client's first frame, so a `subscribe` naming
-   * another user's `${oxyUserId}:${clientSessionId}` streamed that PTY's
-   * output back — the exact cross-user addressing `requireSessionOwner` says
-   * it prevents "even if the gateway secret leaks". The HTTP half was scoped
-   * and the WebSocket half was open.
-   *
-   * The rules live in `realtime/subscription-auth.ts` so they can be tested
-   * without racing a socket against a live server; this is the wiring.
-   */
-  wss.on('connection', (ws, request) => {
-    const verdict = authorizeUpgrade(request.headers, INTEGRATIONS_SECRET, verifySecret);
-    if (!verdict.ok) {
-      logger.debug('Rejected a WebSocket upgrade:', verdict.reason);
+  // The upgrade verifies the same workload and account context as HTTP.
+  wss.on('connection', async (ws, request) => {
+    const ownerUserId = await authorizeInternalUpgrade(request.headers);
+    if (!ownerUserId) {
+      logger.debug('Rejected an unauthenticated internal WebSocket upgrade');
       // 1008 is "policy violation" — the honest code, and it reaches the client
       // as a close reason rather than as a connection that silently never
       // receives anything.
-      ws.close(1008, verdict.reason);
+      ws.close(1008, 'Internal authentication required');
       return;
     }
 
@@ -256,7 +232,6 @@ async function main() {
             : undefined,
       }),
     });
-    const ownerUserId = verdict.userId;
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString());

@@ -25,7 +25,6 @@ export interface ChannelPlugin {
 
 export interface ChannelConfigAdapter {
   isConfigured: () => boolean;
-  getBotSecret: () => string | undefined;
   getEnvPrefix: () => string;
 }
 

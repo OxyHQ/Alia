@@ -1,0 +1,72 @@
+import type { Request, Response, NextFunction } from 'express';
+import { isLiveEntityId } from '@oxy.so/db';
+import {
+  ALIA_SERVICE_AUDIENCE,
+  ALIA_API_WORKLOAD_ID,
+  ALIA_ACCOUNT_CONTEXT_HEADER,
+  isAliaWorkload,
+} from '@alia.onl/server/internal';
+import { oxy } from './oxy';
+
+const serviceAuth = oxy.middleware.service({ expectedAudience: ALIA_SERVICE_AUDIENCE });
+const expectedWorkload = () => process.env.ALIA_API_WORKLOAD_ID || ALIA_API_WORKLOAD_ID;
+
+/** Same-product process authentication. This never fabricates an Oxy user session. */
+export async function requireAliaApi(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if (
+    ['x-oxy-user-id', 'x-oxy-requester-token', 'x-oxy-task-id'].some(
+      (key) => req.headers[key] !== undefined,
+    )
+  ) {
+    res.status(403).json({ error: 'Use internal account context for Alia operations' });
+    return;
+  }
+  await serviceAuth(req, res, () => {
+    const principal = (
+      req as Request & { serviceApp?: { authority?: string; appId: string; credentialId: string } }
+    ).serviceApp;
+    if (
+      !isAliaWorkload(
+        principal && { ...principal, applicationId: principal.appId },
+        expectedWorkload(),
+      )
+    ) {
+      res.status(403).json({ error: 'Alia API workload required' });
+      return;
+    }
+    next();
+  });
+}
+
+export function internalAccount(req: Pick<Request, 'headers'>): string | undefined {
+  const value = req.headers[ALIA_ACCOUNT_CONTEXT_HEADER];
+  return typeof value === 'string' && isLiveEntityId(value) ? value : undefined;
+}
+
+export function requireAccountContext(req: Request, res: Response, next: NextFunction): void {
+  if (!internalAccount(req)) {
+    res.status(401).json({ error: 'Internal account context required' });
+    return;
+  }
+  next();
+}
+
+/** Shared Oxy introspection verifies live signature, audience, registry and revocation for upgrades. */
+export async function authorizeInternalUpgrade(
+  headers: Request['headers'],
+): Promise<string | null> {
+  const authorization = headers.authorization;
+  const accountId = internalAccount({ headers });
+  if (!accountId || typeof authorization !== 'string' || !authorization.startsWith('Bearer '))
+    return null;
+  try {
+    const principal = await oxy.introspectServiceToken(authorization.slice(7));
+    return principal.active && isAliaWorkload(principal, expectedWorkload()) ? accountId : null;
+  } catch {
+    return null;
+  }
+}

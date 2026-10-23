@@ -1,4 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { accountOwnership } from '../../shared/account-ownership';
+import { findTelegramSessionOwner } from './repository';
+import { Router, type Request, type Response } from 'express';
 import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
@@ -27,6 +29,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
 
   getRouter(): Router {
     const router = Router();
+    router.use(accountOwnership((id) => findTelegramSessionOwner(getDb(), id)));
 
     // POST /sessions/connect — create new session, return QR
     router.post('/sessions/connect', async (req: AccountRequest, res: Response) => {

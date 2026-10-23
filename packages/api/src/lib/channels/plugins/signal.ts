@@ -27,7 +27,6 @@ export const signalPlugin: ChannelPlugin = {
 
   config: {
     isConfigured: () => !!(process.env.SIGNAL_CLI_URL && process.env.SIGNAL_PHONE_NUMBER),
-    getBotSecret: () => process.env.SIGNAL_BOT_SECRET,
     getEnvPrefix: () => 'SIGNAL',
   },
 
