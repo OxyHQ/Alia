@@ -16,7 +16,7 @@ describe('original requester task authority', () => {
     expect(
       await createOxyTask({
         accessToken: 'requester-session',
-        requesterAccountId: 'requester',
+        effectiveAccountId: 'requester',
         actorAccountId: 'bot-not-owned-by-requester',
         origin: { kind: 'goal', id: 'session-1' },
       }),
@@ -34,7 +34,7 @@ describe('original requester task authority', () => {
   it('keeps ephemeral requests inside the API lifetime and revokes on cancellation', async () => {
     await createOxyTask({
       accessToken: 'requester-session',
-      requesterAccountId: 'requester',
+      effectiveAccountId: 'requester',
       actor: { type: 'alia', ownerAccountId: 'requester' },
       origin: { kind: 'request', id: 'turn-1' },
     });
@@ -43,6 +43,23 @@ describe('original requester task authority', () => {
     ).toBeLessThanOrEqual(10 * 60000);
     await revokeOxyTask('task-1');
     expect(authority.revokeTask).toHaveBeenCalledWith('task-1');
+  });
+  it('retains the human requester of a managed organization session', async () => {
+    authority.createTask.mockResolvedValue({
+      id: 'managed-task',
+      requesterAccountId: 'human-operator',
+      effectiveAccountId: 'organization',
+    });
+    expect(
+      await createOxyTask({
+        accessToken: 'managed-session',
+        effectiveAccountId: 'organization',
+        actor: { type: 'alia', ownerAccountId: 'organization' },
+        origin: { kind: 'automation', id: 'channel-organization' },
+      }),
+    ).toBe('managed-task');
+    expect(authority.revokeTask).not.toHaveBeenCalled();
+    expect(authority.createTask.mock.calls[0][0].effectiveAccountId).toBe('organization');
   });
   it('retires an unexpected account binding and refuses to store it', async () => {
     authority.createTask.mockResolvedValue({
@@ -53,7 +70,7 @@ describe('original requester task authority', () => {
     await expect(
       createOxyTask({
         accessToken: 'requester-session',
-        requesterAccountId: 'requester',
+        effectiveAccountId: 'requester',
         actorAccountId: 'bot',
         origin: { kind: 'goal', id: 'goal' },
       }),

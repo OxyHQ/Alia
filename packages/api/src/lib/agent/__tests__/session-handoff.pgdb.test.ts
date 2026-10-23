@@ -61,6 +61,10 @@ vi.mock('../../oxy-user-hydration.js', () => ({
   hydrateOxyUsers: async () => new Map(oxyIdentity.users.map((u) => [u._id, u])),
 }));
 
+vi.mock('../../oxy-task-authority.js', () => ({
+  createOxyTask: vi.fn(async () => 'task-original'),
+  revokeOxyTask: vi.fn(async () => {}),
+}));
 vi.mock('../../task-queue.js', () => ({
   enqueueAgentSession: vi.fn(async () => ({ queued: true, jobId: 'job-1' })),
 }));
@@ -77,6 +81,7 @@ import {
 } from '../../../db/agents/agentSessionRepository.js';
 import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepository.js';
 import { enqueueAgentSession } from '../../task-queue.js';
+import { createOxyTask } from '../../oxy-task-authority.js';
 import { reclaimOrphanedAgentSessions, startAgentSession } from '../session-handoff.js';
 
 let db: ApiDatabase;
@@ -184,7 +189,13 @@ describe('the queue label', () => {
       { _id: agent.oxyAccountId, username: 'runner', displayName: 'The Runner' },
     ];
 
-    const outcome = await startAgentSession({ agent, userId, task: 't', origin: 'hire' });
+    const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 't',
+      origin: 'hire',
+    });
 
     expect(outcome.ok).toBe(true);
     expect(vi.mocked(enqueueAgentSession)).toHaveBeenCalledWith(
@@ -205,7 +216,13 @@ describe('the queue label', () => {
     const agent = await seedAgent(15);
     oxyIdentity.users = [];
 
-    const outcome = await startAgentSession({ agent, userId, task: 't', origin: 'hire' });
+    const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 't',
+      origin: 'hire',
+    });
 
     expect(outcome.ok).toBe(true);
     expect(await balanceOf(userId)).toEqual({ free: 85, paid: 0 });
@@ -221,6 +238,7 @@ describe('startAgentSession', () => {
     const agent = await seedAgent(15);
 
     const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
       agent,
       userId,
       task: 'do the thing',
@@ -228,6 +246,15 @@ describe('startAgentSession', () => {
     });
 
     expect(outcome.ok).toBe(true);
+    expect(createOxyTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'real-requester',
+        effectiveAccountId: userId,
+        actorAccountId: agent.oxyAccountId,
+      }),
+    );
+    if (outcome.ok)
+      expect((await findAgentSessionById(db, outcome.sessionId))?.oxyTaskId).toBe('task-original');
     // The reservation is DELIBERATELY still spent: the worker settles it. This
     // is the positive control for every refund case below — without it, a
     // `startAgentSession` that refunded unconditionally would pass all of them.
@@ -250,7 +277,13 @@ describe('startAgentSession', () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
 
-    await startAgentSession({ agent, userId, task: 'chosen', origin: 'hire' });
+    await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'chosen',
+      origin: 'hire',
+    });
 
     const [row] = await db.select().from(agents).where(eq(agents.id, agent._id));
     expect({ hireCount: row?.hireCount, usageCount: row?.usageCount }).toEqual({
@@ -263,7 +296,13 @@ describe('startAgentSession', () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
 
-    await startAgentSession({ agent, userId, task: 'routed', origin: 'delegation' });
+    await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'routed',
+      origin: 'delegation',
+    });
 
     const [row] = await db.select().from(agents).where(eq(agents.id, agent._id));
     expect({ hireCount: row?.hireCount, usageCount: row?.usageCount }).toEqual({
@@ -277,6 +316,7 @@ describe('startAgentSession', () => {
     const agent = await seedAgent(15);
 
     const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
       agent,
       userId,
       task: 'too expensive',
@@ -294,6 +334,7 @@ describe('startAgentSession', () => {
     vi.mocked(enqueueAgentSession).mockRejectedValueOnce(new Error('redis is gone'));
 
     const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
       agent,
       userId,
       task: 'never queued',
@@ -319,6 +360,7 @@ describe('startAgentSession', () => {
     const agent = await seedAgent(15);
 
     const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
       agent,
       userId,
       task: 'unwritable',
@@ -346,7 +388,13 @@ describe('startAgentSession', () => {
     const agent = await seedAgent(15);
     vi.mocked(enqueueAgentSession).mockRejectedValueOnce(new Error('redis is gone'));
 
-    await startAgentSession({ agent, userId, task: 'never queued', origin: 'hire' });
+    await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'never queued',
+      origin: 'hire',
+    });
 
     expect(await balanceOf(userId)).toEqual({ free: 0, paid: 100 });
   });
@@ -364,7 +412,13 @@ describe('startAgentSession', () => {
     const agent = await seedAgent(15);
     vi.mocked(enqueueAgentSession).mockRejectedValueOnce(new Error('redis is gone'));
 
-    await startAgentSession({ agent, userId, task: 'never queued', origin: 'hire' });
+    await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'never queued',
+      origin: 'hire',
+    });
 
     const [row] = await db.select().from(agentSessions).where(eq(agentSessions.agentId, agent._id));
     expect(row?.status).toBe('cancelled');
@@ -381,7 +435,13 @@ describe('reclaimOrphanedAgentSessions', () => {
   it('refunds a session that was enqueued and never picked up', async () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
-    const outcome = await startAgentSession({ agent, userId, task: 'stranded', origin: 'hire' });
+    const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'stranded',
+      origin: 'hire',
+    });
     expect(outcome.ok).toBe(true);
     expect(await balanceOf(userId)).toEqual({ free: 85, paid: 0 });
 
@@ -407,7 +467,13 @@ describe('reclaimOrphanedAgentSessions', () => {
   it('is idempotent: a second sweep over the same rows refunds nothing', async () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
-    await startAgentSession({ agent, userId, task: 'stranded', origin: 'hire' });
+    await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'stranded',
+      origin: 'hire',
+    });
 
     await backdate(agent._id);
     await reclaimOrphanedAgentSessions();
@@ -421,7 +487,13 @@ describe('reclaimOrphanedAgentSessions', () => {
   it('leaves a freshly queued session alone', async () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
-    await startAgentSession({ agent, userId, task: 'just queued', origin: 'hire' });
+    await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'just queued',
+      origin: 'hire',
+    });
 
     // The real cutoff, not a fabricated one: a session queued seconds ago is
     // not orphaned and must keep its reservation for the worker.
@@ -470,7 +542,13 @@ describe('the reclaim sweep and a late worker cannot both settle', () => {
   it('a late worker cannot claim the run the sweep failed', async () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
-    const outcome = await startAgentSession({ agent, userId, task: 'stranded', origin: 'hire' });
+    const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'stranded',
+      origin: 'hire',
+    });
     if (!outcome.ok) throw new Error('the balance covers 15; the handoff must succeed');
 
     await backdate(agent._id);
@@ -484,7 +562,13 @@ describe('the reclaim sweep and a late worker cannot both settle', () => {
   it('and the sweep really does write that status', async () => {
     const userId = await account(100, 0);
     const agent = await seedAgent(15);
-    const outcome = await startAgentSession({ agent, userId, task: 'stranded', origin: 'hire' });
+    const outcome = await startAgentSession({
+      requesterToken: 'real-requester',
+      agent,
+      userId,
+      task: 'stranded',
+      origin: 'hire',
+    });
     if (!outcome.ok) throw new Error('the balance covers 15; the handoff must succeed');
 
     await backdate(agent._id);

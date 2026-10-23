@@ -1,3 +1,8 @@
+import {
+  createPendingConnectedAccount,
+  setConnectedAccountTask,
+  findConnectedAccountForUser,
+} from '../integrations/connectedAccountRepository.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index.js';
@@ -7,6 +12,7 @@ import { migrateChannelTaskAuthority } from '../integrations/migrateChannelTaskA
 
 let db: ApiDatabase;
 beforeAll(() => {
+  process.env.TOKEN_ENCRYPTION_KEY ??= 'a'.repeat(64);
   db = connectPostgres(process.env.DATABASE_URL)!;
 });
 afterAll(closePostgres);
@@ -41,11 +47,29 @@ async function legacy(token: string, linked = true) {
 }
 
 describe('controlled channel-task conversion', () => {
+  it('permits only one task rotation for the same previous account binding', async () => {
+    const row = await createPendingConnectedAccount(db, {
+      oxyUserId: 'rotation-person',
+      platform: 'telegram',
+      capabilities: [],
+    });
+    const updates = await Promise.all([
+      setConnectedAccountTask(db, row.id, 'root-a', null),
+      setConnectedAccountTask(db, row.id, 'root-b', null),
+    ]);
+    expect(updates.filter(Boolean)).toHaveLength(1);
+    const saved = await findConnectedAccountForUser(db, row.id, 'rotation-person');
+    expect(saved?.oxyTaskState).toBe('active');
+    expect(await setConnectedAccountTask(db, row.id, null, 'not-current')).toBe(false);
+    expect((await findConnectedAccountForUser(db, row.id, 'rotation-person'))?.oxyTaskId).toBe(
+      saved?.oxyTaskId,
+    );
+  });
   it('validates the original requester and removes a bearer only after persisting the task', async () => {
     const { row, bot, id } = await legacy('valid-session');
     expect((await findBotUser(db, bot.id, id))?.metadata).not.toHaveProperty('sessionToken');
     const createTask = vi.fn(async (input) => {
-      expect(input.requesterAccountId).toBe('original-person');
+      expect(input.effectiveAccountId).toBe('original-person');
       expect(input.accessToken).toBe('valid-session');
       return 'verified-task';
     });

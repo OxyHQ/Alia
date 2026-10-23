@@ -26,10 +26,6 @@ export const queryKeys = {
     reviews: (id: string) => ['agents', 'reviews', id] as const,
     /** What the owner could grant the agent being edited, which is left out. */
     capabilityConnectors: (id: string) => ['agents', 'capability-connectors', id] as const,
-    /** The agent's level per Oxy app, as its owner set them. */
-    oxyApps: (id: string) => ['agents', 'oxy-apps', id] as const,
-    /** The agent's ceiling per Oxy app for whoever uses it. */
-    requesterApps: (id: string) => ['agents', 'requester-apps', id] as const,
     /** The agent's feature gates and what each could name. */
     featureGates: (id: string) => ['agents', 'feature-gates', id] as const,
     /** The agent's primary tools and the app tools it reaches. */

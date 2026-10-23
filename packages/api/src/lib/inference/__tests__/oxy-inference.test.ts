@@ -55,11 +55,12 @@ describe('Oxy inference client', () => {
     resetOxyInferenceClient();
   });
 
-  it('rejects a customer key as the service identity without workload proof', () => {
+  it('resolves workload credentials lazily outside ECS and never arms the customer key', () => {
     expect(
       buildOxyInferenceClient({ ...configured, AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '' }),
-    ).toBeNull();
-    expect(mocks.clientOptions).toEqual([]);
+    ).not.toBeNull();
+    expect(mocks.configuredCredentials).toEqual([]);
+    expect(mocks.serviceOptions[0]).toMatchObject({ workloadCredentials: expect.any(Function) });
   });
 
   /**
@@ -81,7 +82,9 @@ describe('Oxy inference client', () => {
     } as NodeJS.ProcessEnv;
 
     expect(buildOxyInferenceClient(attesting)).not.toBeNull();
-    expect(mocks.serviceOptions).toEqual([{ baseURL: 'https://api.oxy.so' }]);
+    expect(mocks.serviceOptions).toEqual([
+      { baseURL: 'https://api.oxy.so', workloadCredentials: expect.any(Function) },
+    ]);
     expect(mocks.configuredCredentials).toEqual([]);
 
     const options = mocks.clientOptions[0] as { credential: () => Promise<string> };
@@ -126,6 +129,7 @@ describe('Oxy inference client', () => {
     expect(mocks.serviceOptions).toEqual([
       {
         baseURL: 'https://api.oxy.so',
+        workloadCredentials: expect.any(Function),
       },
     ]);
     expect(mocks.configuredCredentials).toEqual([]);

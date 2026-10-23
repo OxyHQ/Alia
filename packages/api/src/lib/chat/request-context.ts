@@ -387,10 +387,12 @@ export async function buildChatRequestContext(
     'Processing messages',
   );
 
+  // Verified channel binding supplies local identity, never a direct session.
+  const localAccountId = req.user?.id ?? req.channelContext?.accountId;
   let autonomyRuntime: AutonomyRuntimeContext | null = null;
-  if (req.user?.id) {
+  if (localAccountId) {
     autonomyRuntime = await runAutonomyBeforeChat({
-      userId: req.user.id,
+      userId: localAccountId,
       messages,
     }).catch(() => null);
   }
@@ -430,7 +432,10 @@ export async function buildChatRequestContext(
       });
       return null;
     }
-    if ((!isDirectUserSession && !isDelegatedServiceSession) || !req.user?.id) {
+    if (
+      (!isDirectUserSession && !isDelegatedServiceSession && !req.channelContext) ||
+      !localAccountId
+    ) {
       res.status(404).json({
         error: {
           message: 'The selected agent is unavailable.',
@@ -772,7 +777,7 @@ export async function buildChatRequestContext(
   // Run independent operations concurrently to reduce time-to-first-token
   const preStreamStart = Date.now();
 
-  const creditAccountId = req.user?.id;
+  const creditAccountId = localAccountId;
   /**
    * The person's memory, profile, entitlements and the turn's agent are the
    * turn's INPUTS, read from an identity by `lib/chat/turn-inputs.ts` — the
@@ -783,7 +788,7 @@ export async function buildChatRequestContext(
   /** Which Oxy app this turn comes from, read once from its app assertion (ADR 0021). */
   const surfaceApplicationId = await appSurfaceOf(req);
   const turnInputs = prefetchTurnInputs({
-    oxyUserId: req.user?.id,
+    oxyUserId: localAccountId,
     accessToken: req.accessToken,
     isDirectUserSession,
     requestedAgentId,
@@ -816,7 +821,8 @@ export async function buildChatRequestContext(
           fileRefs,
           exactHostedModel,
           person: {
-            accountId: req.user?.id,
+            accountId: localAccountId,
+            taskId: req.channelContext?.taskId,
             // The person's own bearer only: a service token is not them.
             accessToken: isDirectUserSession ? req.accessToken : undefined,
             runId: turnRequestId,
@@ -1055,9 +1061,9 @@ export async function buildChatRequestContext(
      * carries its owner's account — so scoping it to interactive sessions would
      * withhold a person's own skills from their own API key for no reason.
      */
-    const skills = req.user?.id
+    const skills = localAccountId
       ? await buildTurnSkills({
-          oxyUserId: req.user.id,
+          oxyUserId: localAccountId,
           linkedAgent,
           selectedSkillNames,
         })
@@ -1068,9 +1074,9 @@ export async function buildChatRequestContext(
     // An agent's memory is its own (`agent_memory_documents`): Alia's recall is
     // for Alia's turns only.
     const recalledMemories =
-      req.user?.id && linkedAgent === null
+      localAccountId && linkedAgent === null
         ? await recallTurnMemories({
-            oxyUserId: req.user.id,
+            oxyUserId: localAccountId,
             conversationId,
             messages,
             modelId,
@@ -1209,7 +1215,12 @@ async function admitTurnFeatures(input: {
   uses: readonly GatedPart[];
   fileRefs: ReadonlyMap<string, FilePartRef>;
   exactHostedModel: boolean;
-  person: { accountId: string | undefined; accessToken: string | undefined; runId: string };
+  person: {
+    accountId: string | undefined;
+    accessToken: string | undefined;
+    taskId?: string;
+    runId: string;
+  };
   modelAcceptsFiles: boolean;
 }): Promise<FeatureAdmission> {
   const resolution = input.turnAgent === null ? null : await input.turnAgent;
@@ -1235,6 +1246,7 @@ async function admitTurnFeatures(input: {
       : {
           accountId: input.person.accountId,
           accessToken: input.person.accessToken,
+          taskId: input.person.taskId,
           runId: input.person.runId,
         };
 
@@ -1255,6 +1267,7 @@ async function admitTurnFeatures(input: {
     files = await resolveFileParts(input.fileRefs, {
       personAccountId: input.person.accountId,
       accessToken: input.person.accessToken,
+      taskId: input.person.taskId,
       modelAcceptsFiles: input.modelAcceptsFiles,
     });
   } catch (error: unknown) {

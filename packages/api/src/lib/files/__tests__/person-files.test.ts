@@ -20,10 +20,9 @@ const files = vi.hoisted(
 );
 const seen = vi.hoisted(() => ({ tokens: [] as string[], downloads: [] as string[] }));
 
-vi.mock('@oxy.so/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@oxy.so/core')>();
+vi.mock('../../oxy-service-client.js', async () => {
+  const actual = await import('@oxy.so/core');
   class FakeOxyServices {
-    session = { setAccessToken: (token: string) => seen.tokens.push(token) };
     assets = {
       get: async (id: string) => {
         const file = files.get(id);
@@ -46,7 +45,17 @@ vi.mock('@oxy.so/core', async (importOriginal) => {
     };
     dispose() {}
   }
-  return { ...actual, OxyServices: FakeOxyServices };
+  const client = new FakeOxyServices();
+  return {
+    oxyServiceClient: () => ({
+      assets: {
+        withRequester: (proof: { requesterToken?: string; taskId?: string }) => {
+          seen.tokens.push(proof.requesterToken ?? `task:${proof.taskId}`);
+          return client.assets;
+        },
+      },
+    }),
+  };
 });
 
 vi.mock('../../logger.js', () => {

@@ -579,3 +579,41 @@ export async function setBotUserPreferredModel(
 ): Promise<void> {
   await db.update(botUsers).set({ preferredModel }).where(eq(botUsers.id, id));
 }
+
+/** Revoke every linked requester task before deleting the bot and cascading rows. */
+export async function findBotTaskIds(db: ApiDatabase, botId: string): Promise<string[]> {
+  const rows = await db
+    .select({ taskId: botUsers.oxyTaskId })
+    .from(botUsers)
+    .where(eq(botUsers.botId, botId));
+  return [...new Set(rows.flatMap((row) => (row.taskId ? [row.taskId] : [])))];
+}
+
+/** Rotate only the still-linked account and task that the caller verified. */
+export async function replaceBotUserTask(
+  db: ApiDatabase,
+  id: string,
+  accountId: string,
+  expectedTaskId: string | null,
+  taskId: string,
+): Promise<boolean> {
+  const rows = await db
+    .update(botUsers)
+    .set({
+      oxyTaskId: taskId,
+      oxyTaskState: 'active',
+      metadata: sql`${botUsers.metadata} - 'sessionToken'`,
+    })
+    .where(
+      and(
+        eq(botUsers.id, id),
+        eq(botUsers.isLinked, true),
+        eq(botUsers.oxyUserId, accountId),
+        expectedTaskId === null
+          ? isNull(botUsers.oxyTaskId)
+          : eq(botUsers.oxyTaskId, expectedTaskId),
+      ),
+    )
+    .returning({ id: botUsers.id });
+  return rows.length === 1;
+}
