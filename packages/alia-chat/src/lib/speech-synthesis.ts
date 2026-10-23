@@ -8,14 +8,14 @@
  * name ever appears on this side.
  */
 
+import type { AudioRequestAuthentication } from './audio-request-auth';
 import { createAudioLevelMeter } from './audio-level';
 import { loadExpoAudio } from './deferred/expo-audio';
 
 export type ProductVoice = 'male' | 'female';
 
-export interface SpeechClipRequest {
+export type SpeechClipRequest = AudioRequestAuthentication & {
   readonly apiUrl: string;
-  readonly token: string;
   /** A speech model; omitted, the server's own speech model answers. */
   readonly model?: string;
   readonly input: string;
@@ -29,7 +29,7 @@ export interface SpeechClipRequest {
   readonly conversationId?: string;
   readonly messageId?: string;
   readonly signal: AbortSignal;
-}
+};
 
 /**
  * The codes `/v1/audio/speech` answers a failure with, plus the two this side
@@ -127,12 +127,14 @@ function clipErrorFrom(status: number, body: unknown): SpeechClipError {
 export async function requestSpeechClip(request: SpeechClipRequest): Promise<string> {
   if (request.token === '')
     throw new SpeechClipError('Not authenticated', { status: null, code: 'NOT_AUTHENTICATED' });
-  const response = await fetch(`${request.apiUrl}/v1/audio/speech`, {
+  const response = await (request.transport?.fetch ?? fetch)(`${request.apiUrl}/v1/audio/speech`, {
     method: 'POST',
     signal: request.signal,
+    redirect: 'error',
+    credentials: 'omit',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${request.token}`,
+      ...(request.transport ? {} : { Authorization: `Bearer ${request.token}` }),
     },
     body: JSON.stringify({
       model: request.model,

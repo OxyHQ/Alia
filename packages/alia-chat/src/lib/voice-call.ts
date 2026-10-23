@@ -265,10 +265,16 @@ export class VoiceCall {
         .catch(() => null)
         .then((appAssertion) => {
           if (this.socket !== socket || this.finished || socket.readyState !== OPEN) return;
+          const currentToken = this.options.getToken();
+          if (!currentToken) {
+            this.fail('not-authenticated');
+            return;
+          }
+          this.lastToken = currentToken;
           socket.send(
             JSON.stringify({
               type: 'auth',
-              token,
+              token: currentToken,
               ...(appAssertion ? { appAssertion } : {}),
             } satisfies VoiceClientEvent),
           );
@@ -321,7 +327,11 @@ export class VoiceCall {
   private refreshToken(): void {
     if (!this.authenticated || this.socket?.readyState !== OPEN) return;
     const token = this.options.getToken();
-    if (token === null || token === '' || token === this.lastToken) return;
+    if (!token) {
+      this.fail('not-authenticated');
+      return;
+    }
+    if (token === this.lastToken) return;
     this.lastToken = token;
     this.send({ type: 'auth', token });
   }
