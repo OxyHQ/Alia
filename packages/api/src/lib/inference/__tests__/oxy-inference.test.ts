@@ -44,6 +44,7 @@ const configured = {
   OXY_API_URL: 'https://api.oxy.so',
   OXY_SERVICE_API_KEY: 'credential-key',
   OXY_SERVICE_API_SECRET: 'credential-secret',
+  AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/alia',
 } as NodeJS.ProcessEnv;
 
 describe('Oxy inference client', () => {
@@ -54,8 +55,10 @@ describe('Oxy inference client', () => {
     resetOxyInferenceClient();
   });
 
-  it('fails closed when the Oxy service credential is incomplete', () => {
-    expect(buildOxyInferenceClient({ ...configured, OXY_SERVICE_API_SECRET: '' })).toBeNull();
+  it('rejects a customer key as the service identity without workload proof', () => {
+    expect(
+      buildOxyInferenceClient({ ...configured, AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '' }),
+    ).toBeNull();
     expect(mocks.clientOptions).toEqual([]);
   });
 
@@ -123,10 +126,9 @@ describe('Oxy inference client', () => {
     expect(mocks.serviceOptions).toEqual([
       {
         baseURL: 'https://api.oxy.so',
-        serviceAuth: { apiKey: 'credential-key', apiSecret: 'credential-secret' },
       },
     ]);
-    expect(mocks.configuredCredentials).toEqual([['credential-key', 'credential-secret']]);
+    expect(mocks.configuredCredentials).toEqual([]);
     expect(mocks.clientOptions).toHaveLength(1);
 
     const options = mocks.clientOptions[0] as {
