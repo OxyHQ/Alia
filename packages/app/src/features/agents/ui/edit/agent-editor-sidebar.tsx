@@ -1,9 +1,5 @@
 import { AgentFeatureGatesSection } from '@/features/agents/ui/edit/agent-feature-gates-section';
 import { AgentPrimaryToolsSection } from '@/features/agents/ui/edit/agent-primary-tools-section';
-import {
-  AgentOxyAppsSection,
-  AgentRequesterAppsSection,
-} from '@/features/agents/ui/edit/agent-oxy-apps-section';
 import { AgentStartersSection } from '@/features/agents/ui/edit/agent-starters-section';
 import { AgentResourcesPanel } from '@/features/agents/ui/edit/agent-resources-panel';
 import { AgentSettingsPanel } from '@/features/agents/ui/edit/agent-settings-panel';
@@ -12,7 +8,6 @@ import type { GrantableConnector } from '@/features/chat/model/capability-famili
 import type { AgentDraft, LinkedSkill } from '@/features/agents/runtime/use-agent-autosave';
 import type { AgentFeatureGatesState } from '@/features/agents/runtime/use-agent-feature-gates';
 import type { AgentPrimaryToolsState } from '@/features/agents/runtime/use-agent-primary-tools';
-import type { AgentOxyApps } from '@/features/agents/runtime/use-agent-oxy-apps';
 import type { AgentTelegramBots } from '@/features/agents/runtime/use-agent-telegram-bots';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { LibraryFile } from '@/features/library/runtime/library-store';
@@ -35,8 +30,6 @@ export function AgentEditorSidebar({
   connectors,
   libraryFiles,
   telegram,
-  oxyApps,
-  requesterApps,
   featureGates,
   primaryTools,
 }: {
@@ -52,10 +45,6 @@ export function AgentEditorSidebar({
   connectors: GrantableConnector[];
   libraryFiles: readonly LibraryFile[];
   telegram: AgentTelegramBots;
-  /** The owner's per-app levels; asked for when the editor opens, like the rest. */
-  oxyApps: AgentOxyApps;
-  /** The per-app ceilings for whoever uses the agent (ADR 0020 §2). */
-  requesterApps: AgentOxyApps;
   /** Which features an app's entitlement unlocks (ADR 0020 §6). */
   featureGates: AgentFeatureGatesState;
   /** The app tools active from the agent's first step. */
@@ -78,8 +67,6 @@ export function AgentEditorSidebar({
       >
         {tab === 'resources' ? (
           <>
-            <AgentOxyAppsSection oxyApps={oxyApps} />
-            <AgentRequesterAppsSection requesterApps={requesterApps} />
             <AgentPrimaryToolsSection primaryTools={primaryTools} />
             <AgentFeatureGatesSection featureGates={featureGates} />
             <AgentStartersSection

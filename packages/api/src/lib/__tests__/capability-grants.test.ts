@@ -299,8 +299,13 @@ describe('an agent reaches exactly what it was granted', () => {
       },
     });
 
-    expect(asked.oxy_service).toEqual([]);
-    expect(asked.oxy_context).toEqual([]);
+    expect(asked.oxy_context).toEqual([
+      expect.objectContaining({
+        requesterAccountId: 'user-1',
+        ownerAccountId: 'user-1',
+        agentIdentity: { forUser: 'requester', self: false },
+      }),
+    ]);
   });
 
   it("reaches its owner's Oxy apps only when the owner is the one present", async () => {

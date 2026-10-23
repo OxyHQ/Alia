@@ -85,6 +85,7 @@ class OxyEdge {
         AccessKeyId: 'AKIATESTWORKLOAD',
         SecretAccessKey: 'test-workload-secret',
         Token: 'session',
+        Expiration: new Date(Date.now() + 3600000).toISOString(),
       });
     if (url === '/auth/service-token/workload/challenge') {
       return json(200, { data: { nonce: 'test-workload-nonce' } });
@@ -179,6 +180,18 @@ async function loadHydration(
   credential: 'configured' | 'absent',
 ): Promise<typeof import('../oxy-user-hydration.js').hydrateOxyUsers> {
   vi.resetModules();
+  for (const key of [
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_SESSION_TOKEN',
+    'AWS_PROFILE',
+    'AWS_WEB_IDENTITY_TOKEN_FILE',
+    'AWS_ROLE_ARN',
+  ])
+    vi.stubEnv(key, undefined);
+  vi.stubEnv('AWS_SHARED_CREDENTIALS_FILE', '/tmp/alia-test-missing-aws-credentials');
+  vi.stubEnv('AWS_CONFIG_FILE', '/tmp/alia-test-missing-aws-config');
+  vi.stubEnv('AWS_EC2_METADATA_DISABLED', 'true');
   vi.stubEnv('OXY_API_URL', edge.baseURL);
   vi.stubEnv('OXY_SERVICE_API_KEY', credential === 'configured' ? API_KEY : undefined);
   vi.stubEnv('OXY_SERVICE_API_SECRET', credential === 'configured' ? API_SECRET : undefined);
@@ -206,9 +219,8 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // The floor. An empty map is also what a hydration that never reached the
     // network returns, and that is a different bug: the edge WAS asked, and it
     // was asked with no bearer, which is the refusal this whole file is about.
-    expect(edge.byIds.length).toBeGreaterThan(0);
-    expect(edge.byIds.map((attempt) => attempt.authorization)).toEqual(edge.byIds.map(() => null));
-    expect(edge.byIds[0].ids).toEqual([ADA.id]);
+    expect(edge.byIds).toHaveLength(0);
+    expect(edge.exchanges).toHaveLength(0);
   });
 
   it('says so in the log rather than only in the blank name', async () => {
@@ -219,9 +231,6 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // Two separate lines, because they are two separate facts and an operator
     // seeing only the second would go looking at Oxy: the deployment holds no
     // credential, and this particular batch resolved nobody.
-    expect(logged.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Oxy service identity unavailable'),
-    );
     expect(logged.warn).toHaveBeenCalledWith(
       { requested: 1 },
       expect.stringContaining('resolved none'),

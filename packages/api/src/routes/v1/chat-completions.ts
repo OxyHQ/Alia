@@ -228,6 +228,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
                 .join('\n')
             : 'Continue the agent thread';
       coordinatedTurn = await AgentTurnCoordinator.begin({
+        requesterToken: isDirectUserSession ? req.accessToken : undefined,
         agent: linkedAgent,
         oxyUserId: req.user.id,
         conversationId,
@@ -255,11 +256,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       assembled = req.machineCredential
         ? ToolPipeline.forMachineTurn()
         : await ToolPipeline.forUser({
-            userId: req.user?.id || '',
+            userId: req.user?.id ?? req.channelContext?.accountId ?? '',
+            oxyTaskId: req.channelContext?.taskId,
             accessToken: req.accessToken,
             isDirectSession: isDirectUserSession,
             // A session acts for the person holding it; an API key does not.
-            actsForPerson: isDirectUserSession,
+            actsForPerson: isDirectUserSession || Boolean(req.channelContext?.taskId),
             // The app the person is in (ADR 0021), for `consultAgent` and `searchAgents`.
             surfaceApplicationId: ctx.surfaceApplicationId,
             requestId,

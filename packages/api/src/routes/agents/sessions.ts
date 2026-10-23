@@ -1,3 +1,4 @@
+import { revokeOxyTask } from '../../lib/oxy-task-authority.js';
 import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.js';
 import { getJobStatus, cancelJob } from '../../lib/task-queue.js';
@@ -209,6 +210,7 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
       return res.status(400).json({ error: 'Session is not running' });
     }
 
+    if (session.oxyTaskId && !session.parentSessionId) await revokeOxyTask(session.oxyTaskId);
     await cancelJob(sessionId).catch(() => false);
     await updateAgentSession(getDb(), sessionId, {
       status: 'cancelled',

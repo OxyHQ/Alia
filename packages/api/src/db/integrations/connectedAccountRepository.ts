@@ -23,7 +23,7 @@
  * columns, and nothing else.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { connectedAccounts, type ConnectedAccountStatus } from '../schema/integrations';
 
@@ -364,9 +364,23 @@ export async function setConnectedAccountTask(
   db: ApiDatabase,
   id: string,
   taskId: string | null,
-): Promise<void> {
-  await db
+  expectedTaskId?: string | null,
+): Promise<boolean> {
+  const rows = await db
     .update(connectedAccounts)
     .set({ oxyTaskId: taskId, oxyTaskState: taskId ? 'active' : 'reauth_required' })
-    .where(eq(connectedAccounts.id, id));
+    .where(
+      and(
+        eq(connectedAccounts.id, id),
+        ...(expectedTaskId === undefined
+          ? []
+          : [
+              expectedTaskId === null
+                ? isNull(connectedAccounts.oxyTaskId)
+                : eq(connectedAccounts.oxyTaskId, expectedTaskId),
+            ]),
+      ),
+    )
+    .returning({ id: connectedAccounts.id });
+  return rows.length === 1;
 }

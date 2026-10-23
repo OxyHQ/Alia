@@ -14,7 +14,7 @@ function agency() {
 
 export async function createOxyTask(input: {
   accessToken: string;
-  requesterAccountId: string;
+  effectiveAccountId: string;
   actorAccountId?: string;
   actor?:
     | { type: 'alia'; ownerAccountId: string }
@@ -32,17 +32,14 @@ export async function createOxyTask(input: {
     {
       origin: input.origin,
       actor,
-      effectiveAccountId: input.requesterAccountId,
+      effectiveAccountId: input.effectiveAccountId,
       expiresAt: new Date(
         Date.now() + (input.origin.kind === 'request' ? 10 * 60_000 : TASK_LIFETIME_MS),
       ).toISOString(),
     },
     { requesterToken: input.accessToken },
   );
-  if (
-    task.requesterAccountId !== input.requesterAccountId ||
-    task.effectiveAccountId !== input.requesterAccountId
-  ) {
+  if (!task.requesterAccountId || task.effectiveAccountId !== input.effectiveAccountId) {
     await agency().revokeTask(task.id);
     throw new Error('Oxy task requester does not match the originating account');
   }

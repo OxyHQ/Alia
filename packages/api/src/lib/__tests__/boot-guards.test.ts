@@ -235,7 +235,7 @@ describe('Oxy inference configuration is checked after the database and before t
    * Where nothing can attest, the same half pair IS the whole story and the
    * refusal names both variables, because setting both is the thing to do there.
    */
-  it('ignores half a pair where the role attests, and refuses it where nothing does', async () => {
+  it('ignores customer keys and defers temporary workload provider resolution to mint', async () => {
     const attesting = await run({
       ...HEALTHY_ENV,
       OXY_API_URL: OXY_INFERENCE_ALLOWED_ORIGINS[0] as string,
@@ -249,8 +249,8 @@ describe('Oxy inference configuration is checked after the database and before t
       OXY_API_URL: OXY_INFERENCE_ALLOWED_ORIGINS[0] as string,
       OXY_SERVICE_API_KEY: 'oxy_dk_alia',
     });
-    expect(checkout.exits).toEqual([1]);
-    expect(checkout.trace.join('\n')).toContain('OXY_SERVICE_API_KEY, OXY_SERVICE_API_SECRET');
+    expect(checkout.exits).toEqual([]);
+    expect(checkout.trace.join('\n')).not.toContain('OXY_SERVICE_API_KEY');
   });
 
   it('reports the DATABASE failure, not the inference one, when both are wrong', async () => {

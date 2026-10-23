@@ -1518,23 +1518,6 @@
     "writeReview": "Escribir una reseña",
     "modelPinned": "Modelo fijado (%{model})",
     "modelPinnedDescription": "Usa exactamente este modelo. Elige un nivel para que Alia elija.",
-    "oxyApps": {
-      "title": "Apps de Oxy",
-      "footer": "Qué puede usar este agente de TUS datos, app por app. Nada: nada. Ver: puede leer. Ver y actuar: puede leer y actuar por ti, sin preguntarte. Además siempre tiene su propia cuenta (su propio buzón).",
-      "none": "Nada",
-      "read": "Ver",
-      "act": "Ver y actuar",
-      "levelLabel": "Qué acceso a %{app} tiene este agente",
-      "loadFailed": "No se han podido cargar tus apps de Oxy. Inténtalo más tarde.",
-      "saveFailed": "No se ha podido cambiar %{app}. No ha cambiado nada."
-    },
-    "requesterApps": {
-      "title": "Para quien lo usa",
-      "footer": "Qué puede hacer este agente con los datos de quien lo usa, app por app: siempre en la cuenta de esa persona, nunca en la tuya. Nada: nada. Ver: puede leer. Ver y actuar: puede leer y actuar por ella.",
-      "levelLabel": "Qué puede hacer este agente en %{app} para quien lo usa",
-      "loadFailed": "No se ha podido cargar qué puede hacer este agente para quien lo usa. Inténtalo más tarde.",
-      "saveFailed": "No se ha podido cambiar %{app}. No ha cambiado nada."
-    },
     "featureGates": {
       "title": "Funciones con requisitos",
       "footer": "Pon una función detrás del plan de una app: quien use el agente la tiene solo si esa app dice que la tiene. Ninguno: es gratis.",

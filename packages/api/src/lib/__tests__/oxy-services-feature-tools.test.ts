@@ -1,3 +1,4 @@
+import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /**
  * An app's feature tools (ADR 0020 §6) are called on exactly the binding the
  * person's lane gives the model — the ceiling's for somebody who is not the
@@ -105,7 +106,7 @@ async function respond(input: string | URL, init?: RequestInit): Promise<Respons
   if (url.endsWith('/auth/service-token'))
     return json({ token: 'ALIA-SERVICE-TOKEN', expiresIn: 300 });
   if (url.endsWith('/capabilities/catalogs'))
-    return json({ registrations: [{ catalog: CATALOG }] });
+    return json({ registrations: [registeredCatalog(CATALOG)] });
   if (url.endsWith('/capabilities/service-identity'))
     return json({ service: { applicationId: 'alia-app', credentialId: 'alia-credential' } });
   if (url.endsWith('/capabilities/requester-capability-map')) {
@@ -123,7 +124,7 @@ async function respond(input: string | URL, init?: RequestInit): Promise<Respons
   }
   if (url.endsWith('/capabilities/capability-map'))
     throw new Error('the owner-grant map must never be asked for a non-owner');
-  if (url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST')
+  if (url.endsWith('/capabilities/foreground-execution-authorizations') && init?.method === 'POST')
     return json({ authorization: { id: 'DIRECT-1' } }, 201);
   if (url.endsWith('/capabilities/tickets'))
     return json({ decision: { allowed: true, reason: 'allowed' }, ticket: 'SHORT-TICKET' }, 201);
@@ -176,7 +177,7 @@ describe('the lane a feature tool runs on', () => {
         runId: 'run-1',
       })?.agentIdentity,
     ).toEqual({ forUser: 'owner', self: false });
-    // No reconciled owner: no lane at all, as for its `oxy_*` tools.
+    // Missing owner metadata cannot replace or erase the actual requester.
     expect(
       presentPersonAgentContext({
         agent: { oxyAccountId: AGENT, ownerOxyAccountId: null },
@@ -184,7 +185,10 @@ describe('the lane a feature tool runs on', () => {
         accessToken: 'PERSON-TOKEN',
         runId: 'run-1',
       }),
-    ).toBeNull();
+    ).toMatchObject({
+      requesterAccountId: PERSON,
+      agentIdentity: { forUser: 'requester', self: false },
+    });
   });
 });
 
@@ -192,11 +196,14 @@ describe('callOxyFeatureTool', () => {
   it("asks the app on the person's own account, as the person's direct request under the ceiling", async () => {
     const answer = await callOxyFeatureTool(lane(), 'homiio', 'readFileEntitlement');
     expect(answer).toEqual({ status: 'answered', result: { available: true, remaining: 2 } });
-    expect(JSON.parse(String(sent('/capabilities/execution-authorizations').body))).toMatchObject({
+    expect(
+      JSON.parse(String(sent('/capabilities/foreground-execution-authorizations').body)),
+    ).toMatchObject({
       kind: 'direct_request',
       resource: personRoot,
       tool: 'readFileEntitlement',
-      ceilingId: 'ceiling-1',
+      authority: 'first_party',
+      subjectToken: 'PERSON-TOKEN',
     });
     expect(sent('/readFileEntitlement').headers).toMatchObject({
       authorization: 'Capability SHORT-TICKET',
@@ -208,12 +215,13 @@ describe('callOxyFeatureTool', () => {
     expect(sent('/consumeFileCredit').headers).toMatchObject({ 'idempotency-key': 'PART-KEY' });
   });
 
-  it('is unbound when the ceiling does not reach the tool', async () => {
+  it('does not consult a historical app ceiling', async () => {
     ceilingTools = ['readFileEntitlement'];
     expect(await callOxyFeatureTool(lane(), 'homiio', 'consumeFileCredit', 'K')).toEqual({
-      status: 'unbound',
+      status: 'answered',
+      result: { consumed: true, remaining: 1 },
     });
-    expect(calls('/consumeFileCredit')).toHaveLength(0);
+    expect(calls('/capabilities/requester-capability-map')).toHaveLength(0);
   });
 
   it('is unavailable, not a verdict, when Oxy refuses the authority', async () => {
@@ -229,11 +237,11 @@ describe('callOxyFeatureTool', () => {
 });
 
 describe('a project-owned agent opened by its own project account', () => {
-  it('is unbound — locked — when Oxy refuses the owner lane, never unavailable', async () => {
+  it('does not call the product when Oxy rejects requester proof', async () => {
     // The owner lane is the turn's lane, and Oxy never lets a project account
     // operate itself (only a personal account does): a verdict, not an outage.
     fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) =>
-      String(input).endsWith('/capabilities/capability-map')
+      String(input).endsWith('/capabilities/foreground-execution-authorizations')
         ? Response.json({ error: 'requester_lacks_grant_owner_authority' }, { status: 403 })
         : respond(input, init),
     );
@@ -245,14 +253,14 @@ describe('a project-owned agent opened by its own project account', () => {
     });
     if (ownerLane === null) throw new Error('expected a lane');
     expect(await callOxyFeatureTool(ownerLane, 'homiio', 'readFileEntitlement')).toEqual({
-      status: 'unbound',
+      status: 'unavailable',
     });
     expect(calls('/readFileEntitlement')).toHaveLength(0);
   });
 
   it('is still unavailable when Oxy cannot answer at all', async () => {
     fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) =>
-      String(input).endsWith('/capabilities/capability-map')
+      String(input).endsWith('/capabilities/foreground-execution-authorizations')
         ? new Response('down', { status: 503 })
         : respond(input, init),
     );

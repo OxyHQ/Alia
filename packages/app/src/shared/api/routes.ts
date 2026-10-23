@@ -152,14 +152,6 @@ export const API_ROUTES = {
      */
     capabilityConnectors: (excludeAgentId: string) =>
       `/agents/capability-connectors?agent=${encodeURIComponent(excludeAgentId)}`,
-    /** What of its OWNER's data the agent may use, one level per Oxy app (owner only). */
-    oxyApps: (id: string) => `/agents/${encodeURIComponent(id)}/oxy-apps`,
-    oxyApp: (id: string, appId: string) =>
-      `/agents/${encodeURIComponent(id)}/oxy-apps/${encodeURIComponent(appId)}`,
-    /** What the agent may do on the data of WHOEVER uses it, one ceiling per Oxy app (ADR 0020 §2). */
-    requesterApps: (id: string) => `/agents/${encodeURIComponent(id)}/requester-apps`,
-    requesterApp: (id: string, appId: string) =>
-      `/agents/${encodeURIComponent(id)}/requester-apps/${encodeURIComponent(appId)}`,
     /** The app features a gate may name, from the live catalogues (ADR 0020 §6). */
     featureGateOptions: (id: string) => `/agents/${encodeURIComponent(id)}/feature-gate-options`,
     /** The app tools the agent reaches, any of which may be one of its primary tools. */

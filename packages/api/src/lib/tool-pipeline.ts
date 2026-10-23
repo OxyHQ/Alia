@@ -198,7 +198,7 @@ export interface ForUserOptions {
    * the levels its owner set, plus its own account. Without it (and without a
    * bearer) an agent's tools could only ever be refused.
    */
-  oxyAgentRunSessionId?: string;
+  oxyTaskId?: string;
   onOxyStepStatus?: (
     stepId: string,
     status: 'running' | 'succeeded' | 'failed',
@@ -417,7 +417,7 @@ export class ToolPipeline {
       runId,
       oxyAutonomy,
       oxyExecutionAuthorizations,
-      oxyAgentRunSessionId,
+      oxyTaskId,
       onOxyStepStatus,
       editorToolDefinitions,
       host,
@@ -476,6 +476,7 @@ export class ToolPipeline {
               runId: runId ?? requestId,
               autonomy: oxyAutonomy,
               executionAuthorizations: oxyExecutionAuthorizations,
+              taskId: oxyTaskId,
               onStepStatus: onOxyStepStatus,
             });
       const tools: ToolSet = {
@@ -714,27 +715,24 @@ export class ToolPipeline {
     // Owner data only for the owner: see `ForUserOptions.requesterAccountId`.
     const ownerIsPresent = oxyOwnerAccountId != null && requesterAccountId === oxyOwnerAccountId;
     /**
-     * Anybody else using an agent reaches their OWN apps through it, as the
-     * owner's published ceilings allow (ADR 0020 §2, Oxy ADR 0042) — never the
-     * owner's. Only with that person's live bearer, which is what lets Oxy see
-     * them present and authorize each call as their own request.
+     * The actual requester keeps their own apps, including on another person's
+     * agent and in a durable child task. Ownership does not substitute identity.
      */
-    // A legacy agent whose bot has no reconciled owner gets no Oxy tools on
-    // either lane: nobody can stand behind its ceilings.
     const requesterIsPresent =
       agent != null &&
-      agent.ownerOxyAccountId != null &&
       !ownerIsPresent &&
       requesterAccountId != null &&
-      isDirectSession &&
-      accessToken !== undefined;
+      ((isDirectSession && accessToken !== undefined) || oxyTaskId !== undefined);
     /**
      * The person's apps (`oxy_*`) — the owner's per the levels they set, or
      * anybody else's per the ceilings — and the agent's own bot account
      * (`self_*`), which only its owner's turn carries: a stranger on a shared
      * agent never gets the agent's mail, which may well be about the owner.
      */
-    const unattendedSessionId = !isDirectSession ? oxyAgentRunSessionId : undefined;
+    const hasOwnAuthority =
+      (isDirectSession && accessToken !== undefined) ||
+      oxyTaskId !== undefined ||
+      oxyExecutionAuthorizations !== undefined;
     const agentIdentity = agent
       ? requesterIsPresent
         ? { forUser: 'requester' as const, self: false }
@@ -743,12 +741,10 @@ export class ToolPipeline {
             // Only where a call can be authorized at all: the owner's bearer, or
             // the runner's agent-run lane. Elsewhere (a Telegram turn) the agent's
             // own account would be a list of tools Oxy refuses every time.
-            self:
-              (isDirectSession && accessToken !== undefined) || unattendedSessionId !== undefined,
-            ...(unattendedSessionId !== undefined ? { unattendedSessionId } : {}),
+            self: ownerIsPresent && hasOwnAuthority,
           }
       : undefined;
-    const oxyPersonAccountId = requesterIsPresent ? requesterAccountId : oxyOwnerAccountId;
+    const oxyPersonAccountId = requesterAccountId;
     const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = await Promise.all([
       actsForPerson && wants('mcp')
         ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
@@ -761,6 +757,7 @@ export class ToolPipeline {
       !wants('oxy_service') ||
       (!actsForPerson && !agent) ||
       (!ownerIsPresent && !requesterIsPresent) ||
+      !hasOwnAuthority ||
       oxyPersonAccountId == null
         ? {}
         : buildOxyServiceTools(userId, {
@@ -774,6 +771,7 @@ export class ToolPipeline {
             autonomy: oxyAutonomy,
             userAccessToken: isDirectSession ? accessToken : undefined,
             executionAuthorizations: oxyExecutionAuthorizations,
+            taskId: oxyTaskId,
             onStepStatus: onOxyStepStatus,
           }).catch(bulkFailure('oxy-service')),
       // A local turn reserved no credits, and a consultation runs hosted inference.
@@ -783,6 +781,7 @@ export class ToolPipeline {
               oxyUserId: userId,
               ...(accessToken ? { accessToken } : {}),
               isDirectSession,
+              taskId: oxyTaskId,
               surfaceApplicationId,
             },
             payerOxyUserId: userId,

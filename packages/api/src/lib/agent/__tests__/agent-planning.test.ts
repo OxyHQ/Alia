@@ -234,7 +234,7 @@ describe('the in-chat planner reaches the client (#139 ws6)', () => {
     // `sseEmitter` as a property of the call's own argument: shorthand, between
     // two other properties or last (where the canonical form has no comma).
     expect(route).toMatch(
-      /ToolPipeline\.forUser\(\{(?:[^;]{0,400}?,)?sseEmitter[,}][^;]{0,150}?\}\)/,
+      /ToolPipeline\.forUser\(\{(?:[^;]{0,1000}?,)?sseEmitter[,}][^;]{0,150}?\}\)/,
     );
 
     // The floor: this really is the handler both chat surfaces run

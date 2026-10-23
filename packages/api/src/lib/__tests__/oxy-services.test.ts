@@ -1,3 +1,4 @@
+import { registeredCatalog } from './fixtures/oxy-catalog.js';
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -86,7 +87,7 @@ describe('Oxy capability tools', () => {
       if (url.endsWith('/auth/service-token'))
         return Response.json({ token: 'ALIA-SERVICE-TOKEN', expiresIn: 300 });
       if (url.endsWith('/capabilities/catalogs')) {
-        return new Response(JSON.stringify({ registrations: [{ catalog: CATALOG }] }), {
+        return new Response(JSON.stringify({ registrations: [registeredCatalog(CATALOG)] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         });
@@ -103,15 +104,17 @@ describe('Oxy capability tools', () => {
           },
         );
       }
-      if (url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST') {
-        expect(new Headers(init.headers).get('authorization')).toBe('Bearer USER-TOKEN');
+      if (
+        url.endsWith('/capabilities/foreground-execution-authorizations') &&
+        init?.method === 'POST'
+      ) {
+        expect(new Headers(init.headers).get('authorization')).toBe('Bearer ALIA-SERVICE-TOKEN');
         expect(JSON.parse(String(init.body))).toMatchObject({
           kind: 'direct_request',
-          coordinatorApplicationId: 'alia-app',
-          coordinatorCredentialId: 'alia-credential',
+          authority: 'first_party',
+          subjectToken: 'USER-TOKEN',
           tool: 'searchEmails',
           runId: 'run-user-1',
-          maximumAutonomy: 'read_only',
         });
         return new Response(JSON.stringify({ authorization: { id: 'AUTHORIZATION-1' } }), {
           status: 201,
@@ -269,7 +272,8 @@ describe('Oxy capability tools', () => {
     it('hides raw authority errors while preserving consent and refusing bypass', async () => {
       refuse(
         (url, init) =>
-          url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST',
+          url.endsWith('/capabilities/foreground-execution-authorizations') &&
+          init?.method === 'POST',
         () =>
           new Response(JSON.stringify({ error: 'coordinator_not_active_or_authorized' }), {
             status: 400,
@@ -282,7 +286,7 @@ describe('Oxy capability tools', () => {
       expect(result).toMatchObject({ error: 'oxy_app_unavailable' });
       const text = JSON.stringify(result);
       expect(text).not.toContain('coordinator_not_active_or_authorized');
-      expect(text).toContain('Request any required consent through the supported account flow');
+      expect(text).not.toContain('consent');
       expect(text).toContain('Do not claim it succeeded or use another route to bypass the check');
     });
 

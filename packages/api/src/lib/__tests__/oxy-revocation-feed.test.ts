@@ -129,6 +129,7 @@ describe('Oxy session-revocation feed', () => {
     cleanups.push(oxy.close);
     const client = new OxyServer({
       baseURL: oxy.baseURL,
+      sessionValidationCacheTtlMs: 30_000,
       serviceAuth: { apiKey: 'test-key', apiSecret: 'test-secret' },
     });
     cleanups.push(() => client.dispose());
@@ -139,7 +140,7 @@ describe('Oxy session-revocation feed', () => {
       sessionId: 'sess-1',
       exp: Math.floor(Date.now() / 1000) + 3_600,
     });
-    const validate = () => client.session.validate('sess-1', { accessToken });
+    const validate = () => client.session.validate('sess-1', { accessToken, fresh: false });
     const asked = () => oxy.validations.get('sess-1') ?? 0;
 
     // The first validation opens the feed; it is not live yet, so Oxy is asked.
