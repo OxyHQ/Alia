@@ -149,9 +149,11 @@ The conversation routes an embedding app uses ([agent-embedding.md](./agent-embe
 
 The actor-model routes under `/agents` ([actors](./actors.mdx)):
 
+Own app settings routes (`oxy-apps`, `requester-apps`) are retired by ADR0022.
+Own tools use the requester account and live catalogue, without per-app consent.
+
 | Route | Purpose |
 |---|---|
-| `GET /agents/:id/oxy-apps`, `PUT /agents/:id/oxy-apps/:appId` | An agent's level per Oxy app (Nada · Ver · Ver y actuar); owner only (`routes/agents/oxy-apps.ts`) |
 | `GET\|PUT\|DELETE /agents/:id/memory` | The agent's memory files about the caller (`routes/agents/memory.ts`) |
 | `/agents/:id/computer/*` | The live view of the agent's computer: status, files, receipts, browser screenshot and take-over (`routes/agents/computer.ts`) |
 | `PATCH /agents/:id` with `starters`, `featureGates` | The empty chat's starters (`[{ title, prompt }]`, at most 6) and the agent's feature gates (`attachments.documents`, `attachments.images`, `deep_research`, `power_level.pro`, `power_level.ultra`), each checked against the app's live catalogue before it is saved (`400` for an undeclared feature, `503` when the catalogues cannot be read) — [agents](./agents.md#feature-gates) |

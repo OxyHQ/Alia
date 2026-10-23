@@ -17,7 +17,7 @@ where it is decided. The binding decision is
 | | For the person (their data) | As itself (its own account) |
 |---|---|---|
 | **Alia** — one for everybody, the default | Every Oxy app of the person, read and act, with no permission prompts and no "connect" step. Authority: the person present in the turn, or the task's standing authority in the background. | Oxy account "alia": a public identity with no mailbox. |
-| **An agent** — a persona a person creates | Only the Oxy apps and levels its owner gave it: **Nada** · **Ver** · **Ver y actuar**. | Its own Oxy `bot` account: its own Inbox, its own sign-ups on websites. No grant needed. |
+| **An agent** — a persona a person creates | Every live own-app tool on the verified requester's account; no per-app levels. | Its own Oxy `bot` account: its own Inbox, its own sign-ups on websites. No grant needed. |
 
 **Alia** is the assistant everyone gets: the orchestrator that answers, remembers,
 runs tasks and reaches the person's Oxy apps the way a mail assistant reads its
@@ -33,77 +33,39 @@ own computer and its own mailbox.
 
 ## Who is in the turn decides what is reachable
 
-The **requester** is the authenticated person in the turn (`requesterAccountId`).
-An agent's tools reach its owner's data only when that requester IS the owner.
-Anybody else using a shared or public agent in their own session reaches their
-OWN apps through it, as far as the owner's published ceiling for each app allows
-(ADR 0020 §2, Oxy ADR 0042), and never the owner's apps or the agent's own
-mailbox (which may hold mail about the owner). Nobody is ever asked to approve
-an action: the agent's configuration is its permission.
+[ADR0022](./adr/0022-first-party-platform-authority.md) defines own platform
+access. `requesterAccountId` identifies the person whose data `oxy_*` reaches.
+The owner and anybody else using a public agent each receive their OWN apps.
+The agent's owner is never substituted for a missing requester.
 
-| Turn | Owner's apps (`oxy_<app>__<tool>`) | Agent's own account (`self_<app>__<tool>`) |
+| Turn | `oxy_*` account | `self_*` account |
 |---|---|---|
-| The person with Alia | `direct_request` with their bearer | — |
-| Owner in the agent's chat | `direct_request`, owner's bearer, trimmed by Oxy to the levels | `direct_request`, no grant |
-| Agent run, nobody present | Oxy agent-run lane; effects need *Ver y actuar* | same lane, no grant |
-| Automation stage | its exact preauthorized steps only | — |
-| Somebody else on the agent, in their own session | their OWN apps: `direct_request` with their bearer naming the owner's ceiling (`/capabilities/requester-capability-map`) | never |
-| Somebody else on the agent's bot (no session of theirs) | never | never |
+| Alia or agent with a person present | Verified effective requester | Bot only when that requester operates it |
+| Goal/background work | Original Oxy task root requester | Same bot/operator rule checked live |
+| Nested agent | Same task root and requester; separate actor | No access to an unrelated bot owner |
+| Structured automation | Original operation's exact account/resource | Only when explicitly bound |
 
-A voice call is a turn like any other here: its tools are assembled with the
-person on the call's socket as the requester, and run in Alia, never on the
-device ([Voice](./voice.mdx#tools-run-in-alia)). An agent's call has the agent's
-memory, never Alia's.
-
-- Detail: [Agents → Oxy apps: for the person and as itself](./agents.md#oxy-apps-for-the-person-and-as-itself).
-- Code: `ownerIsPresent` / `requesterIsPresent` in `lib/tool-pipeline.ts` (the one place this is decided),
-  `lib/agent-requester-apps.ts` and `routes/agents/requester-apps.ts` (the ceilings the operator publishes),
-  `lib/tools/oxy-services.ts` (both toolsets, `agentIdentityPrompt`),
-  `lib/oxy-capability-authority.ts` (the agent-run lane).
+Own service identity is an attested workload. The shared SDK carries requester
+proof and operation tickets; no user bearer is persisted. Agent reach and app
+confinement remain separate checks. See `lib/tool-pipeline.ts`,
+`lib/tools/oxy-services.ts`, and `lib/oxy-task-authority.ts`.
 
 ## Permissions
 
-- **Alia** needs no grant for the person's Oxy apps. Oxy apps are first party: there
-  is no "connect your inbox" or authorize step. When Oxy cannot confirm authority the
-  model receives `oxy_app_unavailable` (or `oxy_app_result_unknown`), never Oxy's raw
-  reason (`safeExecute` in `lib/tools/oxy-services.ts`).
-- **An agent's Oxy apps** are one selector per app in the editor's "Apps de Oxy"
-  section. Each level is one Oxy `DelegationGrant` from the owner to the agent's bot,
-  written with the owner's bearer (`lib/agent-oxy-apps.ts`,
-  `PUT /agents/:id/oxy-apps/:appId`, owner only) and reconciled with Oxy on every
-  read. `finance`, `security` and `delegate` are never part of a level. The levels
-  are never stored in `capability_grants`.
-- **Everything else an agent may use** (web, memory, messaging, MCP connectors, the
-  computer…) is `agents.capability_grants`, deny by default
-  (`domain/capability-grants.ts`).
-- **Risk** (`R0`–`R3`) governs Alia-local tools; Oxy app effects are authorized by
-  Oxy per call. See [Agents → Governance](./agents.md#governance).
+Own Oxy apps need no connection, scope grant or agent app-level setting. The
+live catalogue selects available tools; product ownership, membership,
+entitlements and operation limits authorize their effects. An unavailable
+operation returns `oxy_app_unavailable`, never advice to connect an own app.
+External MCP/OAuth connections and other Alia capability families retain their
+existing configuration. The historical app-level table has no runtime readers
+or writers and does not grant access.
 
 ## No agent asks for approval
 
-**An actor's configuration is its permission** ([ADR 0020 §3](./adr/0020-every-agent-is-the-same-agent.md)).
-What Alia or an agent may do is decided once — the owner's per-app levels, a
-public agent's ceiling, its families and its limits — and Oxy enforces it on every
-call. Nobody is asked in the chat whether an action may happen, Alia included:
-
-- Alia acting for the person reads AND acts in their Oxy apps, and an agent at
-  **Ver y actuar** acts, in a chat, an Alia task or an agent's background run.
-- **A payment** is bounded by an explicit `finance` grant or ceiling with limits,
-  never by a prompt. Without one, Oxy refuses the ticket and the model receives
-  `oxy_app_unavailable`; nothing is turned into a card.
-- **A deletion** runs like any other effect the actor's authority reaches.
-- **Ver** never writes: its write tools are never built, and Oxy refuses one if
-  called.
-
-Asking the person a *question* (`askUserQuestion`, missing information, a choice
-between options) is not an approval and stays. The runtime policy's **limits** stay
-too: an R3 action and a blocking threat-detector match never run; what used to wait
-for an approval (R2, a threat warning) runs and is flagged in the run's events and
-logs ([Agents → Governance](./agents.md#governance)).
-
-- Code: `buildOxyServiceTools` in `lib/tools/oxy-services.ts` (every Oxy tool calls
-  Oxy for a ticket and runs), `applyRuntimePolicy` in `lib/agent/actions.ts`;
-  migration `0098_retire_agent_approvals` dropped the approval table.
+This migration adds no approval prompt. Existing product constraints, bounded
+operations, R0–R3 runtime policy and threat-detector blocking stay in force.
+Asking for missing information with `askUserQuestion` remains an ordinary
+question. See [Governance](./agents.md#governance).
 
 ## Background work: every task has an actor, Alia by default
 
