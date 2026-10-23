@@ -126,22 +126,27 @@ describe('audio with the shared Oxy transport', () => {
     }
   });
 
-  it('pins WebSocket identity with core epochs, permits rotation and invalidates account/operator changes', () => {
+  it('pins WebSocket identity with core epochs, permits rotation and invalidates account/operator changes', async () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.test' });
     oxy.session.setAccessToken(token('A'));
     const invalidated = vi.fn();
     const binding = bindAudioSession(oxy, 'https://api.alia.test', invalidated);
     try {
+      await expect(binding.getToken('wss://another-app.test/v1/voice/session')).rejects.toThrow(
+        /origin/i,
+      );
       oxy.session.setAccessToken(token('A', 1));
-      expect(binding.getToken()).toBe(token('A', 1));
+      await expect(binding.getToken('wss://api.alia.test/v1/voice/session')).resolves.toBe(
+        token('A', 1),
+      );
       expect(invalidated).not.toHaveBeenCalled();
       oxy.session.setAccessToken(token('A', 2, 'another-operator'));
-      expect(binding.getToken()).toBeNull();
+      await expect(binding.getToken('wss://api.alia.test/v1/voice/session')).resolves.toBeNull();
       expect(invalidated).toHaveBeenCalledTimes(1);
       binding.dispose();
       oxy.session.setAccessToken(token('B'));
       expect(invalidated).toHaveBeenCalledTimes(1);
-      expect(binding.getToken()).toBeNull();
+      await expect(binding.getToken('wss://api.alia.test/v1/voice/session')).resolves.toBeNull();
     } finally {
       binding.dispose();
       oxy.dispose();
