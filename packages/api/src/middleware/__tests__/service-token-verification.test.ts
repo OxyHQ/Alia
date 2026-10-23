@@ -324,7 +324,8 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
     // The published SDK receives a presenter function backed by OxyServices;
     // Alia neither verifies nor parses an outbound token.
     const credential = readFileSync(path.join(kaanaDir, 'oxy-inference-credential.ts'), 'utf8');
-    expect(credential).toContain('return () => oxy.serviceToken()');
+    expect(credential).toContain("oxy.createServiceClient({ baseURL, audience: 'oxy-api' })");
+    expect(credential).toContain('return () => transport.getAccessToken(baseURL)');
     expect(credential).not.toMatch(/jwt\.verify|verifyToken|jwtVerify/);
   });
 });

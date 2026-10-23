@@ -121,7 +121,7 @@ describe('the call’s tools', () => {
       }),
     );
     H.oxyTools.mockClear();
-    // Somebody else on the call: their OWN apps, under the owner's ceilings (ADR 0020 §2).
+    // Somebody else on the call reaches their OWN apps with their verified context (ADR 0022).
     await oxyToolsOf('stranger');
     expect(H.oxyTools).toHaveBeenCalledWith(
       'stranger',

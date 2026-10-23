@@ -51,7 +51,7 @@ declare global {
       accessToken?: string;
       user?: OxyRequestUser | null;
       serviceApp?: OxyServiceAppContext;
-      /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
+      /** Present only after Oxy verified requester proof or an external delegation grant. */
       serviceActingAs?: OxyServiceActingAsContext;
       /** Oxy-verified app-only principal, never an owner mapped onto req.user. */
       machineCredential?: OxyAliaMachinePrincipal;
@@ -106,36 +106,13 @@ const OXY_DELEGATED_USER_HEADER = 'x-oxy-user-id';
 type AuthLane = (req: Request, res: Response, next: NextFunction) => unknown;
 
 /**
- * A DELEGATED request needs a verifier that can prove who IT is.
- *
- * `@oxy.so/core` answers `X-Oxy-User-Id` by asking Oxy whether an explicit
- * `acting-as:offline` grant exists for `(appId, userId)` — and that endpoint is
- * service-to-service, so the SDK presents the VERIFIER's own service token to
- * reach it. `oxyClient` has no credential (it is the token-verifying client and
- * is correct without one), so `getServiceToken()` threw, the SDK logged
- * `Service credentials not provided`, cached a negative result for 60s and
- * answered `403 SERVICE_ACTING_AS_UNAUTHORIZED` — to a caller holding a
- * perfectly valid grant. Alia could never accept an offline delegation. The
- * production chat canary presents exactly this shape, and the C3 check in core
- * is right: a service may only act as a user with an explicit grant. The
- * missing piece was Alia's ability to ASK.
- *
- * So the lane is chosen per request: plain traffic keeps the credential-free
- * client, and a request that claims delegation is verified by Alia's own
- * credentialed client (`lib/oxy-service-client.ts`).
- *
- * Built lazily and rebuilt only if the credentialed client itself changes,
- * because `oxyServiceClient()` reads the environment on first use and caches
- * the minted service token on the INSTANCE. One instance per client keeps one
- * token cache and one JWKS cache.
- *
- * @param plain the lane for a request that claims no delegation
- * @param build the same lane, built against a credentialed verifier
- * @param whenUnverifiable `refuse` answers 503 rather than denying a valid
- *   grant with a misleading 403; `continue` is for the OPTIONAL lane, which may
- *   not invent a new way to fail.
+ * The receiving product proves its workload to Oxy for live service authority
+ * and requester checks. Use that same shared verifier for both service and
+ * session tokens; an absent user header does not skip live service validation.
+ * A deployment without its workload can still validate a human session through
+ * the plain SDK lane, but cannot authorize a service or delegated requester.
  */
-function delegationAware<Lane extends AuthLane>(
+function workloadAware<Lane extends AuthLane>(
   plain: Lane,
   build: (verifier: OxyServer) => Lane,
   whenUnverifiable: 'refuse' | 'continue',
@@ -144,26 +121,18 @@ function delegationAware<Lane extends AuthLane>(
   let builtFrom: OxyServer | undefined;
 
   const dispatch: AuthLane = (req, res, next) => {
-    if (req.headers[OXY_DELEGATED_USER_HEADER] === undefined) {
-      void plain(req, res, next);
-      return;
-    }
-
     const verifier = oxyServiceClient();
     if (!verifier) {
-      // Only reachable in a process that never ran the boot guards: being able
-      // to mint an Oxy service token — from a credential pair, or by attesting
-      // the ECS task role (oxy ADR 0026) — is already required before the socket
-      // opens (`lib/boot-guards.ts` → `unsetOxyInferenceCredentialVariables`),
-      // and `lib/oxy-service-client.ts` builds this verifier from the same
-      // capability. Answering 503 with a name is
-      // still the point: the alternative is refusing every delegated user with
-      // a 403 that says they have no grant, which is a lie about somebody
-      // else's configuration.
+      if (req.headers[OXY_DELEGATED_USER_HEADER] === undefined) {
+        void plain(req, res, next);
+        return;
+      }
+      // Boot normally requires the workload. Report deployment unavailability
+      // distinctly from a verified denial of the requester's account authority.
       if (whenUnverifiable === 'refuse') {
         log.auth.error(
           { path: req.path },
-          'Delegated request refused: Alia holds no Oxy service credential to check the acting-as grant with',
+          'Delegated request refused: Alia workload identity is unavailable',
         );
         res.status(503).json({
           error: 'SERVICE_DELEGATION_UNAVAILABLE',
@@ -192,16 +161,16 @@ function delegationAware<Lane extends AuthLane>(
 /**
  * Oxy authentication for a user bearer OR a service token, delegated or not.
  *
- * A delegated service token is verified by the credentialed client; everything
- * else keeps the credential-free one.
+ * The workload verifier handles live service authority and user sessions;
+ * the plain verifier remains available when no workload identity is configured.
  */
-export const authenticateToken = delegationAware(
+export const authenticateToken = workloadAware(
   userTokenAuth,
   (verifier) => createOxyAuthMiddleware(verifier, oxyAuthOptions),
   'refuse',
 );
 
-const oxyOptionalAuth = delegationAware(
+const oxyOptionalAuth = workloadAware(
   optionalUserTokenAuth,
   (verifier) => createOptionalOxyAuth(verifier, oxyAuthOptions),
   'continue',
@@ -224,15 +193,14 @@ const serviceOnlyAuth = asAuthLane(oxyClient.middleware.service(oxyServiceAuthOp
  * Alia deliberately supplies no private verification secret. The compatible
  * `@oxy.so/core` release verifies Ed25519 service tokens against Oxy's public
  * `/.well-known/jwks.json`, including issuer, audience, lifetime, type and
- * scopes. The middleware fails closed when that endpoint or exact `kid` is not
+ * authority. The middleware fails closed when that endpoint or exact `kid` is not
  * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
  *
  * `/internal/trigger` is a DELEGATED surface — it documents `X-Oxy-User-Id` and
- * refuses without a `req.userId` — so it takes the same lane split as
- * `authenticateToken`: the acting-as grant is checked by a verifier that can
- * present its own service token.
+ * refuses without a `req.userId`. The shared verifier checks live workload
+ * authority and requester proof, or the external caller's bounded grant.
  */
-export const oxyServiceAuth = delegationAware(
+export const oxyServiceAuth = workloadAware(
   serviceOnlyAuth,
   (verifier) => asAuthLane(verifier.middleware.service(oxyServiceAuthOptions)),
   'refuse',

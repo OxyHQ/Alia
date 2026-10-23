@@ -154,7 +154,10 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../lib/logger.js', () => ({
-  log: { auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
+  log: {
+    auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  },
 }));
 vi.mock('../../lib/channels/registry.js', () => ({ getConfiguredChannels: vi.fn(() => []) }));
 vi.mock('@oxy.so/core/server', () => ({

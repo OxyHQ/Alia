@@ -1,9 +1,8 @@
 import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /**
- * An agent's two identities (ADR 0015): the owner's apps per the levels the
- * owner set (`oxy_*`), and its own bot account (`self_*`) — and how each call
- * is authorized with the owner present (bearer) and with nobody present (Oxy's
- * agent-run lane, requester derived by Oxy).
+ * An agent's two identities (ADR 0022): the verified requester's own apps
+ * (`oxy_*`) and its bot account (`self_*`). Foreground calls carry requester
+ * proof; background calls retain the original task's account authority.
  */
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -82,9 +81,6 @@ interface ExecutableTool {
   execute: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
-let grantAutonomy = 'read_only';
-/** When set, Oxy refuses the capability map with this status and its internal reason. */
-let capabilityMapRefusal: number | null = null;
 let fetchMock: ReturnType<typeof vi.fn>;
 
 const ownerRoot = {
@@ -95,8 +91,6 @@ const ownerRoot = {
 };
 
 beforeEach(() => {
-  grantAutonomy = 'read_only';
-  capabilityMapRefusal = null;
   fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -108,20 +102,7 @@ beforeEach(() => {
       return json({ service: { applicationId: 'alia-app', credentialId: 'alia-credential' } });
     }
     if (url.endsWith('/capabilities/capability-map')) {
-      if (capabilityMapRefusal !== null)
-        return json({ error: 'requester_lacks_grant_owner_authority' }, capabilityMapRefusal);
-      return json({
-        assignments: [
-          {
-            grantId: 'grant-1',
-            resource: ownerRoot,
-            maximumAutonomy: grantAutonomy,
-            limits: [],
-            // Oxy lists every tool of a granted package; the level decides which run.
-            toolNames: ['searchEmails', 'sendEmail'],
-          },
-        ],
-      });
+      throw new Error('Own tools must not read retired app grants or levels');
     }
     if (
       url.endsWith('/capabilities/foreground-execution-authorizations') &&
@@ -167,7 +148,7 @@ describe('an agent with its owner present', () => {
   it('holds BOTH sets, and says plainly whose account each one reaches', async () => {
     const tools = await buildOxyServiceTools(OWNER, agentContext({ forUser: 'owner', self: true }));
     expect(Object.keys(tools).sort()).toEqual([
-      // Ver: the owner's read only, never the send the package also lists.
+      // Both accounts expose the live own tools; their execution accounts stay distinct.
       'oxy_inbox__searchEmails',
       'oxy_inbox__sendEmail',
       'self_inbox__searchEmails',
@@ -181,13 +162,13 @@ describe('an agent with its owner present', () => {
     );
   });
 
-  it("gives the owner's writes only at Ver y actuar", async () => {
-    grantAutonomy = 'autonomous';
+  it("exposes the requester's own writes without app-level grants", async () => {
     const tools = await buildOxyServiceTools(
       OWNER,
       agentContext({ forUser: 'owner', self: false }),
     );
     expect(Object.keys(tools).sort()).toEqual(['oxy_inbox__searchEmails', 'oxy_inbox__sendEmail']);
+    expect(calls('/capabilities/capability-map')).toHaveLength(0);
   });
 
   it("authorizes its own inbox with the owner's bearer, on the agent's own account", async () => {

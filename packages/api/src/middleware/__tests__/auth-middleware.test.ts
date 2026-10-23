@@ -8,6 +8,7 @@ vi.mock('../../db/index.js', () => ({
 
 vi.mock('../../lib/logger.js', () => ({
   log: {
+    general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   },
 }));

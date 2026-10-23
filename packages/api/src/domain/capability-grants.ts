@@ -82,16 +82,11 @@ export const FIXED_CAPABILITY_FAMILIES = [
 export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'integration', 'agent'] as const;
 
 /**
- * Oxy apps are fetched like an instanced source, but are not granted in this
- * Alia-owned vocabulary — on purpose, and not as an exclusion to undo.
- *
- * What an agent may do with its OWNER's apps is one of three levels per app
- * (*Nada* · *Ver* · *Ver y actuar*, ADR 0015), set in the agent editor's "Apps
- * de Oxy" section and stored in `agent_oxy_app_permissions`. Each level IS an
- * Oxy `DelegationGrant` (`lib/agent-oxy-apps.ts`), and Oxy is the sole
- * authority at call time: a string here would be a second, ungoverned copy of
- * the same decision. The agent's OWN account (`self_*` tools) needs no grant
- * at all — it is the agent's.
+ * Own Oxy tools come from the live platform catalogue (ADR 0022). They do not
+ * belong to Alia's configurable capability families and have no per-app levels.
+ * `oxy_*` uses the verified requester's effective account; `self_*` uses the
+ * actor's bot account only when the requester may operate it. Oxy validates
+ * requester/task proof and product resource ownership at execution time.
  */
 export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
 
@@ -108,7 +103,7 @@ export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
  * `agent` is the case where that argument does not hold, because its rows are
  * themselves SUBJECTS of this vocabulary. A consulted agent reaches only what
  * its own configuration allows for the person present (its families, its
- * owner's levels or ceilings), so an agent created after the grant was written
+ * requester's live account and resource authority), so an agent created after the grant was written
  * cannot widen it. What the bare grant actually authorises is a CONVERSATION
  * with agents the person could open themselves (`canReachAgent`), which is why
  * "a new agent joins on its own, a deactivated one drops out" is the feature
