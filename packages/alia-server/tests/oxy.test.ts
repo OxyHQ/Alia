@@ -16,6 +16,14 @@ describe('Oxy product transport', () => {
     client.dispose();
     expect(transport.dispose).toHaveBeenCalledOnce();
   });
+  it('carries durable task authority without a retained bearer', () => {
+    const transport = { fetch: vi.fn() as unknown as typeof fetch, dispose: vi.fn() };
+    const oxy = { createServiceClient: vi.fn(() => transport) };
+    createAliaForOxyService(oxy, { requester: { accountId: 'account', taskId: 'task' } });
+    expect(oxy.createServiceClient).toHaveBeenCalledWith(
+      expect.objectContaining({ requester: { accountId: 'account', taskId: 'task' } }),
+    );
+  });
   it('exposes the same core fetch for product-specific REST endpoints', () => {
     const transport = { fetch: vi.fn() as unknown as typeof fetch, dispose: vi.fn() };
     const oxy = { createServiceClient: vi.fn(() => transport) };
