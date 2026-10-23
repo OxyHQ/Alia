@@ -139,6 +139,8 @@ function linkedBotUser(oxyUserId: string): BotUserRow {
     chatId: 'chat-1',
     oxyUserId,
     isLinked: true,
+    oxyTaskId: null,
+    oxyTaskState: 'reauth_required',
     linkedAt: new Date(),
     username: null,
     displayName: null,
