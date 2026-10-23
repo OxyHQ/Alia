@@ -43,6 +43,7 @@ const socket = () => sockets.at(-1)!;
 async function accepted(call: VoiceCall): Promise<void> {
   await call.start();
   socket().open();
+  await settle();
   socket().receive({ type: 'auth.ok' });
   socket().receive({ type: 'session.accepted', voiceSessionId: 'vs-1', callId: 'call-1', seq: 0 });
 }
@@ -77,12 +78,56 @@ afterEach(() => {
 });
 
 describe('opening a call', () => {
+  it('waits for a destination-bound credential before opening the microphone or socket', async () => {
+    let release!: (value: string) => void;
+    const credential = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const getToken = vi.fn(() => credential);
+    const call = newCall({ getToken });
+    const starting = call.start();
+    expect(sockets).toHaveLength(0);
+    expect(engine.handlers).toBeNull();
+    expect(getToken).toHaveBeenCalledWith('wss://api.alia.test/v1/voice/session', {
+      signal: expect.any(AbortSignal),
+    });
+    release('fresh-session');
+    await starting;
+    socket().open();
+    await settle();
+    expect(socket().events()).toEqual([{ type: 'auth', token: 'fresh-session' }]);
+    call.hangUp();
+  });
+
+  it('aborts pending credential acquisition on hangup without opening a late socket', async () => {
+    let release!: (value: string) => void;
+    let signal: AbortSignal | undefined;
+    const credential = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const call = newCall({
+      getToken: (_target, options) => {
+        signal = options?.signal;
+        return credential;
+      },
+    });
+    const starting = call.start();
+    call.hangUp();
+    expect(signal?.aborted).toBe(true);
+    release('old-session');
+    await starting;
+    expect(sockets).toHaveLength(0);
+    expect(engine.handlers).toBeNull();
+    expect(call.snapshot().state).toEqual({ kind: 'ended', reason: 'hangup' });
+  });
+
   it('authenticates first, then starts the session for the conversation and agent', async () => {
     const call = newCall();
     await call.start();
     expect(socket().url).toBe('wss://api.alia.test/v1/voice/session');
     expect(socket().binaryType).toBe('arraybuffer');
     socket().open();
+    await settle();
     expect(socket().events()).toEqual([{ type: 'auth', token: 'oxy-session' }]);
     socket().receive({ type: 'auth.ok' });
     expect(socket().events()[1]).toEqual({
@@ -477,6 +522,7 @@ describe('reconnection', () => {
 
     await vi.waitFor(() => expect(sockets).toHaveLength(2));
     socket().open();
+    await settle();
     socket().receive({ type: 'auth.ok' });
     expect(socket().events().at(-1)).toEqual({
       type: 'session.resume',
@@ -504,6 +550,7 @@ describe('reconnection', () => {
     socket().drop();
     await vi.waitFor(() => expect(sockets).toHaveLength(2));
     socket().open();
+    await settle();
     socket().receive({ type: 'auth.ok' });
     socket().receive({
       type: 'error',
@@ -536,6 +583,7 @@ describe('reconnection', () => {
     const call = newCall();
     await call.start();
     socket().open();
+    await settle();
     socket().drop();
     expect(call.snapshot().state).toEqual({ kind: 'error', code: 'connection-lost' });
   });
@@ -569,6 +617,7 @@ describe('the end of a call', () => {
     const call = newCall();
     await call.start();
     socket().open();
+    await settle();
     socket().receive({ type: 'auth.ok' });
     socket().receive({
       type: 'error',
@@ -608,6 +657,7 @@ describe('the token', () => {
     const call = newCall({ getAppAssertion: () => assertion });
     await call.start();
     socket().open();
+    await settle();
     token = null;
     release('app-assertion');
     await settle();
@@ -620,7 +670,7 @@ describe('the token', () => {
     const call = newCall({ tokenRefreshMs: 1000 });
     await live(call);
     token = null;
-    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(1000);
     expect(call.snapshot().state).toMatchObject({ kind: 'error', code: 'not-authenticated' });
   });
 
@@ -629,7 +679,7 @@ describe('the token', () => {
     const call = newCall({ tokenRefreshMs: 1_000 });
     await live(call);
     token = 'oxy-session-2';
-    vi.advanceTimersByTime(1_000);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(socket().events().at(-1)).toEqual({ type: 'auth', token: 'oxy-session-2' });
     // A later auth.ok does not start a second session.
     socket().receive({ type: 'auth.ok' });

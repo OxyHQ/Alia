@@ -15,7 +15,8 @@ export function bindAudioSession(
   });
   return {
     fetch: linked.fetch,
-    getToken: () => (current() ? linked.client.getAccessToken() : null),
+    getToken: (target: string, options?: { signal?: AbortSignal }) =>
+      current() ? linked.getAccessToken(target, options) : Promise.resolve(null),
     dispose: () => {
       if (disposed) return;
       disposed = true;
