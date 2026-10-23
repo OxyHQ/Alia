@@ -12,7 +12,6 @@ import { Router, type Request, type Response } from 'express';
 import { getDb } from '../../db/index.js';
 import { MAX_AGENT_PRIMARY_TOOLS } from '../../domain/agent-primary-tools.js';
 import { loadAgentForActor, refusalMessage, refusalStatus } from '../../lib/agent-account.js';
-import { AgentOxyAppsError } from '../../lib/agent-oxy-apps.js';
 import { listPrimaryToolOptions } from '../../lib/agent-primary-tools.js';
 import { log } from '../../lib/logger.js';
 import { authenticateToken } from '../../middleware/auth.js';
@@ -40,11 +39,8 @@ router.get('/:id/primary-tool-options', authenticateToken, async (req: Request, 
     }
     let apps: Awaited<ReturnType<typeof listPrimaryToolOptions>>;
     try {
-      apps = await listPrimaryToolOptions(loaded.agent, req.accessToken);
+      apps = await listPrimaryToolOptions();
     } catch (error: unknown) {
-      if (error instanceof AgentOxyAppsError && error.status === 403) {
-        return res.status(403).json({ error: error.code, message: error.message });
-      }
       log.agents.warn({ err: error }, 'Could not read what the agent reaches for its tool options');
       return res.status(503).json({ error: 'The app catalogues could not be read. Try again.' });
     }

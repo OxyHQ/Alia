@@ -25,6 +25,7 @@ export class AgentTurnCoordinator {
   static async begin(input: {
     agent: HydratedAgent;
     oxyUserId: string;
+    requesterToken?: string;
     conversationId?: string;
     task: string;
   }): Promise<CoordinatedAgentTurn> {
@@ -86,6 +87,7 @@ export class AgentTurnCoordinator {
             startAgentSession({
               agent: input.agent,
               userId: input.oxyUserId,
+              requesterToken: input.requesterToken,
               task: task.slice(0, 2000),
               origin: 'delegation',
               ...(conversation?.agentThreadId ? { threadId: conversation.agentThreadId } : {}),

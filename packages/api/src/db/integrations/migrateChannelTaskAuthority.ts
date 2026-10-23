@@ -47,7 +47,7 @@ export async function migrateChannelTaskAuthority(
         // A matching account id alone never establishes first-party authority.
         taskId = await create({
           accessToken: row.token,
-          requesterAccountId: row.oxyUserId,
+          effectiveAccountId: row.oxyUserId,
           actor: { type: 'alia', ownerAccountId: row.oxyUserId },
           origin: { kind: 'automation', id: `channel:${row.id}` },
         });

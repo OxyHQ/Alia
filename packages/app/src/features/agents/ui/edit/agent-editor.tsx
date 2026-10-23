@@ -17,10 +17,6 @@ import {
 } from '@/features/agents/runtime/use-agent-editor-options';
 import { useAgentFeatureGates } from '@/features/agents/runtime/use-agent-feature-gates';
 import { useAgentPrimaryTools } from '@/features/agents/runtime/use-agent-primary-tools';
-import {
-  useAgentOxyApps,
-  useAgentRequesterApps,
-} from '@/features/agents/runtime/use-agent-oxy-apps';
 import { useAgentTelegramBots } from '@/features/agents/runtime/use-agent-telegram-bots';
 import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -66,8 +62,6 @@ export function AgentEditor({ agent }: { agent: Agent }) {
   const connectors = useGrantableConnectors(agent._id).data ?? NO_CONNECTORS;
   const libraryFiles = useKnowledgeLibrary();
   const telegram = useAgentTelegramBots(agent._id);
-  const oxyApps = useAgentOxyApps(agent._id);
-  const requesterApps = useAgentRequesterApps(agent._id);
   const featureGates = useAgentFeatureGates(agent._id);
   const primaryTools = useAgentPrimaryTools(agent._id);
 
@@ -84,8 +78,6 @@ export function AgentEditor({ agent }: { agent: Agent }) {
       connectors={connectors}
       libraryFiles={libraryFiles}
       telegram={telegram}
-      oxyApps={oxyApps}
-      requesterApps={requesterApps}
       featureGates={featureGates}
       primaryTools={primaryTools}
     />

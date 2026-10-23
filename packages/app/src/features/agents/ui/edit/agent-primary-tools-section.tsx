@@ -27,7 +27,7 @@ const ADD = 'add';
 /**
  * "Herramientas principales": the app tools active from the first step of
  * every turn the agent leads, instead of waiting for the model to load them.
- * Offered from the apps the agent reaches — its owner's levels or its ceiling
+ * Offered from live own-app catalogues that admit the agent actor
  * for whoever uses it — and naming one grants nothing beyond that.
  *
  * A chosen tool no level covers any more is still listed, as not available, so

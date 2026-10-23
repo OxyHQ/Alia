@@ -1,3 +1,4 @@
+import { registeredCatalog } from './fixtures/oxy-catalog.js';
 import { createRequire } from 'node:module';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -82,11 +83,13 @@ beforeEach(async () => {
     }
     const data: Record<string, unknown> = {
       '/auth/service-token': { token: 'owned-service', expiresIn: 300 },
-      '/capabilities/catalogs': { registrations: [{ catalog: catalog() }] },
+      '/capabilities/catalogs': { registrations: [registeredCatalog(catalog())] },
       '/capabilities/service-identity': {
         service: { applicationId: 'owned-app', credentialId: 'owned-credential' },
       },
-      '/capabilities/execution-authorizations': { authorization: { id: 'owned-approval' } },
+      '/capabilities/foreground-execution-authorizations': {
+        authorization: { id: 'owned-approval' },
+      },
       '/capabilities/tickets': {
         decision: { allowed: true, reason: 'allowed' },
         ticket: 'owned-ticket',
@@ -164,8 +167,12 @@ describe('non-pilot catalog and ticket authority through installed SDK', () => {
       }),
     ]);
     expect(
-      calls.find((c) => c.path === '/capabilities/execution-authorizations')?.authorization,
-    ).toBe('Bearer owned-requester');
+      calls.find((c) => c.path === '/capabilities/foreground-execution-authorizations')
+        ?.authorization,
+    ).toBe('Bearer owned-service');
+    expect(
+      calls.find((c) => c.path === '/capabilities/foreground-execution-authorizations')?.body,
+    ).toMatchObject({ authority: 'first_party', subjectToken: 'owned-requester' });
     expect(calls.find((c) => c.path === '/product/search')?.authorization).toBe(
       'Capability owned-ticket',
     );
