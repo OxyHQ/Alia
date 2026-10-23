@@ -14,9 +14,9 @@ import type { VoiceCallEnvironment } from './call.js';
 import { finishCall, startCall } from './call-registry.js';
 import { buildVoiceTurn, loadConversationHistory } from './turn.js';
 
-export function createVoiceEnvironment(): VoiceCallEnvironment {
+export function createVoiceEnvironment(accountId: string): VoiceCallEnvironment {
   return {
-    kaana: getKaanaClient(),
+    kaana: getKaanaClient(accountId),
     prefetch: prefetchTurnInputs,
     startCall,
     finishCall,

@@ -20,5 +20,7 @@ export function createOxyInferenceCredential(
     baseURL: env[OXY_API_URL_ENV]!.trim(),
     workloadCredentials: createAwsWorkloadCredentialProvider(),
   });
-  return () => oxy.serviceToken();
+  const baseURL = env[OXY_API_URL_ENV]!.trim();
+  const transport = oxy.createServiceClient({ baseURL, audience: 'oxy-api' });
+  return () => transport.getAccessToken(baseURL);
 }

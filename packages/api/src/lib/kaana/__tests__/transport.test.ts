@@ -1,61 +1,95 @@
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { Kaana } from '@kaana.ai/sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OxyServer } from '@oxy.so/core/server';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const H = vi.hoisted(() => ({
-  canAuthenticate: true,
-  tokenFor: vi.fn(async (audience: string) => `token-for-${audience}`),
-}));
+const H = vi.hoisted(() => ({ client: null as OxyServer | null }));
+vi.mock('../../oxy-service-client.js', () => ({ oxyServiceClient: () => H.client }));
+const { getKaanaClient, setKaanaClientForTests } = await import('../transport.js');
+let issuer: Server;
+let baseURL: string;
+let mints: Record<string, unknown>[] = [];
+const token = `e30.${Buffer.from(JSON.stringify({ authority: 'first_party', iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300 })).toString('base64url')}.fixture`;
 
-vi.mock('../../oxy-service-client.js', () => ({
-  canAuthenticateAsOxyService: () => H.canAuthenticate,
-  oxyServiceTokenFor: H.tokenFor,
-}));
-
-const { getKaanaClient, setKaanaClientForTests, KAANA_SERVICE_TOKEN_AUDIENCE } = await import(
-  '../transport.js'
+beforeAll(async () => {
+  issuer = createServer(async (req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url?.endsWith('/challenge')) return res.end(JSON.stringify({ nonce: 'fixture' }));
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    mints.push(JSON.parse(body));
+    res.end(JSON.stringify({ token, expiresIn: 300 }));
+  });
+  await new Promise<void>((resolve) => issuer.listen(0, '127.0.0.1', resolve));
+  baseURL = `http://127.0.0.1:${(issuer.address() as AddressInfo).port}`;
+});
+afterAll(
+  () =>
+    new Promise<void>((resolve, reject) =>
+      issuer.close((error) => (error ? reject(error) : resolve())),
+    ),
 );
-
-const production = { NODE_ENV: 'production' } as NodeJS.ProcessEnv;
+beforeEach(() => {
+  mints = [];
+  setKaanaClientForTests(undefined);
+  H.client = new OxyServer({
+    baseURL,
+    workloadCredentials: async () => ({
+      AccessKeyId: 'ASIA_TEST',
+      SecretAccessKey: 'fixture',
+      Token: 'temporary',
+    }),
+  });
+});
+afterEach(() => {
+  H.client?.dispose();
+  H.client = null;
+  setKaanaClientForTests(undefined);
+  vi.unstubAllGlobals();
+});
 
 describe('getKaanaClient', () => {
-  beforeEach(() => {
-    setKaanaClientForTests(undefined);
-    H.canAuthenticate = true;
-    H.tokenFor.mockClear();
-  });
-  afterEach(() => {
-    setKaanaClientForTests(undefined);
-    vi.unstubAllGlobals();
-  });
-
-  it('builds the real SDK client when the process has an Oxy service identity', () => {
-    expect(getKaanaClient(production)).toBeInstanceOf(Kaana);
-  });
-
-  it('has no client, never a stand-in, when the process has no Oxy service identity', () => {
-    H.canAuthenticate = false;
-    expect(getKaanaClient(production)).toBeNull();
-  });
-
-  it('presents a service token minted for kaana.ai, asked for on every request', async () => {
-    const authorizations: (string | null)[] = [];
+  it('keeps attribution per call and shares the real v2 workload mint across callers', async () => {
+    const nativeFetch = globalThis.fetch;
+    const observed: Array<{ account: string | null; authorization: string | null }> = [];
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (_url: string, init: RequestInit) => {
-        authorizations.push(new Headers(init.headers).get('authorization'));
-        return new Response(JSON.stringify({ object: 'list', data: [] }), {
-          status: 200,
-          headers: { 'content-type': 'application/json', 'x-request-id': 'req_1' },
+      async (input: Parameters<typeof globalThis.fetch>[0], init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString());
+        if (url.origin !== 'https://kaana.ai') return nativeFetch(input, init);
+        const headers = new Headers(init?.headers);
+        observed.push({
+          account: headers.get('x-oxy-user-id'),
+          authorization: headers.get('authorization'),
         });
-      }),
+        return Response.json({ data: [] }, { headers: { 'Kaana-Request-Id': 'fixture-request' } });
+      },
     );
-    const client = getKaanaClient(production);
-    await client?.models.list().catch(() => undefined);
-    await client?.models.list().catch(() => undefined);
-
-    expect(KAANA_SERVICE_TOKEN_AUDIENCE).toBe('kaana.ai');
-    expect(H.tokenFor).toHaveBeenCalledTimes(2);
-    expect(H.tokenFor).toHaveBeenCalledWith('kaana.ai');
-    expect(authorizations).toEqual(['Bearer token-for-kaana.ai', 'Bearer token-for-kaana.ai']);
+    const a = getKaanaClient('A');
+    const b = getKaanaClient('B');
+    expect(a).toBeInstanceOf(Kaana);
+    try {
+      await a!.models.list({ onBehalfOfUserId: 'A' });
+      await b!.models.list({ onBehalfOfUserId: 'B' });
+      await expect(a!.models.list({ onBehalfOfUserId: 'B' })).rejects.toThrow();
+      expect(observed).toEqual([
+        { account: 'A', authorization: `Bearer ${token}` },
+        { account: 'B', authorization: `Bearer ${token}` },
+      ]);
+      expect(mints).toHaveLength(1);
+      expect(mints[0]).toMatchObject({ audience: 'kaana.ai', protocolVersion: 2 });
+      expect(mints[0]).not.toHaveProperty('scopes');
+      a!.dispose?.();
+      await expect(a!.models.list()).rejects.toThrow();
+    } finally {
+      a?.dispose?.();
+      b?.dispose?.();
+    }
+  });
+  it('reports missing configured workload identity without a substitute credential', () => {
+    H.client?.dispose();
+    H.client = null;
+    expect(getKaanaClient('A')).toBeNull();
   });
 });

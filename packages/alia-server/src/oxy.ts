@@ -2,8 +2,9 @@ import { ALIA_API_URL, AliaServerClient, type AliaServerClientOptions } from './
 import { ALIA_SERVICE_AUDIENCE } from './identity.js';
 
 export type AliaOxyRequester =
-  | { accountId: string; token: string; taskId?: never }
-  | { accountId: string; taskId: string; token?: never };
+  | { accountId: string; token: string; taskId?: never; requesterContext?: never }
+  | { accountId: string; taskId: string; token?: never; requesterContext?: never }
+  | { accountId: string; requesterContext: string; token?: never; taskId?: never };
 
 /** Structural boundary: the SDK never loads Oxy's server implementation. */
 export interface OxyServiceTransportFactory {

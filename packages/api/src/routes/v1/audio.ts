@@ -257,8 +257,9 @@ router.post('/transcriptions', (req: Request, res: Response) => {
       const mediaType = dictationMediaType(req.file?.mimetype);
       if (uploadError || !req.file || !fields.success || mediaType === null)
         return transcriptionFailure(res, new TranscriptionError('INVALID_REQUEST'));
+      const kaana = getKaanaClient(userId);
       try {
-        const result = await transcribeDictation(getKaanaClient(), userId, {
+        const result = await transcribeDictation(kaana, userId, {
           audio: new Uint8Array(req.file.buffer),
           mediaType,
           durationMs: fields.data.durationMs,
@@ -272,6 +273,8 @@ router.post('/transcriptions', (req: Request, res: Response) => {
           res,
           new TranscriptionError('TRANSCRIPTION_FAILED', { retryable: true }),
         );
+      } finally {
+        kaana?.dispose?.();
       }
     })();
   });
