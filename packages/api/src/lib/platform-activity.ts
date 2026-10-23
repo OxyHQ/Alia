@@ -21,8 +21,7 @@ export function startPlatformActivity(ready: () => boolean, service = 'alia') {
   if (process.env.OXY_ECOSYSTEM_ACTIVITY_ENABLED !== 'true') return undefined;
   if (!canAuthenticateAsOxyService()) {
     throw new Error(
-      'Ecosystem activity needs an Oxy service identity: either an OXY_SERVICE_API_KEY ' +
-        'and OXY_SERVICE_API_SECRET pair, or a workload identity this process can attest ' +
+      'Ecosystem activity needs an Oxy workload identity this process can attest ' +
         '(oxy ADR 0026)',
     );
   }
