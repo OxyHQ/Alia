@@ -86,16 +86,15 @@ Do not enable production traffic until all of these pass:
 For the model/tool acceptance run, use the manual **Alia production chat
 canary** workflow. It runs only the exact live image as a private ECS one-shot,
 starts that image's API and enters its loopback HTTP endpoint with Alia's
-short-lived Oxy service bearer plus `X-Oxy-User-Id`. The ordinary Oxy auth
-middleware must verify the acting-as grant before the request can reach the
-chat handler; there is no canary-only endpoint or authentication exception.
-The protected production environment must
-hold `ALIA_CANARY_OXY_USER_ID`, the exact dedicated QA account id. That variable
-is not a workflow input: an operator cannot substitute an arbitrary customer.
-Create that account through the normal Oxy signup flow, grant the Alia
-application consent through the normal OAuth/service acting-as control plane,
-and verify the exact grant with Oxy before setting the protected variable. Do
-not insert a user, grant or bearer in SQL/SSM, and do not use a customer account.
+shared Alia SDK workload transport and a live QA automation task. The ordinary
+Oxy middleware validates the exact workload, requester account and task before
+chat runs; there is no canary-only authentication exception.
+The protected production environment holds `ALIA_CANARY_OXY_USER_ID` for the
+dedicated QA account and `ALIA_CANARY_OXY_TASK_ID` for its revocable automation
+root. Create that root through Oxy using the QA account's real signed-in session;
+never persist that bearer or fabricate a grant in SQL. These protected values
+are not workflow inputs, so an operator cannot substitute an arbitrary customer.
+A missing, expired or revoked task must fail instead of using the workload owner.
 The runner supplies no conversation id, so it creates no durable thread or
 retryable tool side effects. Its result contains only model ids,
 Alia correlation references, allowlisted classified product error codes and

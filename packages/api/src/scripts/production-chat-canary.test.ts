@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { PRODUCTION_CANARY_CASES, summarize } from './production-chat-canary.js';
+import { PRODUCTION_CANARY_CASES, summarize, canaryRequester } from './production-chat-canary.js';
 
 describe('production chat canary safe projection', () => {
   it('has the exact default, research, tool, refusal and recovery matrix without duplicate labels', () => {
@@ -84,11 +84,21 @@ describe('production chat canary safe projection', () => {
   it('enters the real HTTP auth router and has a bounded process lifetime', () => {
     const source = readFileSync(new URL('./production-chat-canary.ts', import.meta.url), 'utf8');
     expect(source).toContain('http://127.0.0.1:3001/alia/chat');
-    expect(source).toContain('authorization: `Bearer ${token}`');
-    expect(source).toContain("'x-oxy-user-id': qaUserId");
+    expect(source).toContain('createAliaTransportForOxyService');
+    expect(source).not.toContain('authorization: `Bearer');
+    expect(source).not.toContain("'x-oxy-user-id':");
     expect(source).toContain('20 * 60 * 1_000');
     expect(source).not.toContain('handleChatCompletions');
     expect(source).not.toMatch(/req\.(?:user|serviceApp|serviceActingAs)\s*=/);
+  });
+  it('requires a live task reference in addition to the exact QA account', () => {
+    const env = { ALIA_CANARY_OXY_USER_ID: '64b1069b762a9c9bafab1a57' };
+    expect(() => canaryRequester(env)).toThrow('ALIA_CANARY_OXY_TASK_ID');
+    expect(() => canaryRequester({ ...env, ALIA_CANARY_OXY_TASK_ID: 'bad task' })).toThrow();
+    expect(canaryRequester({ ...env, ALIA_CANARY_OXY_TASK_ID: 'qa-task' })).toEqual({
+      accountId: env.ALIA_CANARY_OXY_USER_ID,
+      taskId: 'qa-task',
+    });
   });
   it('keeps only product-safe correlation fields', () => {
     const payload = `data: {"id":"chatcmpl-safe","provider":"must-not-leak","choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n`;

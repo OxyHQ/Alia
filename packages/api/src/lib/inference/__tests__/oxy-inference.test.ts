@@ -26,8 +26,8 @@ vi.mock('@oxy.so/core/server', async (importActual) => ({
         ]);
     }
 
-    async serviceToken(): Promise<string> {
-      return 'short-lived-oxy-service-token';
+    createServiceClient() {
+      return { getAccessToken: async () => 'short-lived-oxy-service-token' };
     }
   },
 }));
