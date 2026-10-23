@@ -1,7 +1,7 @@
 {
   "name": "@alia.onl/server",
   "version": "1.1.1",
-  "description": "Alia's server-side streaming client — one typed event stream for a backend that calls Alia's product API",
+  "description": "Alia's server-side streaming client \u2014 one typed event stream for a backend that calls Alia's product API",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -24,7 +24,17 @@
         "default": "./dist/index.cjs"
       }
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./internal": {
+      "import": {
+        "types": "./dist/internal.d.ts",
+        "default": "./dist/internal.js"
+      },
+      "require": {
+        "types": "./dist/internal.d.cts",
+        "default": "./dist/internal.cjs"
+      }
+    }
   },
   "files": [
     "dist",
@@ -56,5 +66,12 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
+  },
+  "typesVersions": {
+    "*": {
+      "internal": [
+        "./dist/internal.d.cts"
+      ]
+    }
   }
 }
