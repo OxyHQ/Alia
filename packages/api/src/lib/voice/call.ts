@@ -1200,7 +1200,7 @@ export class VoiceCall {
         'Voice call ended',
       );
       this.resolveEnded();
-    })();
+    })().finally(() => this.env.kaana?.dispose?.());
     return this.ending;
   }
 

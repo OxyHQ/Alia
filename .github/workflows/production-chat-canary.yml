@@ -40,6 +40,7 @@ jobs:
       CLUSTER: oxy-cluster
       SERVICE: alia
       QA_USER_ID: ${{ vars.ALIA_CANARY_OXY_USER_ID }}
+      QA_TASK_ID: ${{ vars.ALIA_CANARY_OXY_TASK_ID }}
     steps:
       - uses: actions/checkout@v7
       - uses: aws-actions/configure-aws-credentials@v4
@@ -83,7 +84,8 @@ jobs:
           # switch. This runs the LIVE image, so it needs a Bun image to be serving:
           # against a pre-switch Node revision the task fails to start (loudly, no
           # write), which is only possible until the first Bun deploy completes.
-          overrides=$(jq -cn --arg container "$container" --arg user "$QA_USER_ID" '{containerOverrides:[{name:$container,command:["bun","packages/api/dist/scripts/production-chat-canary.js"],environment:[{name:"ALIA_CANARY_OXY_USER_ID",value:$user}]}]}')
+          [[ -n "$QA_TASK_ID" && ${#QA_TASK_ID} -le 128 && ! "$QA_TASK_ID" =~ [[:space:]] ]] || { echo "::error::protected QA task id is missing or invalid"; exit 1; }
+          overrides=$(jq -cn --arg container "$container" --arg user "$QA_USER_ID" --arg task "$QA_TASK_ID" '{containerOverrides:[{name:$container,command:["bun","packages/api/dist/scripts/production-chat-canary.js"],environment:[{name:"ALIA_CANARY_OXY_USER_ID",value:$user},{name:"ALIA_CANARY_OXY_TASK_ID",value:$task}]}]}')
           task=''
           cleanup() {
             status=$?

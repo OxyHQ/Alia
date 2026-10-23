@@ -44,7 +44,7 @@ const liveCalls = new Map<string, VoiceCall>();
 
 export interface VoiceSocketOptions {
   /** The call's world; tests pass one built on the Kaana fake. */
-  environment?: () => VoiceCallEnvironment;
+  environment?: (accountId: string) => VoiceCallEnvironment;
   /** Token → the Oxy person and session; tests replace the Oxy round trip. */
   authenticate?: (token: string) => Promise<SocketSession | null>;
   /** The app assertion → its application, for that session (`lib/app-surface.ts`); tests replace it. */
@@ -183,7 +183,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
           refuse('invalid-request', 4400);
           return;
         }
-        const started = new VoiceCall(environment(), oxyUserId, token);
+        const started = new VoiceCall(environment(oxyUserId), oxyUserId, token);
         call = started;
         liveCalls.set(started.id, started);
         started.attach(sink);

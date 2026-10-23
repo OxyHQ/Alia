@@ -248,6 +248,13 @@ model; the idle timeout bounds it. Alia sets **no** concurrency or spend cap of 
 own: those are the Alia app's policy in Oxy Console. No `voice-minutes` allowance
 returns (ADR 0013, ADR 0005).
 
+The backend constructs `kaanaForOxyService` once per voice call or dictation
+operation, with the authenticated person's immutable inference attribution.
+HTTP and realtime share core's v2 workload mint and audience cache. Attribution
+does not authorize private user data or change the workload's payer. The client
+is disposed when the operation finishes, including failed calls. Text inference
+continues through Oxy's inference endpoint with its own v2 platform credential.
+
 ### The client
 
 Own HTTP speech and dictation use the shared Oxy linked transport. An audio
