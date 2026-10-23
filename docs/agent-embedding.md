@@ -137,7 +137,7 @@ A power level the agent's OWNER pinned (its `modelId`, used when it is consulted
 
 Alia asks the publishing app, through the gate's `checkTool` and under the person's ticket. A turn that uses a gated feature is checked, and spent through `consumeTool` when the feature has one, BEFORE any credit is reserved.
 
-The app's two tools are called with no input, on the binding the agent's `oxy_*` tools use for the person present (the owner's levels, or the owner's ceilings for anybody else):
+The app's two tools are called with no input, on the binding the agent's `oxy_*` tools use for the person present (the verified original requester's account, without app grants or ceilings):
 
 - `checkTool` answers `{ "available": boolean, "remaining"?: integer }`.
 - `consumeTool` answers `{ "consumed": boolean, "remaining"?: integer }`, idempotently under the `Idempotency-Key` Alia sends.
