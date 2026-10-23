@@ -245,8 +245,7 @@ beforeEach(() => {
   // The messaging family includes the WhatsApp tools, which exist only where a
   // gateway is configured (`whatsAppGatewayConfigured`): this suite is about the
   // vocabulary, so it runs where the gateway exists.
-  vi.stubEnv('WHATSAPP_GATEWAY_URL', 'https://whatsapp-gateway.example.test');
-  vi.stubEnv('WHATSAPP_GATEWAY_SECRET', 'synthetic-secret');
+  vi.stubEnv('INTEGRATIONS_URL', 'https://integrations.example.test');
   asked.mcp = [];
   asked.integration = [];
   asked.oxy_service = [];
