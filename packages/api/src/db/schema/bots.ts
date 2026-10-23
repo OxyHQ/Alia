@@ -138,6 +138,11 @@ export const botUsers = pgTable(
     chatId: text().notNull(),
     /** An Oxy account, once linked. No foreign key. */
     oxyUserId: text(),
+    /** Durable authority from the verified person who linked this channel. */
+    oxyTaskId: text(),
+    oxyTaskState: text({ enum: ['active', 'reauth_required'] })
+      .notNull()
+      .default('reauth_required'),
     isLinked: boolean().notNull().default(false),
     linkedAt: timestamptz(),
     username: text(),

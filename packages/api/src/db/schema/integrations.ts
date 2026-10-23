@@ -144,6 +144,11 @@ export const connectedAccounts = pgTable(
       .notNull()
       .default('connecting'),
     statusMessage: text(),
+    /** Durable authority from the verified person who linked this channel. */
+    oxyTaskId: text(),
+    oxyTaskState: text({ enum: ['active', 'reauth_required'] })
+      .notNull()
+      .default('reauth_required'),
     sessionId: text(),
     capabilities: text().array().notNull().default(sql`'{}'::text[]`),
     autoReply: boolean().notNull().default(false),
