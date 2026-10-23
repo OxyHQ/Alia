@@ -62,8 +62,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import aliaChatRouter from '../chat.js';
 import v1Router from '../v1.js';
 import {
-  authenticateChannelBotSecret,
-  authenticateTelegramBot,
   authenticateToken,
   authenticateTokenOrApiKey,
   optionalAuth,
@@ -119,8 +117,6 @@ const KNOWN_MIDDLEWARE: ReadonlyArray<readonly [unknown, string]> = [
   [optionalAuth, 'optionalAuth'],
   [authenticateToken, 'authenticateToken'],
   [authenticateTokenOrApiKey, 'authenticateTokenOrApiKey'],
-  [authenticateTelegramBot, 'authenticateTelegramBot'],
-  [authenticateChannelBotSecret, 'authenticateChannelBotSecret'],
   [apiKeyRateLimit, 'apiKeyRateLimit'],
   [handleChatCompletions, 'handleChatCompletions'],
 ];
@@ -350,25 +346,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
 /*  The auth mechanisms                                                       */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Which middleware chain reaches each route, frozen per route.
- *
- * Three regimes, and the difference between them is the whole point of freezing
- * per route rather than per surface: the same file mounts an unauthenticated
- * catalogue, an optional-auth listing and ten authenticated endpoints, and
- * which regime a route falls into is decided by WHERE IN THE FILE it is
- * declared. Moving `router.use('/chat/completions', ...)` three lines up makes
- * inference public, and nothing about that edit looks like a security change.
- *
- * `?anonymous` is the channel-bot pre-middleware declared inline in
- * `routes/v1.ts`; it is identified by the assertion below rather than by its
- * name, because it has none.
- */
-const AUTHENTICATED: readonly string[] = [
-  '?anonymous',
-  'authenticateTokenOrApiKey',
-  'apiKeyRateLimit',
-];
+const AUTHENTICATED: readonly string[] = ['authenticateTokenOrApiKey', 'apiKeyRateLimit'];
 /**
  * A person's session and nothing else, in front of the conversations: no application key, no
  * channel-bot or Telegram secret. The bots keep `/conversations`.
@@ -461,47 +439,13 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
     }
     const v1Source = read('routes/v1.ts');
     expect(v1Source.indexOf("router.use('/conversations', authenticateToken")).toBeLessThan(
-      v1Source.indexOf("req.headers['x-channel-bot-secret']"),
+      v1Source.indexOf('router.use(authenticateTokenOrApiKey'),
     );
   });
 
-  it('the one unnamed middleware is the channel-bot pre-auth, and it still compares in constant time', () => {
-    /**
-     * `?anonymous` is frozen into eleven chains above, so what it IS has to be
-     * asserted somewhere or the freeze pins a shape and not a mechanism. It
-     * grants `req.user` from a header, which makes it an auth mechanism reaching
-     * the compatibility surface — condition 1 of ADR 0004 — and the only thing
-     * standing between that header and a chosen user id is the secret compare.
-     */
-    const chains = v1.filter((e) => e.chain.includes('?anonymous'));
-    expect(chains).toHaveLength(11);
-    // Exactly one distinct unnamed function, and it is first in every chain.
-    for (const endpoint of chains) expect(endpoint.chain[0]).toBe('?anonymous');
-
-    const v1Source = read('routes/v1.ts');
-    expect(v1Source).toContain("req.headers['x-channel-bot-secret']");
-    expect(v1Source).toContain('crypto.timingSafeEqual');
-    // It must not trust the id it is handed: an unvalidated `x-oxy-user-id` is a
-    // free choice of victim for anyone holding any channel's bot secret.
-    //
-    // The PROPERTY is "the shape is checked before the grant", and that is what
-    // is asserted. This used to pin the literal `/^[a-f0-9]{24}$/.test(...)`,
-    // which pinned an implementation rather than the property — and that
-    // implementation was WRONG: ids are uuid v7 since the Postgres cutover, so
-    // a 24-hex-only check refused every current account (silently, by falling
-    // through to `next()` with `req.user` unset, so the request arrived
-    // unauthenticated for a reason nothing mentioned). Pinning the text made
-    // the gate defend the bug. `isLiveEntityId` accepts both stored shapes and
-    // pins the v7 version and variant nibbles, so it is not a widening.
-    expect(v1Source).toContain('isLiveEntityId(oxyUserId)');
-    // And the check AND the grant are both downstream of nothing that trusts
-    // the id first: validation precedes the compare, the grant follows it.
-    const validateAt = v1Source.indexOf('isLiveEntityId(oxyUserId)');
-    const compareAt = v1Source.indexOf('crypto.timingSafeEqual');
-    const grantAt = v1Source.indexOf('req.user = { id: oxyUserId }');
-    expect(validateAt).toBeGreaterThan(-1);
-    expect(compareAt).toBeGreaterThan(validateAt);
-    expect(grantAt).toBeGreaterThan(compareAt);
+  it('has no duplicate inline channel authentication', () => {
+    expect(v1.filter((entry) => entry.chain.includes('?anonymous'))).toEqual([]);
+    expect(read('routes/v1.ts')).not.toContain('x-channel-bot-secret');
   });
 });
 
@@ -600,25 +544,8 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
     expect(prefixesScreened(auth)).not.toContain('/v1');
   });
 
-  it('reads exactly these five credential-bearing headers, and no others', () => {
-    /**
-     * Five mechanisms reach `/v1`, and each one is a header this file reads:
-     *
-     *  - `authorization` — an Oxy JWT/service token or scoped Console key (`alia_sk_*` is
-     *    refused by name);
-     *  - `x-telegram-bot-secret` with `x-oxy-user-id` and `x-telegram-id`;
-     *  - `x-channel-bot-secret` with `x-oxy-user-id`.
-     *
-     * A sixth would be a new way to authenticate against the compatibility
-     * surface, which is what ADR 0004 condition 1 is about.
-     */
-    expect(headersRead(auth)).toEqual([
-      'authorization',
-      'x-channel-bot-secret',
-      'x-oxy-user-id',
-      'x-telegram-bot-secret',
-      'x-telegram-id',
-    ]);
+  it('reads only the explicit Oxy credential header', () => {
+    expect(headersRead(auth)).toEqual(['authorization']);
   });
 
   it('screens exactly one Alia-owned credential prefix, and only to refuse it', () => {
@@ -636,17 +563,17 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
     expect(branch?.[1]).not.toContain('next(');
   });
 
-  it('holds exactly these four secrets, so a new shared secret is visible', () => {
+  it('has no internal shared-secret configuration', () => {
     // Every shared-secret lane is enumerated, so adding one remains visible.
-    expect(environmentRead(auth)).toEqual(['OXY_API_URL', 'TELEGRAM_BOT_SECRET']);
+    expect(environmentRead(auth)).toEqual(['OXY_API_URL']);
   });
 
-  it('the /v1 router itself reads only the channel-bot pair', () => {
+  it('the /v1 router does not read credentials itself', () => {
     // The other file that reads a credential on this surface. Anything else
     // appearing here is auth logic that grew outside `middleware/auth.ts`, where
     // nobody is looking for it.
     const v1Source = parse('routes/v1.ts');
-    expect(headersRead(v1Source)).toEqual(['x-channel-bot-secret', 'x-oxy-user-id']);
+    expect(headersRead(v1Source)).toEqual([]);
     expect(prefixesScreened(v1Source)).toEqual([]);
     expect(environmentRead(v1Source)).toEqual([]);
   });
@@ -834,8 +761,6 @@ function shippedModules(): string[] {
  * with 401. Closed in the same change that wrote this file.
  */
 const SURFACE_DIFFERENCES: Readonly<Record<string, string>> = {
-  'channel-bot-pre-auth':
-    'Only /v1 runs the inline channel-bot middleware (routes/v1.ts). It is NOT what admits the integrations service — authenticateTokenOrApiKey dispatches x-channel-bot-secret to authenticateChannelBotSecret itself, so /alia/chat admits the same credential. What the inline copy still changes is the SET it matches against: listChannels() there, getConfiguredChannels() in the middleware, so a channel whose bot secret is set while the rest of its configuration is not authenticates on /v1 alone.',
   cors: 'Only /v1 has the public wildcard CORS policy (index.ts). /alia/chat falls to the Oxy allowlist, which is what a product surface should have.',
 };
 
@@ -864,28 +789,11 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
     expect(generic?.own.at(-1)).toBe('handleChatCompletions');
   });
 
-  it('admits the channel-bot credential on both surfaces, which is why the second service could move', () => {
-    /**
-     * The corrected half of `channel-bot-pre-auth`. The map used to say the
-     * inline `/v1` middleware is what lets the integrations service act for a
-     * user, and that was wrong in the direction that matters: it read as "the
-     * product surface cannot serve that caller", which is the reason a migration
-     * would have been abandoned.
-     *
-     * Both halves are read from source. The chain half — that `/alia/chat`
-     * mounts `authenticateTokenOrApiKey` — is asserted by the test below it.
-     */
+  it('uses one channel workload boundary on both product surfaces', () => {
     const auth = code('middleware/auth.ts');
-    expect(auth).toContain(
-      "const channelBotSecret = req.headers['x-channel-bot-secret'] as string;",
-    );
-    expect(auth).toContain('void authenticateChannelBotSecret(req, res, next);');
-
-    // And the difference that survives, in the same currency: two different
-    // channel sets, one per copy.
-    expect(code('routes/v1.ts')).toContain('for (const channel of listChannels())');
-    expect(auth).toContain('const configuredChannels = getConfiguredChannels();');
-    expect(SURFACE_DIFFERENCES['channel-bot-pre-auth']).toContain('getConfiguredChannels()');
+    expect(auth).toContain('void authenticateChannelAccount(req, res, next);');
+    expect(auth).not.toContain('x-channel-bot-secret');
+    expect(code('routes/v1.ts')).not.toContain('getBotSecret');
   });
 
   it('shares the authentication and the limiter, which is what stopped diverging', () => {
@@ -903,13 +811,12 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
       'apiKeyRateLimit',
     ]);
     expect(effective(generic as Endpoint)).toEqual([
-      '?anonymous',
       'authenticateTokenOrApiKey',
       'apiKeyRateLimit',
     ]);
   });
 
-  it('records the pre-auth difference as the only one in the mounted chains', () => {
+  it('uses the same authentication chain on both chat surfaces', () => {
     const product = aliaChat.find((e) => e.signature === 'POST /alia/chat');
     const generic = v1.find((e) => e.signature === 'POST /v1/chat/completions');
     const effective = (endpoint: Endpoint | undefined): string[] => [
@@ -919,9 +826,8 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
 
     const onlyOnGeneric = effective(generic).filter((name) => !effective(product).includes(name));
     const onlyOnProduct = effective(product).filter((name) => !effective(generic).includes(name));
-    expect(onlyOnGeneric).toEqual(['?anonymous']);
+    expect(onlyOnGeneric).toEqual([]);
     expect(onlyOnProduct).toEqual([]);
-    expect(SURFACE_DIFFERENCES['channel-bot-pre-auth']).toBeDefined();
   });
 
   it('records the CORS difference, read at the mounts that produce it', () => {
@@ -950,11 +856,11 @@ describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 
     expect(body).toContain('X-Accel-Buffering');
   });
 
-  it('the record has exactly two entries', () => {
+  it('the record contains only the public CORS difference', () => {
     // The exact count, so the map cannot absorb a fourth difference quietly and
     // cannot shrink to zero while the assertions above keep passing on the
     // entries that remain.
-    expect(Object.keys(SURFACE_DIFFERENCES).sort()).toEqual(['channel-bot-pre-auth', 'cors']);
+    expect(Object.keys(SURFACE_DIFFERENCES).sort()).toEqual(['cors']);
     for (const reason of Object.values(SURFACE_DIFFERENCES))
       expect(reason.length).toBeGreaterThan(40);
   });

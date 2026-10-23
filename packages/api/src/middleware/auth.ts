@@ -1,4 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
+import { ALIA_SERVICE_AUDIENCE } from '@alia.onl/server';
+import type { Request, Response, NextFunction } from 'express';
 import {
   OxyServer,
   createOxyAliaMachineCredentialAuth,
@@ -11,7 +12,7 @@ import {
   type OxyServiceActingAsContext,
 } from '@oxy.so/core/server';
 import { log } from '../lib/logger.js';
-import { getConfiguredChannels } from '../lib/channels/registry.js';
+import { authenticateChannelAccount, hasChannelContext } from './channel-auth.js';
 import { oxyServiceClient } from '../lib/oxy-service-client.js';
 import {
   oxyInferenceEndpointRefusal,
@@ -76,10 +77,16 @@ const onOxyRefusal = ({ code, stage, reason, status, optional }: OxyAuthRefusal)
   log.auth.warn({ code, stage, reason, status, optional }, 'Oxy refused a credential');
 };
 
-const oxyAuthOptions = { auth: { debug: true, onRefusal: onOxyRefusal } } as const;
+const oxyAuthOptions = {
+  auth: { debug: true, onRefusal: onOxyRefusal, expectedAudience: ALIA_SERVICE_AUDIENCE },
+} as const;
 
 /** The same observer on the service-only lane, which `serviceAuth` forwards. */
-const oxyServiceAuthOptions = { debug: true, onRefusal: onOxyRefusal } as const;
+const oxyServiceAuthOptions = {
+  debug: true,
+  onRefusal: onOxyRefusal,
+  expectedAudience: ALIA_SERVICE_AUDIENCE,
+} as const;
 
 const userTokenAuth = createOxyAuthMiddleware(oxyClient, oxyAuthOptions);
 
@@ -237,13 +244,6 @@ export const oxyServiceAuth = delegationAware(
  */
 
 export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
-  // Check if this is a Telegram bot request
-  const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
-  if (telegramBotSecret) {
-    void authenticateTelegramBot(req, res, next);
-    return;
-  }
-
   // Uses @oxy.so/core/server optional auth — attaches user if valid, continues if not.
   oxyOptionalAuth(req, res, next);
 }
@@ -296,17 +296,9 @@ export function authenticateTokenOrApiKey(req: Request, res: Response, next: Nex
     return next();
   }
 
-  // Check for Telegram bot authentication first
-  const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
-  if (telegramBotSecret) {
-    void authenticateTelegramBot(req, res, next);
-    return;
-  }
-
-  // Channel bot secret (used by integrations service)
-  const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
-  if (channelBotSecret) {
-    void authenticateChannelBotSecret(req, res, next);
+  if (req.channelContext) return next();
+  if (hasChannelContext(req)) {
+    void authenticateChannelAccount(req, res, next);
     return;
   }
 
@@ -325,155 +317,4 @@ export function authenticateTokenOrApiKey(req: Request, res: Response, next: Nex
 
   // Existing Oxy user/service JWT paths remain separate from the app-only lane.
   authenticateToken(req, res, next);
-}
-
-/**
- * Authenticate internal Telegram bot requests
- * The bot is a trusted server component that can act on behalf of linked users
- *
- * Security layers:
- * 1. Verifies bot secret matches server-side secret
- * 2. Validates user ID is provided
- * 3. Uses constant-time comparison to prevent timing attacks
- * 4. Logs authentication attempts for audit trail
- */
-export async function authenticateTelegramBot(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const startTime = Date.now();
-
-  try {
-    const botSecret = req.headers['x-telegram-bot-secret'] as string;
-    const oxyUserId = req.headers['x-oxy-user-id'] as string;
-    const telegramId = req.headers['x-telegram-id'] as string;
-
-    // Verify bot secret is configured
-    const expectedSecret = process.env.TELEGRAM_BOT_SECRET;
-    if (!expectedSecret) {
-      log.auth.error('TELEGRAM_BOT_SECRET not configured');
-      res.status(500).json({ error: 'Bot authentication not configured' });
-      return;
-    }
-
-    // Verify secret provided
-    if (!botSecret) {
-      log.auth.warn('Missing bot secret');
-      res.status(401).json({ error: 'Bot authentication required' });
-      return;
-    }
-
-    // Use crypto.timingSafeEqual to prevent timing attacks
-    const expectedBuffer = Buffer.from(expectedSecret);
-    const providedBuffer = Buffer.from(botSecret);
-
-    if (expectedBuffer.length !== providedBuffer.length) {
-      log.auth.warn('Invalid bot secret length');
-      res.status(401).json({ error: 'Invalid bot authentication' });
-      return;
-    }
-
-    const crypto = await import('crypto');
-    if (!crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-      log.auth.warn('Invalid bot secret');
-      res.status(401).json({ error: 'Invalid bot authentication' });
-      return;
-    }
-
-    // Verify telegram ID is provided
-    if (!telegramId) {
-      log.auth.warn('Missing telegram ID in bot request');
-      res.status(400).json({ error: 'Telegram ID required for bot requests' });
-      return;
-    }
-
-    // Log successful auth for audit trail
-    const duration = Date.now() - startTime;
-    log.auth.info(
-      { telegramId, oxyUserId: oxyUserId || 'unknown', endpoint: req.path, durationMs: duration },
-      'Telegram bot authenticated',
-    );
-
-    // Set user context if provided - the bot is acting on behalf of this user
-    if (oxyUserId) {
-      req.userId = oxyUserId;
-      req.user = { id: oxyUserId };
-    }
-    next();
-  } catch (error) {
-    log.auth.error({ err: error }, 'Bot authentication error');
-    res.status(500).json({ error: 'Authentication failed' });
-  }
-}
-
-/**
- * Authenticate requests from the integrations service using a generic channel bot secret.
- *
- * Security layers:
- * 1. Reads `X-Channel-Bot-Secret` header and matches it against every
- *    configured channel's `config.getBotSecret()` using constant-time comparison
- * 2. Requires `X-Oxy-User-Id` header so the request carries user context
- * 3. Logs authentication attempts for audit trail
- */
-export async function authenticateChannelBotSecret(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
-    const oxyUserId = req.headers['x-oxy-user-id'] as string;
-
-    if (!channelBotSecret) {
-      res.status(401).json({ error: 'Channel bot authentication required' });
-      return;
-    }
-
-    if (!oxyUserId) {
-      log.auth.warn('Missing X-Oxy-User-Id in channel bot request');
-      res.status(401).json({ error: 'User context required for channel bot requests' });
-      return;
-    }
-
-    // Validate oxyUserId is a valid 24-char hex ObjectId to prevent injection
-    if (!/^[a-f0-9]{24}$/.test(oxyUserId)) {
-      log.auth.warn({ oxyUserId }, 'Invalid oxyUserId format in channel bot request');
-      res.status(400).json({ error: 'Invalid user ID format' });
-      return;
-    }
-
-    const crypto = await import('crypto');
-    const configuredChannels = getConfiguredChannels();
-    const providedBuffer = Buffer.from(channelBotSecret);
-    let matched = false;
-
-    for (const channel of configuredChannels) {
-      const expectedSecret = channel.config.getBotSecret();
-      if (!expectedSecret) continue;
-
-      const expectedBuffer = Buffer.from(expectedSecret);
-      if (expectedBuffer.length !== providedBuffer.length) continue;
-
-      if (crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-        matched = true;
-        break;
-      }
-    }
-
-    if (!matched) {
-      log.auth.warn('Invalid channel bot secret');
-      res.status(401).json({ error: 'Invalid channel bot authentication' });
-      return;
-    }
-
-    log.auth.info({ oxyUserId, endpoint: req.path }, 'Channel bot authenticated');
-
-    req.userId = oxyUserId;
-    req.user = { id: oxyUserId };
-    next();
-  } catch (error) {
-    log.auth.error({ err: error }, 'Channel bot authentication error');
-    res.status(500).json({ error: 'Authentication failed' });
-  }
 }

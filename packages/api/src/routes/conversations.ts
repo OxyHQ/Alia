@@ -1,3 +1,4 @@
+import { channelAccountOf } from '../middleware/channel-auth.js';
 import { parseAvatarCharacter } from '@oxy.so/contracts';
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
@@ -289,7 +290,8 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
 // Get all conversations for the authenticated user with cursor-based pagination
 router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? channelAccountOf(req);
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -330,7 +332,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
     if (originApp === null) return res.status(400).json(INVALID_APP);
 
     // One extra row decides `hasMore` without a second count query.
-    const rows = await listConversations(getDb(), req.user.id, limit + 1, {
+    const rows = await listConversations(getDb(), localAccountId, limit + 1, {
       ...(before === undefined ? {} : { before }),
       ...(agentId === undefined ? {} : { agentId }),
       ...(originApp === undefined ? {} : { originApp }),
@@ -365,10 +367,11 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
 // Get a specific conversation by ID
 router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? channelAccountOf(req);
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const userId = req.user.id;
+    const userId = localAccountId;
 
     const conversationId = String(req.params.id);
     const conversation = await findConversation(getDb(), userId, conversationId);
@@ -399,7 +402,8 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
 // Save or update a conversation
 router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? channelAccountOf(req);
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -438,12 +442,12 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
     // An agent may have written into this conversation since the client last
     // loaded it; its message is kept rather than replaced away.
     const toStore = withAgentOutreachKept(
-      await listMessages(getDb(), req.user.id, conversationId),
+      await listMessages(getDb(), localAccountId, conversationId),
       validMessages,
     );
     const [conversation] = await Promise.all([
       upsertConversation(getDb(), {
-        oxyUserId: req.user.id,
+        oxyUserId: localAccountId,
         conversationId,
         ...(lastMessage === undefined ? {} : { lastMessage }),
         ...(typeof title === 'string' && title.length > 0 ? { title } : {}),
@@ -451,7 +455,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
         ...(onInsertSource === undefined ? {} : { source: onInsertSource }),
         ...(originApp === undefined ? {} : { originApp }),
       }),
-      replaceMessages(getDb(), req.user.id, conversationId, toStore),
+      replaceMessages(getDb(), localAccountId, conversationId, toStore),
     ]);
 
     res.json({

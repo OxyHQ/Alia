@@ -11,10 +11,7 @@ import agentsV1Router from './v1/agents.js';
 import { authenticateToken, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
-import { listChannels } from '../lib/channels/registry.js';
-import * as crypto from 'crypto';
 import { log } from '../lib/logger.js';
-import { isLiveEntityId } from '@oxy.so/db';
 
 const router = Router();
 
@@ -55,44 +52,6 @@ router.use('/shared', sharedRouter);
 
 // What an embedding app reads about an agent before opening it: the person's own session.
 router.use('/agents', authenticateToken, apiKeyRateLimit, agentsV1Router);
-
-// Channel bot auth: validates x-channel-bot-secret against registered channels
-// and sets req.user from x-oxy-user-id for trusted bot services.
-router.use((req: Request, _res: Response, next) => {
-  const botSecret = req.headers['x-channel-bot-secret'] as string;
-  const oxyUserId = req.headers['x-oxy-user-id'] as string;
-  if (!botSecret || !oxyUserId) return next();
-
-  // Validate the id SHAPE before trusting it. Both shapes: ids are uuid v7
-  // since the Postgres cutover, and rows predating it kept their 24-char
-  // ObjectId hex verbatim, so a check for either one alone refuses real
-  // accounts. `isLiveEntityId` is the single definition of "could name a row"
-  // (`@oxy.so/db`), which is why this does not spell a regex here.
-  //
-  // The failure mode this had was silent rather than loud: a v7 id fell to
-  // `next()` with `req.user` unset, so a trusted bot request arrived
-  // UNAUTHENTICATED instead of being rejected — the request then failed
-  // somewhere later, for a reason that did not mention the header. `socket.ts`
-  // records the same bug being hit from the other direction, where the check
-  // made `subscribe-agent-session` return without joining and without an error.
-  if (!isLiveEntityId(oxyUserId)) return next();
-
-  for (const channel of listChannels()) {
-    const expected = channel.config.getBotSecret();
-    if (!expected) continue;
-    const expectedBuf = Buffer.from(expected);
-    const providedBuf = Buffer.from(botSecret);
-    if (
-      expectedBuf.length === providedBuf.length &&
-      crypto.timingSafeEqual(expectedBuf, providedBuf)
-    ) {
-      req.user = { id: oxyUserId };
-      req.channelType = channel.id;
-      return next();
-    }
-  }
-  next();
-});
 
 // Apply authentication to all other v1 routes (supports both JWT and API keys)
 router.use(authenticateTokenOrApiKey);

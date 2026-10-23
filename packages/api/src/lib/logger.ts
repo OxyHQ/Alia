@@ -37,22 +37,26 @@ import { redactSecrets } from './agent/secret-scanner.js';
  * The bound is what makes a CYCLIC structure terminate — an error whose `data`
  * points back at itself is legal and would otherwise recurse forever inside a
  * log call. A string is scrubbed at every depth; what the bound gives up is a
- * string inside an object nested deeper than this, which is passed through by
- * reference. Eight is well past the deepest real shape (`data.error.message`,
+ * object nested deeper than this, which is replaced with a truncation marker.
+ * Eight is well past the deepest real shape (`data.error.message`,
  * three) and short of a stack.
  */
 const MAX_SCRUB_DEPTH = 8;
 
 function scrubDeep(value: unknown, depth: number): unknown {
   if (typeof value === 'string') return redactSecrets(value).redacted;
-  if (value === null || typeof value !== 'object' || depth >= MAX_SCRUB_DEPTH) return value;
+  if (value === null || typeof value !== 'object') return value;
+  if (depth >= MAX_SCRUB_DEPTH) return '[TRUNCATED]';
   if (Array.isArray(value)) return value.map((entry) => scrubDeep(entry, depth + 1));
 
   // A copy, never a mutation: `data` and `responseHeaders` on a serialized
   // error are references to the LIVE error object, and scrubbing in place would
   // edit application state from inside a logger.
   const copy: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value)) copy[key] = scrubDeep(entry, depth + 1);
+  for (const [key, entry] of Object.entries(value))
+    copy[key] = /authorization|cookie|password|secret|token|api[-_]?key/i.test(key)
+      ? '[REDACTED]'
+      : scrubDeep(entry, depth + 1);
   return copy;
 }
 
@@ -71,8 +75,11 @@ function scrubSerializedError(serialized: Record<string, unknown>): Record<strin
   if (typeof serialized !== 'object' || serialized === null) return serialized;
 
   for (const [key, value] of Object.entries(serialized)) {
-    serialized[key] =
-      typeof value === 'string' ? redactSecrets(value).redacted : scrubDeep(value, 1);
+    serialized[key] = /authorization|cookie|password|secret|token|api[-_]?key/i.test(key)
+      ? '[REDACTED]'
+      : typeof value === 'string'
+        ? redactSecrets(value).redacted
+        : scrubDeep(value, 1);
   }
   return serialized;
 }
@@ -86,6 +93,7 @@ const REDACT_PATHS = [
   'secret',
   'req.headers.authorization',
   'req.headers.cookie',
+  'req.headers["x-oxy-requester-token"]',
   'req.headers["x-api-key"]',
 ];
 

@@ -27,8 +27,7 @@ export const discordPlugin: ChannelPlugin = {
   },
 
   config: {
-    isConfigured: () => !!(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_BOT_SECRET),
-    getBotSecret: () => process.env.DISCORD_BOT_SECRET,
+    isConfigured: () => !!process.env.DISCORD_BOT_TOKEN,
     getEnvPrefix: () => 'DISCORD',
   },
 

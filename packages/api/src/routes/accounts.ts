@@ -1,3 +1,5 @@
+import { createOxyTask, revokeOxyTask } from '../lib/oxy-task-authority.js';
+import { integrationsFetch } from '../lib/integrations-client.js';
 import express from 'express';
 import crypto from 'crypto';
 import { authenticateToken } from '../middleware/auth.js';
@@ -10,6 +12,7 @@ import {
   findConnectedAccountForUser,
   listConnectedAccountsForUser,
   setConnectedAccountSession,
+  setConnectedAccountTask,
   setConnectedAccountStatus,
   updateConnectedAccountSettings,
   type ConnectedAccountSafeRow,
@@ -33,14 +36,13 @@ interface IntegrationSessionReply {
 const router = express.Router();
 
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
-const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 
 const requireIntegrations = (
   _req: express.Request,
   res: express.Response,
   next: express.NextFunction,
 ): void => {
-  if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+  if (!INTEGRATIONS_URL) {
     res.status(503).json({ error: 'Integrations service not configured' });
     return;
   }
@@ -48,56 +50,57 @@ const requireIntegrations = (
 };
 
 async function proxyToIntegrations(
+  req: express.Request,
   res: express.Response,
   path: string,
   options?: RequestInit,
   label = 'accounts proxy',
 ) {
-  const MAX_ATTEMPTS = 3;
-  const BACKOFF_MS = [1000, 2000, 4000];
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    try {
-      const response = await fetch(`${INTEGRATIONS_URL}${path}`, {
-        ...options,
-        headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET!, ...options?.headers },
-        signal: AbortSignal.timeout(15_000),
-      });
-
-      let data: any;
-      try {
-        data = await response.json();
-      } catch {
-        if (attempt < MAX_ATTEMPTS - 1) {
-          await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
-          continue;
-        }
-        res.status(502).json({ error: `${label}: non-JSON response` });
-        return;
-      }
-
-      if (response.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
-        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
-        continue;
-      }
-
-      res.status(response.status).json(data);
-      return;
-    } catch (error: unknown) {
-      log.channels.error(
-        { err: error, label, attempt: attempt + 1, maxAttempts: MAX_ATTEMPTS },
-        'Integrations proxy error',
-      );
-      if (attempt < MAX_ATTEMPTS - 1) {
-        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
-        continue;
-      }
-      res.status(502).json({ error: `Failed: ${label}` });
-    }
+  try {
+    const response = await integrationsFetch(req.userId!, path, {
+      ...options,
+      signal: AbortSignal.timeout(15_000),
+    });
+    res.status(response.status).json(await response.json());
+  } catch {
+    log.channels.warn({ label }, 'Integrations request failed');
+    res.status(502).json({ error: `Failed: ${label}` });
   }
 }
 
 const authed = [authenticateToken, requireIntegrations] as const;
+
+async function bindChannelTask(
+  req: express.Request,
+  account: ConnectedAccountSafeRow,
+): Promise<void> {
+  if (!req.accessToken || !req.userId) throw new Error('An authenticated requester is required');
+  const taskId = await createOxyTask({
+    accessToken: req.accessToken,
+    effectiveAccountId: req.userId,
+    actor: { type: 'alia', ownerAccountId: req.userId },
+    origin: { kind: 'automation', id: `channel:${account.id}` },
+  });
+  try {
+    if (!(await setConnectedAccountTask(getDb(), account.id, taskId, account.oxyTaskId))) {
+      throw new Error('Channel authority changed during renewal');
+    }
+    account.oxyTaskId = taskId;
+    account.oxyTaskState = 'active';
+  } catch (error) {
+    await revokeOxyTask(taskId);
+    throw error;
+  }
+}
+
+async function revokeChannelTask(account: ConnectedAccountSafeRow): Promise<void> {
+  if (account.oxyTaskId) await revokeOxyTask(account.oxyTaskId);
+  if (!(await setConnectedAccountTask(getDb(), account.id, null, account.oxyTaskId))) {
+    throw new Error('Channel authority changed during revocation');
+  }
+  account.oxyTaskId = null;
+  account.oxyTaskState = 'reauth_required';
+}
 
 /**
  * Platform -> integrations service path (the adapter name may differ from the
@@ -177,15 +180,26 @@ router.post('/gmail/connect', authenticateToken, async (req, res) => {
   // Create pending account. AWAITED, unlike the source, which fired `save()`
   // without waiting and answered 200 with a pre-minted id whether or not the
   // write landed — a failed save produced an id the client would poll forever.
-  let account: ConnectedAccountSafeRow;
+  let account: ConnectedAccountSafeRow | undefined;
   try {
     account = await createPendingConnectedAccount(getDb(), {
       oxyUserId: req.userId!,
       platform: 'gmail',
       capabilities: ['read_messages', 'send_messages'],
     });
+    await bindChannelTask(req, account);
   } catch (err: unknown) {
     log.channels.error({ err }, 'Gmail account save error');
+    if (account) {
+      await revokeChannelTask(account)
+        .then(() => deleteConnectedAccount(getDb(), account!.id))
+        .catch(() =>
+          log.channels.warn(
+            { accountId: account!.id },
+            'Pending channel cleanup will require retry',
+          ),
+        );
+    }
     return res.status(500).json({ error: 'Internal server error' });
   }
   const accountId = account.id;
@@ -289,14 +303,14 @@ router.get('/gmail/callback', async (req, res) => {
     });
     if (account) {
       // Create session in integrations service
-      if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
+      if (INTEGRATIONS_URL) {
         try {
-          const sessionResponse = await fetch(
-            `${INTEGRATIONS_URL}/accounts/gmail/sessions/connect`,
+          const sessionResponse = await integrationsFetch(
+            stateData.userId,
+            `/accounts/gmail/sessions/connect`,
             {
               method: 'POST',
               headers: {
-                'X-Gateway-Secret': INTEGRATIONS_SECRET,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
@@ -346,12 +360,12 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
       platform,
       capabilities: ['read_messages', 'send_messages'],
     });
+    await bindChannelTask(req, account);
 
     // Proxy to integrations service to start session
-    const response = await fetch(`${INTEGRATIONS_URL}/${servicePath}/sessions/connect`, {
+    const response = await integrationsFetch(req.userId!, `/${servicePath}/sessions/connect`, {
       method: 'POST',
       headers: {
-        'X-Gateway-Secret': INTEGRATIONS_SECRET!,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ oxyUserId: req.userId, accountId: account.id }),
@@ -360,6 +374,7 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
+      await revokeChannelTask(account);
       await deleteConnectedAccount(db, account.id);
       return res.status(502).json({ error: `Integration service unavailable for ${platform}` });
     }
@@ -368,6 +383,9 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
 
     if (response.ok && data.sessionId) {
       await setConnectedAccountSession(db, account.id, data.sessionId);
+    } else {
+      await revokeChannelTask(account);
+      await deleteConnectedAccount(db, account.id);
     }
 
     res.status(response.status).json({
@@ -378,12 +396,14 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
     log.channels.error({ err: error, platform }, 'Connect account error');
     if (account) {
       const orphanId = account.id;
-      await deleteConnectedAccount(db, orphanId).catch((err: unknown) =>
-        log.channels.warn(
-          { err, accountId: orphanId },
-          'Failed to clean up ConnectedAccount after connect error',
-        ),
-      );
+      await revokeChannelTask(account)
+        .then(() => deleteConnectedAccount(db, orphanId))
+        .catch((err: unknown) =>
+          log.channels.warn(
+            { err, accountId: orphanId },
+            'Failed to clean up ConnectedAccount after connect error',
+          ),
+        );
     }
     res.status(502).json({ error: `Failed to connect ${platform}` });
   }
@@ -404,10 +424,11 @@ router.get('/:id/status', authenticateToken, async (req: express.Request<{ id: s
       const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
-          const response = await fetch(
-            `${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/status`,
+          const response = await integrationsFetch(
+            req.userId!,
+            `/${servicePath}/sessions/${account.sessionId}/status`,
             {
-              headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET! },
+              headers: {},
               signal: AbortSignal.timeout(5_000),
             },
           );
@@ -467,6 +488,7 @@ router.get('/:id/qr', ...authed, async (req: express.Request<{ id: string }>, re
     }
 
     await proxyToIntegrations(
+      req,
       res,
       `/${servicePath}/sessions/${account.sessionId}/qr`,
       undefined,
@@ -478,6 +500,24 @@ router.get('/:id/qr', ...authed, async (req: express.Request<{ id: string }>, re
   }
 });
 
+// Renew Alia's durable task without reconnecting the external provider.
+router.post(
+  '/:id/reauthorize',
+  authenticateToken,
+  async (req: express.Request<{ id: string }>, res) => {
+    try {
+      const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
+      if (!account) return res.status(404).json({ error: 'Account not found' });
+      await revokeChannelTask(account);
+      await bindChannelTask(req, account);
+      res.json({ success: true, oxyTaskState: 'active' });
+    } catch (error) {
+      log.channels.error({ err: error }, 'Channel task renewal failed');
+      res.status(503).json({ error: 'Could not resume channel tools' });
+    }
+  },
+);
+
 // Disconnect account
 router.post('/:id/disconnect', ...authed, async (req: express.Request<{ id: string }>, res) => {
   try {
@@ -488,16 +528,19 @@ router.post('/:id/disconnect', ...authed, async (req: express.Request<{ id: stri
       return res.status(404).json({ error: 'Account not found' });
     }
 
+    await revokeChannelTask(account);
+
     // Disconnect in integrations service
     if (account.sessionId) {
       const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
-          await fetch(
-            `${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`,
+          await integrationsFetch(
+            req.userId!,
+            `/${servicePath}/sessions/${account.sessionId}/disconnect`,
             {
               method: 'POST',
-              headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET! },
+              headers: {},
               signal: AbortSignal.timeout(10_000),
             },
           );
@@ -531,6 +574,7 @@ router.get('/:id/chats', ...authed, async (req: express.Request<{ id: string }>,
     }
 
     await proxyToIntegrations(
+      req,
       res,
       `/${servicePath}/sessions/${account.sessionId}/chats`,
       undefined,
@@ -561,6 +605,7 @@ router.get(
 
       const limit = String(req.query.limit || '20');
       await proxyToIntegrations(
+        req,
         res,
         `/${servicePath}/sessions/${account.sessionId}/chats/${encodeURIComponent(req.params.chatId)}/messages?limit=${limit}`,
         undefined,
@@ -588,6 +633,7 @@ router.post('/:id/send', ...authed, async (req: express.Request<{ id: string }>,
     }
 
     await proxyToIntegrations(
+      req,
       res,
       `/${servicePath}/sessions/${account.sessionId}/send`,
       {
@@ -646,22 +692,25 @@ router.patch(
 // Delete account
 router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await deleteConnectedAccountForUser(getDb(), req.params.id, req.userId!);
+    const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
 
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
     }
+
+    await revokeChannelTask(account);
 
     // Disconnect in integrations service
     if (account.sessionId) {
       const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
-          await fetch(
-            `${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`,
+          await integrationsFetch(
+            req.userId!,
+            `/${servicePath}/sessions/${account.sessionId}/disconnect`,
             {
               method: 'POST',
-              headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET! },
+              headers: {},
               signal: AbortSignal.timeout(10_000),
             },
           );
@@ -671,6 +720,7 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
       }
     }
 
+    await deleteConnectedAccountForUser(getDb(), account.id, req.userId!);
     res.json({ success: true });
   } catch (error: unknown) {
     log.channels.error({ err: error }, 'Delete account error');

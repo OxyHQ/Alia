@@ -1,65 +1,47 @@
-# Runbook: Alia integrations service rollout
+# Alia integrations rollout
 
-`alia-integrations` is a private ECS service with its own PostgreSQL database.
-The Alia API reaches it only inside the VPC at the exact Cloud Map address:
+The private ECS service has its own PostgreSQL database. The API uses
+`http://integrations.alia.internal.oxy.so:3005`, declared by Terraform's
+`integrations` service in `alia.internal.oxy.so`.
 
-```text
-http://integrations.alia.internal.oxy.so:3005
-```
+## Prerequisites
 
-That name comes from Terraform's service `integrations` in namespace
-`alia.internal.oxy.so`; do not invent a public or compatibility hostname.
+Deploy the Oxy issuer and shared core reader before these consumers. Bind both
+`oxy-alia-task` and `oxy-alia-integrations-task` to Alia's registered application,
+with explicit deployment environments. Each receiver pins its exact opposite
+process and the canonical audience exported by `@alia.onl/server`. Temporary
+workload credentials replace internal scopes and shared gateway/bot passwords.
+External connector OAuth and provider webhook signatures remain.
 
-## SSM ownership
+Deploy the channel task schema before the API runtime. New links create a
+revocable automation task with the real requester and store only its ID. Run the
+controlled legacy task migration where a valid existing requester proof exists.
+Unprovable connections renew automatically on the owner’s normal signed-in visit;
+never manufacture requester authority from an account ID.
 
-These parameters are provisioned outside GitHub Actions and SSM is their source
-of truth:
+## Configuration
 
-- `/oxy/alia-integrations/DATABASE_URL`
-- `/oxy/alia/INTEGRATIONS_SECRET`
+API deploys overlay `INTEGRATIONS_URL` and remove obsolete internal secret
+bindings from the running task definition. Integrations deploys remove the same
+obsolete credentials. Terraform alone does not update the running revision;
+read back deployed task definitions.
 
-The shared gateway secret has one parameter. Both the API and integrations task
-definitions bind it, so rotation cannot leave two copies disagreeing.
+`/oxy/alia-integrations/DATABASE_URL` remains an SSM-owned database credential.
+`TOKEN_ENCRYPTION_KEY` remains storage encryption for connector records; rotation
+requires a data migration. These are not service authentication. Workflows read
+parameter metadata without printing or decrypting values. Retire obsolete SSM
+parameters through infra only after both transports are verified live.
 
-Neither deploy workflow accepts a GitHub `INTEGRATIONS_SECRET`, retrieves the
-parameter value, uses decryption, prints it or overwrites it. Before registering
-a task definition, workflows use `ssm describe-parameters` to verify only the
-exact name and `SecureString` type. A missing or wrong-type parameter fails
-closed.
+## Verification
 
-`TOKEN_ENCRYPTION_KEY` remains a separately managed shared secret because both
-services must decrypt the same connector records. Rotating it requires a data
-migration; never overwrite one task independently.
+1. Confirm issuer readiness and both active environment-bound registrations.
+2. Confirm both ECS rollouts completed with the intended image digest.
+3. Resolve the private Cloud Map address from an API task.
+4. Read running task definitions: no internal service keys/shared passwords.
+5. Exercise an owned connector and linked channel task; reject an external app,
+   another workload, missing context and another account's session.
+6. Revoke/disconnect the task; the next private tool call must fail.
 
-## Durable API wiring
-
-Every API deploy overlays both values onto the immutable task revision:
-
-```text
-INTEGRATIONS_URL=http://integrations.alia.internal.oxy.so:3005
-INTEGRATIONS_SECRET=arn:aws:ssm:us-west-2:237343248947:parameter/oxy/alia/INTEGRATIONS_SECRET
-```
-
-The second line is an ECS secret binding ARN, not the secret value. Terraform
-declares the same wiring, but the deploy workflow re-asserts it because the
-existing ECS service deliberately ignores Terraform task-definition changes.
-
-## Verification before traffic
-
-1. Confirm both SSM parameter names and types with metadata-only calls.
-2. Confirm the integrations service has positive desired/running counts, zero
-   pending tasks and a completed rollout.
-3. Resolve `integrations.alia.internal.oxy.so` from an API task in the VPC.
-4. Read back both running task definitions and compare environment/secret names
-   and ARNs without printing values.
-5. Exercise one authenticated MCP registry/tool flow end to end.
-
-A registered revision, an SSM write or a health endpoint alone is not proof the
-API is wired to the running integrations task.
-
-## Rollback
-
-Repoint to a prior image only if its task definition retains the same URL and
-shared secret binding. Removing `INTEGRATIONS_URL` and redeploying disables the
-API's hosted connector path without changing the secret. Do not delete or
-overwrite SSM parameters as a rollback mechanism.
+A health check alone does not prove authentication or account isolation. Roll
+back only to an image whose protocol matches its runtime configuration. Never
+restore account-header impersonation or remove storage keys to recover.

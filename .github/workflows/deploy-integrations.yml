@@ -4,14 +4,6 @@
 # carries Chromium for Playwright, a headless JRE for signal-cli and node-pty,
 # none of which the API image has any use for.
 #
-# It exists because `packages/integrations` had no deploy path at all. The
-# consequence, on the running `oxy-alia:114` revision, is that
-# `packages/api/src/lib/tools/mcp.ts:48` gates hosted MCP on `INTEGRATIONS_URL &&
-# INTEGRATIONS_SECRET`, neither is set, and `buildMcpTools` returns an empty tool
-# set without logging — so the connector registry, `POST /mcp/install` and the
-# whole SDK-native OAuth flow are silently inert. Local MCP is NOT affected: that
-# runs over the API's own WebSocket bridge in `lib/mcp-relay.ts`.
-#
 # Deliberately separate from `deploy-aws.yml` rather than a second job inside it:
 # the two build different images against different Dockerfiles, migrate DIFFERENT
 # databases, and must not serialise against each other. See `concurrency` below.
@@ -85,10 +77,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # Runtime secrets are NOT in GitHub, and nothing in this workflow writes
-      # one. This service reads three SSM parameters, each with one owner:
+      # one. This service reads database and connector-encryption SSM parameters, each with one owner:
       # `/oxy/alia-integrations/DATABASE_URL` (written by hand at provisioning,
-      # oxy-infra runbook 30), and the API's `/oxy/alia/INTEGRATIONS_SECRET` and
-      # `/oxy/alia/TOKEN_ENCRYPTION_KEY`, shared with the API by binding the SAME
+      # oxy-infra runbook 30), and `/oxy/alia/TOKEN_ENCRYPTION_KEY`, shared with the API by binding the SAME
       # parameter so a rotation cannot leave the two services disagreeing. Set
       # or rotate with `aws ssm put-parameter --overwrite` (oxy-infra
       # docs/runbooks/46-app-secrets-in-ssm.md). Until 2026-10-10 a step here
@@ -96,10 +87,9 @@ jobs:
       - name: Verify SSM-owned runtime secret metadata
         run: |
           for parameter_name in \
-            /oxy/alia-integrations/DATABASE_URL \
-            /oxy/alia/INTEGRATIONS_SECRET
+            /oxy/alia-integrations/DATABASE_URL
           do
-            # GetParameter is IAM-scoped to these exact two ARNs. Decryption is
+            # GetParameter is IAM-scoped to the database ARN. Decryption is
             # explicitly disabled and the query emits only name and type.
             metadata="$(aws ssm get-parameter \
               --name "$parameter_name" \
@@ -268,7 +258,7 @@ jobs:
           # would have no identity at all.
           #
           # No SSM parameter is deleted. This removes the reference.
-          TASK_SECRET_REMOVALS_JSON: '["OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
+          TASK_SECRET_REMOVALS_JSON: '["OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET","INTEGRATIONS_SECRET","DISCORD_BOT_SECRET","SLACK_BOT_SECRET","WHATSAPP_BOT_SECRET","WHATSAPP_GATEWAY_SECRET","SIGNAL_BOT_SECRET"]'
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then

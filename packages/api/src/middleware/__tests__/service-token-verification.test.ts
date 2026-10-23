@@ -42,10 +42,8 @@ import { describe, expect, it } from 'vitest';
  *     six characters of standard library and passes a library-name census
  *     unnoticed.
  *  3. **`req.serviceApp` is not the only grant.** `req.user` and `req.userId`
- *     are what every route reads for ownership, and four places in this
- *     repository set them from a REQUEST HEADER. Each is legitimate — a trusted
- *     service asserting which user it acts for — and each is legitimate ONLY
- *     because a secret was compared first. That is a map, and it is below.
+ *     carry user identity. Only the verified channel adapter assigns local
+ *     account context, from a live provider link, and never fabricates req.user.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
@@ -247,135 +245,17 @@ describe('no token is read without being verified (#139 ws15)', () => {
 /*  Every grant, and what it rests on                                          */
 /* -------------------------------------------------------------------------- */
 
-describe('every principal a request can acquire is mapped (#139 ws15)', () => {
-  /**
-   * The four places identity is taken from a REQUEST HEADER, and the compare
-   * each one is behind.
-   *
-   * `req.user` and `req.userId` are what every route reads for ownership, so
-   * setting them IS the grant — `req.serviceApp`, which
-   * `inference-boundary.test.ts` already covers, is only the internal-service
-   * flavour of it. Each entry below names a function, the header it trusts, and
-   * the verification that must appear BEFORE the assignment in the source.
-   *
-   * A map rather than four hand-written checks, and an exact equality rather
-   * than a subset: the hazard is a fifth site arriving, and a check that skips
-   * what the map omits is not a check.
-   */
-  const HEADER_GRANTS = [
-    {
-      file: 'packages/api/src/middleware/auth.ts',
-      after: `const crypto = await import('crypto');`,
-      guard: 'crypto.timingSafeEqual(expectedBuffer, providedBuffer)',
-      header: 'x-oxy-user-id',
-    },
-    {
-      file: 'packages/api/src/middleware/auth.ts',
-      after: 'const configuredChannels = getConfiguredChannels();',
-      guard: 'crypto.timingSafeEqual(expectedBuffer, providedBuffer)',
-      header: 'x-oxy-user-id',
-    },
-    {
-      file: 'packages/api/src/routes/v1.ts',
-      after: `const botSecret = req.headers['x-channel-bot-secret']`,
-      guard: 'crypto.timingSafeEqual(expectedBuf, providedBuf)',
-      header: 'x-oxy-user-id',
-    },
-  ] as const;
-
-  /** Files allowed to assign `req.user` / `req.userId` at all, with the count. */
-  const ASSIGNING_FILES: Readonly<Record<string, number>> = {
-    // `authenticateTelegramBot` and `authenticateChannelBotSecret`: two
-    // functions, two assignments each. (`authenticateApiKey` was a third,
-    // retired with the `alia_sk_*` keys.)
-    'packages/api/src/middleware/auth.ts': 4,
-    // The channel-bot pre-middleware, which sets `req.user` only.
-    'packages/api/src/routes/v1.ts': 1,
-  };
-
-  const assignments = (source: string): number =>
-    [...source.matchAll(/\breq\.(?:user|userId)\s*=\s*/g)].length;
-
-  it('is exactly the files this map accounts for', () => {
+describe('channel context never fabricates an Oxy user session', () => {
+  it('limits local account assignments to the verified channel adapter', () => {
     const found: Record<string, number> = {};
     for (const file of tracked('packages/api/src')) {
       if (isTest(file)) continue;
-      const count = assignments(code(file));
-      if (count > 0) found[path.relative(REPO_ROOT, file)] = count;
-    }
-    // The floor before the equality: the scan found assignments at all.
-    expect(Object.keys(found).length).toBeGreaterThan(0);
-    expect(found).toEqual(ASSIGNING_FILES);
-  });
-
-  it('no header-derived grant happens before its constant-time compare', () => {
-    /**
-     * The property, stated as an ABSENCE.
-     *
-     * "A grant appears after the compare" is the version that cannot fail: a
-     * grant added ABOVE the compare leaves the one below it exactly where it
-     * was, so the search still succeeds. The measurable property is the other
-     * one — between the point the flow enters and the point the secret matches,
-     * NOTHING is granted.
-     */
-    const GRANT = /\breq\.(?:user|userId|serviceApp)\s*=/;
-
-    for (const grant of HEADER_GRANTS) {
-      const source = code(path.join(REPO_ROOT, grant.file));
-      const anchor = source.indexOf(grant.after);
-      expect(anchor, `${grant.file}: anchor "${grant.after}" is gone`).toBeGreaterThan(-1);
-
-      const guardAt = source.indexOf(grant.guard, anchor);
-      expect(guardAt, `${grant.file}: ${grant.guard} is gone`).toBeGreaterThan(-1);
-
-      // Nothing granted between entering the function and matching the secret.
-      const before = source.slice(anchor, guardAt);
-      expect(GRANT.test(before), `${grant.file}: granted before ${grant.guard}`).toBe(false);
-
-      // And something IS granted afterwards, or the compare guards nothing and
-      // the absence above would be true of dead code.
-      const after = source.slice(guardAt);
-      expect(GRANT.test(after), `${grant.file}: nothing is granted after ${grant.guard}`).toBe(
-        true,
-      );
-    }
-
-    // The control for the absence: the same predicate over a window that DOES
-    // contain a grant reports it, so `false` above is a measurement.
-    expect(GRANT.test(`  if (!ok) return;\n  req.user = { id: oxyUserId };`)).toBe(true);
-    // The mutation control: with the compare renamed, the lookup fails. Proves
-    // the assertion above is reading the guard rather than the file's length.
-    const mutated = code(path.join(REPO_ROOT, 'packages/api/src/middleware/auth.ts')).replace(
-      /crypto\.timingSafeEqual/g,
-      'looseEquals',
-    );
-    expect(mutated.includes('crypto.timingSafeEqual')).toBe(false);
-    expect(mutated.includes('req.user =')).toBe(true);
-  });
-
-  it('no grant is derived from a header alone, anywhere', () => {
-    // The complement of the map: an identity header read in a file that is NOT
-    // one of the four. `tools-proxy.ts` and the integrations client SEND the
-    // header, which is a different act, so the census looks for a READ.
-    const readers: string[] = [];
-    for (const file of [...tracked('packages/api/src'), ...tracked('packages/integrations/src')]) {
-      if (isTest(file)) continue;
       const source = code(file);
-      if (/req\.headers\s*\[\s*['"`]x-oxy-user-id['"`]\s*\]/i.test(source)) {
-        readers.push(path.relative(REPO_ROOT, file));
-      }
+      expect(source).not.toMatch(/\breq\.user\s*=/);
+      const count = [...source.matchAll(/\breq\.userId\s*=/g)].length;
+      if (count) found[path.relative(REPO_ROOT, file)] = count;
     }
-    expect(readers.sort()).toEqual([
-      // Both grants, both behind a compare (asserted above).
-      'packages/api/src/middleware/auth.ts',
-      // The channel-bot pre-middleware, likewise.
-      'packages/api/src/routes/v1.ts',
-      // `requireSessionOwner`: reads the header to NARROW access, never to grant
-      // it. The route it guards already required `X-Gateway-Secret` through
-      // `verifySecret`, and this check refuses a session id that does not belong
-      // to the named user — a second lock, not a key.
-      'packages/integrations/src/index.ts',
-    ]);
+    expect(found).toEqual({ 'packages/api/src/middleware/channel-auth.ts': 1 });
   });
 });
 
@@ -402,15 +282,12 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
     expect(internal).toMatch(/router\.post\('\/trigger',\s*oxyServiceAuth/);
   });
 
-  it('the integrations service compares its shared secret with the SDK helper', () => {
-    // `verifySecret` is `@oxy.so/core/server`'s constant-time compare. A `===`
-    // here would be a timing oracle on the secret that fronts every MCP and
-    // account operation.
-    const index = code(path.join(REPO_ROOT, 'packages/integrations/src/index.ts'));
-    expect(index).toContain(`verifySecret(secret, INTEGRATIONS_SECRET)`);
-    expect(index).not.toMatch(/secret\s*===\s*INTEGRATIONS_SECRET/);
-    // The floor: the file was read and still has the middleware this is about.
-    expect(index).toContain(`req.headers['x-gateway-secret']`);
+  it('authenticates the integrations boundary through the shared workload verifier', () => {
+    const source = code(path.join(REPO_ROOT, 'packages/integrations/src/shared/internal-auth.ts'));
+    expect(source).toContain('oxy.middleware.service(');
+    expect(source).toContain('expectedAudience: ALIA_SERVICE_AUDIENCE');
+    expect(source).toContain('isAliaWorkload(');
+    expect(source).not.toContain('INTEGRATIONS_SECRET');
   });
 
   it('the outbound Kaana hop presents a token and verifies none', () => {
