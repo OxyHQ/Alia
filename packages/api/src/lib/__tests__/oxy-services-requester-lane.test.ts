@@ -1,9 +1,8 @@
 import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /**
- * Somebody else using an agent (Alia ADR 0020 §2, Oxy ADR 0042): the agent
- * reaches the PERSON's own apps under its owner's published ceilings — never
- * the owner's data, never its own bot account — and each call is that
- * person's own direct request naming the ceiling. No approval step.
+ * Somebody else using an agent (Alia ADR 0022): own tools reach the verified
+ * requester's effective account, never the owner's data or an unrelated bot.
+ * Every operation carries that requester's proof, without app-level grants.
  */
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -74,11 +73,11 @@ interface ExecutableTool {
   execute: (args: Record<string, unknown>, options?: { toolCallId?: string }) => Promise<unknown>;
 }
 
-let ceilingAutonomy: 'read_only' | 'autonomous' = 'autonomous';
+let legacyCeilingAutonomy: 'read_only' | 'autonomous' = 'autonomous';
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  ceilingAutonomy = 'autonomous';
+  legacyCeilingAutonomy = 'autonomous';
   fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -94,10 +93,12 @@ beforeEach(() => {
           {
             ceilingId: 'ceiling-1',
             resource: personRoot,
-            maximumAutonomy: ceilingAutonomy,
+            maximumAutonomy: legacyCeilingAutonomy,
             limits: [],
             toolNames:
-              ceilingAutonomy === 'read_only' ? ['searchListings'] : ['searchListings', 'saveHome'],
+              legacyCeilingAutonomy === 'read_only'
+                ? ['searchListings']
+                : ['searchListings', 'saveHome'],
           },
         ],
       });
@@ -180,7 +181,7 @@ describe('an agent used by somebody who is not its owner', () => {
   });
 
   it('does not apply a historical read-only app setting', async () => {
-    ceilingAutonomy = 'read_only';
+    legacyCeilingAutonomy = 'read_only';
     const tools = await buildOxyServiceTools(PERSON, context);
     expect(Object.keys(tools).sort()).toEqual([
       'oxy_homiio__saveHome',

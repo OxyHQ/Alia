@@ -1,32 +1,14 @@
 import { generateKeyPairSync, sign as signBytes, type KeyObject } from 'node:crypto';
-import http from 'node:http';
+import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
+import { ALIA_SERVICE_AUDIENCE } from '@alia.onl/server';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Offline delegation: a service token plus `X-Oxy-User-Id`, through the REAL
- * `@oxy.so/core` middleware.
- *
- * ## The defect these lock in
- *
- * `authenticateToken` was built from `oxyClient`, which carries NO service
- * credential — correct for verifying inbound user tokens and fatal for
- * delegation. `@oxy.so/core` answers `X-Oxy-User-Id` by asking Oxy whether an
- * explicit `acting-as:offline` grant exists, and that endpoint is
- * service-to-service: the SDK must present the VERIFIER's own service token to
- * reach it. With no credential, `serviceToken()` threw, the SDK logged
- * `Service credentials not provided`, cached a negative result for 60 seconds
- * and answered `403 SERVICE_ACTING_AS_UNAUTHORIZED` — to a caller holding a
- * perfectly valid grant. Alia could never accept an offline delegation, and the
- * production chat canary presents exactly this shape.
- *
- * ## What is NOT being relaxed
- *
- * The C3 check in core stands: a service may act as a user only with an
- * explicit grant. The last cases below are the proof — an unauthorized answer
- * is still a 403, and a verifier that cannot ask says so with a 503 rather than
- * denying everyone with a 403 that blames the caller's grant.
+ * Real shared service middleware verifies caller signatures and asks Oxy for
+ * live authority. The receiving Alia workload presents protocol v2 for both
+ * service introspection and external offline-delegation checks.
  */
 
 /**
@@ -78,6 +60,7 @@ const KEY = generateKeyPairSync('ed25519');
 const KID = 'oxy-service-2026-09';
 const APP = 'homiio-application-id';
 const USER = '6981c9178fcdefaf81988ffb';
+let mint: (exchange: Record<string, unknown>) => string;
 
 const b64url = (value: string | Uint8Array): string => Buffer.from(value).toString('base64url');
 
@@ -106,28 +89,56 @@ function serviceToken(
   return `${signingInput}.${b64url(signBytes(null, Buffer.from(signingInput), privateKey))}`;
 }
 
-/**
- * Alia's own credentialed Oxy client, as `lib/oxy-service-client.ts` builds it.
- *
- * A REAL `OxyServer` with real credentials configured: only the two network
- * calls are stubbed, so the delegation check under test is core's own, not a
- * double of it.
- */
-function credentialedVerifier(grant: { authorized: boolean; scopes?: string[] } | 'unreachable') {
+/** Shared SDK verifier; only Oxy's network endpoints are fixtures. */
+function credentialedVerifier(
+  grant: { authorized: boolean; scopes?: string[] } | 'unreachable',
+  active = true,
+) {
   const oxy = new OxyServer({
     baseURL: OXY_BASE_URL,
-    serviceAuth: { apiKey: 'oxy_dk_alia_test', apiSecret: 'alia-secret' },
+    workloadCredentials: async () => ({
+      AccessKeyId: 'ASIA_TEST',
+      SecretAccessKey: 'fixture',
+      Token: 'fixture',
+    }),
   });
-  const getServiceToken = vi.fn().mockResolvedValue('alia-own-service-token');
-  const makeRequest = vi.fn(async (_method: string, path: string) => {
+  const ownToken = serviceToken({
+    authority: 'first_party',
+    tier: 'internal',
+    appId: 'alia',
+    credentialId: 'wl_alia',
+    scopes: undefined,
+  });
+  const getServiceToken = vi.fn((exchange: Record<string, unknown>) => {
+    expect(exchange).toMatchObject({ protocolVersion: 2 });
+    expect(exchange.audience ?? 'oxy-api').toBe('oxy-api');
+    expect(exchange.scopes).toBeUndefined();
+    return ownToken;
+  });
+  mint = getServiceToken;
+  const makeRequest = vi.fn(async (_method: string, path: string, data: Record<string, string>) => {
+    if (path === '/auth/resources/introspect') {
+      if (!active) return { active: false };
+      const claims = JSON.parse(Buffer.from(data.token.split('.')[1], 'base64url').toString());
+      return {
+        active: true,
+        authority: claims.authority ?? 'external',
+        applicationId: claims.appId,
+        credentialId: claims.credentialId,
+        accountId: claims.ownerAccountId,
+        environment: claims.environment,
+        audience: claims.aud,
+        expiresAt: new Date(claims.exp * 1000).toISOString(),
+        ...(claims.authority === 'first_party' ? {} : { scopes: claims.scopes }),
+      };
+    }
     if (path !== '/internal/service-acting-as/verify')
       throw new Error(`unexpected request: ${path}`);
     if (grant === 'unreachable') throw new Error('verify endpoint unreachable');
     return { ...grant, scopes: grant.scopes ?? [], epoch: '1' };
   });
-  vi.spyOn(oxy, 'serviceToken').mockImplementation(getServiceToken as never);
   vi.spyOn(oxy, 'request').mockImplementation(makeRequest as never);
-  return { oxy, getServiceToken, makeRequest };
+  return { oxy, getServiceToken, makeRequest, ownToken };
 }
 
 let server: http.Server;
@@ -139,6 +150,10 @@ beforeAll(async () => {
     if (String(input) === `${OXY_BASE_URL}/.well-known/jwks.json`) {
       return new Response(JSON.stringify({ keys: [jwk] }), { status: 200 });
     }
+    if (String(input).endsWith('/auth/service-token/workload/challenge'))
+      return Response.json({ nonce: 'fixture' });
+    if (String(input).endsWith('/auth/service-token/workload'))
+      return Response.json({ token: mint(JSON.parse(String(init?.body))), expiresIn: 300 });
     return fetchReal(input, init);
   });
 
@@ -169,6 +184,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (serviceClient.current instanceof OxyServer) serviceClient.current.dispose();
   vi.restoreAllMocks();
 });
 
@@ -211,7 +227,7 @@ describe('a delegated service request is verified by a credentialed client', () 
         environment: 'production',
       },
       expect.objectContaining({
-        headers: { Authorization: 'Bearer alia-own-service-token' },
+        headers: expect.objectContaining({ Authorization: `Bearer ${verifier.ownToken}` }),
         cache: false,
         retry: false,
         timeout: 5000,
@@ -273,14 +289,13 @@ describe('a delegated service request is verified by a credentialed client', () 
     });
 
     // 503, not a 403 that blames the caller's grant for Alia's own missing
-    // identity. Being able to mint an Oxy service token — from a credential pair
-    // or from an attested task role — is a boot-guard requirement, so a
+    // identity. Being able to attest Alia's workload is a boot-guard requirement, so a
     // deployment that serves at all never takes this branch.
     expect(result.status).toBe(503);
     expect(result.body.error).toBe('SERVICE_DELEGATION_UNAVAILABLE');
   });
 
-  it('leaves an undelegated request on the credential-free lane', async () => {
+  it('checks live service authority even without a delegated user', async () => {
     serviceClient.current = credentialedVerifier({ authorized: true }).oxy;
 
     const result = await send('/delegated', { authorization: `Bearer ${serviceToken()}` });
@@ -288,6 +303,7 @@ describe('a delegated service request is verified by a credentialed client', () 
     // No delegated user, so no user id: a service acting as itself is not a
     // person, and `requireOxyAuth` refuses the route.
     expect(result.status).toBe(401);
+    expect(mint).toHaveBeenCalledOnce();
   });
 
   it('still refuses a service token whose signature does not verify', async () => {
@@ -339,6 +355,42 @@ describe('the identity the delegation lane depends on', () => {
 });
 
 describe('/internal, which documents the same delegation header', () => {
+  it('accepts a live own service without treating its owner as a requester', async () => {
+    const verifier = credentialedVerifier({ authorized: false });
+    serviceClient.current = verifier.oxy;
+    const result = await send('/internal/trigger', {
+      authorization: `Bearer ${serviceToken({ authority: 'first_party', tier: 'internal', aud: ALIA_SERVICE_AUDIENCE, scopes: undefined, credentialId: 'wl_homiio' })}`,
+    });
+    expect(result).toEqual({ status: 200, body: { userId: null, actingAs: null } });
+    expect(verifier.getServiceToken).toHaveBeenCalledOnce();
+    expect(verifier.makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/resources/introspect',
+      expect.any(Object),
+      expect.any(Object),
+    );
+    expect(
+      verifier.makeRequest.mock.calls.some(
+        ([, path]) => path === '/internal/service-acting-as/verify',
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses an own service revoked by the live authority lookup', async () => {
+    const verifier = credentialedVerifier({ authorized: true }, false);
+    serviceClient.current = verifier.oxy;
+    const result = await send('/internal/trigger', {
+      authorization: `Bearer ${serviceToken({ authority: 'first_party', tier: 'internal', aud: ALIA_SERVICE_AUDIENCE, scopes: undefined, credentialId: 'wl_homiio' })}`,
+    });
+    expect(result.status).toBe(401);
+    expect(verifier.makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/resources/introspect',
+      expect.any(Object),
+      expect.any(Object),
+    );
+  });
+
   it('admits a granted delegated trigger', async () => {
     const verifier = credentialedVerifier({ authorized: true, scopes: ['triggers:write'] });
     serviceClient.current = verifier.oxy;

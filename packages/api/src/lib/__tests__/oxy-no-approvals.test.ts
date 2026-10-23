@@ -1,9 +1,8 @@
 import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /**
- * No Oxy app call asks the person for approval (ADR 0020 §3): a payment and a
- * deletion execute exactly like any other effect, under the authority Oxy
- * grants for the call (levels, ceilings, `finance` grants and their limits).
- * Oxy refusing the ticket is the only thing that stops one.
+ * Own Oxy operations add no internal approval prompt (ADR 0022). Calls carry
+ * verified requester and operation proof; the receiving product enforces its
+ * account, resource and operation limits.
  *
  * The seam is `fetch`: Oxy's authority endpoints and the app itself. Every
  * assertion about "it ran" is a count of requests to the app's origin.
@@ -237,7 +236,7 @@ describe('an agent', () => {
     expect((call?.[1] as RequestInit | undefined)?.method).toBe('DELETE');
   });
 
-  it("deletes in the person's account at Ver y actuar with no proposal", async () => {
+  it("deletes in the verified person's account with no internal proposal", async () => {
     const tools = await buildOxyServiceTools(PERSON, {
       requesterAccountId: PERSON,
       ownerAccountId: PERSON,

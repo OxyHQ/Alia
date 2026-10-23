@@ -356,3 +356,17 @@ caller is audited without being changed
 Each record carries `resource`, `action`, `target`, `actor`, `before`, `after` and `at`.
 It deliberately carries no prompt, response content or credential. Alia has no hosted
 provider-key writer to audit; Kaana owns that administrative trail.
+
+
+### Clarity client and catalogue contracts
+
+Alia uses `clarityForOxyService` from `@clarity.surf/sdk/server` (SDK 0.10 or
+later). The product SDK supplies Clarity's canonical audience and delegates
+minting, refresh and origin protection to the shared Oxy service transport.
+`CLARITY_API_URL` selects the endpoint; it does not select the audience or
+provide a credential. The client is disposed during graceful shutdown.
+Deploy the matching Clarity receiver before activating this producer.
+
+Oxy contracts 6 validates catalogue actor declarations directly. Alia no longer
+strips and restores actor fields for pre-4.11 contracts. The registered catalogue
+and its digest remain intact; requester and bot accounts stay separate.

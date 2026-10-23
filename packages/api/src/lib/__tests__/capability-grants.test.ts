@@ -334,7 +334,7 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(asked.oxy_context).toEqual([expect.objectContaining({ requesterAccountId: 'owner-1' })]);
   });
 
-  it("reaches a stranger's OWN apps, under the owner's ceilings, when the stranger is present", async () => {
+  it("reaches a stranger's OWN apps with that person's verified context", async () => {
     // A public agent answering somebody else in their own session (ADR 0020 §2).
     await namesFor([...EVERY_GRANT], {
       userId: 'stranger',

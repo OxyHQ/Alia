@@ -67,3 +67,22 @@ conversion with the shipped migration entrypoint only after readback and test
 acceptance. A person or organization already linked to an external channel can
 resume its own task automatically from its normal verified Oxy session; this
 adds no internal permission screen and does not reconnect its external provider.
+
+### Shared-client follow-up verification
+
+Alia's receiver now uses its workload-backed Oxy verifier for service tokens
+with or without a delegated user. Live service validation never turns a service
+owner into a user. External delegation remains scoped and checked by Oxy.
+Clarity calls use its product SDK factory; the old catalogue actor compatibility
+parser and comments describing own-app levels are removed.
+
+This source checkpoint was tested with packed Oxy core 7/contracts 6 (patched
+Zod 4), Kaana SDK 3.3/contracts 8.0.1, and published Clarity SDK 0.10. The full
+API run covered 2,705 active tests; its four final fixture failures were resolved
+and the three affected suites passed all 11 tests. The revocation-feed fixture
+accepts either an already cached first answer or one fresh answer before reuse;
+it still requires immediate rejection after session revocation. API types and
+build passed. Focused tests exercise actual Clarity SDK mint/refresh/disposal,
+verified service signatures, live introspection and external acting-as checks.
+These are source checks: published dependency pins, receiver-first deployment
+and live acceptance remain required before activation.
