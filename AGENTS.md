@@ -60,18 +60,14 @@ cada paquete son su `prepublishOnly`; el SDK 15.x sale de `release/sdk-15.x` con
 - **Apps de Oxy = primera parte.** Alia llega a las apps del usuario (Inbox…)
   sin paso de «conectar/autorizar». Un fallo de autoridad llega al modelo como
   `oxy_app_unavailable`, jamás como el motivo crudo de Oxy — `lib/tools/oxy-services.ts`.
-- **Los datos del dueño, solo con el dueño presente (ADR 0020).** `requesterAccountId`
-  del pipeline decide: el dueño recibe sus apps según sus niveles; cualquier otra
-  persona con sesión propia recibe SUS PROPIAS apps según el techo que publicó el
-  dueño (`/agents/:id/requester-apps`, Oxy ADR 0042); nadie recibe las del dueño.
-  Ningún agente pide aprobación: su configuración es su permiso.
+- **Apps propias sin scopes/consent/niveles (ADR0022, Oxy ADR0049).** `oxy_*`
+  usa la cuenta efectiva del requester, nunca la del dueño por sustitución;
+  `self_*` sólo la cuenta bot con operador verificado. Tareas e hijos conservan
+  el task id de Oxy del requester original, no su bearer. Servicios propios sólo
+  workload; claves/OAuth externos conservan su autoridad limitada.
 - **Dónde abre un agente lo dice Oxy (ADR 0021).** `canReachAgent` exige `surfaceApplicationId`,
   la app de la aserción `X-Oxy-App-Assertion` verificada en `lib/app-surface.ts` y nada más; un
   agente confinado no abre sin ella. Una respuesta de Oxy ilegible nunca es «en cualquier sitio».
-- **Agente: dos identidades (ADR 0015).** `self_*` = su propia cuenta bot (sin
-  grant); `oxy_*` = datos del dueño según su nivel por app (Nada · Ver · Ver y
-  actuar), que ES un `DelegationGrant` de Oxy escrito con el bearer del dueño.
-  Nunca guardes esos niveles en `capability_grants`.
 - **Toda tarea tiene actor; Alia por defecto.** Sin `actorSelection` es
   `{ mode: 'alia' }`: nunca exijas un agente para una tarea. Las de Alia usan su
   autoridad permanente de Oxy y la cola `alia-tasks` —

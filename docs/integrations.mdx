@@ -67,8 +67,8 @@ MCP capabilities are visible to the model with the same calling convention as na
 
 Oxy apps are **first party**. Alia and Oxy are the same ecosystem, so there is no
 "connect your inbox" or authorize step: Alia reaches every Oxy app of the person
-present in the turn, and an agent reaches its owner's apps per the levels the owner
-set, and its own account as itself ([actors](./actors.mdx)).
+present in the turn. An agent uses that same requester even when its owner is
+somebody else; its separate bot account is explicitly selected as `self_*` ([actors](./actors.mdx)).
 
 Each app registers one signed capability catalog in Oxy; Alia builds its tools from
 that registry. Adding an app requires a catalog and handlers in the app, not
@@ -86,7 +86,7 @@ app-specific code in Alia.
 - One registry catalogue that does not parse is logged and skipped; it costs that
   app's tools, never the others'.
 - `packages/api/src/lib/oxy-capability-authority.ts` exchanges the turn's authority
-  (a direct request, an automation's standing authorization, or Oxy's agent-run lane)
+  (a verified direct requester, an original durable task, or an automation's stored authorization)
   for opaque execution-authorization ids and short-lived tickets.
 - When Oxy cannot confirm authority the model receives `oxy_app_unavailable` (or
   `oxy_app_result_unknown` when an effect's outcome is unknown) with a fixed
@@ -143,3 +143,38 @@ Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) are `R2`: the
 Background tasks — who runs them, their triggers and how a run executes — are in
 [Background work and proactive outreach](./proactive-intelligence.md); the
 `/automations` endpoints are in the [API reference](./api-reference.md#structured-automations).
+
+### Channel task migration (source pending rollout)
+
+New bot links and personal messaging connections create an Oxy task while the
+actual requester is signed in. Only `oxy_task_id` is retained. The gateway checks
+its workload identity and the current platform/session binding, then supplies
+local account context plus the task id; it never invents a user session. Unlink
+and logout revoke that root before clearing the binding.
+
+The additive `0107_first_party_task_authority` migration defaults existing channels
+to `reauth_required`. It does not promote legacy links. On a controlled Alia server,
+`bun dist/db/migrate-channel-tasks.js --target-database=<actual-name>`
+reports candidate counts without mutation; `--apply` validates each legacy bot
+`metadata.sessionToken` through Oxy's task API against the stored original person
+and live link. A valid shared session creates a task and the bearer is removed.
+An expired/rejected session is purged and remains `reauth_required`; transient
+outages retain the candidate for retry. Concurrent unlink/relink revokes a newly
+created root rather than attaching it to another person. Reports contain counts,
+never bearer material. Existing connections without original requester proof remain typed inactive until
+the account is next present in its normal Oxy session. Listing that account
+automatically calls the owner-checked task renewal endpoint, with no new consent
+button or provider reconnect. External OAuth connections and messages are preserved. This procedure has not been run in
+production. Deploy the Oxy task reader and published SDKs first, then the Alia
+schema and code, then perform the verified conversion and account-level readback.
+
+### Workload readiness and development
+
+API and integrations construct `OxyServer` with the shared `/server/aws`
+`createAwsWorkloadCredentialProvider`. Credential resolution is lazy, so a valid
+SSO/assumed role in a development shell is supported without an ECS-only env guard.
+The provider accepts temporary credentials with a session token and expiry; static
+IAM user keys and product API keys are not substitutes. Readiness requires a token
+mint against the intended environment's active workload binding and the recipient's
+`oxy-service:<applicationId>` audience, not merely a configured API URL. Keep each
+process role distinct even when API and integrations share an application id.
