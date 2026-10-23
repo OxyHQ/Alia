@@ -250,6 +250,14 @@ returns (ADR 0013, ADR 0005).
 
 ### The client
 
+Own HTTP speech and dictation use the shared Oxy linked transport. An audio
+operation binds to core's session epoch: token rotation can continue, but an
+account or operator change aborts the response body and closes an active voice
+socket. The WebSocket authentication frame rereads that same bound session after
+asynchronous application attestation. Signing out never reconnects an old call
+under another account. HTTP requests omit cookies and reject redirects; explicit
+external token callers retain their existing separate credential path.
+
 `useVoiceRoom` (`@alia.onl/sdk/voice`) runs the socket (`src/lib/voice-call.ts`) over
 an audio-engine seam (`src/lib/voice-audio-engine*.ts`):
 

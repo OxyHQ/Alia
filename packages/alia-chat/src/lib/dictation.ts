@@ -7,6 +7,7 @@
  * recognized on the device.
  */
 
+import type { AudioRequestAuthentication } from './audio-request-auth';
 import type { VoiceErrorCode } from './speech-messages';
 
 /** The longest clip one dictation may be. */
@@ -115,14 +116,13 @@ function fileNameFor(mediaType: string): string {
   }
 }
 
-export interface TranscriptionRequest {
+export type TranscriptionRequest = AudioRequestAuthentication & {
   readonly apiUrl: string;
-  readonly token: string;
   readonly clip: DictationClip;
   /** BCP-47. */
   readonly language: string;
   readonly signal?: AbortSignal;
-}
+};
 
 /**
  * Transcribe one clip.
@@ -148,14 +148,22 @@ export async function requestTranscription(
 
   let response: Response;
   try {
-    response = await fetch(`${request.apiUrl}/v1/audio/transcriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${request.token}` },
-      body: form,
-      ...(request.signal ? { signal: request.signal } : {}),
-    });
+    response = await (request.transport?.fetch ?? fetch)(
+      `${request.apiUrl}/v1/audio/transcriptions`,
+      {
+        method: 'POST',
+        headers: request.transport ? undefined : { Authorization: `Bearer ${request.token}` },
+        redirect: 'error',
+        credentials: 'omit',
+        body: form,
+        ...(request.signal ? { signal: request.signal } : {}),
+      },
+    );
   } catch (caught: unknown) {
     if ((caught as { name?: unknown } | null)?.name === 'AbortError') throw caught;
+    const code = (caught as { code?: unknown } | null)?.code;
+    if (code === 'AUTH_REQUIRED' || code === 'AUTH_SESSION_CHANGED')
+      throw new DictationError('Not authenticated', { code: 'NOT_AUTHENTICATED', status: null });
     throw new DictationError('The transcription request did not reach Alia', {
       code: null,
       status: null,
