@@ -40,6 +40,8 @@ export interface ConnectedAccountSafeRow {
   status: ConnectedAccountStatus;
   statusMessage: string | null;
   sessionId: string | null;
+  oxyTaskId: string | null;
+  oxyTaskState: 'active' | 'reauth_required';
   capabilities: string[];
   autoReply: boolean;
   autoReplyAgentId: string | null;
@@ -65,6 +67,8 @@ const SAFE_COLUMNS = {
   status: connectedAccounts.status,
   statusMessage: connectedAccounts.statusMessage,
   sessionId: connectedAccounts.sessionId,
+  oxyTaskId: connectedAccounts.oxyTaskId,
+  oxyTaskState: connectedAccounts.oxyTaskState,
   capabilities: connectedAccounts.capabilities,
   autoReply: connectedAccounts.autoReply,
   autoReplyAgentId: connectedAccounts.autoReplyAgentId,
@@ -334,4 +338,35 @@ export async function findConnectedAccountForChannel(
     .limit(1);
 
   return row ? withLegacyId(row) : null;
+}
+
+/** Resolve only a live gateway session; the account comes from its stored binding. */
+export async function findConnectedAccountBySession(
+  db: ApiDatabase,
+  platform: string,
+  sessionId: string,
+): Promise<(ConnectedAccountSafeRow & { oxyUserId: string }) | null> {
+  const [row] = await db
+    .select({ ...SAFE_COLUMNS, oxyUserId: connectedAccounts.oxyUserId })
+    .from(connectedAccounts)
+    .where(
+      and(
+        eq(connectedAccounts.platform, platform),
+        eq(connectedAccounts.sessionId, sessionId),
+        eq(connectedAccounts.status, 'connected'),
+      ),
+    )
+    .limit(1);
+  return row ? { ...withLegacyId(row), oxyUserId: row.oxyUserId } : null;
+}
+
+export async function setConnectedAccountTask(
+  db: ApiDatabase,
+  id: string,
+  taskId: string | null,
+): Promise<void> {
+  await db
+    .update(connectedAccounts)
+    .set({ oxyTaskId: taskId, oxyTaskState: taskId ? 'active' : 'reauth_required' })
+    .where(eq(connectedAccounts.id, id));
 }
