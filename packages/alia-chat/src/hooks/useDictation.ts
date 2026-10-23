@@ -29,6 +29,7 @@ import { DictationRecorderError, useDictationRecorder } from '../lib/dictation-r
 import { defaultSpeechLanguage } from '../lib/speech-language';
 import { VOICE_ERROR_MESSAGES, type VoiceErrorCode } from '../lib/speech-messages';
 import { ALIA_API_URL } from '../lib/origins';
+import { bindAudioSession } from '../lib/audio-session-binding';
 
 /** The remaining time is shown from here on. */
 const COUNTDOWN_FROM_MS = 30_000;
@@ -119,20 +120,16 @@ export function useDictation(options: UseDictationOptions = {}) {
 
   const transcribe = useCallback(
     async (clip: DictationClip): Promise<string | null> => {
-      const token = optionsRef.current.accessToken || oxyServices.session.accessToken || '';
-      if (token === '') {
-        failedClipRef.current = null;
-        if (mountedRef.current) setCanRetry(false);
-        report('not-authenticated');
-        return null;
-      }
+      const apiUrl = optionsRef.current.apiUrl || ALIA_API_URL;
+      const token = optionsRef.current.accessToken;
       setState('transcribing');
       const controller = new AbortController();
       abortRef.current = controller;
+      const linked = token ? null : bindAudioSession(oxyServices, apiUrl, () => controller.abort());
       try {
         const result = await requestTranscription({
-          apiUrl: optionsRef.current.apiUrl || ALIA_API_URL,
-          token,
+          apiUrl,
+          ...(linked ? { transport: linked } : { token: token ?? '' }),
           clip,
           language: optionsRef.current.lang ?? defaultSpeechLanguage(),
           signal: controller.signal,
@@ -155,6 +152,7 @@ export function useDictation(options: UseDictationOptions = {}) {
         report(code);
         return null;
       } finally {
+        linked?.dispose();
         if (abortRef.current === controller) abortRef.current = null;
       }
     },

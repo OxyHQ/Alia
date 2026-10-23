@@ -8,6 +8,7 @@ import { createAudioLevelMeter } from '../lib/audio-level';
 import { loadExpoAudio } from '../lib/deferred/expo-audio';
 import { requestSpeechClip } from '../lib/speech-synthesis';
 import { ALIA_API_URL } from '../lib/origins';
+import { bindAudioSession } from '../lib/audio-session-binding';
 
 // ============== OPTIONS ==============
 
@@ -102,13 +103,6 @@ export function useTTS(options: UseTTSOptions = {}) {
 
   const playerRef = useRef<AudioPlayer | null>(null);
   const requestRef = useRef<AbortController | null>(null);
-
-  // ============== AUTH ==============
-
-  const getToken = useCallback((): string | null => {
-    if (options.accessToken) return options.accessToken;
-    return oxyServices.session.accessToken;
-  }, [options.accessToken, oxyServices]);
 
   const getTTSVoice = useCallback(() => {
     return voicePref === 'male' ? 'male' : 'female';
@@ -238,6 +232,9 @@ export function useTTS(options: UseTTSOptions = {}) {
 
       const controller = new AbortController();
       requestRef.current = controller;
+      const linked = options.accessToken
+        ? null
+        : bindAudioSession(oxyServices, apiUrl, () => controller.abort());
       try {
         setActiveMessage(messageId);
         setPlaybackState('loading');
@@ -250,13 +247,9 @@ export function useTTS(options: UseTTSOptions = {}) {
          * `conversationId` (with the message id) files the clip under that
          * conversation, so deleting the conversation deletes it.
          */
-        const token = getToken();
-        if (!token) {
-          throw new Error('Not authenticated');
-        }
         const audioUrl = await requestSpeechClip({
           apiUrl,
-          token,
+          ...(linked ? { transport: linked } : { token: options.accessToken ?? '' }),
           model: voiceModel,
           input: text,
           voice: getTTSVoice(),
@@ -270,10 +263,13 @@ export function useTTS(options: UseTTSOptions = {}) {
         if (controller.signal.aborted) return;
         console.error('[TTS] Error:', e);
         setError(errorMessage(e, 'Failed to read aloud'));
+      } finally {
+        linked?.dispose();
       }
     },
     [
-      getToken,
+      options.accessToken,
+      oxyServices,
       apiUrl,
       voiceModel,
       getTTSVoice,

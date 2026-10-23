@@ -600,6 +600,30 @@ describe('the end of a call', () => {
 });
 
 describe('the token', () => {
+  it('does not send auth after the session ends while an app assertion is pending', async () => {
+    let release!: (assertion: string) => void;
+    const assertion = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const call = newCall({ getAppAssertion: () => assertion });
+    await call.start();
+    socket().open();
+    token = null;
+    release('app-assertion');
+    await settle();
+    expect(socket().events()).toEqual([]);
+    expect(call.snapshot().state).toMatchObject({ kind: 'error', code: 'not-authenticated' });
+  });
+
+  it('ends an authenticated call when its session is removed', async () => {
+    vi.useFakeTimers();
+    const call = newCall({ tokenRefreshMs: 1000 });
+    await live(call);
+    token = null;
+    vi.advanceTimersByTime(1000);
+    expect(call.snapshot().state).toMatchObject({ kind: 'error', code: 'not-authenticated' });
+  });
+
   it('re-sends a fresher Oxy token on the open socket', async () => {
     vi.useFakeTimers();
     const call = newCall({ tokenRefreshMs: 1_000 });

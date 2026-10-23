@@ -44,9 +44,13 @@ vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: toastError } }));
 vi.mock('../../src/lib/keyboard', () => ({
   KeyboardAvoidingView: ({ children }: React.PropsWithChildren) => children,
 }));
-vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ oxyServices: { session: { accessToken: 'tok' } } }),
-}));
+vi.mock('@oxy.so/services/ui/client', async () => {
+  const { audioTestOxy } = await import('../support/audio-oxy');
+  const getOxy = audioTestOxy(() => 'tok');
+  return {
+    useOxy: () => ({ oxyServices: getOxy() }),
+  };
+});
 vi.mock('../../src/lib/dictation-recorder', async () => {
   const types = await import('../../src/lib/dictation-recorder-types');
   const recorder = {
