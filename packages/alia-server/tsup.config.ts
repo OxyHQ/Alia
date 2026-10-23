@@ -7,7 +7,7 @@ import { defineConfig } from 'tsup';
  * TypeScript the way `@alia.onl/sdk` does for Metro, would be unusable there.
  */
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/internal.ts'],
   format: ['esm', 'cjs'],
   target: 'node22',
   platform: 'node',

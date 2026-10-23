@@ -98,6 +98,8 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
 RUN bun install --frozen-lockfile --filter "@alia/api"
 
 # Copy API source and build the bundle.
+COPY packages/alia-server/ ./packages/alia-server/
+RUN cd packages/alia-server && bun run build
 COPY packages/api/ ./packages/api/
 # Build from the workspace directory rather than `bun run --filter`. With the
 # hoisted linker + a filtered install, bun does not materialize

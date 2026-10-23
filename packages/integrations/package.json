@@ -2,7 +2,7 @@
   "name": "@alia/integrations",
   "version": "1.0.0",
   "private": true,
-  "description": "Unified integrations service — messaging gateways, bots, browser, terminal",
+  "description": "Unified integrations service \u2014 messaging gateways, bots, browser, terminal",
   "main": "dist/index.js",
   "scripts": {
     "db:check-locks": "oxy-db-check-migration-locks --migrations=drizzle --after=0 --hot-tables=signal_sessions,telegram_sessions,whatsapp_sessions",
@@ -31,7 +31,8 @@
     "telegraf": "^4.16.3",
     "telegram": "^2.26.22",
     "ws": "^8.21.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@alia.onl/server": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^4.17.25",
