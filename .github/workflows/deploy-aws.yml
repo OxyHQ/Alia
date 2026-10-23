@@ -433,7 +433,7 @@ jobs:
           # the removal. The readiness task is still the final judge — it runs on
           # the revision this list produces, so if the probe above is wrong the
           # DEPLOY fails closed instead of shipping an Alia that cannot route.
-          TASK_SECRET_REMOVALS_JSON: '["INTEGRATIONS_SECRET","DISCORD_BOT_SECRET","SLACK_BOT_SECRET","WHATSAPP_BOT_SECRET","WHATSAPP_GATEWAY_SECRET","SIGNAL_BOT_SECRET","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
+          TASK_SECRET_REMOVALS_JSON: '["SERVICE_SECRET","INTEGRATIONS_SECRET","DISCORD_BOT_SECRET","SLACK_BOT_SECRET","WHATSAPP_BOT_SECRET","WHATSAPP_GATEWAY_SECRET","SIGNAL_BOT_SECRET","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
           # Remove every legacy plain Relay/direct-Kaana binding inherited from
           # the live task definition. Keeping a removal here is harmless after
           # the first clean revision and prevents a rollback descendant from
