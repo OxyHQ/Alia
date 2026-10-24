@@ -1,11 +1,9 @@
-import {
-  RiBookOpenLine,
-  RiFileTextLine,
-  RiGlobalLine,
-  RiSearchLine,
-  RiTerminalBoxLine,
-  RiToolsLine,
-} from '@oxy.so/bloom/icons';
+import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
+import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
+import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
+import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
+import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
+import { RiToolsLine } from '@oxy.so/bloom/icons/RiToolsLine';
 import type { TaskListChip, TaskListStep, TaskListTask } from '@oxy.so/bloom/task-list';
 import type { WebSearchBrand, WebSearchSource, WebSearchStep } from '@oxy.so/bloom/web-search';
 import type { ToolInvocation } from '../runtime/types';

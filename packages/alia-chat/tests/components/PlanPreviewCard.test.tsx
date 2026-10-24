@@ -27,7 +27,7 @@ vi.mock('../../src/lib/labels', () => ({ useLabels: () => ({ planTitle: "Here's 
 vi.mock('@oxy.so/bloom/card', async () => hosts('Card', 'CardBody', 'CardHeader', 'CardTitle'));
 vi.mock('@oxy.so/bloom/item', async () => hosts('Item'));
 vi.mock('@oxy.so/bloom/typography', async () => hosts('Text'));
-vi.mock('@oxy.so/bloom/icons', () => ({ RiListCheck3: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiListCheck3', () => ({ RiListCheck3: () => null }));
 vi.mock('@oxy.so/bloom/theme', () => ({ useTheme: () => ({ colors: { icon: '#000' } }) }));
 vi.mock('@oxy.so/bloom/button', () => ({
   Button: () => {

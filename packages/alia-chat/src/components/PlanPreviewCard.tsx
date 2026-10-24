@@ -1,5 +1,5 @@
 import { Card, CardBody, CardHeader, CardTitle } from '@oxy.so/bloom/card';
-import { RiListCheck3 } from '@oxy.so/bloom/icons';
+import { RiListCheck3 } from '@oxy.so/bloom/icons/RiListCheck3';
 import { Item } from '@oxy.so/bloom/item';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';

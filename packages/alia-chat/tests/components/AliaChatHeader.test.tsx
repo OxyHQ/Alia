@@ -15,12 +15,10 @@ vi.mock('@oxy.so/bloom/button-group', () => ({
     return null;
   },
 }));
-vi.mock('@oxy.so/bloom/icons', () => ({
-  RiArrowLeftLine: 'back-icon',
-  RiDeleteBin6Line: 'bin-icon',
-  RiMoreFill: 'more-icon',
-  RiShare2Line: 'share-icon',
-}));
+vi.mock('@oxy.so/bloom/icons/RiArrowLeftLine', () => ({ RiArrowLeftLine: 'back-icon' }));
+vi.mock('@oxy.so/bloom/icons/RiDeleteBin6Line', () => ({ RiDeleteBin6Line: 'bin-icon' }));
+vi.mock('@oxy.so/bloom/icons/RiMoreFill', () => ({ RiMoreFill: 'more-icon' }));
+vi.mock('@oxy.so/bloom/icons/RiShare2Line', () => ({ RiShare2Line: 'share-icon' }));
 vi.mock('@oxy.so/bloom/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children?: React.ReactNode }) => children,
   DropdownMenuTrigger: ({ children }: { children?: React.ReactNode }) => children,
