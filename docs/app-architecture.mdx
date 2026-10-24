@@ -9,7 +9,8 @@ order: 3
 `packages/app` keeps its routes in `app/` (expo-router) and everything else in
 `src/`. The `@/` alias means `src/` — in `tsconfig.json` (which Metro reads) and
 `vitest.config.ts` alike — and `global.css` scans `src/**` for NativeWind
-classes.
+classes. Metro is `@oxy.so/app-preset`'s `createOxyMetroConfig`
+(`metro.config.js`).
 
 Development bundles use Noxcturnal, Expo's oxc transformer
 (`experiments.noxcturnalTransformWorker` in `app.config.ts`). It runs only while
