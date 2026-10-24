@@ -32,6 +32,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   );
   plugins.splice(routerIndex >= 0 ? routerIndex + 1 : 0, 0, ...splashPlugins);
 
+  // `@expo/config-types` 58.0.3 does not declare the flag yet; the CLI reads it.
+  const experiments: ExpoConfig['experiments'] & { noxcturnalTransformWorker?: boolean } = {
+    ...config.experiments,
+    // Expo's oxc transformer, about 2x faster cold bundles than Babel. Development
+    // only: in a production export it keeps the requires of dead platform branches
+    // (`if (Platform.OS !== 'web') require(...)`), pulling native-only packages into
+    // the web bundle. The CLI sets NODE_ENV before it reads this config.
+    noxcturnalTransformWorker: process.env.NODE_ENV !== 'production',
+  };
+
   if (existsSync(resolve(__dirname, googleServicesFile))) {
     android.googleServicesFile = googleServicesFile;
   } else {
@@ -44,5 +54,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: config.slug ?? 'alia',
     android,
     plugins,
+    experiments,
   };
 };

@@ -85,8 +85,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
 
     async function init() {
       try {
-        const { Terminal } = await import('@xterm/xterm');
-        const { FitAddon } = await import('@xterm/addon-fit');
+        const { Terminal, FitAddon } = await import('./xterm');
 
         if (cancelled || !containerRef.current) return;
 
