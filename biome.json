@@ -137,7 +137,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/app/**", "packages/alia-canvas/**", "packages/alia-chat/src/**"],
+      "includes": ["packages/app/**", "packages/alia-canvas/**"],
       "linter": {
         "rules": {
           "style": {
@@ -146,6 +146,27 @@
               "options": {
                 "paths": {
                   "@oxy.so/services": "The root entry registers every Oxy account screen at import, and on the web export any root import (even from one lazy route) lands them in the first-paint __common chunk. Import from '@oxy.so/services/ui/client'."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/alia-chat/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@oxy.so/services": "The root entry registers every Oxy account screen at import, and on the web export any root import (even from one lazy route) lands them in the first-paint __common chunk. Import from '@oxy.so/services/ui/client'.",
+                  "@oxy.so/bloom/icons": {
+                    "message": "The icons barrel pulls Bloom's whole Remix set (~570 modules) into every app that embeds the SDK. Import each glyph from '@oxy.so/bloom/icons/<Glyph>'.",
+                    "allowImportNames": ["BloomIconComponent"]
+                  }
                 }
               }
             }

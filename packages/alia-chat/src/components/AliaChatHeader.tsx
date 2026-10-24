@@ -5,7 +5,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
-import { RiArrowLeftLine, RiDeleteBin6Line, RiMoreFill, RiShare2Line } from '@oxy.so/bloom/icons';
+import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
+import { RiDeleteBin6Line } from '@oxy.so/bloom/icons/RiDeleteBin6Line';
+import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
+import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { memo, type ReactNode } from 'react';
 import { useLabels } from '../lib/labels';

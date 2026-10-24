@@ -72,7 +72,7 @@ vi.mock('@oxy.so/bloom/avatar-flight', () => ({
     arrivals.map((arrival) => arrival.agent),
   useAvatarFlights: () => ({ launch: async () => {}, anchor: () => undefined }),
 }));
-vi.mock('@oxy.so/bloom/icons', () => ({ RiImageLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiImageLine', () => ({ RiImageLine: () => null }));
 vi.mock('@oxy.so/bloom/composer-panel', () => ({}));
 vi.mock('../../src/components/AmbientField', () => ({ AmbientField: () => null }));
 vi.mock('../../src/components/thread/AliaThread', () => ({ AliaThread: () => null }));

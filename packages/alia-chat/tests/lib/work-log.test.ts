@@ -6,14 +6,18 @@ import type { ToolInvocation } from '../../src/runtime/types';
  * The icons are the real Bloom modules' names, stubbed only because `react-native` does not
  * load under node; the mapping hands them over by identity, which is what these tests compare.
  */
-vi.mock('@oxy.so/bloom/icons', () => ({
+vi.mock('@oxy.so/bloom/icons/RiBookOpenLine', () => ({
   RiBookOpenLine: { icon: 'RiBookOpenLine' },
-  RiFileTextLine: { icon: 'RiFileTextLine' },
-  RiGlobalLine: { icon: 'RiGlobalLine' },
-  RiSearchLine: { icon: 'RiSearchLine' },
-  RiTerminalBoxLine: { icon: 'RiTerminalBoxLine' },
-  RiToolsLine: { icon: 'RiToolsLine' },
 }));
+vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({
+  RiFileTextLine: { icon: 'RiFileTextLine' },
+}));
+vi.mock('@oxy.so/bloom/icons/RiGlobalLine', () => ({ RiGlobalLine: { icon: 'RiGlobalLine' } }));
+vi.mock('@oxy.so/bloom/icons/RiSearchLine', () => ({ RiSearchLine: { icon: 'RiSearchLine' } }));
+vi.mock('@oxy.so/bloom/icons/RiTerminalBoxLine', () => ({
+  RiTerminalBoxLine: { icon: 'RiTerminalBoxLine' },
+}));
+vi.mock('@oxy.so/bloom/icons/RiToolsLine', () => ({ RiToolsLine: { icon: 'RiToolsLine' } }));
 
 import { isWebInvocation, taskListLog, webSearchLog } from '../../src/lib/work-log';
 const RiBookOpenLine = { icon: 'RiBookOpenLine' };
