@@ -2,7 +2,7 @@ import type OpenAI from 'openai';
 import { config } from './config.js';
 import type { Message, ToolCall } from './conversation.js';
 import { resolveModelId } from './catalogue.js';
-import { accessToken, restoreSession } from './oxy-session.js';
+import { linkedAliaClient, restoreSession } from './oxy-session.js';
 import {
   AliaChatError,
   completedToolCalls,
@@ -167,19 +167,8 @@ export async function streamChat(
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  /**
-   * The bearer is the Oxy session token, restored from this machine's device
-   * credential — no longer an `alia_sk_*` developer key, which Alia stopped
-   * issuing in #160.
-   *
-   * `restoreSession()` runs the cold boot, so a command invoked minutes or days
-   * after `codea login` re-mints from the persisted device secret rather than
-   * asking the user to sign in again. Read AFTER the restore, never captured at
-   * module load: the scheduler rotates the token in the background.
-   */
-  await restoreSession();
-  const token = accessToken();
-  if (!token) throw new Error('Not signed in. Run `codea login` first.');
+  if (!(await restoreSession())) throw new Error('Not signed in. Run `codea login` first.');
+  const linked = linkedAliaClient();
 
   const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
 
@@ -202,7 +191,7 @@ export async function streamChat(
   try {
     const stream = streamAliaChat({
       baseUrl,
-      accessToken: token,
+      fetch: linked.fetch,
       body: {
         /**
          * Resolved HERE because this is the one place every CLI path — the
@@ -267,6 +256,8 @@ export async function streamChat(
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') return;
     callbacks.onError(new Error(extractErrorMessage(error)));
+  } finally {
+    linked.dispose();
   }
 }
 

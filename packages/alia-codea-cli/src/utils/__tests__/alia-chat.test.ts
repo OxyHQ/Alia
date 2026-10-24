@@ -93,7 +93,7 @@ async function collect(text: string, chunkSize?: number): Promise<AliaStreamEven
   const events: AliaStreamEvent[] = [];
   for await (const event of streamAliaChat({
     baseUrl: 'https://api.example',
-    accessToken: 't',
+
     body: { model: 'm', messages: [{ role: 'user', content: 'hi' }] },
     fetch: async () => responseOf(text, { chunkSize }),
   })) {
@@ -192,11 +192,11 @@ describe('streamAliaChat', () => {
     }
   });
 
-  it('posts to /alia/chat with the bearer and stream: true', async () => {
+  it('delegates the product request to its transport without constructing credentials', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     const events = streamAliaChat({
       baseUrl: 'https://api.example',
-      accessToken: 'tok',
+
       body: { model: 'm', messages: [{ role: 'user', content: 'hi' }], max_tokens: 4096 },
       fetch: async (url, init) => {
         calls.push({ url: String(url), init: init ?? {} });
@@ -206,7 +206,7 @@ describe('streamAliaChat', () => {
     // Drain the stream so the fetch runs; the frames are not the point here.
     for await (const event of events) void event;
     expect(calls[0].url).toBe('https://api.example/alia/chat');
-    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
+    expect(new Headers(calls[0].init.headers).has('Authorization')).toBe(false);
     expect(JSON.parse(String(calls[0].init.body))).toEqual({
       model: 'm',
       messages: [{ role: 'user', content: 'hi' }],
@@ -218,7 +218,7 @@ describe('streamAliaChat', () => {
   it('throws the response error for a refused request, with its status and code', async () => {
     const attempt = streamAliaChat({
       baseUrl: 'u',
-      accessToken: 't',
+
       body: { model: 'm', messages: [] },
       fetch: async () =>
         new Response(
@@ -241,7 +241,7 @@ describe('streamAliaChat', () => {
   it('names the status when a refusal body is not JSON', async () => {
     const attempt = streamAliaChat({
       baseUrl: 'u',
-      accessToken: 't',
+
       body: { model: 'm', messages: [] },
       fetch: async () => new Response('<html>gateway timeout</html>', { status: 504 }),
     });
@@ -257,7 +257,7 @@ describe('streamAliaChat', () => {
     try {
       for await (const event of streamAliaChat({
         baseUrl: 'u',
-        accessToken: 't',
+
         body: { model: 'm', messages: [] },
         fetch: async () => responseOf(text),
       }))
@@ -279,7 +279,7 @@ describe('streamAliaChat', () => {
     const controller = new AbortController();
     const attempt = streamAliaChat({
       baseUrl: 'u',
-      accessToken: 't',
+
       body: { model: 'm', messages: [] },
       signal: controller.signal,
       fetch: (_url, init) =>
@@ -353,7 +353,7 @@ describe('a turn that failed before any output', () => {
       `data: ${JSON.stringify(failure(true))}\n\ndata: [DONE]\n\n`;
     const attempt = streamAliaChat({
       baseUrl: 'u',
-      accessToken: 't',
+
       body: { model: 'm', messages: [] },
       fetch: async () => new Response(wire, { headers: { 'content-type': 'text/event-stream' } }),
     });
@@ -375,7 +375,7 @@ describe('a turn that failed before any output', () => {
     const run = (status: number, retryable: boolean) =>
       streamAliaChat({
         baseUrl: 'u',
-        accessToken: 't',
+
         body: { model: 'm', messages: [] },
         fetch: async () => new Response(JSON.stringify(failure(retryable)), { status }),
       }).next();
@@ -396,7 +396,7 @@ describe('a typed failure keeps what support needs, and a cut stream is an error
   const run = (wire: string) =>
     streamAliaChat({
       baseUrl: 'u',
-      accessToken: 't',
+
       body: { model: 'm', messages: [] },
       fetch: async () => new Response(wire, { headers: { 'content-type': 'text/event-stream' } }),
     });

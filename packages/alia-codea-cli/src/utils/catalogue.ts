@@ -27,7 +27,7 @@
  */
 
 import { config } from './config.js';
-import { accessToken } from './oxy-session.js';
+import { linkedAliaClient } from './oxy-session.js';
 
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 
@@ -256,30 +256,16 @@ export function labelForChoice(choice: string, catalogue: Catalogue | undefined)
   return matches.length === 1 && matches[0] !== undefined ? matches[0].name : choice;
 }
 
-let cached: Promise<Catalogue> | null = null;
-
-/**
- * The catalogue, fetched at most once per process.
- *
- * A rejected promise is evicted, so one cold-start network failure does not
- * make the CLI permanently blind for the rest of its run.
- */
-export function fetchCatalogue(): Promise<Catalogue> {
-  if (cached !== null) return cached;
-  const request = (async () => {
-    // The catalogue takes optional auth: signed out it still lists the models.
-    const token = accessToken();
-    const response = await fetch(`${config.get('apiBaseUrl')}/catalogue`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+/** Read the current account's catalogue; never reuse another account's snapshot. */
+export async function fetchCatalogue(): Promise<Catalogue> {
+  const linked = linkedAliaClient();
+  try {
+    const response = await linked.fetchOptional(`${config.get('apiBaseUrl')}/catalogue`);
     if (!response.ok) throw new Error(`The model catalogue request failed (${response.status}).`);
     return parseCatalogue(await response.json());
-  })();
-  cached = request;
-  request.catch(() => {
-    cached = null;
-  });
-  return request;
+  } finally {
+    linked.dispose();
+  }
 }
 
 /** The catalogue, or `undefined` if it cannot be read. Never throws. */
