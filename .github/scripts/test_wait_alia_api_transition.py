@@ -29,6 +29,21 @@ class TransitionBarrier(unittest.TestCase):
         self.assertIn('CMD="$CMD && bun packages/api/dist/db/migrate-channel-tasks.js --target-database=alia --apply"', api)
         self.assertIn('POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}', api)
 
+    def test_app_waits_before_upload_but_canvas_stays_independent(self):
+        root = path.parent.parent.parent
+        workflow = (root / '.github/workflows/deploy-frontends.yml').read_text()
+        app, canvas = workflow.split('  deploy-app:', 1)[1].split('  deploy-canvas:', 1)
+        self.assertIn('actions: read', app)
+        self.assertIn('id-token: write', app)
+        self.assertIn('CLUSTER: oxy-cluster', app)
+        self.assertIn('GH_TOKEN: ${{ github.token }}', app)
+        command = 'run: python3 -B .github/scripts/wait-alia-api-transition.py'
+        self.assertLess(app.index(command), app.index('- name: Deploy the Worker'))
+        step = app.split('- name: Verify API producer transition and old-task drain')[1].split('- uses:', 1)[0]
+        self.assertNotIn('if:', step)
+        self.assertNotIn('continue-on-error', step)
+        self.assertNotIn(command, canvas)
+
     def test_only_exact_sha_main_success(self):
         self.assertFalse(gate.api_deployment_succeeded([], SHA))
         for field, value in [('head_sha', 'c' * 40), ('head_branch', 'feature'), ('status', 'in_progress')]:

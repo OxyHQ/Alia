@@ -73,7 +73,12 @@ then one completed, nonzero ECS API deployment, its task counts, and every activ
 API container's runtime digest against the arm64 image published for that commit.
 A different commit, skipped/failed/cancelled API job, zero capacity, mixed tasks,
 or a stale image cannot pass. There is no manual-dispatch bypass. The wait is
-bounded to one hour; failure stops the gateway deployment.
+bounded to one hour; failure stops the gateway and app deployments. Canvas stays
+independent. The app job allows 90 minutes for this wait plus its normal build.
+This app dependency is required: B removes the agent per-app level controls,
+while A2 still derives agent tools from grant/ceiling maps. Shipping that UI first
+would hide the controls while the old API still requires their assignments.
+Remove both finite deployment barriers in C after the B fleet is verified.
 
 The API post-rollout command runs `migrate-channel-tasks.js --target-database=alia
 --apply` after schema migration and seeding. It validates stored requester proofs,
@@ -86,7 +91,9 @@ including rows that never stored an Oxy session token; zero migration candidates
 does not mean every existing channel is ready. Task-less local context never
 unlocks private Oxy tools.
 
-B includes SDK22 and CLI3.0.2; server1.2 is unchanged from A. The independent
+B includes SDK22 and CLI3.0.2; server1.2 is unchanged from A. Registry publication
+can finish before runtime rollout; controlled SDK22 consumer deployments must
+wait for the verified B API, not just the package publication. The independent
 account-session handler no longer looks up bot users using an Oxy owner ID.
 
 ## Normalized product-event reader
