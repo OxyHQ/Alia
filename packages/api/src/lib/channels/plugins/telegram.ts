@@ -29,8 +29,7 @@ export const telegramPlugin: ChannelPlugin = {
   },
 
   config: {
-    isConfigured: () => !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_SECRET),
-    getBotSecret: () => process.env.TELEGRAM_BOT_SECRET,
+    isConfigured: () => !!process.env.TELEGRAM_BOT_TOKEN,
     getEnvPrefix: () => 'TELEGRAM',
   },
 

@@ -1,5 +1,3 @@
-import { verifySecret } from '@oxy.so/core/server';
-import { getChannel } from '../lib/channels/registry.js';
 import type { VerifiedChannelContext } from '../types/channel-context.js';
 import type { Request, Response, NextFunction } from 'express';
 import {
@@ -56,17 +54,6 @@ async function requireIntegrations(req: Request, res: Response, next: NextFuncti
 /** Administrative bot endpoints are private to the integrations process. */
 export function authenticateChannelBot(channelType: ChannelId) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (req.headers.authorization === undefined) {
-      const secret = req.headers['x-channel-bot-secret'];
-      const expected = getChannel(channelType)?.config.getBotSecret?.();
-      if (typeof secret !== 'string' || !expected || !verifySecret(secret, expected)) {
-        res.status(401).json({ error: 'Invalid bot authentication' });
-        return;
-      }
-      req.channelType = channelType;
-      next();
-      return;
-    }
     await requireIntegrations(req, res, () => {
       if (req.headers[ALIA_CHANNEL_HEADER] !== channelType) {
         res.status(403).json({ error: 'Channel mismatch' });
@@ -79,10 +66,7 @@ export function authenticateChannelBot(channelType: ChannelId) {
 }
 
 export function hasChannelContext(req: Request): boolean {
-  return (
-    req.headers[ALIA_CHANNEL_HEADER] !== undefined ||
-    req.headers['x-alia-legacy-channel'] !== undefined
-  );
+  return req.headers[ALIA_CHANNEL_HEADER] !== undefined;
 }
 
 /** Resolve the account from the live provider link, never from an account header.
@@ -92,24 +76,6 @@ export async function authenticateChannelAccount(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  if (req.headers.authorization === undefined) {
-    const platform = req.headers['x-alia-legacy-channel'];
-    const presented = req.headers['x-channel-bot-secret'];
-    // A2 is the only admitted legacy producer. Its provider identity is checked
-    // against the live link below; neither account header nor secret mints a task.
-    const expected =
-      platform === 'telegram' || platform === 'discord'
-        ? getChannel(platform)?.config.getBotSecret?.()
-        : platform === 'whatsapp' || platform === 'signal' || platform === 'telegram-gateway'
-          ? process.env.INTEGRATIONS_SECRET
-          : undefined;
-    if (typeof presented !== 'string' || !expected || !verifySecret(presented, expected)) {
-      res.status(401).json({ error: 'Invalid channel authentication' });
-      return;
-    }
-    await resolveChannelAccount(req, res, next, true);
-    return;
-  }
   await requireIntegrations(req, res, () => {
     void resolveChannelAccount(req, res, next);
   });
@@ -119,14 +85,11 @@ async function resolveChannelAccount(
   req: Request,
   res: Response,
   next: NextFunction,
-  legacy = false,
 ): Promise<void> {
   try {
-    const platform = req.headers[legacy ? 'x-alia-legacy-channel' : ALIA_CHANNEL_HEADER];
-    const platformUserId =
-      req.headers[legacy ? 'x-alia-legacy-platform-user' : ALIA_PLATFORM_USER_HEADER];
-    const sessionId =
-      req.headers[legacy ? 'x-alia-legacy-channel-session' : ALIA_CHANNEL_SESSION_HEADER];
+    const platform = req.headers[ALIA_CHANNEL_HEADER];
+    const platformUserId = req.headers[ALIA_PLATFORM_USER_HEADER];
+    const sessionId = req.headers[ALIA_CHANNEL_SESSION_HEADER];
     if (typeof platform !== 'string' || (platformUserId !== undefined && sessionId !== undefined)) {
       res.status(401).json({ error: 'Channel context required' });
       return;
@@ -173,10 +136,6 @@ async function resolveChannelAccount(
     }
     if (!context) {
       res.status(401).json({ error: 'Channel account is not linked' });
-      return;
-    }
-    if (legacy && req.headers['x-oxy-user-id'] !== context.accountId) {
-      res.status(403).json({ error: 'Channel account mismatch' });
       return;
     }
     req.channelContext = context;

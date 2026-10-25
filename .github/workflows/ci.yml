@@ -219,7 +219,6 @@ jobs:
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-resolve-ecr-platform-digest.sh
-          python3 -B -m unittest discover -s .github/scripts -p test_wait_alia_api_transition.py
 
       # The deploys run on `workflow_run` of CI and decide what to release in
       # deploy-scope.sh: main's head only, and only what changed since the last

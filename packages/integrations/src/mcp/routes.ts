@@ -1,4 +1,4 @@
-import { internalAccount, isWorkloadRequest } from '../shared/internal-auth';
+import { internalAccount } from '../shared/internal-auth';
 /**
  * MCP Routes — Integrations Service
  *
@@ -17,10 +17,6 @@ const VALID_TRANSPORTS = new Set(['stdio', 'sse', 'streamable-http']);
 
 const router: RouterType = Router();
 router.use((req, res, next) => {
-  if (!isWorkloadRequest(req)) {
-    next();
-    return;
-  }
   const accountId = internalAccount(req);
   if (!accountId) {
     res.status(401).json({ error: 'Internal account context required' });
@@ -214,7 +210,7 @@ router.get('/sessions', (req, res) => {
   res.json({
     sessions: manager
       .listSessions()
-      .filter((session) => !isWorkloadRequest(req) || session.oxyUserId === internalAccount(req)),
+      .filter((session) => session.oxyUserId === internalAccount(req)),
   });
 });
 

@@ -287,11 +287,7 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
     expect(source).toContain('oxy.middleware.service(');
     expect(source).toContain('expectedAudience: ALIA_SERVICE_AUDIENCE');
     expect(source).toContain('isAliaWorkload(');
-    expect(source).toContain('req.headers.authorization === undefined');
-    expect(source).toContain('verifySecret(presented, expected)');
-    expect(source.indexOf('req.headers.authorization === undefined')).toBeLessThan(
-      source.indexOf('await serviceAuth('),
-    );
+    expect(source).not.toContain('INTEGRATIONS_SECRET');
   });
 
   it('the outbound Kaana hop presents a token and verifies none', () => {

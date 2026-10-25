@@ -94,7 +94,7 @@ After replacing the last local core artifact with registry 7.1.0, frozen install
 
 ### API and integrations rollout gate
 
-This is producer phase B, after reader A and additive legacy wire A2. It ships
+Historical rollout: producer phase B followed reader A and additive legacy wire A2. It shipped
 the final requester/task model and SDK22 while retaining finite process readers
 for the old deployment. New producers use only workloads. A2 legacy channel
 requests must present their channel's secret plus the actual provider user or
@@ -115,3 +115,12 @@ it. See [the exact A/A2/B/C order](../process-reader-transition.md).
 
 Oxy's authority foundation is live. This source change does not assert completed
 Alia producer deployment or successful live channel acceptance checks.
+
+### Phase C retirement
+
+The final source removes those finite secret readers and deployment barriers.
+HTTP and socket process calls require the exact live receiving workload; former
+secrets and raw account headers grant nothing. User/task roots, provider-link
+checks, and external provider webhook verification remain. Release C only after
+B is verified live in both processes and all old tasks have drained. The removal
+is asserted over real HTTP with previously valid secrets, not only source text.
