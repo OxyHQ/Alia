@@ -18,7 +18,7 @@ vi.mock('electron-store', () => ({
     set() {}
   },
 }));
-vi.mock('../auth', () => ({ currentAccessToken: vi.fn() }));
+vi.mock('../auth', () => ({ linkedAliaClient: vi.fn(), onSessionContextChange: () => () => {} }));
 vi.mock('../catalogue', () => ({ resolveRequiredModelId: vi.fn() }));
 
 import { ToolExecutor } from '../tools';

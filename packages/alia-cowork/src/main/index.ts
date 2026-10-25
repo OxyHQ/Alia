@@ -575,6 +575,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  chatProvider?.dispose();
   stopDeviceRegistration?.();
   stopDeviceRegistration = null;
   if (windowStateManager) {

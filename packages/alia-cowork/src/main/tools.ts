@@ -14,7 +14,8 @@ import Store from 'electron-store';
 import { errorMessage, errorCode } from './errors';
 import { createLogger } from './logger';
 import { resolveRequiredModelId } from './catalogue';
-import { currentAccessToken } from './auth';
+import { linkedAliaClient, onSessionContextChange } from './auth';
+import { stagehandClientForTransport } from './stagehand-transport';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -27,6 +28,8 @@ export class ToolExecutor {
   private openedApplications: Set<string> = new Set();
   private mainWindow?: BrowserWindow;
   private stagehand?: Stagehand;
+  private stagehandTransport?: ReturnType<typeof linkedAliaClient>;
+  private disposeStagehandContext?: () => void;
 
   /** The window a macOS `activate` creates after the last one closed takes over from the old one. */
   setWindow(mainWindow: BrowserWindow): void {
@@ -439,8 +442,18 @@ export class ToolExecutor {
       // Initialize Stagehand if not already initialized
       if (!this.stagehand) {
         logger.debug('Initializing Stagehand in headless mode...');
+        const baseUrl = store.get('apiBaseUrl') as string;
+        const modelId = await resolveRequiredModelId(baseUrl, store.get('model') as string | undefined);
+        if (modelId === null) throw new Error('Browser automation is unavailable: the model catalogue could not be read.');
+        const transport = linkedAliaClient(baseUrl);
+        this.stagehandTransport = transport;
+        this.disposeStagehandContext = onSessionContextChange(() => {
+          transport.dispose();
+          void this.closeBrowser().catch((error) => logger.warn('Browser closed after account change', error));
+        });
         const stagehand = new Stagehand({
           env: 'LOCAL',
+          llmClient: stagehandClientForTransport(transport, baseUrl, modelId),
           verbose: 1,
           experimental: true, // Required for agent callbacks
           localBrowserLaunchOptions: {
@@ -452,6 +465,10 @@ export class ToolExecutor {
         } catch (error) {
           // A half-initialised instance would be reused by the next call and fail the same way
           // (or worse); drop it so the next browser action starts clean.
+          transport.dispose();
+          this.disposeStagehandContext?.();
+          this.disposeStagehandContext = undefined;
+          this.stagehandTransport = undefined;
           await stagehand.close().catch(() => undefined);
           throw error;
         }
@@ -516,51 +533,9 @@ export class ToolExecutor {
         if (normalizedArgs.action) {
           logger.debug(`Creating agent for action: ${normalizedArgs.action}`);
 
-          // Get Alia API credentials
-          const apiKey = currentAccessToken() ?? '';
-          const baseUrl = store.get('apiBaseUrl') as string;
-
-          /**
-           * The one `/v1` chat caller left in this process, and a legitimate
-           * one: Stagehand is a third-party OpenAI-protocol library that derives
-           * `POST {baseURL}/chat/completions` itself, so the protocol names the
-           * path. `/v1/chat/completions` and `/alia/chat` are one handler
-           * (`packages/api/src/routes/chat.ts`) and both are Alia's permanent
-           * product API (ADR 0010), so nothing is lost by staying here — except
-           * the named product events, which a browser agent has no use for.
-           * Cowork's own chat moved to `/alia/chat` in `./chat.ts` because it
-           * DOES read them.
-           *
-           * The bearer is the Oxy session token. The model is the one the chat
-           * uses — the person's pick if the catalogue lists it — or, since
-           * Stagehand cannot omit a model name, the catalogue's own
-           * `defaultModelId`. Nothing is hardcoded.
-           *
-           * The `openai/` prefix is Stagehand's PROTOCOL selector, not part of
-           * the model id: Stagehand splits `provider/model` at the first slash
-           * and would otherwise read a catalogue id's publisher (`acme/…`) as
-           * an AI SDK provider and talk that provider's own wire protocol to
-           * Alia. With `openai/` it uses the OpenAI-compatible client against
-           * `baseURL`, and sends the whole `publisher/model` id as `model`.
-           * (Stagehand 3's AI SDK OpenAI client calls `{baseURL}/responses`,
-           * which `packages/api/src/routes/v1/responses.ts` adapts onto the same
-           * chat handler.)
-           */
-          const modelId = await resolveRequiredModelId(
-            baseUrl,
-            store.get('model') as string | undefined,
-            apiKey || undefined,
-          );
-          if (modelId === null) {
-            return 'Browser automation is unavailable: the model catalogue could not be read.';
-          }
-          const agent = this.stagehand.agent({
-            model: {
-              modelName: `openai/${modelId}`,
-              apiKey: apiKey,
-              baseURL: `${baseUrl}/v1`, // Alia API endpoint (OpenAI-compatible)
-            },
-          });
+          // No model override: Stagehand reuses the transport-backed model
+          // supplied at construction, including every step of this agent.
+          const agent = this.stagehand.agent();
 
           // Execute with callbacks to capture screenshots during execution
           const agentResult = await agent.execute({
@@ -612,6 +587,10 @@ export class ToolExecutor {
    * Close browser if open
    */
   async closeBrowser(): Promise<string> {
+    this.stagehandTransport?.dispose();
+    this.stagehandTransport = undefined;
+    this.disposeStagehandContext?.();
+    this.disposeStagehandContext = undefined;
     try {
       if (this.stagehand) {
         await this.stagehand.close();
@@ -638,8 +617,7 @@ export class ToolExecutor {
     // Close browser if open
     if (this.stagehand) {
       try {
-        await this.stagehand.close();
-        this.stagehand = undefined;
+        await this.closeBrowser();
       } catch (error) {
         logger.error('Error closing browser during reset:', error);
       }
