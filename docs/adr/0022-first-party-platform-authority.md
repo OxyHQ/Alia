@@ -1,6 +1,6 @@
 # 22. Own Oxy apps use platform authority on the requester's account
 
-Status: accepted, 2026-10-23. Source migration in progress; no release or deployment claim.
+Status: accepted, 2026-10-23. Source and published dependency adoption prepared; Alia rollout is still gated.
 Supersedes the own-app levels/grants/ceilings of ADR0015 and ADR0020, following
 Oxy ADR0049. External OAuth/MCP connections and domain limits remain separate.
 
@@ -56,9 +56,9 @@ Validation used locally packed candidate Oxy core/contracts (task API and
 `/server/aws`), without committing local package paths. API full suite passed
 2,693 tests; focused subsequent managed-account, channel renewal and CAS checks
 passed; PostgreSQL passed 43 tests, and the affected app suites passed 85 tests.
-API/app typechecking and the API build passed. Consumer manifests still require
-the coordinator's published-version update and combined gateway validation.
-Neither this ADR nor these source commits assert a production rollout.
+API/app typechecking and the API build passed. These were candidate checks;
+the registry adoption checkpoint below supersedes their dependency status.
+Neither this ADR nor these source commits assert an Alia production rollout.
 
 Apply the additive schema before readers. Deploy Oxy's task and own-authority
 readers before Alia producers; publish dependencies through Actions, pin the
@@ -84,5 +84,30 @@ accepts either an already cached first answer or one fresh answer before reuse;
 it still requires immediate rejection after session revocation. API types and
 build passed. Focused tests exercise actual Clarity SDK mint/refresh/disposal,
 verified service signatures, live introspection and external acting-as checks.
-These are source checks: published dependency pins, receiver-first deployment
-and live acceptance remain required before activation.
+The release checkpoint pins real registry versions: core 7.1.0, contracts 6.0.0,
+services 13.0.0, protocol 1.5.1, MCP 1.4.0, Kaana SDK 3.3.0/contracts 8.0.1 and
+Clarity SDK 0.10.0. It prepares Alia SDK 22.0.0, server 1.2.0 and Codea CLI 3.0.1.
+The SDK passed 877 tests and all 11 isolated entry type checks; the server passed
+24 tests/build/entry checks, API voice passed 91 tests and API types passed.
+After replacing the last local core artifact with registry 7.1.0, frozen install,
+76 CLI tests and 38 audio transport tests passed. No local package path remains.
+
+### API and integrations rollout gate
+
+The API and integrations service deploy independently. The final protocol accepts
+only the exact live Alia workload with its canonical audience and separately
+validated local account/channel context. The previous protocol uses process
+secrets. Neither final receiver accepts that old protocol, and final producers
+do not send it. A rolling mix of those releases is **not compatible**.
+
+Before deploying this final release, deploy a separately reviewed, finite reader
+transition on both processes: retain the existing old protocol only on its old
+entrypoints while adding the exact workload/context reader. Validate both
+old-producer/new-reader and new-producer/transition-reader directions, wait for
+all old-only readers to drain, then deploy this release. Remove old process
+secret inputs only with this final workload-only release and verify that no
+legacy request succeeds after the old producers have drained. This is a rollout
+gate, not an external-key promotion or a permanent permission setting.
+
+Oxy's authority foundation is live; this ADR does not claim that the Alia
+process transition or its live acceptance checks have completed.

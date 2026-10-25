@@ -478,12 +478,12 @@ router.post(
 );
 
 // ============================================
-// Internal routes (authenticated by bot secret)
+// Internal routes (authenticated integrations workload)
 // ============================================
 
 function botAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
   const platform = req.params.platform as ChannelId;
-  authenticateChannelBot(platform)(req, res, next);
+  void authenticateChannelBot(platform)(req, res, next).catch(next);
 }
 
 // Create or update bot user
