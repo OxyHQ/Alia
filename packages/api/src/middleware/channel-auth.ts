@@ -44,6 +44,9 @@ async function requireIntegrations(req: Request, res: Response, next: NextFuncti
       res.status(403).json({ error: 'Integrations workload required' });
       return;
     }
+    // The shared service verifier stores the incoming workload bearer. It is
+    // never the local channel account's foreground session credential.
+    delete req.accessToken;
     next();
   });
 }
