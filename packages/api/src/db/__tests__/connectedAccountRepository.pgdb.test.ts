@@ -8,6 +8,7 @@ import {
   createPendingConnectedAccount,
   deleteConnectedAccount,
   deleteConnectedAccountForUser,
+  findConnectedAccountBySession,
   findConnectedAccountForChannel,
   findConnectedAccountForUser,
   listConnectedAccountsForUser,
@@ -250,5 +251,34 @@ describe('the readers are scoped as the routes need', () => {
     );
 
     expect(await findConnectedAccountForUser(db, 'not-an-object-id', 'cau-session')).toBeNull();
+  });
+});
+
+describe('workload channel account resolution', () => {
+  it('requires a unique connected row for the exact provider session', async () => {
+    const account = await pending('cau-channel-owner');
+    await setConnectedAccountSession(db, account.id, 'channel-reader-session');
+    expect(
+      await findConnectedAccountBySession(db, 'whatsapp', 'channel-reader-session'),
+    ).toBeNull();
+    await setConnectedAccountStatus(db, account.id, { status: 'connected' });
+    expect(await findConnectedAccountBySession(db, 'signal', 'channel-reader-session')).toBeNull();
+    const found = await findConnectedAccountBySession(db, 'whatsapp', 'channel-reader-session');
+    expect(found).toMatchObject({ id: account.id, oxyUserId: 'cau-channel-owner' });
+    expect(found).not.toHaveProperty('oauthAccessToken');
+    const ambiguous = await pending('cau-other-channel-owner');
+    await setConnectedAccountSession(db, ambiguous.id, 'channel-reader-session');
+    await setConnectedAccountStatus(db, ambiguous.id, { status: 'connected' });
+    expect(
+      await findConnectedAccountBySession(db, 'whatsapp', 'channel-reader-session'),
+    ).toBeNull();
+    await deleteConnectedAccount(db, ambiguous.id);
+    expect(
+      await findConnectedAccountBySession(db, 'whatsapp', 'channel-reader-session'),
+    ).not.toBeNull();
+    await setConnectedAccountStatus(db, account.id, { status: 'disconnected' });
+    expect(
+      await findConnectedAccountBySession(db, 'whatsapp', 'channel-reader-session'),
+    ).toBeNull();
   });
 });

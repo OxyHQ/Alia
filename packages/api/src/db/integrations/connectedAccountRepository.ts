@@ -346,7 +346,7 @@ export async function findConnectedAccountBySession(
   platform: string,
   sessionId: string,
 ): Promise<(ConnectedAccountSafeRow & { oxyUserId: string }) | null> {
-  const [row] = await db
+  const rows = await db
     .select({ ...SAFE_COLUMNS, oxyUserId: connectedAccounts.oxyUserId })
     .from(connectedAccounts)
     .where(
@@ -356,7 +356,9 @@ export async function findConnectedAccountBySession(
         eq(connectedAccounts.status, 'connected'),
       ),
     )
-    .limit(1);
+    .limit(2);
+  // No unique constraint exists on provider session ids. Ambiguity never chooses an owner.
+  const row = rows.length === 1 ? rows[0] : undefined;
   return row ? { ...withLegacyId(row), oxyUserId: row.oxyUserId } : null;
 }
 
