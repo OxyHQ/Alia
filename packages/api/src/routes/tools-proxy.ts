@@ -1,3 +1,4 @@
+import { integrationsFetch } from '../lib/integrations-client.js';
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { log } from '../lib/logger.js';
@@ -5,14 +6,13 @@ import { log } from '../lib/logger.js';
 const router = express.Router();
 
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
-const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 
 const requireIntegrations = (
   _req: express.Request,
   res: express.Response,
   next: express.NextFunction,
 ): void => {
-  if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+  if (!INTEGRATIONS_URL) {
     res.status(503).json({ error: 'Integrations service not configured' });
     return;
   }
@@ -54,48 +54,15 @@ async function proxyToIntegrations(
   options?: RequestInit,
   label = 'tools proxy',
 ) {
-  const MAX_ATTEMPTS = 3;
-  const BACKOFF_MS = [1000, 2000, 4000];
-
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    try {
-      const response = await fetch(`${INTEGRATIONS_URL}${path}`, {
-        ...options,
-        headers: {
-          'X-Gateway-Secret': INTEGRATIONS_SECRET!,
-          'X-Oxy-User-Id': userId,
-          ...options?.headers,
-        },
-        signal: AbortSignal.timeout(15_000),
-      });
-
-      let data: any;
-      try {
-        data = await response.json();
-      } catch {
-        if (attempt < MAX_ATTEMPTS - 1) {
-          await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
-          continue;
-        }
-        res.status(502).json({ error: `${label}: non-JSON response` });
-        return;
-      }
-
-      if (response.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
-        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
-        continue;
-      }
-
-      res.status(response.status).json(data);
-      return;
-    } catch (error: unknown) {
-      log.channels.error({ err: error, label, attempt: attempt + 1 }, 'Tools proxy error');
-      if (attempt < MAX_ATTEMPTS - 1) {
-        await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt]));
-        continue;
-      }
-      res.status(502).json({ error: `Failed: ${label}` });
-    }
+  try {
+    const response = await integrationsFetch(userId, path, {
+      ...options,
+      signal: AbortSignal.timeout(15_000),
+    });
+    res.status(response.status).json(await response.json());
+  } catch {
+    log.channels.warn({ label }, 'Integrations request failed');
+    res.status(502).json({ error: `Failed: ${label}` });
   }
 }
 

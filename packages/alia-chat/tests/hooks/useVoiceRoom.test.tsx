@@ -9,18 +9,14 @@ import { FakeEngine, FakeSocket } from '../support/fake-voice';
  */
 const fx = vi.hoisted(() => ({ token: 'session-token' as string | null }));
 
-vi.mock('@oxy.so/services/ui/client', async () => ({
-  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
-  useOxy: () => ({
-    oxyServices: {
-      session: {
-        get accessToken() {
-          return fx.token;
-        },
-      },
-    },
-  }),
-}));
+vi.mock('@oxy.so/services/ui/client', async () => {
+  const { audioTestOxy } = await import('../support/audio-oxy');
+  const getOxy = audioTestOxy(() => fx.token);
+  return {
+    ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
+    useOxy: () => ({ oxyServices: getOxy() }),
+  };
+});
 
 import { useVoiceRoom } from '../../src/hooks/useVoiceRoom';
 

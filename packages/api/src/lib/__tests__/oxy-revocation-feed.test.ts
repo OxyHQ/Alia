@@ -129,6 +129,7 @@ describe('Oxy session-revocation feed', () => {
     cleanups.push(oxy.close);
     const client = new OxyServer({
       baseURL: oxy.baseURL,
+      sessionValidationCacheTtlMs: 30_000,
       serviceAuth: { apiKey: 'test-key', apiSecret: 'test-secret' },
     });
     cleanups.push(() => client.dispose());
@@ -139,7 +140,7 @@ describe('Oxy session-revocation feed', () => {
       sessionId: 'sess-1',
       exp: Math.floor(Date.now() / 1000) + 3_600,
     });
-    const validate = () => client.session.validate('sess-1', { accessToken });
+    const validate = () => client.session.validate('sess-1', { accessToken, fresh: false });
     const asked = () => oxy.validations.get('sess-1') ?? 0;
 
     // The first validation opens the feed; it is not live yet, so Oxy is asked.
@@ -150,9 +151,12 @@ describe('Oxy session-revocation feed', () => {
     // Live (connected, heartbeat seen): one answer is reused instead of asking again.
     await until(async () => {
       const before = asked();
-      await validate();
-      await validate();
-      return asked() - before === 1;
+      expect((await validate()).valid).toBe(true);
+      expect((await validate()).valid).toBe(true);
+      // The first response may already have been cached if the heartbeat
+      // arrived before that validation completed. Either way, the second
+      // consecutive read must reuse the live answer rather than hit Oxy twice.
+      return asked() - before < 2;
     }, 'a live feed to let a validation be reused');
 
     // Oxy ends the session and announces it: the very next request is refused.

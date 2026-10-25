@@ -1,4 +1,4 @@
-import crypto from 'node:crypto';
+import { verifySecret } from '@oxy.so/core/server';
 import { getChannel } from '../lib/channels/registry.js';
 import type { VerifiedChannelContext } from '../types/channel-context.js';
 import type { Request, Response, NextFunction } from 'express';
@@ -11,7 +11,7 @@ import {
   isAliaWorkload,
 } from '@alia.onl/server/internal';
 import { isLiveEntityId } from '@oxy.so/db';
-import { channelWorkloadVerifier } from '../lib/channel-workload-verifier.js';
+import { oxyServiceClient } from '../lib/oxy-service-client.js';
 import { getDb } from '../db/index.js';
 import { findSystemBot, findBotUser } from '../db/integrations/botRepository.js';
 import { findConnectedAccountBySession } from '../db/integrations/connectedAccountRepository.js';
@@ -30,7 +30,7 @@ async function requireIntegrations(req: Request, res: Response, next: NextFuncti
     res.status(403).json({ error: 'Channel identity must come from its provider link' });
     return;
   }
-  const oxy = channelWorkloadVerifier();
+  const oxy = oxyServiceClient();
   if (!oxy) {
     res.status(503).json({ error: 'Integrations verifier unavailable' });
     return;
@@ -56,9 +56,15 @@ async function requireIntegrations(req: Request, res: Response, next: NextFuncti
 /** Administrative bot endpoints are private to the integrations process. */
 export function authenticateChannelBot(channelType: ChannelId) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // Finite reader bridge: only an absent Authorization selects the old protocol.
     if (req.headers.authorization === undefined) {
-      authenticateLegacyChannelBot(channelType)(req, res, next);
+      const secret = req.headers['x-channel-bot-secret'];
+      const expected = getChannel(channelType)?.config.getBotSecret?.();
+      if (typeof secret !== 'string' || !expected || !verifySecret(secret, expected)) {
+        res.status(401).json({ error: 'Invalid bot authentication' });
+        return;
+      }
+      req.channelType = channelType;
+      next();
       return;
     }
     await requireIntegrations(req, res, () => {
@@ -73,9 +79,10 @@ export function authenticateChannelBot(channelType: ChannelId) {
 }
 
 export function hasChannelContext(req: Request): boolean {
-  // Phase A emits legacy secrets with additive provider metadata. Only a
-  // presented bearer selects the workload reader until all old tasks drain.
-  return req.headers.authorization !== undefined && req.headers[ALIA_CHANNEL_HEADER] !== undefined;
+  return (
+    req.headers[ALIA_CHANNEL_HEADER] !== undefined ||
+    req.headers['x-alia-legacy-channel'] !== undefined
+  );
 }
 
 /** Resolve the account from the live provider link, never from an account header.
@@ -85,6 +92,24 @@ export async function authenticateChannelAccount(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (req.headers.authorization === undefined) {
+    const platform = req.headers['x-alia-legacy-channel'];
+    const presented = req.headers['x-channel-bot-secret'];
+    // A2 is the only admitted legacy producer. Its provider identity is checked
+    // against the live link below; neither account header nor secret mints a task.
+    const expected =
+      platform === 'telegram' || platform === 'discord'
+        ? getChannel(platform)?.config.getBotSecret?.()
+        : platform === 'whatsapp' || platform === 'signal' || platform === 'telegram-gateway'
+          ? process.env.INTEGRATIONS_SECRET
+          : undefined;
+    if (typeof presented !== 'string' || !expected || !verifySecret(presented, expected)) {
+      res.status(401).json({ error: 'Invalid channel authentication' });
+      return;
+    }
+    await resolveChannelAccount(req, res, next, true);
+    return;
+  }
   await requireIntegrations(req, res, () => {
     void resolveChannelAccount(req, res, next);
   });
@@ -94,11 +119,14 @@ async function resolveChannelAccount(
   req: Request,
   res: Response,
   next: NextFunction,
+  legacy = false,
 ): Promise<void> {
   try {
-    const platform = req.headers[ALIA_CHANNEL_HEADER];
-    const platformUserId = req.headers[ALIA_PLATFORM_USER_HEADER];
-    const sessionId = req.headers[ALIA_CHANNEL_SESSION_HEADER];
+    const platform = req.headers[legacy ? 'x-alia-legacy-channel' : ALIA_CHANNEL_HEADER];
+    const platformUserId =
+      req.headers[legacy ? 'x-alia-legacy-platform-user' : ALIA_PLATFORM_USER_HEADER];
+    const sessionId =
+      req.headers[legacy ? 'x-alia-legacy-channel-session' : ALIA_CHANNEL_SESSION_HEADER];
     if (typeof platform !== 'string' || (platformUserId !== undefined && sessionId !== undefined)) {
       res.status(401).json({ error: 'Channel context required' });
       return;
@@ -118,6 +146,7 @@ async function resolveChannelAccount(
           accountId: link.oxyUserId,
           platform,
           identityId: link.id,
+          ...(link.oxyTaskState === 'active' && link.oxyTaskId ? { taskId: link.oxyTaskId } : {}),
         };
       }
     } else if (
@@ -136,11 +165,18 @@ async function resolveChannelAccount(
           accountId: connection.oxyUserId,
           platform,
           identityId: connection.id,
+          ...(connection.oxyTaskState === 'active' && connection.oxyTaskId
+            ? { taskId: connection.oxyTaskId }
+            : {}),
         };
       }
     }
     if (!context) {
       res.status(401).json({ error: 'Channel account is not linked' });
+      return;
+    }
+    if (legacy && req.headers['x-oxy-user-id'] !== context.accountId) {
+      res.status(403).json({ error: 'Channel account mismatch' });
       return;
     }
     req.channelContext = context;
@@ -150,41 +186,4 @@ async function resolveChannelAccount(
   } catch {
     res.status(503).json({ error: 'Channel account unavailable' });
   }
-}
-
-export function authenticateLegacyChannelBot(channelType: ChannelId) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const botSecret = req.headers['x-channel-bot-secret'] as string;
-
-    if (!botSecret) {
-      res.status(401).json({ error: 'Channel bot authentication required' });
-      return;
-    }
-
-    const channel = getChannel(channelType);
-    if (!channel) {
-      res.status(401).json({ error: `Channel "${channelType}" not registered` });
-      return;
-    }
-
-    const expectedSecret = channel.config.getBotSecret();
-    if (!expectedSecret) {
-      res.status(500).json({ error: `Bot secret not configured for ${channelType}` });
-      return;
-    }
-
-    const expectedBuffer = Buffer.from(expectedSecret);
-    const providedBuffer = Buffer.from(botSecret);
-
-    if (
-      expectedBuffer.length !== providedBuffer.length ||
-      !crypto.timingSafeEqual(expectedBuffer, providedBuffer)
-    ) {
-      res.status(401).json({ error: 'Invalid bot authentication' });
-      return;
-    }
-
-    req.channelType = channelType;
-    next();
-  };
 }

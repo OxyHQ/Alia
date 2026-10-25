@@ -29,8 +29,33 @@ vi.mock('../../lib/logger.js', () => {
   return { log: { triggers: child, general: child } };
 });
 
-const serviceFetch = vi.fn();
-vi.stubGlobal('fetch', serviceFetch);
+const serviceFetch = vi.hoisted(() => vi.fn());
+vi.mock('../../lib/oxy-service-client.js', () => ({
+  oxyServiceClient: () => ({
+    middleware: {
+      service: () => (req: any, _res: unknown, next: () => void) => {
+        req.serviceApp = {
+          appId: 'application-1',
+          authority: 'external',
+          scopes: ['capability-events:publish'],
+        };
+        next();
+      },
+    },
+    agency: {
+      serviceCatalogs: async () => {
+        const response = await serviceFetch();
+        const identity = await response.json();
+        return identity.catalogs.map((catalog: { appId: string; eventTypes: string[] }) => ({
+          appSlug: catalog.appId,
+          active: true,
+          registeredByApplicationId: identity.service.applicationId,
+          catalog: { events: catalog.eventTypes.map((type) => ({ type })) },
+        }));
+      },
+    },
+  }),
+}));
 const eventsModule = await import('../oxy-service-events.js');
 const router = eventsModule.default;
 

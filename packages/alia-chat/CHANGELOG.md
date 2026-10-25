@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 22.0.0
+
+Requires `@oxy.so/core >=7.1.0 <8` and `@oxy.so/services >=13.0.0 <14`.
+Text, dictation, speech and voice use the shared account transport. Account
+switches and sign-out invalidate pending work; websocket credentials are
+refreshed through the shared origin-bound getter before connecting. Own Oxy
+apps use their current account without app scopes or consent. External
+credentials retain their existing limits.
+
 ## 21.5.3
 
 ### Fixed

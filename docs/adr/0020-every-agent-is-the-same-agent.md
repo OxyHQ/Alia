@@ -1,5 +1,8 @@
 # 20. Every agent is the same agent
 
+> Own-app levels, grants and ceilings are superseded by [ADR0022](./0022-first-party-platform-authority.md). Account separation and the other product rules remain.
+
+
 *Todos los agentes son el mismo agente: Alia, los agentes de las personas y los de las apps comparten una sola base.*
 
 **Status:** Accepted

@@ -1,4 +1,6 @@
-import { spawn, ChildProcess } from 'child_process';
+import { APIClient } from '../../shared/api-client';
+const apiClient = new APIClient('signal');
+import { spawn, type ChildProcess } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
@@ -24,7 +26,6 @@ import {
   upsertSignalChat,
 } from './repository';
 import { handleIncomingMessage } from '../../shared/chat-handler';
-import { APIClient } from '../../shared/api-client';
 import { DedupSet, errorName } from '../../shared/utils';
 import { createLogger } from '../../shared/logger';
 
@@ -43,7 +44,6 @@ interface SignalReceiveEnvelope {
   envelope?: SignalEnvelopeBody;
 }
 
-const apiClient = new APIClient('signal', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
 const logger = createLogger('Signal');
 
@@ -370,7 +370,7 @@ class SessionManager {
 
     const delay =
       Math.min(
-        SessionManager.BASE_RECONNECT_MS * Math.pow(2, attempts - 1),
+        SessionManager.BASE_RECONNECT_MS * 2 ** (attempts - 1),
         SessionManager.MAX_RECONNECT_MS,
       ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 

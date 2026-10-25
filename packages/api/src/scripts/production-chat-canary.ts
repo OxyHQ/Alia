@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { oxyServiceToken } from '../lib/oxy-service-client.js';
+import { createAliaTransportForOxyService } from '@alia.onl/server';
+import { oxyServiceClient } from '../lib/oxy-service-client.js';
 
 type Case = Readonly<{
   label: string;
@@ -241,6 +242,22 @@ export function summarize(
   };
 }
 
+/** A QA account id alone never authorizes access to that account. */
+export function canaryRequester(env: NodeJS.ProcessEnv) {
+  const accountId = env.ALIA_CANARY_OXY_USER_ID;
+  const taskId = env.ALIA_CANARY_OXY_TASK_ID;
+  if (
+    !accountId ||
+    !/^(?:[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(
+      accountId,
+    )
+  )
+    throw new Error('ALIA_CANARY_OXY_USER_ID must name one exact QA account');
+  if (!taskId || taskId.length > 128 || /\s/.test(taskId))
+    throw new Error('ALIA_CANARY_OXY_TASK_ID must name its live Oxy automation task');
+  return { accountId, taskId };
+}
+
 async function waitUntilReady(signal: AbortSignal): Promise<void> {
   for (let attempt = 0; attempt < 90; attempt += 1) {
     const response = await fetch('http://127.0.0.1:3001/health/ready', {
@@ -253,14 +270,13 @@ async function waitUntilReady(signal: AbortSignal): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const qaUserId = process.env.ALIA_CANARY_OXY_USER_ID;
-  if (
-    !qaUserId ||
-    !/^(?:[a-f0-9]{24}|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(
-      qaUserId,
-    )
-  )
-    throw new Error('ALIA_CANARY_OXY_USER_ID must name one exact QA account');
+  const requester = canaryRequester(process.env);
+  const oxy = oxyServiceClient();
+  if (!oxy) throw new Error('The canary requires its registered Alia workload identity');
+  const transport = createAliaTransportForOxyService(oxy, {
+    baseURL: 'http://127.0.0.1:3001',
+    requester,
+  });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20 * 60 * 1_000);
   const api = spawn(process.execPath, ['packages/api/dist/index.js'], {
@@ -269,15 +285,12 @@ async function main(): Promise<void> {
   });
   try {
     await waitUntilReady(controller.signal);
-    const token = await oxyServiceToken();
     const results: SafeResult[] = [];
     for (const entry of PRODUCTION_CANARY_CASES) {
-      const response = await fetch('http://127.0.0.1:3001/alia/chat', {
+      const response = await transport.fetch('http://127.0.0.1:3001/alia/chat', {
         method: 'POST',
         signal: controller.signal,
         headers: {
-          authorization: `Bearer ${token}`,
-          'x-oxy-user-id': qaUserId,
           'content-type': 'application/json',
           'user-agent': 'alia-production-canary/1',
         },
@@ -322,6 +335,7 @@ async function main(): Promise<void> {
     )
       process.exitCode = 1;
   } finally {
+    transport.dispose();
     clearTimeout(timeout);
     api.kill('SIGTERM');
     await Promise.race([

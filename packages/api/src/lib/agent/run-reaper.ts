@@ -1,3 +1,4 @@
+import { retireFinishedOxyTasks } from '../oxy-task-authority.js';
 /**
  * The sweep that keeps background agent runs from being lost.
  *
@@ -89,6 +90,9 @@ async function sweep(): Promise<void> {
   // Sessions queued and never picked up: the same "nothing will ever settle
   // this" event, so the same sweep. A single conditional UPDATE, safe on every
   // task.
+  await retireFinishedOxyTasks().catch((err: unknown) =>
+    log.agents.warn({ err }, 'Oxy task retirement sweep failed'),
+  );
   await reclaimOrphanedAgentSessions().catch((err: unknown) =>
     log.agents.error({ err }, '[AgentSession] Orphan reclaim error'),
   );

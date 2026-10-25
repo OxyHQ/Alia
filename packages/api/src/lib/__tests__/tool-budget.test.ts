@@ -757,25 +757,16 @@ describe('ToolPipeline.forUser applies the budget on every path it serves', () =
 
     it('does not offer them where no gateway is configured (production: "WhatsApp gateway not configured")', async () => {
       sources.oxy = family('oxy_noted', 'Noted', 3);
-      vi.stubEnv('WHATSAPP_GATEWAY_URL', '');
-      vi.stubEnv('WHATSAPP_GATEWAY_SECRET', '');
+      vi.stubEnv('INTEGRATIONS_URL', '');
       const result = await forUser();
       for (const name of WHATSAPP) expect(result.tools[name]).toBeUndefined();
       // The neighbouring messaging tool is unaffected.
       expect(result.tools.sendTelegramMessage).toBeDefined();
     });
 
-    it('needs both the URL and the secret', async () => {
-      sources.oxy = family('oxy_noted', 'Noted', 3);
-      vi.stubEnv('WHATSAPP_GATEWAY_URL', 'https://wa.example.test');
-      vi.stubEnv('WHATSAPP_GATEWAY_SECRET', '');
-      expect((await forUser()).tools.getWhatsAppChats).toBeUndefined();
-    });
-
     it('offers all three where the gateway exists — the control', async () => {
       sources.oxy = family('oxy_noted', 'Noted', 3);
-      vi.stubEnv('WHATSAPP_GATEWAY_URL', 'https://wa.example.test');
-      vi.stubEnv('WHATSAPP_GATEWAY_SECRET', 'secret');
+      vi.stubEnv('INTEGRATIONS_URL', 'https://wa.example.test');
       const result = await forUser();
       for (const name of WHATSAPP) expect(result.tools[name]).toBeDefined();
     });

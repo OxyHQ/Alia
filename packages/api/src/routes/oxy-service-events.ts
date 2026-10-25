@@ -7,6 +7,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import { ALIA_SERVICE_AUDIENCE } from '@alia.onl/server/internal';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import {
@@ -18,11 +19,9 @@ import {
 import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
 import { getErrorMessage } from '../lib/errors/index.js';
 import { log } from '../lib/logger.js';
-import { oxyServiceIdentityResponseSchema } from '../lib/oxy-capability-authority.js';
+import { oxyServiceClient } from '../lib/oxy-service-client.js';
 import { sendNotification } from '../lib/notification-service.js';
 import { handleInboxEmailEvent } from '../lib/proactive/email-outreach.js';
-
-const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
 
 const resourceSchema = z
   .object({
@@ -45,23 +44,12 @@ const normalizedEventSchema = z
   })
   .strict();
 
-const serviceIdentitySchema = oxyServiceIdentityResponseSchema;
-
-function bearer(request: Request): string | null {
-  const authorization = request.headers.authorization;
-  if (!authorization?.startsWith('Bearer ')) return null;
-  const token = authorization.slice('Bearer '.length).trim();
-  return token.length > 0 ? token : null;
-}
-
-async function identifyPublisher(token: string) {
-  const response = await fetch(`${OXY_API_URL}/capabilities/service-identity`, {
-    headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error(`Oxy service identity rejected (${response.status})`);
-  return serviceIdentitySchema.parse(await response.json());
-}
+const publisherCatalogSchema = z.object({
+  appSlug: z.string().min(1),
+  registeredByApplicationId: z.string().min(1),
+  active: z.literal(true),
+  catalog: z.object({ events: z.array(z.object({ type: z.string().min(1) })) }),
+});
 
 async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<void> {
   const definitions = await matchingEventAutomations(getDb(), event);
@@ -108,9 +96,9 @@ function isNewEmail(event: NormalizedAutomationEventInput): boolean {
 
 const router = Router();
 
-router.post('/', async (request: Request, response: Response) => {
-  const token = bearer(request);
-  if (!token) return response.status(401).json({ error: 'service_bearer_required' });
+router.post('/', async (request: Request, response: Response, next) => {
+  if (!request.headers.authorization?.startsWith('Bearer '))
+    return response.status(401).json({ error: 'service_bearer_required' });
   const parsed = normalizedEventSchema.safeParse(request.body);
   if (!parsed.success) {
     return response
@@ -123,35 +111,66 @@ router.post('/', async (request: Request, response: Response) => {
   if (parsed.data.resource.effectiveAccountId !== parsed.data.accountId) {
     return response.status(400).json({ error: 'event_resource_account_mismatch' });
   }
-  let publisher: z.infer<typeof serviceIdentitySchema>;
-  try {
-    publisher = await identifyPublisher(token);
-  } catch (error: unknown) {
-    log.triggers.warn({ err: error }, 'Oxy event publisher authentication failed');
-    return response.status(401).json({ error: 'invalid_service_identity' });
-  }
-  if (!publisher.service.scopes.includes('capability-events:publish')) {
+  const oxy = oxyServiceClient();
+  if (!oxy) return response.status(503).json({ error: 'service_verifier_unavailable' });
+  // Core verifies the signature, recipient and live binding. Its finite central
+  // bridge handles old cohort v1 issuers; a brand or scope string is not trust.
+  await oxy.middleware.service({ expectedAudience: ALIA_SERVICE_AUDIENCE })(
+    request,
+    response,
+    () => {
+      void acceptVerifiedEvent(request, response, parsed.data).catch(next);
+    },
+  );
+});
+
+async function acceptVerifiedEvent(
+  request: Request,
+  response: Response,
+  input: z.infer<typeof normalizedEventSchema>,
+) {
+  const publisher = request.serviceApp;
+  if (!publisher) return response.status(401).json({ error: 'invalid_service_identity' });
+  if (
+    publisher.authority !== 'first_party' &&
+    !publisher.scopes?.includes('capability-events:publish')
+  ) {
     return response
       .status(403)
       .json({ error: 'insufficient_service_scope', requiredScope: 'capability-events:publish' });
   }
-  if (!publisher.catalogAppIds.includes(parsed.data.appId)) {
-    return response.status(403).json({ error: 'catalog_not_owned_by_service' });
+  let registrations;
+  try {
+    // Discover with Alia's own platform transport; never forward an Alia-audience
+    // caller token to Oxy. Registry ownership is checked against the live caller.
+    const oxy = oxyServiceClient();
+    if (!oxy) throw new Error('Service verifier unavailable');
+    registrations = await oxy.agency.serviceCatalogs({ appId: input.appId });
+  } catch (error: unknown) {
+    log.triggers.warn({ err: error }, 'Oxy event catalog unavailable');
+    return response.status(503).json({ error: 'event_catalog_unavailable' });
   }
-  const publisherCatalog = publisher.catalogs.find(
-    (catalog) => catalog.appId === parsed.data.appId,
-  );
-  if (!publisherCatalog?.eventTypes.includes(parsed.data.type)) {
+  const catalog = registrations
+    .map((row) => publisherCatalogSchema.safeParse(row))
+    .find(
+      (row) =>
+        row.success &&
+        row.data.appSlug === input.appId &&
+        row.data.registeredByApplicationId === publisher.appId,
+    );
+  if (!catalog?.success)
+    return response.status(403).json({ error: 'catalog_not_owned_by_service' });
+  if (!catalog.data.catalog.events.some((event) => event.type === input.type)) {
     return response.status(400).json({ error: 'event_type_not_in_catalog' });
   }
   const event: NormalizedAutomationEventInput = {
-    eventId: parsed.data.eventId,
-    appId: parsed.data.appId,
-    accountId: parsed.data.accountId,
-    resource: parsed.data.resource,
-    eventType: parsed.data.type,
-    occurredAt: new Date(parsed.data.occurredAt),
-    data: storedEventData(parsed.data.data),
+    eventId: input.eventId,
+    appId: input.appId,
+    accountId: input.accountId,
+    resource: input.resource,
+    eventType: input.type,
+    occurredAt: new Date(input.occurredAt),
+    data: storedEventData(input.data),
   };
   try {
     const claimed = await claimAutomationEvent(getDb(), event);
@@ -162,7 +181,7 @@ router.post('/', async (request: Request, response: Response) => {
       void handleInboxEmailEvent({
         accountId: event.accountId,
         occurredAt: event.occurredAt,
-        data: parsed.data.data,
+        data: input.data,
       }).catch((error: unknown) => {
         log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
       });
@@ -193,7 +212,7 @@ router.post('/', async (request: Request, response: Response) => {
     );
     return response.status(503).json({ error: 'event_store_unavailable' });
   }
-});
+}
 
 /** Legacy per-service HMAC webhooks are deliberately not accepted. */
 router.post('/:legacyServiceId', (_request: Request, response: Response) =>

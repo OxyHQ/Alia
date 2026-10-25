@@ -1,15 +1,16 @@
+import { oxyServiceClient } from '../oxy-service-client.js';
 /**
- * The documents a person attaches to a turn, read from Oxy Files under their
- * own session (`{ type: 'file', file: { file_id, filename, mime } }`,
+ * The documents a person attaches to a turn, read from Oxy Files with verified
+ * requester proof (`{ type: 'file', file: { file_id, filename, mime } }`,
  * `docs/agent-embedding.md` §5).
  *
  * ## Read as the person, never as Alia
  *
  * The client uploads the file to the person's own Oxy account through the SDK
  * and sends only its id. Alia opens it with the person's verified bearer, on a
- * client of its own (no shared cache), so Oxy answers exactly what that person
+ * workload client's requester facade, so Oxy answers exactly what that person
  * may read and nothing more: another account's private file is a 404 here as it
- * is everywhere. Alia's service credential never touches it, and nothing of it
+ * is everywhere. The workload alone cannot read it, and nothing of it
  * is stored — the conversation keeps the reference the client sent.
  *
  * ## What the model receives
@@ -27,7 +28,7 @@
  * client resends the whole history every turn and a PDF does not change.
  */
 
-import { OxyApiError, OxyServices } from '@oxy.so/core';
+import { OxyApiError, type OxyServices } from '@oxy.so/core';
 import type { FilePart, ImagePart, TextPart } from 'ai';
 import { extractText, getDocumentProxy } from 'unpdf';
 import type { ChatMessage, FilePartRef } from '../message-converter.js';
@@ -144,13 +145,13 @@ function unavailable(fileId: string): FilePartError {
 }
 
 async function resolveOne(
-  client: OxyServices,
+  assets: Pick<OxyServices['assets'], 'get' | 'blob'>,
   ref: FilePartRef,
   options: { personAccountId: string; modelAcceptsFiles: boolean },
 ): Promise<ResolvedFilePart> {
   let record: Awaited<ReturnType<OxyServices['assets']['get']>>['file'];
   try {
-    record = (await client.assets.get(ref.file_id)).file;
+    record = (await assets.get(ref.file_id)).file;
   } catch (error: unknown) {
     if (!(error instanceof OxyApiError)) {
       log.v1.warn({ err: error, fileId: ref.file_id }, 'Oxy Files did not answer for a file part');
@@ -181,7 +182,7 @@ async function resolveOne(
 
   let bytes: Uint8Array;
   try {
-    bytes = new Uint8Array(await (await client.assets.blob(ref.file_id)).arrayBuffer());
+    bytes = new Uint8Array(await (await assets.blob(ref.file_id)).arrayBuffer());
   } catch (error: unknown) {
     log.v1.warn({ err: error, fileId: ref.file_id }, 'Could not download a file part');
     throw unavailable(ref.file_id);
@@ -211,36 +212,31 @@ export async function resolveFileParts(
   options: {
     personAccountId: string | undefined;
     accessToken: string | undefined;
+    taskId?: string;
     modelAcceptsFiles: boolean;
   },
 ): Promise<ResolvedFiles> {
   if (refs.size === 0) return new Map();
   const { personAccountId, accessToken, modelAcceptsFiles } = options;
-  if (personAccountId === undefined || accessToken === undefined) {
+  if (personAccountId === undefined || (!accessToken && !options.taskId)) {
     throw new FilePartError(
       'file_session_required',
       'Files are read with your own Oxy session; this request has none.',
     );
   }
-  const client = new OxyServices({
-    baseURL: process.env.OXY_API_URL || 'https://api.oxy.so',
-    enableCache: false,
-    enableRetry: false,
-    requestTimeout: 15_000,
-  });
-  client.session.setAccessToken(accessToken);
-  try {
-    const resolved = await Promise.all(
-      [...refs.values()].map(
-        async (ref) =>
-          [
-            ref.file_id,
-            await resolveOne(client, ref, { personAccountId, modelAcceptsFiles }),
-          ] as const,
-      ),
-    );
-    return new Map(resolved);
-  } finally {
-    client.dispose();
-  }
+  const client = oxyServiceClient();
+  if (!client) throw new FilePartError('file_unavailable', 'Oxy Files is temporarily unavailable.');
+  const assets = client.assets.withRequester(
+    options.taskId ? { taskId: options.taskId } : { requesterToken: accessToken! },
+  );
+  const resolved = await Promise.all(
+    [...refs.values()].map(
+      async (ref) =>
+        [
+          ref.file_id,
+          await resolveOne(assets, ref, { personAccountId, modelAcceptsFiles }),
+        ] as const,
+    ),
+  );
+  return new Map(resolved);
 }

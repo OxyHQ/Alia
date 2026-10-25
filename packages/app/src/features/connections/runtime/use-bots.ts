@@ -19,6 +19,7 @@ export interface SystemBot {
 }
 
 export interface BotLinkStatus {
+  oxyTaskState?: 'active' | 'reauth_required';
   linked: boolean;
   linkedAt?: string;
   username?: string;
@@ -51,7 +52,16 @@ export function useBots() {
         botList.map(async (bot) => {
           try {
             const statusRes = await apiClient.get(`/bots/${bot._id}/link-status`);
-            statuses[bot._id] = statusRes.data;
+            const status: BotLinkStatus = statusRes.data;
+            if (status.linked && status.oxyTaskState === 'reauth_required') {
+              try {
+                await apiClient.post(`/bots/${bot._id}/reauthorize`);
+                status.oxyTaskState = 'active';
+              } catch {
+                /* Keep the existing link; never infer authority from its owner. */
+              }
+            }
+            statuses[bot._id] = status;
           } catch {
             statuses[bot._id] = { linked: false };
           }

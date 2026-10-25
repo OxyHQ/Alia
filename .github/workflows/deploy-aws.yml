@@ -250,6 +250,8 @@ jobs:
             echo "no post-rollout migration in this release"
           fi
           if [ -n "$MIGRATE" ]; then CMD="$MIGRATE && $SEED"; else CMD="$SEED"; fi
+          # Reconcile verified stored sessions only; no task can be minted from an owner id.
+          CMD="$CMD && bun packages/api/dist/db/migrate-channel-tasks.js --target-database=alia --apply"
           # jq builds the JSON array, so quoting inside the command cannot break
           # the string-array contract deploy-ecs-image.sh validates.
           printf 'post_command=%s\n' "$(jq -cn --arg c "$CMD" '["/bin/sh","-c",$c]')" >>"$GITHUB_OUTPUT"

@@ -1,89 +1,60 @@
-# Alia Integrations Service
+# Alia integrations service
 
-Unified service for all messaging platform integrations, browser automation, and terminal execution.
+Messaging gateways, channel bots, MCP connectors, browser automation and terminal
+sessions run in this process. The API accesses it at `INTEGRATIONS_URL`; production
+uses `http://integrations.alia.internal.oxy.so:3005`.
 
-## Adapters
+## Internal authentication
 
-| Adapter | Type | Description | Enable/Disable |
-|---------|------|-------------|----------------|
-| `telegram-bot` | Bot | Telegraf long-polling bot with streaming responses | `TELEGRAM_BOT_ENABLED` + `TELEGRAM_BOT_TOKEN` |
-| `discord-bot` | Bot | Discord.js bot (DMs and @mentions) | `DISCORD_BOT_ENABLED` + `DISCORD_BOT_TOKEN` |
-| `whatsapp` | Gateway | WhatsApp Web multi-session gateway | `WHATSAPP_ENABLED` |
-| `telegram-gateway` | Gateway | Telegram user-account gateway (TDLib) | `TELEGRAM_GATEWAY_ENABLED` + `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` |
-| `signal-gateway` | Gateway | Signal multi-session gateway | `SIGNAL_ENABLED` |
+Both directions use `@alia.onl/server`'s canonical Oxy transport and temporary
+workload identity. Receivers verify the live first-party authority, Alia app,
+recipient audience and exact opposite process. Another Oxy application or Alia
+workload cannot substitute for the registered API or integrations role. Internal
+scopes, client API keys and shared gateway passwords are absent.
 
-Additional routes: `/browser` (Puppeteer automation), `/terminal` (shell execution).
+API → integrations operations carry a separate internal account context derived
+from the API's authenticated session/task. Every session and MCP resource must
+belong to that account. This is local Alia context, never an Oxy user session or
+cross-product requester proof.
 
-All adapters are enabled by default. Set `*_ENABLED=false` to disable.
+Integrations → API channels identify their provider link or connected-account
+session. The API resolves the account from that live row; a remote sender cannot
+choose an account or impersonate its owner. Private background tools use a
+revocable Oxy automation task created with the real requester when linking. Only
+the task ID is stored. Legacy connections without valid authority renew automatically when their owner
+uses the normal signed-in app session. No extra permission prompt is introduced. Disconnect/delete/relink revokes the old task.
 
-## Architecture
+## Configuration
 
-```
-User Message (Telegram/Discord/WhatsApp/Signal)
-    │
-    ▼
-Adapter (platform-specific handling)
-    │
-    ▼
-APIClient.chatCompletion() / chatCompletionStream()
-    │  Headers: X-Channel-Bot-Secret, X-Oxy-User-Id
-    ▼
-POST /v1/chat/completions (main API)
-    │  ▸ Full system prompt (Alia personality)
-    │  ▸ User memory (facts, preferences, context)
-    │  ▸ Server-side tools (web search, memory save, WhatsApp, Telegram send)
-    │  ▸ User profile, language rules, skills
-    │  ▸ Provider fallback, credit management
-    ▼
-AI Response → Adapter formats for platform → User
-```
+`DATABASE_URL` is the integrations database. `TOKEN_ENCRYPTION_KEY` must match the
+API's encryption key for connector records. `API_BASE_URL` points to Alia's API;
+`OXY_API_URL` points to Oxy. `PORT` defaults to 3005.
 
-Bot adapters authenticate with the API using per-channel secrets (`X-Channel-Bot-Secret` header). The API validates these against the channel registry and sets the user context from `X-Oxy-User-Id`. This gives bots full feature parity with the main app — memory, tools, and all.
+| Adapter | Configuration |
+| --- | --- |
+| Telegram bot | `TELEGRAM_BOT_ENABLED`, `TELEGRAM_BOT_TOKEN` |
+| Discord bot | `DISCORD_BOT_ENABLED`, `DISCORD_BOT_TOKEN` |
+| WhatsApp accounts | `WHATSAPP_ENABLED` |
+| Telegram accounts | `TELEGRAM_GATEWAY_ENABLED`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` |
+| Signal accounts | `SIGNAL_ENABLED` |
 
-## Environment Variables
-
-```bash
-# Required
-DATABASE_URL=postgres://...          # PostgreSQL; the pool opens once from main(),
-                                     # so a bad URL fails at boot, not on first use
-INTEGRATIONS_SECRET=<hex-32>         # Internal auth for the REST endpoints the API calls
-TOKEN_ENCRYPTION_KEY=<hex-32>        # MUST equal the API's value: encrypted OAuth tokens
-                                     # are written by one process and read by the other
-API_BASE_URL=http://localhost:4150   # Main API URL
-
-# Telegram Bot
-TELEGRAM_BOT_TOKEN=<from-botfather>
-TELEGRAM_BOT_SECRET=<hex-32>         # Must match API's channel registry
-
-# Discord Bot
-DISCORD_BOT_TOKEN=<from-discord-portal>
-DISCORD_BOT_SECRET=<hex-32>          # Must match API's channel registry
-
-# Telegram Gateway (optional)
-TELEGRAM_API_ID=<from-my.telegram.org>
-TELEGRAM_API_HASH=<from-my.telegram.org>
-
-# Port (default 3005)
-PORT=3005
-
-# Ecosystem activity (optional), and LOCAL ONLY. Publishing starts as soon as
-# this process has an Oxy identity — there is no separate enable flag for this
-# package. The deployed `alia-integrations` task carries NEITHER variable: it
-# attests its ECS task role instead (oxy ADR 0026) and publishes just the same.
-# Set both here, or leave both unset and this package reports no traffic.
-OXY_SERVICE_API_KEY=<from-oxy-console>
-OXY_SERVICE_API_SECRET=<from-oxy-console>
-```
+Adapters are enabled by default; set the corresponding enabled value to false
+to disable one. External provider OAuth scopes and webhook signatures remain
+provider requirements; they do not authenticate internal Alia traffic.
 
 ## Development
 
-```bash
-# From monorepo root
-bun run dev:integrations
+Run `bun run dev:integrations` from the repository root. The optional
+`@oxy.so/core/server/aws` provider uses the AWS server credential chain for ECS
+and temporary IAM SSO credentials. Set `AWS_PROFILE` to a registered development
+role profile. The registry owns the role's application and environment binding.
 
-# Or directly
-cd packages/integrations
-bun src/index.ts
-```
+Production receiver pins default to the exact roles exported by
+`@alia.onl/server/internal`. For distinct registered development roles, configure
+`ALIA_API_WORKLOAD_ID` and `ALIA_INTEGRATIONS_WORKLOAD_ID` on the servers. These
+are deployment pins, never values accepted from a request. No API key fallback
+is used. Traffic reporting uses the same workload provider.
 
-The service starts the HTTP server first (for health checks), then initializes adapters with 30s timeouts each. Failed adapter initialization is non-fatal — other adapters continue running.
+The HTTP server starts before adapter initialization for health checks. Individual
+adapter startup failures do not stop other adapters. Follow
+[the rollout runbook](../../docs/runbooks/integrations-service-rollout.md) before deploying.

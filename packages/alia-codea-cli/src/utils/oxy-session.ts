@@ -263,14 +263,9 @@ export async function restoreSession(): Promise<boolean> {
   return restored;
 }
 
-/**
- * The bearer for a request to Alia's API, or `null` when signed out.
- *
- * Read at call time rather than captured: the scheduler rotates the token in the
- * background, so a value cached at start-up is a value that expires mid-session.
- */
-export function accessToken(): string | null {
-  return oxy().session.accessToken;
+/** A disposable product transport backed by this process's live Oxy session. */
+export function linkedAliaClient() {
+  return oxy().createLinkedClient({ baseURL: config.get('apiBaseUrl') || 'https://api.alia.onl' });
 }
 
 /**

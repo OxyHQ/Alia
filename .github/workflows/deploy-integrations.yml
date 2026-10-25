@@ -14,7 +14,8 @@
 #
 # Deliberately separate from `deploy-aws.yml` rather than a second job inside it:
 # the two build different images against different Dockerfiles, migrate DIFFERENT
-# databases, and must not serialise against each other. See `concurrency` below.
+# databases. Phase B temporarily waits for the exact API release before gateway
+# rollout; phase C removes that barrier. Their own release queues stay separate.
 name: Deploy integrations
 
 on:
@@ -31,6 +32,7 @@ on:
 permissions:
   id-token: write
   contents: read
+  actions: read
 
 env:
   AWS_REGION: us-west-2
@@ -72,7 +74,8 @@ jobs:
     # is four of them (pre migration, rollout, post migration, rollback) = 80 min.
     # The rest — this image's ARM64 build included — measured 5-15 minutes a run.
     # Killing the job inside those 80 minutes would strand an unmonitored rollout.
-    timeout-minutes: 120
+    # The finite API-first barrier can wait one hour before the normal build/rollout.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
         with:
@@ -93,6 +96,13 @@ jobs:
       # or rotate with `aws ssm put-parameter --overwrite` (oxy-infra
       # docs/runbooks/46-app-secrets-in-ssm.md). Until 2026-10-10 a step here
       # copied the TOKEN_ENCRYPTION_KEY repo secret into SSM on every deploy.
+      # Finite phase B: API must load/reconcile durable channel roots before
+      # this gateway starts emitting workload context. Dispatch cannot bypass it.
+      - name: Verify API producer transition and old-task drain
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/wait-alia-api-transition.py
+
       - name: Verify SSM-owned runtime secret metadata
         run: |
           for parameter_name in \

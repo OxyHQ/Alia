@@ -26,8 +26,8 @@ vi.mock('@oxy.so/core/server', async (importActual) => ({
         ]);
     }
 
-    async serviceToken(): Promise<string> {
-      return 'short-lived-oxy-service-token';
+    createServiceClient() {
+      return { getAccessToken: async () => 'short-lived-oxy-service-token' };
     }
   },
 }));
@@ -44,6 +44,7 @@ const configured = {
   OXY_API_URL: 'https://api.oxy.so',
   OXY_SERVICE_API_KEY: 'credential-key',
   OXY_SERVICE_API_SECRET: 'credential-secret',
+  AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/alia',
 } as NodeJS.ProcessEnv;
 
 describe('Oxy inference client', () => {
@@ -54,9 +55,12 @@ describe('Oxy inference client', () => {
     resetOxyInferenceClient();
   });
 
-  it('fails closed when the Oxy service credential is incomplete', () => {
-    expect(buildOxyInferenceClient({ ...configured, OXY_SERVICE_API_SECRET: '' })).toBeNull();
-    expect(mocks.clientOptions).toEqual([]);
+  it('resolves workload credentials lazily outside ECS and never arms the customer key', () => {
+    expect(
+      buildOxyInferenceClient({ ...configured, AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '' }),
+    ).not.toBeNull();
+    expect(mocks.configuredCredentials).toEqual([]);
+    expect(mocks.serviceOptions[0]).toMatchObject({ workloadCredentials: expect.any(Function) });
   });
 
   /**
@@ -78,7 +82,9 @@ describe('Oxy inference client', () => {
     } as NodeJS.ProcessEnv;
 
     expect(buildOxyInferenceClient(attesting)).not.toBeNull();
-    expect(mocks.serviceOptions).toEqual([{ baseURL: 'https://api.oxy.so' }]);
+    expect(mocks.serviceOptions).toEqual([
+      { baseURL: 'https://api.oxy.so', workloadCredentials: expect.any(Function) },
+    ]);
     expect(mocks.configuredCredentials).toEqual([]);
 
     const options = mocks.clientOptions[0] as { credential: () => Promise<string> };
@@ -123,10 +129,10 @@ describe('Oxy inference client', () => {
     expect(mocks.serviceOptions).toEqual([
       {
         baseURL: 'https://api.oxy.so',
-        serviceAuth: { apiKey: 'credential-key', apiSecret: 'credential-secret' },
+        workloadCredentials: expect.any(Function),
       },
     ]);
-    expect(mocks.configuredCredentials).toEqual([['credential-key', 'credential-secret']]);
+    expect(mocks.configuredCredentials).toEqual([]);
     expect(mocks.clientOptions).toHaveLength(1);
 
     const options = mocks.clientOptions[0] as {

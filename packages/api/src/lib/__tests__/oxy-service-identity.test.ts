@@ -3,62 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFileSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-/**
- * Identity hydration, against an Oxy that refuses an anonymous write.
- *
- * ## The fault this reproduces
- *
- * An agent created from `/agents/create` came back with no name and no handle.
- * `POST /agents` answers `attachAgentIdentity(agent)`, which reads the Oxy
- * account through `hydrateOxyUsers` -> `POST /users/by-ids` — and that endpoint
- * is a state-changing method behind oxy-api's CSRF middleware, which admits a
- * write only when it carries a bearer. `middleware/auth.ts`'s shared client
- * carries none, so the call was refused, `@oxy.so/core` swallowed the failed
- * chunk and returned `[]`, and every nullable identity field on the wire went
- * null. Measured against `https://api.oxy.so` on 2026-08-25, through the real
- * SDK rather than through curl:
- *
- *   new OxyServer({ baseURL }).users.getMany([id])              -> []
- *     (SDK log: mode 'user', status 403, 'CSRF token missing')
- *   ...same client built with serviceAuth: { apiKey, apiSecret } -> [the user]
- *   GET /users/:id, no auth                                     -> 200
- *
- * ## Why the edge below is a socket and not a mock
- *
- * The subject is which BEARER leaves this process and whether Oxy accepts it,
- * so the thing that must be real is `@oxy.so/core`: the service-mode branch in
- * `users.getMany`, the `/auth/service-token` exchange, the per-credential token
- * cache, and the `GET /csrf-token` preflight it makes for a bearer-less POST. A
- * fake SDK would assert that the fake behaves as its author remembers the SDK
- * behaving, and would stay green through the exact bug this file exists for —
- * the other suites at this seam all stub `oxyClient.users.getMany` directly,
- * which is why none of them saw a 403 that has been live in production.
- *
- * So the only fixture is the far end, and it implements the two behaviours
- * measured above: a POST with no `Authorization` header is refused, one with any
- * bearer is served. It answers the CSRF preflight and refuses the write anyway,
- * which is production's behaviour too — the double-submit cookie that token
- * pairs with cannot exist in a Node process.
- *
- * ## What IS replaced, and what anchors it
- *
- * Two modules, neither of them the subject. `middleware/auth.ts` stands in as
- * the one line of itself this file depends on — `new OxyServer({ baseURL })`,
- * no credential — which the last case here reads out of its source, so the
- * stand-in cannot quietly stop resembling it. `lib/logger.ts` stands in so the
- * two warnings are readable as values.
- *
- * They are stand-ins for a second reason, stated because the next person to
- * "simplify" this file will reach for the real modules: an earlier version
- * imported the REAL graph behind `middleware/auth.ts` once per case, and the
- * test worker died — `[vitest-pool]: Worker exited unexpectedly`, taking
- * whichever other file shared the fork — in three of twelve full-suite runs,
- * against zero of eight with this file excluded and zero of eight in the form
- * below. The mechanism was NOT isolated: a probe that only re-imported that
- * graph five times survived five runs, so the crash needs the real network I/O
- * too, and "reload the app's module graph per case" is the shape to avoid
- * rather than any one module in it.
- */
+/** Identity hydration through the real SDK and a local Oxy/workload metadata server. */
 
 const TOKEN_KEY = generateKeyPairSync('ed25519');
 
@@ -135,7 +80,17 @@ class OxyEdge {
       res.end(JSON.stringify(payload));
     };
 
-    if (url.startsWith('/auth/service-token')) {
+    if (url === '/metadata')
+      return json(200, {
+        AccessKeyId: 'AKIATESTWORKLOAD',
+        SecretAccessKey: 'test-workload-secret',
+        Token: 'session',
+        Expiration: new Date(Date.now() + 3600000).toISOString(),
+      });
+    if (url === '/auth/service-token/workload/challenge') {
+      return json(200, { data: { nonce: 'test-workload-nonce' } });
+    }
+    if (url.startsWith('/auth/service-token/workload')) {
       this.exchanges.push(body);
       this.minted += 1;
       // The envelope production answers with, `data` and all.
@@ -225,6 +180,18 @@ async function loadHydration(
   credential: 'configured' | 'absent',
 ): Promise<typeof import('../oxy-user-hydration.js').hydrateOxyUsers> {
   vi.resetModules();
+  for (const key of [
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY',
+    'AWS_SESSION_TOKEN',
+    'AWS_PROFILE',
+    'AWS_WEB_IDENTITY_TOKEN_FILE',
+    'AWS_ROLE_ARN',
+  ])
+    vi.stubEnv(key, undefined);
+  vi.stubEnv('AWS_SHARED_CREDENTIALS_FILE', '/tmp/alia-test-missing-aws-credentials');
+  vi.stubEnv('AWS_CONFIG_FILE', '/tmp/alia-test-missing-aws-config');
+  vi.stubEnv('AWS_EC2_METADATA_DISABLED', 'true');
   vi.stubEnv('OXY_API_URL', edge.baseURL);
   vi.stubEnv('OXY_SERVICE_API_KEY', credential === 'configured' ? API_KEY : undefined);
   vi.stubEnv('OXY_SERVICE_API_SECRET', credential === 'configured' ? API_SECRET : undefined);
@@ -232,6 +199,10 @@ async function loadHydration(
   // reads this and nothing else sets it (oxy ADR 0026), and a stray value in the
   // ambient environment would turn the "no identity" cases into attesting ones.
   vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', undefined);
+  vi.stubEnv(
+    'AWS_CONTAINER_CREDENTIALS_FULL_URI',
+    credential === 'configured' ? `${edge.baseURL}/metadata` : undefined,
+  );
   const { hydrateOxyUsers } = await import('../oxy-user-hydration.js');
   return hydrateOxyUsers;
 }
@@ -248,9 +219,8 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // The floor. An empty map is also what a hydration that never reached the
     // network returns, and that is a different bug: the edge WAS asked, and it
     // was asked with no bearer, which is the refusal this whole file is about.
-    expect(edge.byIds.length).toBeGreaterThan(0);
-    expect(edge.byIds.map((attempt) => attempt.authorization)).toEqual(edge.byIds.map(() => null));
-    expect(edge.byIds[0].ids).toEqual([ADA.id]);
+    expect(edge.byIds).toHaveLength(0);
+    expect(edge.exchanges).toHaveLength(0);
   });
 
   it('says so in the log rather than only in the blank name', async () => {
@@ -261,10 +231,6 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // Two separate lines, because they are two separate facts and an operator
     // seeing only the second would go looking at Oxy: the deployment holds no
     // credential, and this particular batch resolved nobody.
-    expect(logged.warn).toHaveBeenCalledWith(
-      { unset: ['OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET'] },
-      expect.stringContaining('no Oxy service identity'),
-    );
     expect(logged.warn).toHaveBeenCalledWith(
       { requested: 1 },
       expect.stringContaining('resolved none'),
@@ -324,7 +290,7 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     expect(edge.byIds[0].authorization).toBe(`Bearer ${edge.mintedToken}`);
   });
 
-  it('presents the credential the environment configured, not some other', async () => {
+  it('proves the workload even when a legacy customer key is configured', async () => {
     const hydrate = await loadHydration('configured');
 
     await hydrate([ADA.id]);
@@ -334,7 +300,9 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     // THESE values the exchange is somebody else's.
     expect(edge.exchanges).toHaveLength(1);
     const exchanged: unknown = JSON.parse(edge.exchanges[0]);
-    expect(exchanged).toMatchObject({ apiKey: API_KEY, apiSecret: API_SECRET });
+    expect(exchanged).toMatchObject({ provider: 'aws-iam', nonce: 'test-workload-nonce' });
+    expect(exchanged).not.toHaveProperty('apiKey');
+    expect(exchanged).not.toHaveProperty('apiSecret');
   });
 
   it('leaves an id Oxy does not resolve out of the map', async () => {

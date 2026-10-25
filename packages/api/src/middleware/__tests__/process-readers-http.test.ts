@@ -17,24 +17,40 @@ const fixture = vi.hoisted(() => ({
   oxy: undefined as any,
   revoked: false,
   linked: true,
+  task: true,
   owner: '0192f3a4-b5c6-7d8e-9f01-23456789abcd',
   lookup: vi.fn(),
 }));
-vi.mock('../../lib/channel-workload-verifier.js', () => ({
-  channelWorkloadVerifier: () => fixture.oxy,
+vi.mock('../../lib/oxy-service-client.js', () => ({
+  oxyServiceClient: () => fixture.oxy,
 }));
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../db/integrations/botRepository.js', () => ({
   findSystemBot: async () => ({ id: 'system-bot', status: 'active' }),
   findBotUser: async (_db: unknown, bot: string, providerUser: string) => {
     fixture.lookup(bot, providerUser);
-    return fixture.linked ? { id: 'linked-row', isLinked: true, oxyUserId: fixture.owner } : null;
+    return fixture.linked
+      ? {
+          id: 'linked-row',
+          isLinked: true,
+          oxyUserId: fixture.owner,
+          oxyTaskState: fixture.task ? 'active' : 'reauth_required',
+          oxyTaskId: fixture.task ? 'durable-task' : null,
+        }
+      : null;
   },
 }));
 vi.mock('../../db/integrations/connectedAccountRepository.js', () => ({
   findConnectedAccountBySession: async (_db: unknown, platform: string, session: string) => {
     fixture.lookup(platform, session);
-    return fixture.linked ? { id: 'account-row', oxyUserId: fixture.owner } : null;
+    return fixture.linked
+      ? {
+          id: 'account-row',
+          oxyUserId: fixture.owner,
+          oxyTaskState: fixture.task ? 'active' : 'reauth_required',
+          oxyTaskId: fixture.task ? 'durable-task' : null,
+        }
+      : null;
   },
 }));
 vi.mock('../../lib/channels/registry.js', () => ({
@@ -162,7 +178,12 @@ beforeAll(async () => {
     ['/alia/chat', '/conversations', '/conversations/:id'],
     authenticateTokenOrApiKey,
     (req, res) => {
-      res.json({ accountId: req.userId, channelContext: req.channelContext ?? null });
+      res.json({
+        accountId: req.userId,
+        channelContext: req.channelContext ?? null,
+        user: req.user ?? null,
+        bearer: req.accessToken ?? null,
+      });
     },
   );
   product = await listen(receiver);
@@ -171,6 +192,7 @@ beforeAll(async () => {
 beforeEach(() => {
   fixture.revoked = false;
   fixture.linked = true;
+  fixture.task = true;
   fixture.owner = OWNER;
   fixture.lookup.mockClear();
 });
@@ -188,25 +210,69 @@ describe('mixed-version process readers over real HTTP', () => {
     );
   });
   it.each(['/alia/chat', '/conversations', '/conversations/thread'])(
-    'keeps enriched legacy producers on the existing secret reader at %s',
+    'resolves enriched legacy producer provider links and tasks at %s',
     async (path) => {
+      fixture.owner = '69b2d3df5d12f58c9800d651';
       const headers = {
         'x-channel-bot-secret': 'legacy-bot-secret',
         'x-oxy-user-id': '69b2d3df5d12f58c9800d651',
         'x-alia-legacy-channel': 'telegram',
         'x-alia-legacy-platform-user': 'remote-provider-user',
       };
-      expect(await send(path, headers)).toEqual({
+      expect(await send(path, headers)).toMatchObject({
         status: 200,
-        body: { accountId: headers['x-oxy-user-id'], channelContext: null },
+        body: {
+          accountId: headers['x-oxy-user-id'],
+          channelContext: { accountId: fixture.owner, taskId: 'durable-task' },
+          user: null,
+          bearer: null,
+        },
       });
-      expect(fixture.lookup).not.toHaveBeenCalled();
+      expect(fixture.lookup).toHaveBeenCalledWith('system-bot', 'remote-provider-user');
+      expect((await send(path, { ...headers, 'x-oxy-user-id': OWNER })).status).toBe(403);
+      fixture.linked = false;
+      expect((await send(path, headers)).status).toBe(401);
+      fixture.linked = true;
       expect((await send(path, { ...headers, 'x-channel-bot-secret': 'wrong' })).status).toBe(401);
       expect(
         (await send(path, { ...headers, authorization: 'Bearer invalid' })).status,
       ).toBeGreaterThanOrEqual(400);
     },
   );
+  it('resolves enriched personal-channel legacy calls by connection, without owner substitution', async () => {
+    const headers = {
+      'x-channel-bot-secret': 'legacy-gateway-secret',
+      'x-oxy-user-id': OWNER,
+      'x-alia-legacy-channel': 'whatsapp',
+      'x-alia-legacy-channel-session': 'actual-connected-session',
+    };
+    expect(await send('/alia/chat', headers)).toMatchObject({
+      status: 200,
+      body: {
+        channelContext: { kind: 'account', accountId: OWNER, taskId: 'durable-task' },
+        user: null,
+        bearer: null,
+      },
+    });
+    expect(fixture.lookup).toHaveBeenCalledWith('whatsapp', 'actual-connected-session');
+    fixture.task = false;
+    expect((await send('/alia/chat', headers)).body).toMatchObject({
+      channelContext: { accountId: OWNER },
+    });
+    expect((await send('/alia/chat', headers)).body).not.toHaveProperty('channelContext.taskId');
+    fixture.linked = false;
+    expect((await send('/alia/chat', headers)).status).toBe(401);
+    fixture.linked = true;
+    expect(
+      (await send('/alia/chat', { ...headers, 'x-alia-legacy-platform-user': 'unrelated' })).status,
+    ).toBe(401);
+    expect(
+      (await send('/alia/chat', { ...headers, 'x-oxy-user-id': 'another-owner' })).status,
+    ).toBe(403);
+    expect((await send('/alia/chat', { ...headers, authorization: 'Bearer invalid' })).status).toBe(
+      403,
+    );
+  });
   it.each(['invalid-signature', 'revoked', 'wrong-audience', 'wrong-workload', 'external'])(
     'never downgrades %s to a valid legacy secret in either direction',
     async (failure) => {
@@ -251,7 +317,9 @@ describe('mixed-version process readers over real HTTP', () => {
       });
       expect(fixture.lookup).toHaveBeenCalledWith(lookupKey, value);
       const result = await send('/api/channel', headers);
-      expect(result.body.context).not.toHaveProperty('taskId');
+      expect(result.body.context).toHaveProperty('taskId', 'durable-task');
+      fixture.task = false;
+      expect((await send('/api/channel', headers)).body.context).not.toHaveProperty('taskId');
       fixture.linked = false;
       expect((await send('/api/channel', headers)).status).toBe(401);
     },

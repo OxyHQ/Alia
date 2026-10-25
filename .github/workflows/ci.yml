@@ -182,12 +182,10 @@ jobs:
             api:
               - *shared
               - 'packages/api/**'
-              - 'packages/alia-server/**'
               - '.github/scripts/smoke-api-image.sh'
             integrations:
               - *shared
               - 'packages/integrations/**'
-              - 'packages/alia-server/**'
             computer_host:
               - *shared
               - 'packages/alia-computer-host/**'
@@ -221,6 +219,7 @@ jobs:
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-resolve-ecr-platform-digest.sh
+          python3 -B -m unittest discover -s .github/scripts -p test_wait_alia_api_transition.py
 
       # The deploys run on `workflow_run` of CI and decide what to release in
       # deploy-scope.sh: main's head only, and only what changed since the last
@@ -365,6 +364,7 @@ jobs:
       - name: Verify that gate can still fail
         run: node .github/scripts/test-check-ts-directives.mjs
 
+      # API and integrations consume the published server entry points.
       # The package publishes compiled ESM + CJS + types, unlike @alia.onl/sdk.
       # A build that only runs at `npm publish` time is a build nobody has run.
       - name: Build server SDK
@@ -579,7 +579,9 @@ jobs:
         run: node scripts/check-model-defaults.mjs
 
       - name: Check production chat canary contract
-        run: node scripts/check-production-chat-canary.mjs
+        run: |
+          node scripts/check-production-chat-canary.mjs
+          node scripts/test-check-production-chat-canary.mjs
 
       # Retired product routes and the retired app-agent lane (ADR 0020 §8).
       - name: Check retired vocabulary cannot return

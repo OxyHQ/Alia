@@ -14,6 +14,7 @@
  * recognizer anywhere in a call.
  */
 
+import { bindAudioSession } from '../lib/audio-session-binding';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOxy } from '@oxy.so/services/ui/client';
 import type { AgentState, RoomState, VoiceCallState, VoiceMessage } from '../types';
@@ -104,23 +105,24 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const levels = useMemo(() => new VoiceLevelChannel(), []);
   const [snapshot, setSnapshot] = useState<VoiceCallSnapshot>(IDLE);
   const callRef = useRef<VoiceCall | null>(null);
+  const sessionBindingRef = useRef<ReturnType<typeof bindAudioSession> | null>(null);
   const mountedRef = useRef(true);
   const optionsRef = useRef(options);
   optionsRef.current = options;
-
-  const getToken = useCallback((): string | null => {
-    const { accessToken } = optionsRef.current;
-    if (accessToken) return accessToken;
-    return oxyServices.session.accessToken ?? null;
-  }, [oxyServices]);
 
   const connect = useCallback(async () => {
     const live = callRef.current?.snapshot().state.kind;
     if (live !== undefined && live !== 'ended' && live !== 'error') return;
     const current = optionsRef.current;
+    sessionBindingRef.current?.dispose();
+    const apiUrl = current.apiUrl || ALIA_API_URL;
+    const binding = current.accessToken
+      ? null
+      : bindAudioSession(oxyServices, apiUrl, () => callRef.current?.hangUp());
+    sessionBindingRef.current = binding;
     const call = new VoiceCall({
-      apiUrl: current.apiUrl || ALIA_API_URL,
-      getToken,
+      apiUrl,
+      getToken: binding?.getToken ?? (() => optionsRef.current.accessToken ?? null),
       getAppAssertion,
       conversationId: current.conversationId ?? newConversationId(),
       ...(current.agentId === undefined ? {} : { agentId: current.agentId }),
@@ -130,19 +132,23 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       openSocket: current.openSocket ?? openWebSocket,
       levels,
       onChange: (next) => {
-        if (mountedRef.current && callRef.current === call) setSnapshot(next);
+        if (callRef.current !== call) return;
+        if (next.state.kind === 'ended' || next.state.kind === 'error') binding?.dispose();
+        if (mountedRef.current) setSnapshot(next);
       },
       onMessagesSaved: (conversationId, ids) =>
         optionsRef.current.onMessagesSaved?.(conversationId, ids),
     });
     callRef.current = call;
     await call.start();
-  }, [getToken, getAppAssertion, levels]);
+  }, [oxyServices, getAppAssertion, levels]);
 
   /** Hang up and forget the call: the room is back to `disconnected`. */
   const disconnect = useCallback(() => {
     const call = callRef.current;
     callRef.current = null;
+    sessionBindingRef.current?.dispose();
+    sessionBindingRef.current = null;
     call?.hangUp();
     levels.reset();
     if (mountedRef.current) setSnapshot(IDLE);
@@ -160,6 +166,8 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       mountedRef.current = false;
       const call = callRef.current;
       callRef.current = null;
+      sessionBindingRef.current?.dispose();
+      sessionBindingRef.current = null;
       call?.hangUp();
     };
   }, []);

@@ -2,9 +2,13 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn<typeof fetch>(), create: vi.fn() }));
-vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ oxyServices: { session: { accessToken: 'test-session' } } }),
-}));
+vi.mock('@oxy.so/services/ui/client', async () => {
+  const { audioTestOxy } = await import('../support/audio-oxy');
+  const getOxy = audioTestOxy(() => 'test-session');
+  return {
+    useOxy: () => ({ oxyServices: getOxy() }),
+  };
+});
 vi.mock('react-native-reanimated', () => ({
   makeMutable: (value: number) => ({ value }),
   withTiming: (value: number) => value,

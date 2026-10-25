@@ -21,7 +21,7 @@ import {
 } from '../../shared/catalogue';
 import { createLogger } from '../../shared/logger';
 
-const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
+const apiClient = new APIClient('telegram');
 const logger = createLogger('TelegramBot');
 
 // ---------------------------------------------------------------------------
@@ -573,9 +573,9 @@ export async function handleHistory(ctx: Context) {
     }
 
     try {
-      const conversations = await apiClient.getConversations(botUser.oxyUserId, {
+      const conversations = await apiClient.getConversations({
         kind: 'bot',
-        platformUserId: telegramId,
+        platformUserId: botUser.platformUserId,
       });
       if (!conversations || conversations.length === 0) {
         await ctx.reply(

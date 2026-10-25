@@ -1,8 +1,8 @@
+import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /**
- * Somebody else using an agent (Alia ADR 0020 §2, Oxy ADR 0042): the agent
- * reaches the PERSON's own apps under its owner's published ceilings — never
- * the owner's data, never its own bot account — and each call is that
- * person's own direct request naming the ceiling. No approval step.
+ * Somebody else using an agent (Alia ADR 0022): own tools reach the verified
+ * requester's effective account, never the owner's data or an unrelated bot.
+ * Every operation carries that requester's proof, without app-level grants.
  */
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,18 +73,18 @@ interface ExecutableTool {
   execute: (args: Record<string, unknown>, options?: { toolCallId?: string }) => Promise<unknown>;
 }
 
-let ceilingAutonomy: 'read_only' | 'autonomous' = 'autonomous';
+let legacyCeilingAutonomy: 'read_only' | 'autonomous' = 'autonomous';
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  ceilingAutonomy = 'autonomous';
+  legacyCeilingAutonomy = 'autonomous';
   fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
     if (url.endsWith('/auth/service-token'))
       return json({ token: 'ALIA-SERVICE-TOKEN', expiresIn: 300 });
     if (url.endsWith('/capabilities/catalogs'))
-      return json({ registrations: [{ catalog: CATALOG }] });
+      return json({ registrations: [registeredCatalog(CATALOG)] });
     if (url.endsWith('/capabilities/service-identity'))
       return json({ service: { applicationId: 'alia-app', credentialId: 'alia-credential' } });
     if (url.endsWith('/capabilities/requester-capability-map')) {
@@ -93,17 +93,22 @@ beforeEach(() => {
           {
             ceilingId: 'ceiling-1',
             resource: personRoot,
-            maximumAutonomy: ceilingAutonomy,
+            maximumAutonomy: legacyCeilingAutonomy,
             limits: [],
             toolNames:
-              ceilingAutonomy === 'read_only' ? ['searchListings'] : ['searchListings', 'saveHome'],
+              legacyCeilingAutonomy === 'read_only'
+                ? ['searchListings']
+                : ['searchListings', 'saveHome'],
           },
         ],
       });
     }
     if (url.endsWith('/capabilities/capability-map'))
       throw new Error('the owner-grant map must never be asked for a non-owner');
-    if (url.endsWith('/capabilities/execution-authorizations') && init?.method === 'POST')
+    if (
+      url.endsWith('/capabilities/foreground-execution-authorizations') &&
+      init?.method === 'POST'
+    )
       return json({ authorization: { id: 'DIRECT-1' } }, 201);
     if (url.endsWith('/capabilities/tickets'))
       return json({ decision: { allowed: true, reason: 'allowed' }, ticket: 'SHORT-TICKET' }, 201);
@@ -140,47 +145,48 @@ function body(call: unknown[] | undefined): Record<string, unknown> {
 }
 
 describe('an agent used by somebody who is not its owner', () => {
-  it("binds the person's own account under the ceiling, and nothing of the owner or the bot", async () => {
+  it("binds the person's own account without consulting legacy grants, and nothing of the owner or the bot", async () => {
     const tools = await buildOxyServiceTools(PERSON, context);
     expect(Object.keys(tools).sort()).toEqual([
       'oxy_homiio__saveHome',
       'oxy_homiio__searchListings',
     ]);
-    expect(body(calls('/capabilities/requester-capability-map')[0])).toEqual({
-      requesterAccountId: PERSON,
-      effectiveAccountId: PERSON,
-      actorAccountId: AGENT,
-    });
+    expect(calls('/capabilities/requester-capability-map')).toHaveLength(0);
+    expect(calls('/capabilities/capability-map')).toHaveLength(0);
     expect((tools.oxy_homiio__saveHome as unknown as ExecutableTool).description).toContain(
-      'The PERSON you are talking to',
+      'The PERSON you work for',
     );
   });
 
-  it("acts as the person's own direct request naming the ceiling, with no approval step", async () => {
+  it("acts as the person's own direct request with workload and requester proof, with no approval step", async () => {
     const tools = await buildOxyServiceTools(PERSON, context);
     const result = await (tools.oxy_homiio__saveHome as unknown as ExecutableTool).execute(
       { q: 'flat-1' },
       { toolCallId: 'call-1' },
     );
     expect(result).toEqual({ ok: true });
-    const authorization = calls('/capabilities/execution-authorizations')[0];
+    const authorization = calls('/capabilities/foreground-execution-authorizations')[0];
     expect(init(authorization).headers).toMatchObject({
-      Authorization: 'Bearer PERSON-TOKEN',
+      Authorization: 'Bearer ALIA-SERVICE-TOKEN',
     });
     expect(body(authorization)).toMatchObject({
       kind: 'direct_request',
-      ownerAccountId: PERSON,
+      authority: 'first_party',
+      subjectToken: 'PERSON-TOKEN',
       actor: { type: 'agent', accountId: AGENT },
       resource: personRoot,
       tool: 'saveHome',
-      ceilingId: 'ceiling-1',
-      maximumAutonomy: 'execute_on_request',
+      expectedCatalog: expect.objectContaining({ registrationId: 'registration-homiio' }),
     });
   });
 
-  it('offers no writes under "Ver"', async () => {
-    ceilingAutonomy = 'read_only';
+  it('does not apply a historical read-only app setting', async () => {
+    legacyCeilingAutonomy = 'read_only';
     const tools = await buildOxyServiceTools(PERSON, context);
-    expect(Object.keys(tools)).toEqual(['oxy_homiio__searchListings']);
+    expect(Object.keys(tools).sort()).toEqual([
+      'oxy_homiio__saveHome',
+      'oxy_homiio__searchListings',
+    ]);
+    expect(calls('/capabilities/requester-capability-map')).toHaveLength(0);
   });
 });

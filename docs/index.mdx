@@ -46,7 +46,8 @@ Alia is one of three things, and the three are not nested
   shape and streams `alia.*` product events; it does not sunset.
 
 For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
-Alia's API. Either way the key is issued in Oxy Console — Alia issues none.
+Alia's API. Own frontends use the shared Oxy session and own backends use attested
+workloads. External API keys come from Oxy Console; Alia issues none.
 
 Hosted inference follows `Alia -> Oxy -> Kaana`. Alia has no models of its own:
 a person picks a power level (`auto` … `ultra`) and Oxy picks the model of that

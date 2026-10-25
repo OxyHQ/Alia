@@ -16,17 +16,13 @@ const fx = vi.hoisted(() => ({
   cancelled: 0,
 }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({
-    oxyServices: {
-      session: {
-        get accessToken() {
-          return fx.token;
-        },
-      },
-    },
-  }),
-}));
+vi.mock('@oxy.so/services/ui/client', async () => {
+  const { audioTestOxy } = await import('../support/audio-oxy');
+  const getOxy = audioTestOxy(() => fx.token);
+  return {
+    useOxy: () => ({ oxyServices: getOxy() }),
+  };
+});
 
 vi.mock('../../src/lib/dictation-recorder', async () => {
   const types = await import('../../src/lib/dictation-recorder-types');

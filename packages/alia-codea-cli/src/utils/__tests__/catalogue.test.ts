@@ -8,7 +8,9 @@ import { describe, expect, it, vi } from 'vitest';
 // `catalogue.ts` imports the on-disk config and the session; neither is
 // exercised by the pure functions under test.
 vi.mock('../config.js', () => ({ config: { get: () => 'https://api.example' } }));
-vi.mock('../oxy-session.js', () => ({ accessToken: () => null }));
+vi.mock('../oxy-session.js', () => ({
+  linkedAliaClient: () => ({ fetchOptional: fetch, dispose() {} }),
+}));
 
 const {
   formatModelList,
