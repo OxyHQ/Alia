@@ -1,5 +1,11 @@
 # @alia.onl/sdk
 
+## 22.0.1
+
+Remove the Bloom peer upper bound to follow the first-party package policy.
+The required minimum remains `15.10.1`; core `>=7.1.0 <8` and services
+`>=13.0.0 <14` are unchanged. This patch changes package metadata only.
+
 ## 22.0.0
 
 Requires `@oxy.so/core >=7.1.0 <8` and `@oxy.so/services >=13.0.0 <14`.
