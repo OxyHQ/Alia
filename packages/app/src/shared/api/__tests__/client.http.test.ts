@@ -13,7 +13,17 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
   const token = (userId: string, exp = 2_000_000_000) =>
     `e30.${Buffer.from(JSON.stringify({ userId, sessionId: userId, exp })).toString('base64url')}.fixture`;
   let refreshedRequests = 0;
+  let refreshedPosts = 0;
+  const bodies: Array<{ path?: string; body: string; type?: string }> = [];
   const server = createServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    bodies.push({ path: req.url, body, type: req.headers['content-type'] });
+    if (req.url === '/refresh-post' && ++refreshedPosts === 1) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end('{}');
+      return;
+    }
     if (req.url === '/redirect') {
       res.writeHead(302, { location: 'http://127.0.0.1:1/private' });
       res.end();
@@ -73,6 +83,23 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     );
     assert.equal(refreshedRequests, 2);
     assert.equal(refreshes, 1);
+    await api.default.post('/refresh-post', { title: 'Original JSON' });
+    assert.equal(refreshedPosts, 2);
+    assert.equal(refreshes, 2);
+    assert.deepEqual(
+      bodies
+        .filter((body) => body.path === '/refresh-post')
+        .map(({ body, type }) => ({ body, type })),
+      [
+        { body: '{"title":"Original JSON"}', type: 'application/json' },
+        { body: '{"title":"Original JSON"}', type: 'application/json' },
+      ],
+    );
+    const form = new FormData();
+    form.append('file', new Blob(['upload']), 'example.txt');
+    await api.default.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+    assert.match(bodies.at(-1)?.type ?? '', /^multipart\/form-data; boundary=/);
+    assert.match(bodies.at(-1)?.body ?? '', /example.txt/);
     await assert.rejects(api.default.get('/redirect'));
     await assert.rejects(api.default.get('http://127.0.0.1:1/private'));
     const aborted = new AbortController();

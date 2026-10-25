@@ -11,14 +11,21 @@ const contextListeners = new Set<() => void>();
 const apiClient = axios.create({
   baseURL: config.apiUrl,
   timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
   adapter: 'fetch',
   xsrfCookieName: '',
   withXSRFToken: false,
   withCredentials: false,
   env: {
+    // @ts-expect-error Axios 1.20 supports null to disable Request construction; its declaration omits null. Keep JSON strings replayable by the shared transport.
+    Request: null,
     fetch: (input, init) => {
       if (!linked) throw new Error('The Oxy provider has not bound the product API');
+      if (typeof FormData !== 'undefined' && init?.body instanceof FormData) {
+        // Fetch owns multipart boundaries, including React Native URI parts.
+        const headers = new Headers(init.headers);
+        headers.delete('content-type');
+        return linked.fetchOptional(input, { ...init, headers });
+      }
       return linked.fetchOptional(input, init);
     },
   },
