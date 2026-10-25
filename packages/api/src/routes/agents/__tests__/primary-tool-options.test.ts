@@ -34,7 +34,6 @@ vi.mock('../../../lib/logger.js', () => {
   return { log: { agents: child, general: child } };
 });
 
-const { AgentOxyAppsError } = await import('../../../lib/agent-oxy-apps.js');
 const { default: router } = await import('../primary-tools.js');
 
 const app = express();
@@ -71,10 +70,7 @@ describe('GET /agents/:id/primary-tool-options', () => {
     const { status, body } = await options();
     expect(status).toBe(200);
     expect(body).toEqual({ primaryTools: ['homiio:searchListings'], max: 12, apps: [HOMIIO] });
-    expect(state.options).toHaveBeenCalledWith(
-      expect.objectContaining({ _id: 'sindi' }),
-      'OPERATOR-TOKEN',
-    );
+    expect(state.options).toHaveBeenCalledWith();
   });
 
   it('refuses somebody who does not operate the agent, and an agent that does not exist', async () => {
@@ -85,11 +81,7 @@ describe('GET /agents/:id/primary-tool-options', () => {
     expect(state.options).not.toHaveBeenCalled();
   });
 
-  it('passes on an Oxy refusal of the operator, and says when the apps could not be read', async () => {
-    state.options.mockRejectedValueOnce(
-      new AgentOxyAppsError(403, 'agent_operator_required', 'no'),
-    );
-    expect((await options()).status).toBe(403);
+  it('reports unavailable catalogues without changing operator checks', async () => {
     state.options.mockRejectedValueOnce(new Error('Oxy is unreachable'));
     expect((await options()).status).toBe(503);
   });

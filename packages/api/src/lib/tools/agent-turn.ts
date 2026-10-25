@@ -13,8 +13,7 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  * `ToolPipeline.forUser` as that person's turn with the CALLEE as the agent, so
  * it reaches exactly what an ordinary conversation with the callee would — its
  * own families and memory of this person, and the person's Oxy apps on the
- * lane the person stands in (the owner's levels for its owner, the owner's
- * published ceilings for anybody else; ADR 0020 §2). Nothing is widened by
+ * same requester account and original task proof (ADR0022). Nothing is widened by
  * being consulted rather than opened.
  *
  * `nested: true` is the recursion bound and the surface bound at once: a
@@ -101,6 +100,7 @@ export interface AgentTurnPerson {
   /** The person's live bearer, for Oxy direct requests; absent on a channel turn. */
   accessToken?: string;
   isDirectSession: boolean;
+  taskId?: string;
   /** The app the person is in, by its verified app assertion (ADR 0021), or `null`. */
   surfaceApplicationId: string | null;
 }
@@ -157,6 +157,7 @@ export async function runAgentTurn(input: {
     userId: person.oxyUserId,
     ...(person.accessToken ? { accessToken: person.accessToken } : {}),
     isDirectSession: person.isDirectSession,
+    oxyTaskId: person.taskId,
     actsForPerson: true,
     requesterAccountId: person.oxyUserId,
     surfaceApplicationId: person.surfaceApplicationId,
@@ -175,6 +176,7 @@ export async function runAgentTurn(input: {
       accountId: person.oxyUserId,
       // The person's own bearer only: without one no lane can be authorized.
       accessToken: person.isDirectSession ? person.accessToken : undefined,
+      taskId: person.taskId,
       runId: randomUUID(),
     };
     const refused =

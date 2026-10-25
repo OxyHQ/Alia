@@ -387,6 +387,7 @@ export async function buildChatRequestContext(
     'Processing messages',
   );
 
+  // Verified channel binding supplies local identity, never a direct session.
   const localAccountId = req.user?.id ?? req.channelContext?.accountId;
   let autonomyRuntime: AutonomyRuntimeContext | null = null;
   if (localAccountId) {
@@ -431,7 +432,10 @@ export async function buildChatRequestContext(
       });
       return null;
     }
-    if ((!isDirectUserSession && !isDelegatedServiceSession) || !req.user?.id) {
+    if (
+      (!isDirectUserSession && !isDelegatedServiceSession && !req.channelContext) ||
+      !localAccountId
+    ) {
       res.status(404).json({
         error: {
           message: 'The selected agent is unavailable.',
@@ -817,7 +821,8 @@ export async function buildChatRequestContext(
           fileRefs,
           exactHostedModel,
           person: {
-            accountId: req.user?.id,
+            accountId: localAccountId,
+            taskId: req.channelContext?.taskId,
             // The person's own bearer only: a service token is not them.
             accessToken: isDirectUserSession ? req.accessToken : undefined,
             runId: turnRequestId,
@@ -1210,7 +1215,12 @@ async function admitTurnFeatures(input: {
   uses: readonly GatedPart[];
   fileRefs: ReadonlyMap<string, FilePartRef>;
   exactHostedModel: boolean;
-  person: { accountId: string | undefined; accessToken: string | undefined; runId: string };
+  person: {
+    accountId: string | undefined;
+    accessToken: string | undefined;
+    taskId?: string;
+    runId: string;
+  };
   modelAcceptsFiles: boolean;
 }): Promise<FeatureAdmission> {
   const resolution = input.turnAgent === null ? null : await input.turnAgent;
@@ -1236,6 +1246,7 @@ async function admitTurnFeatures(input: {
       : {
           accountId: input.person.accountId,
           accessToken: input.person.accessToken,
+          taskId: input.person.taskId,
           runId: input.person.runId,
         };
 
@@ -1256,6 +1267,7 @@ async function admitTurnFeatures(input: {
     files = await resolveFileParts(input.fileRefs, {
       personAccountId: input.person.accountId,
       accessToken: input.person.accessToken,
+      taskId: input.person.taskId,
       modelAcceptsFiles: input.modelAcceptsFiles,
     });
   } catch (error: unknown) {

@@ -245,8 +245,7 @@ beforeEach(() => {
   // The messaging family includes the WhatsApp tools, which exist only where a
   // gateway is configured (`whatsAppGatewayConfigured`): this suite is about the
   // vocabulary, so it runs where the gateway exists.
-  vi.stubEnv('WHATSAPP_GATEWAY_URL', 'https://whatsapp-gateway.example.test');
-  vi.stubEnv('WHATSAPP_GATEWAY_SECRET', 'synthetic-secret');
+  vi.stubEnv('INTEGRATIONS_URL', 'https://integrations.example.test');
   asked.mcp = [];
   asked.integration = [];
   asked.oxy_service = [];
@@ -257,21 +256,6 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('an agent reaches exactly what it was granted', () => {
-  it('does not turn a local channel account into Oxy or connected-provider authority', async () => {
-    const names = await namesFor(null, {
-      userId: 'linked-channel-account',
-      accessToken: undefined,
-      isDirectSession: false,
-      actsForPerson: false,
-      runtime: undefined,
-    });
-    expect(asked.oxy_service).toEqual([]);
-    expect(asked.mcp).toEqual([]);
-    expect(asked.integration).toEqual([]);
-    expect(names).not.toContain('createAutomation');
-    expect(names).not.toContain('consultAgent');
-  });
-
   it('withholds automation creation when there is no live user session', async () => {
     const names = await namesFor(['automation'], {
       isDirectSession: false,
@@ -315,8 +299,13 @@ describe('an agent reaches exactly what it was granted', () => {
       },
     });
 
-    expect(asked.oxy_service).toEqual([]);
-    expect(asked.oxy_context).toEqual([]);
+    expect(asked.oxy_context).toEqual([
+      expect.objectContaining({
+        requesterAccountId: 'user-1',
+        ownerAccountId: 'user-1',
+        agentIdentity: { forUser: 'requester', self: false },
+      }),
+    ]);
   });
 
   it("reaches its owner's Oxy apps only when the owner is the one present", async () => {
@@ -345,7 +334,7 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(asked.oxy_context).toEqual([expect.objectContaining({ requesterAccountId: 'owner-1' })]);
   });
 
-  it("reaches a stranger's OWN apps, under the owner's ceilings, when the stranger is present", async () => {
+  it("reaches a stranger's OWN apps with that person's verified context", async () => {
     // A public agent answering somebody else in their own session (ADR 0020 §2).
     await namesFor([...EVERY_GRANT], {
       userId: 'stranger',

@@ -16,7 +16,7 @@ export interface PrimaryToolOption {
   description: string;
 }
 
-/** An Oxy app the agent reaches, on its owner's levels or on its ceiling for whoever uses it. */
+/** An Oxy app whose live catalogue admits the agent actor. */
 export interface PrimaryToolApp {
   appId: string;
   name: string;

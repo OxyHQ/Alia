@@ -72,6 +72,20 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// Controlled legacy channel conversion is shipped for a separately approved cutover job.
+await esbuild.build({
+  entryPoints: ['src/db/migrate-channel-tasks.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/db/migrate-channel-tasks.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // The seeder, bundled for the same reason the migrator is: the deploy's
 // post-rollout one-shot invokes a FILE PATH, and the runtime stage carries no
 // `src/`. A seeder that exists only as

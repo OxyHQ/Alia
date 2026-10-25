@@ -8,7 +8,7 @@
  * so that adapters get the full system prompt, user memory, tools, etc.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { APIClient } from './api-client';
 import { chunkText } from './utils';
 import { createLogger } from './logger';
@@ -36,7 +36,6 @@ export async function handleIncomingMessage(
 ): Promise<void> {
   const {
     platform,
-    oxyUserId,
     messageText,
     sendResponse,
     setTyping,
@@ -48,16 +47,6 @@ export async function handleIncomingMessage(
 
   try {
     const identity = { kind: 'account' as const, sessionId: params.sessionId };
-    // Get bot user from API
-    const botUser = await apiClient.getBotUser(oxyUserId);
-
-    if (!botUser || !botUser.isLinked || !botUser.oxyUserId) {
-      await sendResponse(
-        'Please link your Alia account first. Visit the Alia app and go to Settings.',
-      );
-      return;
-    }
-
     // Show typing
     if (setTyping) {
       try {
@@ -68,21 +57,15 @@ export async function handleIncomingMessage(
       }
     }
 
-    // Conversation management
-    let conversationId = botUser.conversationId;
-    if (!conversationId) {
-      conversationId = randomUUID();
-      await apiClient.updateConversation(oxyUserId, conversationId);
-    }
+    // Stable within this connected channel conversation; the API separately binds its owner.
+    const conversationId = createHash('sha256')
+      .update(JSON.stringify([platform, params.sessionId, params.chatId]))
+      .digest('hex');
 
     // Load conversation history (last 20 messages, user/assistant only)
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      const conversation = await apiClient.getConversation(
-        botUser.oxyUserId,
-        conversationId,
-        identity,
-      );
+      const conversation = await apiClient.getConversation(identity, conversationId);
       if (conversation?.messages?.length) {
         messages = conversation.messages
           .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -109,12 +92,11 @@ export async function handleIncomingMessage(
     ];
 
     // Route through the main API to get system prompt, memory, tools, etc.
-    const result = await apiClient.chatCompletion(botUser.oxyUserId, apiMessages, {
+    const result = await apiClient.chatCompletion(identity, apiMessages, {
       // Unset, or no longer in the catalogue, means the request names no
       // model and the server's default applies. See `./catalogue.ts`.
-      model: await apiClient.requestModel(botUser.preferredModel),
+      model: await apiClient.requestModel(undefined),
       conversationId,
-      identity,
     });
 
     const fullResponse = result.content;

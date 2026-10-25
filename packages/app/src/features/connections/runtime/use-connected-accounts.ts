@@ -14,6 +14,7 @@ export interface ConnectedAccount {
   status: 'connecting' | 'connected' | 'disconnected' | 'error' | 'expired';
   statusMessage?: string;
   sessionId?: string;
+  oxyTaskState?: 'active' | 'reauth_required';
   autoReply: boolean;
   autoReplyAgentId?: string;
   customContext?: string;
@@ -63,7 +64,23 @@ export function useConnectedAccounts(platform?: string) {
       const url = platform ? `/accounts/${platform}` : '/accounts';
       const response = await apiClient.get(url);
       if (superseded()) return;
-      setAccounts(response.data.accounts || []);
+      const accounts: ConnectedAccount[] = response.data.accounts || [];
+      // Existing external connections retain their provider credentials. A live
+      // own session restores only its account-bound task, without another consent.
+      await Promise.all(
+        accounts
+          .filter((account) => account.oxyTaskState === 'reauth_required')
+          .map(async (account) => {
+            try {
+              await apiClient.post(`/accounts/${account._id}/reauthorize`);
+              account.oxyTaskState = 'active';
+            } catch {
+              /* Remains typed inactive; the next verified visit may retry. */
+            }
+          }),
+      );
+      if (superseded()) return;
+      setAccounts(accounts);
       setError(null);
     } catch (err: unknown) {
       if (superseded()) return;

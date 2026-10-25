@@ -363,7 +363,7 @@ describe('the governance wrapper enforces the level it classified', () => {
     expect(H.state.mcpRuns).toEqual(['send_message', 'send_message']);
   });
 
-  it('an Oxy app write runs with no approval card, attended or not (Ver y actuar)', async () => {
+  it('an own-app write runs with no approval card, attended or not', async () => {
     const ctx = actionContext();
     const tools: ToolSet = {
       oxy_inbox__sendEmail: declareOxyAppTool({

@@ -9,21 +9,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({
   catalogs: [] as unknown[],
-  grants: vi.fn(),
-  ceilings: vi.fn(),
 }));
 
 vi.mock('../tools/oxy-services.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../tools/oxy-services.js')>()),
   listOxyAppCatalogs: async () => H.catalogs,
 }));
-vi.mock('../agent-oxy-apps.js', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../agent-oxy-apps.js')>()),
-  listAgentOxyApps: H.grants,
-}));
-vi.mock('../agent-requester-apps.js', () => ({ listAgentRequesterApps: H.ceilings }));
-
-const { AgentOxyAppsError } = await import('../agent-oxy-apps.js');
 const { listPrimaryToolOptions, primaryToolNames, refusePrimaryTools } = await import(
   '../agent-primary-tools.js'
 );
@@ -53,12 +44,8 @@ const noop = tool({ inputSchema: z.object({}), execute: async () => ({}) });
 const toolSet = (...names: string[]): ToolSet =>
   Object.fromEntries(names.map((name) => [name, noop]));
 
-const agent = { _id: 'agent-1', oxyAccountId: 'bot-1', ownerOxyAccountId: 'owner-1' };
-
 beforeEach(() => {
   H.catalogs = [HOMIIO];
-  H.grants.mockReset();
-  H.ceilings.mockReset();
 });
 
 describe('primaryToolNames', () => {
@@ -104,48 +91,15 @@ describe('refusePrimaryTools', () => {
 });
 
 describe('listPrimaryToolOptions', () => {
-  const row = (level: 'none' | 'read' | 'act') => ({
-    appId: 'homiio',
-    name: 'Homiio',
-    level,
-    levels: ['none', 'read', 'act'],
-  });
-
-  it('offers what the stronger of the two lanes covers', async () => {
-    H.grants.mockResolvedValue([row('read')]);
-    H.ceilings.mockResolvedValue([row('act')]);
-    expect(await listPrimaryToolOptions(agent, 'TOKEN')).toEqual([
-      {
-        appId: 'homiio',
-        name: 'Homiio',
-        tools: [
-          {
-            key: 'homiio:searchListings',
-            name: 'searchListings',
-            description: 'searchListings tool',
-          },
-          { key: 'homiio:saveHome', name: 'saveHome', description: 'saveHome tool' },
-        ],
-      },
+  it('offers every internal agent tool without per-app grants or ceilings', async () => {
+    const [app] = await listPrimaryToolOptions();
+    expect(app?.tools.map((entry) => entry.key)).toEqual([
+      'homiio:searchListings',
+      'homiio:saveHome',
     ]);
   });
-
-  it("reads a project-owned agent's ceilings when its owner grants cannot be read", async () => {
-    H.grants.mockRejectedValue(new AgentOxyAppsError(403, 'owner_authority_required', 'no'));
-    H.ceilings.mockResolvedValue([row('read')]);
-    const [app] = await listPrimaryToolOptions(agent, 'TOKEN');
-    expect(app?.tools.map((entry) => entry.key)).toEqual(['homiio:searchListings']);
-  });
-
-  it('offers nothing for an app the agent reaches on neither lane', async () => {
-    H.grants.mockResolvedValue([row('none')]);
-    H.ceilings.mockResolvedValue([row('none')]);
-    expect(await listPrimaryToolOptions(agent, 'TOKEN')).toEqual([]);
-  });
-
-  it('fails when Oxy cannot answer, rather than offering a partial list', async () => {
-    H.grants.mockRejectedValue(new AgentOxyAppsError(502, 'oxy_unavailable', 'down'));
-    H.ceilings.mockResolvedValue([]);
-    await expect(listPrimaryToolOptions(agent, 'TOKEN')).rejects.toThrow('down');
+  it('omits apps with no internal tools', async () => {
+    H.catalogs = [{ ...HOMIIO, tools: [catalogTool('publicOnly', 'read', ['public'])] }];
+    expect(await listPrimaryToolOptions()).toEqual([]);
   });
 });

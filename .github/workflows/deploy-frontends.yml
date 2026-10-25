@@ -5,9 +5,8 @@ on:
   # guards as deploy-aws.yml, owned by the `scope` job below. Until 2026-10 this
   # ran on `push`, so a commit whose CI went red still shipped its frontends.
   #
-  # Neither half waits for the other: the frontends are gated on CI, not on the
-  # API's rollout, exactly as unordered as they were on `push`. Ship both halves
-  # through the pipeline or both by hand (~/Oxy/docs/infra-and-deploys.md).
+  # Phase B: the app waits for this exact API rollout before removing the old
+  # agent permission UI. Canvas stays independent. Remove the app barrier in C.
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -37,12 +36,28 @@ jobs:
       group: deploy-alia-app
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    # Measured 3-4 minutes; a backstop against the 6-hour default.
-    timeout-minutes: 30
+    # Includes the finite one-hour API transition wait.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_SHA }}
+      # The old API still reads agent grants/ceilings. The new app removes those
+      # controls, so it must follow the verified API rollout, including dispatch.
+      - name: Configure AWS credentials for transition verification
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: us-west-2
+      - name: Verify API producer transition and old-task drain
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLUSTER: oxy-cluster
+        run: python3 -B .github/scripts/wait-alia-api-transition.py
       - uses: oven-sh/setup-bun@v2
         with:
           # The one pin is `packageManager` in package.json; scripts/check-bun-pin.mjs

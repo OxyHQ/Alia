@@ -111,6 +111,7 @@ export interface AgentSessionRecord {
   goalId: string | null;
   generation: number;
   parentSessionId: string | null;
+  oxyTaskId?: string | null;
   automationRunId: string | null;
   automationStage: number | null;
   status: AgentSessionStatus;
@@ -213,6 +214,7 @@ export function toAgentSessionRecord(row: AgentSessionRow): AgentSessionRecord {
     goalId: row.goalId,
     generation: row.generation,
     parentSessionId: row.parentSessionId,
+    oxyTaskId: row.oxyTaskId,
     automationRunId: row.automationRunId,
     automationStage: row.automationStage,
     status: row.status as AgentSessionStatus,
@@ -630,6 +632,7 @@ export async function listAgentSessionsForAudit(
 /* ------------------------------ writes ------------------------------ */
 
 export interface CreateAgentSessionInput {
+  id?: string;
   agentId: string;
   oxyUserId: string;
   task: string;
@@ -638,6 +641,7 @@ export interface CreateAgentSessionInput {
   goalId?: string;
   generation?: number;
   parentSessionId?: string;
+  oxyTaskId?: string;
   automationRunId?: string;
   automationStage?: number;
   status?: AgentSessionStatus;
@@ -651,6 +655,7 @@ export interface CreateAgentSessionInput {
 
 function agentSessionValues(input: CreateAgentSessionInput): typeof agentSessions.$inferInsert {
   return {
+    ...(input.id ? { id: input.id } : {}),
     agentId: input.agentId,
     oxyUserId: input.oxyUserId,
     task: input.task,
@@ -659,6 +664,7 @@ function agentSessionValues(input: CreateAgentSessionInput): typeof agentSession
     goalId: input.goalId ?? null,
     ...(input.generation !== undefined && { generation: input.generation }),
     parentSessionId: input.parentSessionId ?? null,
+    oxyTaskId: input.oxyTaskId ?? null,
     automationRunId: input.automationRunId ?? null,
     automationStage: input.automationStage ?? null,
     ...(input.status !== undefined && { status: input.status }),

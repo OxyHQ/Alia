@@ -12,68 +12,45 @@ Kaana's incident runbook. Removing it from Alia is cleanup, not revocation.
 
 | Credential | Owner and storage | Rotation effect |
 | --- | --- | --- |
-| Alia-to-Oxy application key and secret | Oxy ApplicationCredential record -> Oxy provisioner -> `/oxy/alia/OXY_SERVICE_API_*` -> ECS binding | New tasks authenticate with the replacement pair |
+| Alia workload identity | Temporary AWS task/SSO role credentials; live Oxy workload binding | Rotate or revoke the role/binding; no application key pair |
 | OAuth and connector tokens | encrypted PostgreSQL columns | API and integrations must share `TOKEN_ENCRYPTION_KEY` |
 | Bot/platform tokens | PostgreSQL; encrypted where declared | Restart or reconnect the affected integration |
 | Product webhook secrets | PostgreSQL | Producer and verifier must overlap or switch atomically |
 
-## Alia-to-Oxy application credential
+## Alia workload identity
 
-Create the replacement in Oxy with only the scopes the Alia task needs, then run
-Oxy's credential provisioner so it writes the pair to Alia's exact SSM
-parameters. Do not copy either value into GitHub. Alia's deploy validates only
-the parameter names and `SecureString` types, then binds them into a new
-immutable task revision without reading or overwriting their values.
+The API and integrations authenticate with their registered workload, using
+short-lived AWS role credentials and the shared Oxy SDK. Local development uses
+an IAM/SSO development role through the same server-only provider. A customer
+API key is never a replacement for an own workload, and own workloads do not
+request scopes. External customer keys and OAuth connections remain scoped.
 
-Deploy and verify the running task-definition ARN, secret names, positive task
-count and a real Oxy-authenticated inference request before revoking the old
-credential. Do not print either value. An empty or placeholder secret is not a
-rotation.
+To rotate a process role, register the replacement's exact provider/subject,
+application, owner and environment in Oxy, deploy that role to the intended
+process, and verify the running task definition, digest and successful
+workload exchange. Gateway receivers pin the expected calling workload; update
+those server-controlled pins as part of the same rollout. Then revoke the old
+binding and remove its role access. On an exposure, revoke the affected role or
+binding first. Never print credentials, signed attestations or tokens.
 
-### Revoking the credential
+Revocation is checked against the live Oxy binding even while an issued token
+has not expired. A readiness probe checks configuration, not successful
+identity exchange: verify a real authorized request and its account attribution.
+Do not restore a revoked binding by rolling back an image. Alia has no Kaana
+signing key; Oxy owns and rotates the Oxy-to-Kaana signing boundary.
 
-Revoke in **Oxy Console → the Alia application → Credentials**: the
-ApplicationCredential whose key is the value of `OXY_SERVICE_API_KEY`. Nothing
-in Alia revokes it and nothing in Alia needs to change for the revocation to
-bite — the Oxy edge re-reads the credential row on every request rather than
-trusting a minted token's claims, so it is effective inside the token's own
-hour of life, not at the next exchange.
-
-What Alia then does, read from the code rather than assumed:
-
-- **Boot does not refuse.** `lib/inference/oxy-inference-credential.ts`
-  checks *capability* only — `OXY_API_URL` set, and either a complete
-  `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` pair or a task role this
-  process can attest (oxy ADR 0026) — and `lib/boot-guards.ts` refuses on that
-  alone. On a deployed task there is no pair to rotate in the first place; this
-  runbook describes a credential that still exists somewhere holding one. Whether the credential is *accepted* is answered on the first
-  exchange. `GET /ready` likewise keeps reporting `kaana.credentials:
-  "configured"` (`routes/health.ts` — "configured is not serving: nothing is
-  probed"), so a healthy probe is not evidence the credential still works.
-- **Every hosted turn fails, typed.** The service-token exchange or the edge
-  answers 401; `@oxy.so/core` surfaces it as `OxyInferenceError` with code
-  `authentication_failed`; `lib/errors/failover-error.ts` classifies a 401 as
-  `auth` and maps it to `AliaErrorCode.AUTH_FAILED` (HTTP 401 on the product
-  surface, no upstream detail). Alia never retries — `provider-loop.ts` resolves
-  Kaana once — and the turn is recorded in `chat_analytics` with
-  `error_class = AUTH_FAILED`. Local user-runtime turns carry no Oxy credential
-  and keep working.
-- **Recovery is a deploy, not a restart.** The SDK caches the service token per
-  `(apiKey, apiSecret)` pair; a running task keeps presenting the revoked pair
-  until a task revision binds the replacement from SSM, so follow the rotation
-  steps above. A rollback of the Alia image does not un-revoke anything, and an
-  image older than #477 cannot run at all (`provider_keys` is dropped, the
-  legacy variables are removed at deploy).
-
-Alia has no Kaana signing key to rotate. Oxy owns the Oxy-to-Kaana signing
-boundary and rotates it independently.
+`OXY_SERVICE_API_*` is retired and removed. New own process calls use workloads;
+`SERVICE_SECRET` and `INTEGRATIONS_SECRET` remain bound only for the finite phase-B
+reader transition. Phase C removes those inherited bindings explicitly after both
+producers have drained. Do not delete them while A2 callers can still run. After every running task has migrated, remove unused SSM parameters
+through the infrastructure rollout. `TOKEN_ENCRYPTION_KEY` remains required for
+stored connector data and is handled separately below.
 
 Oxy application events have no Alia-held per-app webhook secret. Migration
-`0056` removed the former `oxy_services.webhook_secret` values and retired the
-legacy table. Rotate or revoke the publisher's centralized Oxy service
-credential in Oxy; do not add a replacement secret to Alia. User-owned
-`triggers.webhook_secret` values remain part of the trigger API and must be
-rotated with the producer and verifier in agreement.
+`0056` retired the former `oxy_services.webhook_secret` values. Revoke the
+publisher's live workload binding in Oxy; do not add a replacement shared
+secret. User-owned `triggers.webhook_secret` values remain part of the trigger
+API and must rotate with their producer and verifier.
 
 ## `TOKEN_ENCRYPTION_KEY`
 

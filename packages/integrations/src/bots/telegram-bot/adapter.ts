@@ -26,7 +26,7 @@ import {
 } from './commands';
 import { createLogger } from '../../shared/logger';
 
-const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
+const apiClient = new APIClient('telegram');
 const logger = createLogger('TelegramBot');
 
 export class TelegramBotAdapter implements BotAdapter {
@@ -173,9 +173,8 @@ export class TelegramBotAdapter implements BotAdapter {
       let messages: Array<{ role: string; content: MessageContent }> = [];
       try {
         const conversation = await apiClient.getConversation(
-          botUser.oxyUserId.toString(),
+          { kind: 'bot', platformUserId: botUser.platformUserId },
           conversationId,
-          { kind: 'bot', platformUserId: telegramId },
         );
         if (conversation?.messages?.length) {
           messages = conversation.messages
@@ -220,13 +219,16 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       let lastUpdateTime = Date.now();
       let currentMessage: Message.TextMessage | null = null;
 
-      const stream = apiClient.chatCompletionStream(botUser.oxyUserId.toString(), apiMessages, {
-        // Unset, or no longer in the catalogue, means the request names no
-        // model and the server's default applies. See `shared/catalogue.ts`.
-        model: await apiClient.requestModel(botUser.preferredModel),
-        conversationId,
-        identity: { kind: 'bot', platformUserId: telegramId },
-      });
+      const stream = apiClient.chatCompletionStream(
+        { kind: 'bot', platformUserId: botUser.platformUserId },
+        apiMessages,
+        {
+          // Unset, or no longer in the catalogue, means the request names no
+          // model and the server's default applies. See `shared/catalogue.ts`.
+          model: await apiClient.requestModel(botUser.preferredModel),
+          conversationId,
+        },
+      );
 
       // Process streaming chunks
       for await (const chunk of stream) {
@@ -396,10 +398,9 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
       const mimeType = voice ? 'audio/ogg' : audio?.mime_type || 'audio/mpeg';
 
       const transcribedText = await apiClient.transcribe(
-        botUser.oxyUserId.toString(),
+        { kind: 'bot', platformUserId: botUser.platformUserId },
         base64Audio,
         mimeType,
-        { kind: 'bot', platformUserId: telegramId },
       );
 
       if (!transcribedText?.trim()) {

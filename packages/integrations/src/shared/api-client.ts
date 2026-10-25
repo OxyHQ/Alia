@@ -1,5 +1,10 @@
-import type { AliaChannelIdentity } from '@alia.onl/server/internal';
-import axios, { type AxiosInstance } from 'axios';
+import {
+  ALIA_CHANNEL_HEADER,
+  ALIA_PLATFORM_USER_HEADER,
+  ALIA_CHANNEL_SESSION_HEADER,
+  type AliaChannelIdentity,
+} from '@alia.onl/server/internal';
+import { aliaApiFetch } from './oxy';
 import { errorCode, errorStatus } from './utils';
 import { parseCatalogue, resolveRequestModel, type Catalogue } from './catalogue';
 
@@ -48,46 +53,54 @@ const CATALOGUE_CACHE_TTL_MS = 5 * 60 * 1000;
  * Parameterized API client — one instance per platform, all sharing the same core logic.
  */
 export class APIClient {
-  private client: AxiosInstance;
+  private client = {
+    get: (path: string, options?: { headers?: HeadersInit; timeout?: number }) =>
+      this.jsonRequest('GET', path, undefined, options),
+    post: (path: string, body: unknown, options?: { headers?: HeadersInit; timeout?: number }) =>
+      this.jsonRequest('POST', path, body, options),
+  };
   private platform: string;
-  private secret: string;
   private cachedCatalogue: Catalogue | null = null;
   private cachedCatalogueAt = 0;
 
-  constructor(platform: string, secret: string) {
+  constructor(platform: string) {
     this.platform = platform;
-    this.secret = secret;
-    const baseURL = process.env.API_BASE_URL || 'http://localhost:4150';
-    this.client = axios.create({
-      baseURL,
-      timeout: 30000,
-      headers: { 'Content-Type': 'application/json' },
-    });
   }
 
-  private get authHeaders() {
-    return { 'X-Channel-Bot-Secret': this.secret };
+  private get authHeaders(): Record<string, string> {
+    return { [ALIA_CHANNEL_HEADER]: this.platform };
   }
 
-  // Temporary A2 wire: distinct names are ignored by the already deployed A
-  // reader, which selects workload auth on the canonical x-alia-channel header.
-  // B validates the secret and resolves this provider identity from its live row.
-  private accountHeaders(
-    oxyUserId: string,
-    identity?: AliaChannelIdentity,
-  ): Record<string, string> {
+  private accountHeaders(identity: AliaChannelIdentity): Record<string, string> {
     return {
       ...this.authHeaders,
-      'X-Oxy-User-Id': oxyUserId,
-      ...(identity
-        ? {
-            'x-alia-legacy-channel': this.platform,
-            ...(identity.kind === 'bot'
-              ? { 'x-alia-legacy-platform-user': identity.platformUserId }
-              : { 'x-alia-legacy-channel-session': identity.sessionId }),
-          }
-        : {}),
+      ...(identity.kind === 'bot'
+        ? { [ALIA_PLATFORM_USER_HEADER]: identity.platformUserId }
+        : { [ALIA_CHANNEL_SESSION_HEADER]: identity.sessionId }),
     };
+  }
+
+  private async jsonRequest(
+    method: string,
+    path: string,
+    body?: unknown,
+    options: { headers?: HeadersInit; timeout?: number } = {},
+  ): Promise<{ data: any }> {
+    const headers = new Headers(options.headers);
+    if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+    const response = await aliaApiFetch(path, {
+      method,
+      headers,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(options.timeout ?? 30_000),
+    });
+    if (!response.ok) {
+      const error = Object.assign(new Error(`Alia request failed (${response.status})`), {
+        status: response.status,
+      });
+      throw error;
+    }
+    return { data: await response.json() };
   }
 
   async getBotUser(platformUserId: string): Promise<BotUser | null> {
@@ -137,13 +150,12 @@ export class APIClient {
   }
 
   async getConversation(
-    oxyUserId: string,
+    identity: AliaChannelIdentity,
     conversationId: string,
-    identity?: AliaChannelIdentity,
   ): Promise<Conversation | null> {
     try {
       const response = await this.client.get(`/conversations/${conversationId}`, {
-        headers: this.accountHeaders(oxyUserId, identity),
+        headers: this.accountHeaders(identity),
       });
       return response.data;
     } catch (error: unknown) {
@@ -153,26 +165,22 @@ export class APIClient {
   }
 
   async saveConversation(
-    oxyUserId: string,
+    identity: AliaChannelIdentity,
     conversationId: string,
     messages: ConversationMessage[],
     title?: string,
-    identity?: AliaChannelIdentity,
   ): Promise<Conversation> {
     const response = await this.client.post(
       '/conversations',
       { conversationId, messages, title },
-      { headers: this.accountHeaders(oxyUserId, identity) },
+      { headers: this.accountHeaders(identity) },
     );
     return response.data;
   }
 
-  async getConversations(
-    oxyUserId: string,
-    identity?: AliaChannelIdentity,
-  ): Promise<Conversation[]> {
+  async getConversations(identity: AliaChannelIdentity): Promise<Conversation[]> {
     const response = await this.client.get('/conversations', {
-      headers: this.accountHeaders(oxyUserId, identity),
+      headers: this.accountHeaders(identity),
     });
     return response.data;
   }
@@ -180,7 +188,7 @@ export class APIClient {
   /**
    * The model catalogue (`GET /catalogue`), or `null` when it could not be read.
    *
-   * Sent without the channel secret: the route is `optionalAuth`, so one would
+   * No provider-link context is attached: the catalogue is public, so one would
    * buy nothing and widen where it travels. `null` rather than an empty
    * catalogue, because "no models" and "we could not ask" are different
    * answers. A failure is NOT cached, and the previous success is not kept
@@ -237,48 +245,17 @@ export class APIClient {
   // Chat completions — route AI calls through the main API
   // ---------------------------------------------------------------------------
 
-  private get baseURL(): string {
-    return process.env.API_BASE_URL || 'http://localhost:4150';
-  }
-
-  /**
-   * Non-streaming chat completion (Discord, gateway adapters).
-   *
-   * ## Why `/alia/chat` and not `/v1/chat/completions`
-   *
-   * Both mounts run the identical `handleChatCompletions`
-   * (`packages/api/src/routes/chat.ts`), so the OpenAI-shaped body below and the
-   * `choices[0].message` it reads back are unchanged. What differs is which
-   * surface this service depends on: ADR 0004 makes `/v1/*` a bounded-window
-   * compatibility surface for EXTERNAL callers, and
-   * `docs/migration/compatibility-window.md` gates its per-route removal on
-   * first-party consumers having migrated. This service is a first-party
-   * consumer — epic #139 workstream 6.
-   *
-   * The credential carries across because `authenticateTokenOrApiKey` reads
-   * `x-channel-bot-secret` itself (`packages/api/src/middleware/auth.ts`) and
-   * `/alia/chat` mounts it. Measured 2026-08-19 against the running service: a
-   * deliberately wrong secret gets `401 Invalid channel bot authentication` from
-   * BOTH paths, identically, where a nonexistent path gets 404. One difference
-   * survives and is narrower here: `/v1` matches the secret against every
-   * registered channel, `/alia/chat` against `getConfiguredChannels()` only, so
-   * a channel whose bot secret is set while the rest of its configuration is not
-   * authenticates on `/v1` and not here.
-   *
-   * CORS is not a factor: this is a server-to-server call with no `Origin`
-   * header, which `createOxyCors` passes through untouched. A browser client
-   * would be refused — which is why `@alia.onl/sdk` deliberately stays on `/v1`.
-   */
+  /** Shared product chat transport; channel identity is resolved live by Alia. */
   async chatCompletion(
-    oxyUserId: string,
+    identity: AliaChannelIdentity,
     messages: Array<{ role: string; content: MessageContent }>,
-    options: { model?: string; conversationId?: string; identity?: AliaChannelIdentity } = {},
+    options: { model?: string; conversationId?: string } = {},
   ): Promise<{ content: string; finishReason: string }> {
-    const response = await fetch(`${this.baseURL}/alia/chat`, {
+    const response = await aliaApiFetch(`/alia/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...this.accountHeaders(oxyUserId, options.identity),
+        ...this.accountHeaders(identity),
       },
       body: JSON.stringify({
         // Omitted when unset, exactly like `conversationId` beneath it:
@@ -299,7 +276,7 @@ export class APIClient {
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
       const err: Error & { status?: number; code?: unknown } = new Error(
-        body.error?.message || body.error || `HTTP ${response.status}`,
+        `Alia request failed (${response.status})`,
       );
       err.status = response.status;
       err.code = body.error?.code;
@@ -317,17 +294,12 @@ export class APIClient {
   /**
    * Transcribe audio to text via the voice/transcribe API endpoint.
    */
-  async transcribe(
-    oxyUserId: string,
-    audio: string,
-    format?: string,
-    identity?: AliaChannelIdentity,
-  ): Promise<string> {
+  async transcribe(identity: AliaChannelIdentity, audio: string, format?: string): Promise<string> {
     const response = await this.client.post(
       '/v1/voice/transcribe',
       { audio, format },
       {
-        headers: this.accountHeaders(oxyUserId, identity),
+        headers: this.accountHeaders(identity),
         timeout: 30000,
       },
     );
@@ -344,15 +316,15 @@ export class APIClient {
    * (`packages/api/src/index.ts`), which is what a long stream wants.
    */
   async *chatCompletionStream(
-    oxyUserId: string,
+    identity: AliaChannelIdentity,
     messages: Array<{ role: string; content: MessageContent }>,
-    options: { model?: string; conversationId?: string; identity?: AliaChannelIdentity } = {},
+    options: { model?: string; conversationId?: string } = {},
   ): AsyncGenerator<string, void, undefined> {
-    const response = await fetch(`${this.baseURL}/alia/chat`, {
+    const response = await aliaApiFetch(`/alia/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...this.accountHeaders(oxyUserId, options.identity),
+        ...this.accountHeaders(identity),
       },
       body: JSON.stringify({
         // Omitted when unset — see `chatCompletion` above.
@@ -368,7 +340,7 @@ export class APIClient {
     if (!response.ok) {
       const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
       const err: Error & { status?: number; code?: unknown } = new Error(
-        body.error?.message || body.error || `HTTP ${response.status}`,
+        `Alia request failed (${response.status})`,
       );
       err.status = response.status;
       err.code = body.error?.code;

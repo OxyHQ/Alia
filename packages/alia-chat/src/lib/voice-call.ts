@@ -76,7 +76,10 @@ export interface VoiceCallSnapshot {
 export interface VoiceCallOptions {
   readonly apiUrl: string;
   /** The person's Oxy session token, read at connect and every few minutes. */
-  readonly getToken: () => string | null;
+  readonly getToken: (
+    target: string,
+    options?: { signal?: AbortSignal },
+  ) => string | null | Promise<string | null>;
   /**
    * The host's Oxy app assertion, sent with the first `auth` of each socket so
    * an agent Oxy confines to an app opens only there (ADR 0021). Absent: none.
@@ -138,6 +141,8 @@ export class VoiceCall {
   private resumeTimer: ReturnType<typeof setTimeout> | null = null;
   private tokenTimer: ReturnType<typeof setInterval> | null = null;
   private finished = false;
+  private readonly credentialAbort = new AbortController();
+  private refreshingToken = false;
 
   /** The three facts "listening" needs. */
   private ready = false;
@@ -172,11 +177,7 @@ export class VoiceCall {
   async start(): Promise<void> {
     if (this.state.kind !== 'idle') return;
     this.setState({ kind: 'connecting' });
-    const token = this.options.getToken();
-    if (token === null || token === '') {
-      this.fail('not-authenticated');
-      return;
-    }
+    if (!(await this.readToken()) || this.finished) return;
     const engine = this.options.createEngine();
     this.engine = engine;
     try {
@@ -187,9 +188,10 @@ export class VoiceCall {
       return;
     }
     if (this.finished) return;
-    this.openSocket(false);
+    await this.openSocket(false);
+    if (this.finished) return;
     this.tokenTimer = setInterval(
-      () => this.refreshToken(),
+      () => void this.refreshToken(),
       this.options.tokenRefreshMs ?? TOKEN_REFRESH_MS,
     );
   }
@@ -237,7 +239,8 @@ export class VoiceCall {
     };
   }
 
-  private openSocket(resuming: boolean): void {
+  private async openSocket(resuming: boolean): Promise<void> {
+    if (!(await this.readToken()) || this.finished) return;
     this.authenticated = false;
     let socket: VoiceSocket;
     try {
@@ -250,29 +253,7 @@ export class VoiceCall {
     socket.binaryType = 'arraybuffer';
     this.socket = socket;
     socket.onopen = () => {
-      const token = this.options.getToken();
-      if (token === null || token === '') {
-        this.fail('not-authenticated');
-        return;
-      }
-      this.lastToken = token;
-      const getAppAssertion = this.options.getAppAssertion;
-      if (getAppAssertion === undefined) {
-        socket.send(JSON.stringify({ type: 'auth', token } satisfies VoiceClientEvent));
-        return;
-      }
-      void getAppAssertion()
-        .catch(() => null)
-        .then((appAssertion) => {
-          if (this.socket !== socket || this.finished || socket.readyState !== OPEN) return;
-          socket.send(
-            JSON.stringify({
-              type: 'auth',
-              token,
-              ...(appAssertion ? { appAssertion } : {}),
-            } satisfies VoiceClientEvent),
-          );
-        });
+      void this.authenticateSocket(socket);
     };
     socket.onmessage = (event) => {
       if (this.socket !== socket || this.finished) return;
@@ -314,16 +295,59 @@ export class VoiceCall {
     if (this.resumeTimer !== null) clearTimeout(this.resumeTimer);
     this.resumeTimer = setTimeout(() => {
       this.resumeTimer = null;
-      if (!this.finished) this.openSocket(true);
+      if (!this.finished) void this.openSocket(true);
     }, this.options.resumeRetryMs ?? RESUME_RETRY_MS);
   }
 
-  private refreshToken(): void {
-    if (!this.authenticated || this.socket?.readyState !== OPEN) return;
-    const token = this.options.getToken();
-    if (token === null || token === '' || token === this.lastToken) return;
+  /** The shared session owns refresh and validates the actual socket destination. */
+  private async readToken(): Promise<string | null> {
+    try {
+      const token = await this.options.getToken(voiceSessionUrl(this.options.apiUrl), {
+        signal: this.credentialAbort.signal,
+      });
+      if (this.finished) return null;
+      if (!token) this.fail('not-authenticated');
+      return token || null;
+    } catch {
+      if (!this.finished) this.fail('not-authenticated');
+      return null;
+    }
+  }
+
+  private async authenticateSocket(socket: VoiceSocket): Promise<void> {
+    const assertion = await this.options.getAppAssertion?.().catch(() => null);
+    const token = await this.readToken();
+    if (!token || this.finished || this.socket !== socket || socket.readyState !== OPEN) return;
     this.lastToken = token;
-    this.send({ type: 'auth', token });
+    socket.send(
+      JSON.stringify({
+        type: 'auth',
+        token,
+        ...(assertion ? { appAssertion: assertion } : {}),
+      } satisfies VoiceClientEvent),
+    );
+  }
+
+  private async refreshToken(): Promise<void> {
+    if (this.refreshingToken || !this.authenticated || this.socket?.readyState !== OPEN) return;
+    const socket = this.socket;
+    this.refreshingToken = true;
+    try {
+      const token = await this.readToken();
+      if (
+        !token ||
+        this.finished ||
+        this.socket !== socket ||
+        !this.authenticated ||
+        socket.readyState !== OPEN
+      )
+        return;
+      if (token === this.lastToken) return;
+      this.lastToken = token;
+      this.send({ type: 'auth', token });
+    } finally {
+      this.refreshingToken = false;
+    }
   }
 
   private send(event: VoiceClientEvent): void {
@@ -564,6 +588,7 @@ export class VoiceCall {
   private finish(state: VoiceCallState): void {
     if (this.finished) return;
     this.finished = true;
+    this.credentialAbort.abort();
     if (this.resumeTimer !== null) clearTimeout(this.resumeTimer);
     if (this.tokenTimer !== null) clearInterval(this.tokenTimer);
     this.resumeTimer = null;

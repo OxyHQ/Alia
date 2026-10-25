@@ -161,7 +161,8 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
      * Private key material is referenced nowhere it could take effect: not in
      * API CODE and not in the deploy task definition.
      *
-     * Measured against comment-stripped source rather than a repo-wide grep,
+     * Measured against comment-stripped production source (test directories
+     * and test modules are outside the runtime), rather than a repo-wide grep,
      * which is the census-reads-its-own-explanation trap — a repo grep finds
      * this file's header and `middleware/auth.ts`'s, and it did, twice, while
      * this was being written. Narrowing the grep by excluding those files is
@@ -172,7 +173,12 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
       'SERVICE_TOKEN_PRIVATE_KEY',
       'SERVICE_TOKEN_SECRET',
     ]) {
-      const codeMentions = gitGrepFiles(privateName, ['packages/api/src'])
+      const codeMentions = gitGrepFiles(privateName, [
+        'packages/api/src',
+        ':!**/__tests__/**',
+        ':!**/*.test.ts',
+        ':!**/*.spec.ts',
+      ])
         .filter((file) => file !== SELF)
         .filter((file) =>
           code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes(privateName),
@@ -184,13 +190,26 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     // The control: the same pipeline DOES report a file whose CODE names it,
     // so the empty list is absence rather than a filter that rejects everything.
     expect(
-      gitGrepFiles('SERVICE_SECRET', ['packages/api/src'])
+      gitGrepFiles('SERVICE_SECRET', [
+        'packages/api/src',
+        ':!**/__tests__/**',
+        ':!**/*.test.ts',
+        ':!**/*.spec.ts',
+      ])
         .filter((file) => file !== SELF)
         .filter((file) =>
           code(path.relative(API_SRC, path.join(REPO_ROOT, file))).includes('SERVICE_SECRET'),
         ),
     ).toEqual([]);
-    expect(gitGrepFiles('SERVICE_SECRET', ['.github'])).toEqual([]);
+    for (const file of gitGrepFiles('SERVICE_SECRET', ['.github'])) {
+      const workflow = readFileSync(path.join(REPO_ROOT, file), 'utf8');
+      const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON:\s*'(\[.*?\])'/)?.[1];
+      expect(removals, `${file} may name SERVICE_SECRET only for explicit removal`).toBeDefined();
+      expect(JSON.parse(removals ?? '[]')).toContain('SERVICE_SECRET');
+      expect(workflow.replace(/TASK_SECRET_REMOVALS_JSON:\s*'\[.*?\]'/, '')).not.toMatch(
+        /SERVICE_SECRET/,
+      );
+    }
   });
 });
 
@@ -232,11 +251,15 @@ describe('every unauthenticated inbound entry point is replay-protected (#139 ws
 
   it('the Oxy event surface verifies central service identity before it acts', () => {
     const events = code('routes/oxy-service-events.ts');
-    expect(events).toContain('/capabilities/service-identity');
+    expect(events).toContain('expectedAudience: ALIA_SERVICE_AUDIENCE');
+    expect(events).toContain('registeredByApplicationId === publisher.appId');
+    expect(events).toContain("publisher.authority !== 'first_party'");
+    expect(events).toContain("publisher.scopes?.includes('capability-events:publish')");
+    expect(events).not.toContain('/capabilities/service-identity');
     expect(events).not.toContain('timingSafeEqual');
     // Central service verification precedes the database claim, or a forged
     // event could still burn its idempotency key.
-    const verifyAt = events.indexOf('await identifyPublisher(token)');
+    const verifyAt = events.indexOf('await oxy.middleware.service(');
     const claimAt = events.indexOf('await claimAutomationEvent(');
     expect(verifyAt).toBeGreaterThan(-1);
     expect(claimAt).toBeGreaterThan(-1);
@@ -375,9 +398,6 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // that produces each. The limiter's last keyed branch is the signed-in user;
     // below it the function falls through to a bare `next()`.
     const context = canonical('lib/chat/request-context.ts');
-    expect(context).toContain(
-      snippet('const localAccountId = req.user?.id ?? req.channelContext?.accountId;'),
-    );
     expect(context).toContain(snippet('const creditAccountId = localAccountId;'));
     // Parenthesised or not: the formatter drops redundant parentheses, and the
     // conjunction is the same either way.

@@ -1,5 +1,5 @@
-import { authenticateChannelAccount, hasChannelContext } from './channel-auth.js';
-import { Request, Response, NextFunction } from 'express';
+import { ALIA_SERVICE_AUDIENCE } from '@alia.onl/server';
+import type { Request, Response, NextFunction } from 'express';
 import {
   OxyServer,
   createOxyAliaMachineCredentialAuth,
@@ -12,7 +12,7 @@ import {
   type OxyServiceActingAsContext,
 } from '@oxy.so/core/server';
 import { log } from '../lib/logger.js';
-import { getConfiguredChannels } from '../lib/channels/registry.js';
+import { authenticateChannelAccount, hasChannelContext } from './channel-auth.js';
 import { oxyServiceClient } from '../lib/oxy-service-client.js';
 import {
   oxyInferenceEndpointRefusal,
@@ -51,7 +51,7 @@ declare global {
       accessToken?: string;
       user?: OxyRequestUser | null;
       serviceApp?: OxyServiceAppContext;
-      /** Present only after Oxy verified the app's delegation grant for X-Oxy-User-Id. */
+      /** Present only after Oxy verified requester proof or an external delegation grant. */
       serviceActingAs?: OxyServiceActingAsContext;
       /** Oxy-verified app-only principal, never an owner mapped onto req.user. */
       machineCredential?: OxyAliaMachinePrincipal;
@@ -77,10 +77,16 @@ const onOxyRefusal = ({ code, stage, reason, status, optional }: OxyAuthRefusal)
   log.auth.warn({ code, stage, reason, status, optional }, 'Oxy refused a credential');
 };
 
-const oxyAuthOptions = { auth: { debug: true, onRefusal: onOxyRefusal } } as const;
+const oxyAuthOptions = {
+  auth: { debug: true, onRefusal: onOxyRefusal, expectedAudience: ALIA_SERVICE_AUDIENCE },
+} as const;
 
 /** The same observer on the service-only lane, which `serviceAuth` forwards. */
-const oxyServiceAuthOptions = { debug: true, onRefusal: onOxyRefusal } as const;
+const oxyServiceAuthOptions = {
+  debug: true,
+  onRefusal: onOxyRefusal,
+  expectedAudience: ALIA_SERVICE_AUDIENCE,
+} as const;
 
 const userTokenAuth = createOxyAuthMiddleware(oxyClient, oxyAuthOptions);
 
@@ -100,36 +106,13 @@ const OXY_DELEGATED_USER_HEADER = 'x-oxy-user-id';
 type AuthLane = (req: Request, res: Response, next: NextFunction) => unknown;
 
 /**
- * A DELEGATED request needs a verifier that can prove who IT is.
- *
- * `@oxy.so/core` answers `X-Oxy-User-Id` by asking Oxy whether an explicit
- * `acting-as:offline` grant exists for `(appId, userId)` — and that endpoint is
- * service-to-service, so the SDK presents the VERIFIER's own service token to
- * reach it. `oxyClient` has no credential (it is the token-verifying client and
- * is correct without one), so `getServiceToken()` threw, the SDK logged
- * `Service credentials not provided`, cached a negative result for 60s and
- * answered `403 SERVICE_ACTING_AS_UNAUTHORIZED` — to a caller holding a
- * perfectly valid grant. Alia could never accept an offline delegation. The
- * production chat canary presents exactly this shape, and the C3 check in core
- * is right: a service may only act as a user with an explicit grant. The
- * missing piece was Alia's ability to ASK.
- *
- * So the lane is chosen per request: plain traffic keeps the credential-free
- * client, and a request that claims delegation is verified by Alia's own
- * credentialed client (`lib/oxy-service-client.ts`).
- *
- * Built lazily and rebuilt only if the credentialed client itself changes,
- * because `oxyServiceClient()` reads the environment on first use and caches
- * the minted service token on the INSTANCE. One instance per client keeps one
- * token cache and one JWKS cache.
- *
- * @param plain the lane for a request that claims no delegation
- * @param build the same lane, built against a credentialed verifier
- * @param whenUnverifiable `refuse` answers 503 rather than denying a valid
- *   grant with a misleading 403; `continue` is for the OPTIONAL lane, which may
- *   not invent a new way to fail.
+ * The receiving product proves its workload to Oxy for live service authority
+ * and requester checks. Use that same shared verifier for both service and
+ * session tokens; an absent user header does not skip live service validation.
+ * A deployment without its workload can still validate a human session through
+ * the plain SDK lane, but cannot authorize a service or delegated requester.
  */
-function delegationAware<Lane extends AuthLane>(
+function workloadAware<Lane extends AuthLane>(
   plain: Lane,
   build: (verifier: OxyServer) => Lane,
   whenUnverifiable: 'refuse' | 'continue',
@@ -138,26 +121,18 @@ function delegationAware<Lane extends AuthLane>(
   let builtFrom: OxyServer | undefined;
 
   const dispatch: AuthLane = (req, res, next) => {
-    if (req.headers[OXY_DELEGATED_USER_HEADER] === undefined) {
-      void plain(req, res, next);
-      return;
-    }
-
     const verifier = oxyServiceClient();
     if (!verifier) {
-      // Only reachable in a process that never ran the boot guards: being able
-      // to mint an Oxy service token — from a credential pair, or by attesting
-      // the ECS task role (oxy ADR 0026) — is already required before the socket
-      // opens (`lib/boot-guards.ts` → `unsetOxyInferenceCredentialVariables`),
-      // and `lib/oxy-service-client.ts` builds this verifier from the same
-      // capability. Answering 503 with a name is
-      // still the point: the alternative is refusing every delegated user with
-      // a 403 that says they have no grant, which is a lie about somebody
-      // else's configuration.
+      if (req.headers[OXY_DELEGATED_USER_HEADER] === undefined) {
+        void plain(req, res, next);
+        return;
+      }
+      // Boot normally requires the workload. Report deployment unavailability
+      // distinctly from a verified denial of the requester's account authority.
       if (whenUnverifiable === 'refuse') {
         log.auth.error(
           { path: req.path },
-          'Delegated request refused: Alia holds no Oxy service credential to check the acting-as grant with',
+          'Delegated request refused: Alia workload identity is unavailable',
         );
         res.status(503).json({
           error: 'SERVICE_DELEGATION_UNAVAILABLE',
@@ -186,16 +161,16 @@ function delegationAware<Lane extends AuthLane>(
 /**
  * Oxy authentication for a user bearer OR a service token, delegated or not.
  *
- * A delegated service token is verified by the credentialed client; everything
- * else keeps the credential-free one.
+ * The workload verifier handles live service authority and user sessions;
+ * the plain verifier remains available when no workload identity is configured.
  */
-export const authenticateToken = delegationAware(
+export const authenticateToken = workloadAware(
   userTokenAuth,
   (verifier) => createOxyAuthMiddleware(verifier, oxyAuthOptions),
   'refuse',
 );
 
-const oxyOptionalAuth = delegationAware(
+const oxyOptionalAuth = workloadAware(
   optionalUserTokenAuth,
   (verifier) => createOptionalOxyAuth(verifier, oxyAuthOptions),
   'continue',
@@ -218,15 +193,14 @@ const serviceOnlyAuth = asAuthLane(oxyClient.middleware.service(oxyServiceAuthOp
  * Alia deliberately supplies no private verification secret. The compatible
  * `@oxy.so/core` release verifies Ed25519 service tokens against Oxy's public
  * `/.well-known/jwks.json`, including issuer, audience, lifetime, type and
- * scopes. The middleware fails closed when that endpoint or exact `kid` is not
+ * authority. The middleware fails closed when that endpoint or exact `kid` is not
  * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
  *
  * `/internal/trigger` is a DELEGATED surface — it documents `X-Oxy-User-Id` and
- * refuses without a `req.userId` — so it takes the same lane split as
- * `authenticateToken`: the acting-as grant is checked by a verifier that can
- * present its own service token.
+ * refuses without a `req.userId`. The shared verifier checks live workload
+ * authority and requester proof, or the external caller's bounded grant.
  */
-export const oxyServiceAuth = delegationAware(
+export const oxyServiceAuth = workloadAware(
   serviceOnlyAuth,
   (verifier) => asAuthLane(verifier.middleware.service(oxyServiceAuthOptions)),
   'refuse',
@@ -238,13 +212,6 @@ export const oxyServiceAuth = delegationAware(
  */
 
 export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
-  // Check if this is a Telegram bot request
-  const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
-  if (telegramBotSecret) {
-    void authenticateTelegramBot(req, res, next);
-    return;
-  }
-
   // Uses @oxy.so/core/server optional auth — attaches user if valid, continues if not.
   oxyOptionalAuth(req, res, next);
 }
@@ -274,21 +241,6 @@ export function refuseRetiredAliaKey(res: Response): void {
  */
 export function authenticateTokenOrApiKey(req: Request, res: Response, next: NextFunction): void {
   const presented = req.headers.authorization;
-  const token = presented?.startsWith('Bearer ') ? presented.substring(7) : null;
-  if (token?.startsWith('alia_sk_')) {
-    refuseRetiredAliaKey(res);
-    return;
-  }
-  if (hasChannelContext(req)) {
-    void authenticateChannelAccount(req, res, next);
-    return;
-  }
-  // A presented bearer selects bearer validation, even if legacy secrets are
-  // also supplied. Refused workloads must never downgrade to the old protocol.
-  if (presented !== undefined && !presented.startsWith('Bearer oxy_sk_')) {
-    authenticateToken(req, res, next);
-    return;
-  }
   const rawMachine = presented?.startsWith('Bearer oxy_sk_') === true;
   if (rawMachine) {
     const path = req.originalUrl.split('?')[0];
@@ -312,176 +264,25 @@ export function authenticateTokenOrApiKey(req: Request, res: Response, next: Nex
     return next();
   }
 
-  // Check for Telegram bot authentication first
-  const telegramBotSecret = req.headers['x-telegram-bot-secret'] as string;
-  if (telegramBotSecret) {
-    void authenticateTelegramBot(req, res, next);
+  if (req.channelContext) return next();
+  if (hasChannelContext(req)) {
+    void authenticateChannelAccount(req, res, next);
     return;
   }
 
-  // Channel bot secret (used by integrations service)
-  const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
-  if (channelBotSecret) {
-    void authenticateChannelBotSecret(req, res, next);
-    return;
-  }
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
 
   if (!token) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
+  if (token.startsWith('alia_sk_')) {
+    refuseRetiredAliaKey(res);
+    return;
+  }
+
   // Existing Oxy user/service JWT paths remain separate from the app-only lane.
   authenticateToken(req, res, next);
-}
-
-/**
- * Authenticate internal Telegram bot requests
- * The bot is a trusted server component that can act on behalf of linked users
- *
- * Security layers:
- * 1. Verifies bot secret matches server-side secret
- * 2. Validates user ID is provided
- * 3. Uses constant-time comparison to prevent timing attacks
- * 4. Logs authentication attempts for audit trail
- */
-export async function authenticateTelegramBot(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const startTime = Date.now();
-
-  try {
-    const botSecret = req.headers['x-telegram-bot-secret'] as string;
-    const oxyUserId = req.headers['x-oxy-user-id'] as string;
-    const telegramId = req.headers['x-telegram-id'] as string;
-
-    // Verify bot secret is configured
-    const expectedSecret = process.env.TELEGRAM_BOT_SECRET;
-    if (!expectedSecret) {
-      log.auth.error('TELEGRAM_BOT_SECRET not configured');
-      res.status(500).json({ error: 'Bot authentication not configured' });
-      return;
-    }
-
-    // Verify secret provided
-    if (!botSecret) {
-      log.auth.warn('Missing bot secret');
-      res.status(401).json({ error: 'Bot authentication required' });
-      return;
-    }
-
-    // Use crypto.timingSafeEqual to prevent timing attacks
-    const expectedBuffer = Buffer.from(expectedSecret);
-    const providedBuffer = Buffer.from(botSecret);
-
-    if (expectedBuffer.length !== providedBuffer.length) {
-      log.auth.warn('Invalid bot secret length');
-      res.status(401).json({ error: 'Invalid bot authentication' });
-      return;
-    }
-
-    const crypto = await import('crypto');
-    if (!crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-      log.auth.warn('Invalid bot secret');
-      res.status(401).json({ error: 'Invalid bot authentication' });
-      return;
-    }
-
-    // Verify telegram ID is provided
-    if (!telegramId) {
-      log.auth.warn('Missing telegram ID in bot request');
-      res.status(400).json({ error: 'Telegram ID required for bot requests' });
-      return;
-    }
-
-    // Log successful auth for audit trail
-    const duration = Date.now() - startTime;
-    log.auth.info(
-      { telegramId, oxyUserId: oxyUserId || 'unknown', endpoint: req.path, durationMs: duration },
-      'Telegram bot authenticated',
-    );
-
-    // Set user context if provided - the bot is acting on behalf of this user
-    if (oxyUserId) {
-      req.userId = oxyUserId;
-      req.user = { id: oxyUserId };
-    }
-    next();
-  } catch (error) {
-    log.auth.error({ err: error }, 'Bot authentication error');
-    res.status(500).json({ error: 'Authentication failed' });
-  }
-}
-
-/**
- * Authenticate requests from the integrations service using a generic channel bot secret.
- *
- * Security layers:
- * 1. Reads `X-Channel-Bot-Secret` header and matches it against every
- *    configured channel's `config.getBotSecret()` using constant-time comparison
- * 2. Requires `X-Oxy-User-Id` header so the request carries user context
- * 3. Logs authentication attempts for audit trail
- */
-export async function authenticateChannelBotSecret(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  try {
-    const channelBotSecret = req.headers['x-channel-bot-secret'] as string;
-    const oxyUserId = req.headers['x-oxy-user-id'] as string;
-
-    if (!channelBotSecret) {
-      res.status(401).json({ error: 'Channel bot authentication required' });
-      return;
-    }
-
-    if (!oxyUserId) {
-      log.auth.warn('Missing X-Oxy-User-Id in channel bot request');
-      res.status(401).json({ error: 'User context required for channel bot requests' });
-      return;
-    }
-
-    // Validate oxyUserId is a valid 24-char hex ObjectId to prevent injection
-    if (!/^[a-f0-9]{24}$/.test(oxyUserId)) {
-      log.auth.warn({ oxyUserId }, 'Invalid oxyUserId format in channel bot request');
-      res.status(400).json({ error: 'Invalid user ID format' });
-      return;
-    }
-
-    const crypto = await import('crypto');
-    const configuredChannels = getConfiguredChannels();
-    const providedBuffer = Buffer.from(channelBotSecret);
-    let matched = false;
-
-    for (const channel of configuredChannels) {
-      const expectedSecret = channel.config.getBotSecret();
-      if (!expectedSecret) continue;
-
-      const expectedBuffer = Buffer.from(expectedSecret);
-      if (expectedBuffer.length !== providedBuffer.length) continue;
-
-      if (crypto.timingSafeEqual(expectedBuffer, providedBuffer)) {
-        matched = true;
-        break;
-      }
-    }
-
-    if (!matched) {
-      log.auth.warn('Invalid channel bot secret');
-      res.status(401).json({ error: 'Invalid channel bot authentication' });
-      return;
-    }
-
-    log.auth.info({ oxyUserId, endpoint: req.path }, 'Channel bot authenticated');
-
-    req.userId = oxyUserId;
-    req.user = { id: oxyUserId };
-    next();
-  } catch (error) {
-    log.auth.error({ err: error }, 'Channel bot authentication error');
-    res.status(500).json({ error: 'Authentication failed' });
-  }
 }

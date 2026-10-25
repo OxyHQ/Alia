@@ -8,6 +8,7 @@ vi.mock('../../db/index.js', () => ({
 
 vi.mock('../../lib/logger.js', () => ({
   log: {
+    general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   },
 }));
@@ -31,7 +32,7 @@ vi.mock('@oxy.so/core', () => {
   return { OxyServices: MockOxyServices };
 });
 
-import { authenticateTelegramBot, authenticateTokenOrApiKey, optionalAuth } from '../auth.js';
+import { authenticateTokenOrApiKey, optionalAuth } from '../auth.js';
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -65,97 +66,6 @@ describe('auth middleware', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.TELEGRAM_BOT_SECRET;
-  });
-
-  describe('authenticateTelegramBot', () => {
-    it('rejects when TELEGRAM_BOT_SECRET not configured', async () => {
-      delete process.env.TELEGRAM_BOT_SECRET;
-
-      const req = mockReq({ headers: { 'x-telegram-bot-secret': 'some-secret' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateTelegramBot(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(next).not.toHaveBeenCalled();
-    });
-
-    it('rejects missing bot secret', async () => {
-      process.env.TELEGRAM_BOT_SECRET = 'correct-secret';
-
-      const req = mockReq({ headers: {} });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateTelegramBot(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-    });
-
-    it('rejects wrong-length secret (prevents timing attack)', async () => {
-      process.env.TELEGRAM_BOT_SECRET = 'correct-secret';
-
-      const req = mockReq({ headers: { 'x-telegram-bot-secret': 'short' } });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateTelegramBot(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-    });
-
-    it('rejects incorrect secret', async () => {
-      process.env.TELEGRAM_BOT_SECRET = 'correct-secret';
-
-      const req = mockReq({
-        headers: {
-          'x-telegram-bot-secret': 'wrong--secret', // same length as "correct-secret"
-          'x-telegram-id': '12345',
-        },
-      });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateTelegramBot(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-    });
-
-    it('rejects missing telegram ID', async () => {
-      process.env.TELEGRAM_BOT_SECRET = 'test-secret';
-
-      const req = mockReq({
-        headers: {
-          'x-telegram-bot-secret': 'test-secret',
-        },
-      });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateTelegramBot(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('succeeds with valid credentials', async () => {
-      process.env.TELEGRAM_BOT_SECRET = 'test-secret';
-
-      const req = mockReq({
-        headers: {
-          'x-telegram-bot-secret': 'test-secret',
-          'x-telegram-id': '12345',
-          'x-oxy-user-id': 'user-1',
-        },
-      });
-      const res = mockRes();
-      const next = vi.fn();
-
-      await authenticateTelegramBot(req, res, next);
-
-      expect(next).toHaveBeenCalled();
-      expect(req.userId).toBe('user-1');
-    });
   });
 
   describe('authenticateTokenOrApiKey', () => {

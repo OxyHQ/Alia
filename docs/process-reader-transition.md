@@ -65,3 +65,44 @@ workload lane, after validating that channel’s existing secret. It may reuse o
 the reconciled task stored on that link, never create authority from the account
 header. The A2 metadata is temporary rollout compatibility and disappears with
 the remaining secret reader in C.
+
+## Phase B source gate
+
+`wait-alia-api-transition.py` checks the exact `RELEASE_SHA` API workflow result,
+then one completed, nonzero ECS API deployment, its task counts, and every active
+API container's runtime digest against the arm64 image published for that commit.
+A different commit, skipped/failed/cancelled API job, zero capacity, mixed tasks,
+or a stale image cannot pass. There is no manual-dispatch bypass. The wait is
+bounded to one hour; failure stops the gateway and app deployments. Canvas stays
+independent. The app job allows 90 minutes for this wait plus its normal build.
+This app dependency is required: B removes the agent per-app level controls,
+while A2 still derives agent tools from grant/ceiling maps. Shipping that UI first
+would hide the controls while the old API still requires their assignments.
+Remove both finite deployment barriers in C after the B fleet is verified.
+
+The API post-rollout command runs `migrate-channel-tasks.js --target-database=alia
+--apply` after schema migration and seeding. It validates stored requester proofs,
+uses CAS to avoid crossing relinks, and never logs bearer material. Retryable
+failures fail the deployment; unusable legacy proofs become `reauth_required` and
+resume only through the owner's actual signed-in session. Read the migration
+counts before accepting the live channel canary. The `unresolved` inventory
+separately counts active bot links and connected channels without task authority,
+including rows that never stored an Oxy session token; zero migration candidates
+does not mean every existing channel is ready. Task-less local context never
+unlocks private Oxy tools.
+
+B includes SDK22 and CLI3.0.2; server1.2 is unchanged from A. Registry publication
+can finish before runtime rollout; controlled SDK22 consumer deployments must
+wait for the verified B API, not just the package publication. The independent
+account-session handler no longer looks up bot users using an Oxy owner ID.
+
+## Normalized product-event reader
+
+B also moves `/webhooks/oxy` onto core's recipient-bound service middleware.
+Canonical v2 has no own scopes. Old v1 workloads are accepted only through Oxy's
+finite live bridge; external credentials still require live event-publish scopes.
+Alia reads the live catalog using its own shared platform transport and compares
+`registeredByApplicationId` to the verified publisher before claiming an event.
+The caller token is never forwarded to an Oxy endpoint with another audience.
+Catalog/event membership and the existing event deduplication remain enforced.
+Nilo/Inbox producer cutovers wait for this B reader, not merely the A process readers.

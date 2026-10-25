@@ -1,3 +1,4 @@
+import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /** Published SDK over owned loopback; the remote authority is synthetic. */
 import { createServer, type Server } from 'node:http';
 import { createRequire } from 'node:module';
@@ -27,6 +28,11 @@ beforeEach(async () => {
     });
     req.on('end', () => {
       const path = req.url ?? '';
+      if (path === '/auth/service-token') {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ token: 'fixture-service-token', expiresIn: 300 }));
+        return;
+      }
       calls.push({
         method: req.method ?? '',
         path,
@@ -34,6 +40,25 @@ beforeEach(async () => {
         body: text ? JSON.parse(text) : {},
       });
       res.setHeader('content-type', 'application/json');
+      if (path === '/capabilities/catalogs') {
+        res.end(
+          JSON.stringify({
+            registrations: [
+              registeredCatalog({
+                schemaVersion: '1',
+                appId: 'inbox',
+                version: '1.0.0',
+                audience: 'oxy-inbox',
+                internalBaseUrl: 'https://inbox.test',
+                accountResourceType: 'mailbox',
+                tools: [],
+                events: [],
+              }),
+            ],
+          }),
+        );
+        return;
+      }
       if (path === '/capabilities/service-identity') {
         res.end(
           JSON.stringify({
@@ -55,7 +80,10 @@ beforeEach(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   vi.stubEnv('OXY_API_URL', baseURL);
-  state.client = new real.OxyServer({ baseURL });
+  state.client = new real.OxyServer({
+    baseURL,
+    serviceAuth: { apiKey: 'fixture-key', apiSecret: 'fixture-secret' },
+  });
   authority = await import('../oxy-capability-authority.js');
 });
 afterEach(async () => {
@@ -102,15 +130,14 @@ describe('one canonical requester authority transport', () => {
       expect(calls[0].bearer).toBe('Bearer fixture-service-token');
       expect(calls[1]).toMatchObject({
         method: 'POST',
-        path: '/capabilities/execution-authorizations',
-        bearer: 'Bearer fixture-requester',
+        path: '/capabilities/foreground-execution-authorizations',
+        bearer: 'Bearer fixture-service-token',
         body: {
           kind,
-          coordinatorApplicationId: 'fixture-app',
-          coordinatorCredentialId: 'fixture-credential',
+          authority: 'first_party',
+          subjectToken: 'fixture-requester',
           resource: request.resource,
           limits: [],
-          maximumAutonomy: request.maximumAutonomy,
           expiresAt: request.expiresAt.toISOString(),
           ...(kind === 'automation' ? { automationId: 'automation' } : { runId: 'run' }),
         },
@@ -150,7 +177,7 @@ describe('one canonical requester authority transport', () => {
   });
   it('calls installed SDK create/retire rather than app-local writes', async () => {
     const client = state.client as InstanceType<typeof real.OxyServer>;
-    const create = vi.spyOn(client.agency, 'createExecutionAuthorization');
+    const create = vi.spyOn(client.agency, 'createForegroundExecutionAuthorization');
     const revoke = vi.spyOn(client.agency, 'revokeExecutionAuthorization');
     await authority.createOxyExecutionAuthorization({
       ...input(),

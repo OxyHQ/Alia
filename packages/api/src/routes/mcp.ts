@@ -1,3 +1,4 @@
+import { integrationsFetch } from '../lib/integrations-client.js';
 import express from 'express';
 import crypto from 'crypto';
 import { authenticateToken } from '../middleware/auth.js';
@@ -46,7 +47,6 @@ interface McpServiceReply {
 const router = express.Router();
 
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
-const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 
 // Browse MCP registry
 router.get('/registry', authenticateToken, (_req, res) => {
@@ -92,7 +92,7 @@ router.post(
         return res.status(400).json({ error: 'OAuth is only supported for remote MCP connectors' });
       }
 
-      if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+      if (!INTEGRATIONS_URL) {
         return res.status(503).json({ error: 'Integrations service not configured' });
       }
 
@@ -106,21 +106,24 @@ router.post(
       const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
       const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
 
-      const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/oauth/start`, {
-        method: 'POST',
-        headers: {
-          'X-Gateway-Secret': INTEGRATIONS_SECRET,
-          'Content-Type': 'application/json',
+      const response = await integrationsFetch(
+        req.userId!,
+        `/mcp/servers/${server.id}/oauth/start`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            oxyUserId: req.userId,
+            config: toMcpServerConfig(server),
+            transport: server.transport,
+            stateToken: state,
+            callbackUrl,
+          }),
+          signal: AbortSignal.timeout(30_000),
         },
-        body: JSON.stringify({
-          oxyUserId: req.userId,
-          config: toMcpServerConfig(server),
-          transport: server.transport,
-          stateToken: state,
-          callbackUrl,
-        }),
-        signal: AbortSignal.timeout(30_000),
-      });
+      );
 
       const data = (await response.json()) as McpServiceReply;
 
@@ -202,7 +205,7 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
     // Consume the state (single-use) now that the caller is verified.
     await deleteMcpOAuthState(db, stateRow.id);
 
-    if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+    if (!INTEGRATIONS_URL) {
       return res.status(503).json({ error: 'Integrations service not configured' });
     }
 
@@ -214,21 +217,24 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
 
-    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/oauth/finish`, {
-      method: 'POST',
-      headers: {
-        'X-Gateway-Secret': INTEGRATIONS_SECRET,
-        'Content-Type': 'application/json',
+    const response = await integrationsFetch(
+      req.userId!,
+      `/mcp/servers/${server.id}/oauth/finish`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          oxyUserId: req.userId,
+          config: toMcpServerConfig(server),
+          transport: server.transport,
+          code,
+          callbackUrl,
+        }),
+        signal: AbortSignal.timeout(30_000),
       },
-      body: JSON.stringify({
-        oxyUserId: req.userId,
-        config: toMcpServerConfig(server),
-        transport: server.transport,
-        code,
-        callbackUrl,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
+    );
 
     const data = (await response.json()) as McpServiceReply;
 
@@ -373,12 +379,12 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
       server.status === 'running' &&
       server.runtime === 'server' &&
       INTEGRATIONS_URL &&
-      INTEGRATIONS_SECRET
+      INTEGRATIONS_URL
     ) {
       try {
-        await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/stop`, {
+        await integrationsFetch(req.userId!, `/mcp/servers/${server.id}/stop`, {
           method: 'POST',
-          headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET },
+          headers: {},
           signal: AbortSignal.timeout(5_000),
         });
       } catch {
@@ -428,14 +434,13 @@ router.post('/:id/start', authenticateToken, async (req: express.Request<{ id: s
       return res.status(400).json({ error: 'Local MCP servers are managed by the client app' });
     }
 
-    if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+    if (!INTEGRATIONS_URL) {
       return res.status(503).json({ error: 'Integrations service not configured' });
     }
 
-    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/start`, {
+    const response = await integrationsFetch(req.userId!, `/mcp/servers/${server.id}/start`, {
       method: 'POST',
       headers: {
-        'X-Gateway-Secret': INTEGRATIONS_SECRET,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -484,11 +489,11 @@ router.post('/:id/stop', authenticateToken, async (req: express.Request<{ id: st
       return res.status(400).json({ error: 'Local MCP servers are managed by the client app' });
     }
 
-    if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
+    if (INTEGRATIONS_URL) {
       try {
-        await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/stop`, {
+        await integrationsFetch(req.userId!, `/mcp/servers/${server.id}/stop`, {
           method: 'POST',
-          headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET },
+          headers: {},
           signal: AbortSignal.timeout(5_000),
         });
       } catch {

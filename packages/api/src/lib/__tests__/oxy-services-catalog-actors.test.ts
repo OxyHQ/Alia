@@ -1,3 +1,4 @@
+import { registeredCatalog } from './fixtures/oxy-catalog.js';
 /**
  * Catalogue `actors` (Oxy ADR 0018, addendum 2026-10-11): a tool Oxy will only
  * authorize for a present requester — the Oxy profile reads — is never offered
@@ -83,7 +84,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.resetModules();
   logged.error.mockClear();
-  registrations = [{ catalog: INBOX }, { catalog: OXY }];
+  registrations = [registeredCatalog(INBOX), registeredCatalog(OXY)];
   fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -147,7 +148,10 @@ describe('catalogue actors', () => {
     });
     // `listPublicProfiles` names Alia but not agents; `readViewerGraph` names
     // neither. Inbox declares nothing, so both identities keep it.
-    expect(Object.keys(tools).sort()).toEqual(['self_inbox__searchEmails']);
+    expect(Object.keys(tools).sort()).toEqual([
+      'oxy_inbox__searchEmails',
+      'self_inbox__searchEmails',
+    ]);
   });
 
   it('keeps an undeclared tool for every standing actor', async () => {
@@ -187,13 +191,11 @@ describe('catalogue actors', () => {
     expect(prompt).not.toContain('readViewerGraph');
   });
 
-  it('offers an agent no level on an app whose tools no agent may run', async () => {
-    const { grantTermsForLevel } = await import('../agent-oxy-apps.js');
-    const { parseRegistryCatalog } = await import('../tools/oxy-catalog-actors.js');
-    const oxy = parseRegistryCatalog(OXY);
-    expect(grantTermsForLevel(oxy, 'read')).toBeNull();
-    expect(grantTermsForLevel(oxy, 'act')).toBeNull();
-    expect(grantTermsForLevel(parseRegistryCatalog(INBOX), 'read')).not.toBeNull();
+  it('offers no primary tool that the live catalogue denies agents', async () => {
+    const { listPrimaryToolOptions } = await import('../agent-primary-tools.js');
+    const apps = await listPrimaryToolOptions();
+    expect(apps.some((app) => app.appId === 'oxy')).toBe(false);
+    expect(apps.some((app) => app.appId === 'inbox')).toBe(true);
   });
 });
 
@@ -202,7 +204,7 @@ describe('one catalogue that does not parse', () => {
     registrations = [
       { catalog: { ...OXY, tools: [{ ...OXY.tools[0], actors: ['owner'] }] } },
       { catalog: { appId: 'broken', schemaVersion: '2' } },
-      { catalog: INBOX },
+      registeredCatalog(INBOX),
     ];
     const { buildOxyServiceTools } = await services();
     const tools = await buildOxyServiceTools(USER, {

@@ -23,7 +23,7 @@
  * columns, and nothing else.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { connectedAccounts, type ConnectedAccountStatus } from '../schema/integrations';
 
@@ -40,6 +40,8 @@ export interface ConnectedAccountSafeRow {
   status: ConnectedAccountStatus;
   statusMessage: string | null;
   sessionId: string | null;
+  oxyTaskId: string | null;
+  oxyTaskState: 'active' | 'reauth_required';
   capabilities: string[];
   autoReply: boolean;
   autoReplyAgentId: string | null;
@@ -65,6 +67,8 @@ const SAFE_COLUMNS = {
   status: connectedAccounts.status,
   statusMessage: connectedAccounts.statusMessage,
   sessionId: connectedAccounts.sessionId,
+  oxyTaskId: connectedAccounts.oxyTaskId,
+  oxyTaskState: connectedAccounts.oxyTaskState,
   capabilities: connectedAccounts.capabilities,
   autoReply: connectedAccounts.autoReply,
   autoReplyAgentId: connectedAccounts.autoReplyAgentId,
@@ -336,6 +340,7 @@ export async function findConnectedAccountForChannel(
   return row ? withLegacyId(row) : null;
 }
 
+/** Resolve only a live gateway session; the account comes from its stored binding. */
 export async function findConnectedAccountBySession(
   db: ApiDatabase,
   platform: string,
@@ -355,4 +360,29 @@ export async function findConnectedAccountBySession(
   // No unique constraint exists on provider session ids. Ambiguity never chooses an owner.
   const row = rows.length === 1 ? rows[0] : undefined;
   return row ? { ...withLegacyId(row), oxyUserId: row.oxyUserId } : null;
+}
+
+export async function setConnectedAccountTask(
+  db: ApiDatabase,
+  id: string,
+  taskId: string | null,
+  expectedTaskId?: string | null,
+): Promise<boolean> {
+  const rows = await db
+    .update(connectedAccounts)
+    .set({ oxyTaskId: taskId, oxyTaskState: taskId ? 'active' : 'reauth_required' })
+    .where(
+      and(
+        eq(connectedAccounts.id, id),
+        ...(expectedTaskId === undefined
+          ? []
+          : [
+              expectedTaskId === null
+                ? isNull(connectedAccounts.oxyTaskId)
+                : eq(connectedAccounts.oxyTaskId, expectedTaskId),
+            ]),
+      ),
+    )
+    .returning({ id: connectedAccounts.id });
+  return rows.length === 1;
 }

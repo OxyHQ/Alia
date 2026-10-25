@@ -108,7 +108,6 @@ export function createSseFrameReader(): SseFrameReader {
         if (line.startsWith('data: ')) {
           frames.push({ event: currentEventType, data: line.slice(6).trim() });
           currentEventType = '';
-          continue;
         }
 
         // Comments (`: keep-alive`) and fields this client does not read.
@@ -235,12 +234,10 @@ export interface AliaChatRequestBody {
 
 export interface AliaChatStreamOptions {
   readonly baseUrl: string;
-  /** The Oxy session bearer Read at call time by the caller, never cached. */
-  readonly accessToken: string;
   readonly body: AliaChatRequestBody;
   readonly signal?: AbortSignal;
-  /** Injectable for tests; defaults to the global. */
-  readonly fetch?: typeof fetch;
+  /** The shared Oxy linked transport owns credentials, refresh and account fencing. */
+  readonly fetch: typeof fetch;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -395,13 +392,12 @@ export function completedToolCalls(
 export async function* streamAliaChat(
   options: AliaChatStreamOptions,
 ): AsyncGenerator<AliaStreamEvent, void, undefined> {
-  const doFetch = options.fetch ?? fetch;
+  const doFetch = options.fetch;
   const response = await doFetch(`${options.baseUrl}/alia/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
-      Authorization: `Bearer ${options.accessToken}`,
     },
     body: JSON.stringify({ ...options.body, stream: true }),
     signal: options.signal,

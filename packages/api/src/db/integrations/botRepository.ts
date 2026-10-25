@@ -322,6 +322,8 @@ export interface BotUserRow {
   platformUserId: string;
   chatId: string;
   oxyUserId: string | null;
+  oxyTaskId: string | null;
+  oxyTaskState: 'active' | 'reauth_required';
   isLinked: boolean;
   linkedAt: Date | null;
   username: string | null;
@@ -342,6 +344,8 @@ const BOT_USER_COLUMNS = {
   platformUserId: botUsers.platformUserId,
   chatId: botUsers.chatId,
   oxyUserId: botUsers.oxyUserId,
+  oxyTaskId: botUsers.oxyTaskId,
+  oxyTaskState: botUsers.oxyTaskState,
   isLinked: botUsers.isLinked,
   linkedAt: botUsers.linkedAt,
   username: botUsers.username,
@@ -350,7 +354,7 @@ const BOT_USER_COLUMNS = {
   authTokenMode: botUsers.authTokenMode,
   conversationId: botUsers.conversationId,
   preferredModel: botUsers.preferredModel,
-  metadata: botUsers.metadata,
+  metadata: sql<Record<string, unknown>>`${botUsers.metadata} - 'sessionToken'`,
   createdAt: botUsers.createdAt,
   updatedAt: botUsers.updatedAt,
 } as const;
@@ -485,7 +489,7 @@ export async function upsertBotUser(db: ApiDatabase, input: UpsertBotUser): Prom
 export async function linkBotUser(
   db: ApiDatabase,
   id: string,
-  input: { oxyUserId: string; sessionToken?: string | undefined },
+  input: { oxyUserId: string; oxyTaskId: string; authToken?: string },
 ): Promise<BotUserRow | null> {
   const [row] = await db
     .update(botUsers)
@@ -495,15 +499,18 @@ export async function linkBotUser(
       linkedAt: new Date(),
       authToken: null,
       authTokenExpiry: null,
-      ...(input.sessionToken === undefined
-        ? {}
-        : {
-            metadata: sql`${botUsers.metadata} || ${JSON.stringify({
-              sessionToken: input.sessionToken,
-            })}::jsonb`,
-          }),
+      oxyTaskId: input.oxyTaskId,
+      oxyTaskState: 'active',
+      metadata: sql`${botUsers.metadata} - 'sessionToken'`,
     })
-    .where(eq(botUsers.id, id))
+    .where(
+      and(
+        eq(botUsers.id, id),
+        ...(input.authToken
+          ? [eq(botUsers.authToken, input.authToken), gt(botUsers.authTokenExpiry, new Date())]
+          : []),
+      ),
+    )
     .returning(BOT_USER_COLUMNS);
 
   return row ?? null;
@@ -518,7 +525,15 @@ export async function linkBotUser(
 export async function unlinkBotUser(db: ApiDatabase, id: string): Promise<void> {
   await db
     .update(botUsers)
-    .set({ oxyUserId: null, isLinked: false, conversationId: null, linkedAt: null })
+    .set({
+      oxyUserId: null,
+      isLinked: false,
+      conversationId: null,
+      linkedAt: null,
+      oxyTaskId: null,
+      oxyTaskState: 'reauth_required',
+      metadata: sql`${botUsers.metadata} - 'sessionToken'`,
+    })
     .where(eq(botUsers.id, id));
 }
 
@@ -526,7 +541,14 @@ export async function unlinkBotUser(db: ApiDatabase, id: string): Promise<void> 
 export async function logoutBotUser(db: ApiDatabase, id: string): Promise<void> {
   await db
     .update(botUsers)
-    .set({ oxyUserId: null, isLinked: false, conversationId: null })
+    .set({
+      oxyUserId: null,
+      isLinked: false,
+      conversationId: null,
+      oxyTaskId: null,
+      oxyTaskState: 'reauth_required',
+      metadata: sql`${botUsers.metadata} - 'sessionToken'`,
+    })
     .where(eq(botUsers.id, id));
 }
 
@@ -556,4 +578,42 @@ export async function setBotUserPreferredModel(
   preferredModel: string | null,
 ): Promise<void> {
   await db.update(botUsers).set({ preferredModel }).where(eq(botUsers.id, id));
+}
+
+/** Revoke every linked requester task before deleting the bot and cascading rows. */
+export async function findBotTaskIds(db: ApiDatabase, botId: string): Promise<string[]> {
+  const rows = await db
+    .select({ taskId: botUsers.oxyTaskId })
+    .from(botUsers)
+    .where(eq(botUsers.botId, botId));
+  return [...new Set(rows.flatMap((row) => (row.taskId ? [row.taskId] : [])))];
+}
+
+/** Rotate only the still-linked account and task that the caller verified. */
+export async function replaceBotUserTask(
+  db: ApiDatabase,
+  id: string,
+  accountId: string,
+  expectedTaskId: string | null,
+  taskId: string,
+): Promise<boolean> {
+  const rows = await db
+    .update(botUsers)
+    .set({
+      oxyTaskId: taskId,
+      oxyTaskState: 'active',
+      metadata: sql`${botUsers.metadata} - 'sessionToken'`,
+    })
+    .where(
+      and(
+        eq(botUsers.id, id),
+        eq(botUsers.isLinked, true),
+        eq(botUsers.oxyUserId, accountId),
+        expectedTaskId === null
+          ? isNull(botUsers.oxyTaskId)
+          : eq(botUsers.oxyTaskId, expectedTaskId),
+      ),
+    )
+    .returning({ id: botUsers.id });
+  return rows.length === 1;
 }

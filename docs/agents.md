@@ -1,7 +1,7 @@
 # Alia Agents
 
 An agent is one of Alia's two kinds of actor: a persona a person creates, with its
-own Oxy account, memory and computer, acting for its owner within the levels the
+own Oxy account, memory and computer, acting for the verified requester under the
 owner set or as itself. Alia, the other actor, needs no agent for anything. The
 map of both is [Actors: Alia and agents](./actors.mdx); this page is the detail
 for agents.
@@ -38,7 +38,7 @@ one column, no foreign key, UNIQUE.
 
 There is no product-agent lane. An app's agent — Homiio's Sindi, Clarity's
 assistant — is an agent like any other: an Oxy `bot` account, an `agents` row,
-a prompt, families and a ceiling its owner edits in the agent editor. The app
+a prompt and tool families its owner edits in the agent editor. The app
 opens it through the SDK with the person's own session, and the person present
 pays for the turn. No application id is stored on an agent, no service token
 selects one and no product pays for one.
@@ -60,11 +60,9 @@ feature gates (Sindi's attachments behind Homiio's `sindi.files`; Clarity's
 deep research and `pro`/`ultra` behind Clarity's plan features) and Sindi's
 starters.
 
-Whoever operates an app's agent — an app's project operator included — edits
-all of it in the agent editor like any other agent: "Apps de Oxy" (the owner's
-levels), "Para quien lo usa" (the per-app ceiling for whoever uses it,
-`/agents/:id/requester-apps`), "Funciones con requisitos" (feature gates, below)
-and "Sugerencias de inicio" (starters).
+Whoever operates an app's agent edits its instructions, primary tools, feature gates
+and starters in the same agent editor. Own Oxy apps have no enablement controls or
+per-app read/write ceilings. External connector and device permissions remain.
 
 ### Where an agent opens is Oxy's (ADR 0021)
 
@@ -464,7 +462,7 @@ grant narrows it further:
 The consulted agent answers in a nested turn (`lib/tools/agent-turn.ts`) that is
 the SAME person's turn with the callee as the agent: its own prompt, families and
 memory of this person, and the person's Oxy apps on the lane the person stands in
-(the owner's levels for its owner, the owner's ceilings for anybody else). It is
+on the original requester's effective account. It is
 reserved and settled against the account that funds the outer turn, and it
 streams: the client draws it joining the conversation (`alia.agent_start` …
 `alia.agent_end`, [Embedding an agent](./agent-embedding.md) §4). A nested turn
@@ -502,11 +500,11 @@ the agent works with (`agents.primary_tools`, `<appId>:<tool>` keys, at most 12,
 `consultAgent` turn too — loads them first as pins, never unloadable.
 
 - **Naming a tool grants nothing.** A key resolves to the name the turn bound it
-  under: the person's lane (`oxy_<app>__<tool>`, the owner's levels or the ceiling)
+  under: the verified requester's account (`oxy_<app>__<tool>`)
   first, else the agent's own account (`self_<app>__<tool>`). A key neither lane
   binds this turn is simply absent (`primaryToolNames`, `lib/agent-primary-tools.ts`).
 - **Edited in the agent editor** ("Herramientas principales"): the tools of every app
-  the agent reaches on either lane, at the level it reaches it
+  whose live catalogue admits the agent actor
   (`GET /agents/:id/primary-tool-options`). Saved on its own, never with the draft's
   autosave.
 - **Saved through `PATCH /agents/:id`** (`primaryTools`, replaced whole): each key
@@ -538,18 +536,11 @@ Homiio+ unlocks documents without Alia knowing what Homiio+ is.
   against the LIVE catalogue first: an undeclared feature is a 400, a feature whose
   tools need an input is a 400, and catalogues Alia cannot read are a 503 rather
   than an unchecked save (`refuseFeatureGates`, `lib/agent-features.ts`).
-- **Asked under the person's own lane.** `checkTool` and `consumeTool` run on exactly
-  the binding the agent's `oxy_*` tools use for the person present
-  (`callOxyFeatureTool`, `lib/tools/oxy-services.ts`): the owner's levels for the
-  owner, the owner's ceilings for anybody else. A lane that does not reach the tool
-  is LOCKED — the person cannot be entitled through this agent — so a gate the owner
-  sets needs the app at a level (and for a spend, Ver y actuar) on that lane. That
-  includes a project- or organisation-owned agent opened by its own project account:
-  the owner lane is the turn's lane, Oxy refuses it with a 403 (only a personal
-  account operates itself), and that refusal is read as locked
-  (`OxyAuthorityRefusedError`), never as an app that could not answer. The agent's
-  own account (`self_*`) is never the lane for a gate: an entitlement is the person's,
-  not the bot's.
+- **Asked on the requester's account.** `checkTool` and `consumeTool` use the
+  same workload, original requester proof and catalogue-pinned ticket as other own
+  tools. No app grant or ceiling is consulted. The app still decides product
+  entitlement and billing; unavailable authority is retryable, never a fabricated
+  entitlement verdict. `self_*` bot accounts do not pay for the person's feature.
 - **What the app answers.** `checkTool` → `{ available, remaining? }`, `consumeTool`
   → `{ consumed, remaining? }`, both called with no input. Anything else, or no
   answer, is `feature_check_unavailable` (retryable) and never read as either verdict.
@@ -570,37 +561,22 @@ Homiio+ unlocks documents without Alia knowing what Homiio+ is.
 
 ## Oxy apps: for the person and as itself
 
-[ADR 0015](./adr/0015-actors-and-identities.md). An agent has two identities in
-Oxy, and its toolset carries both, named apart:
+[ADR0022](./adr/0022-first-party-platform-authority.md) removes own-app levels,
+grants and ceilings. The live catalogue offers every internal tool admitting
+that actor. `oxy_*` binds the verified requester; `self_*` binds the bot itself
+only when the requester may operate it. A public agent never exposes its
+owner's data to another person.
 
-- **`self_<app>__<tool>` — its own bot account.** Its own Inbox, its own
-  profile and sign-ups. Oxy authorizes it without a grant (Oxy ADR 0018
-  addendum): the account is the agent's.
-- **`oxy_<app>__<tool>` — its owner's account**, within the level the owner set
-  for that app in the editor's "Apps de Oxy" section: **Nada**, **Ver** (reads
-  only) or **Ver y actuar** (reads and effects). A new agent starts
-  at Nada everywhere.
+Foreground calls use the shared requester-proof SDK. Goals store an Oxy task
+id created from the original requester, carry it into child runs, and retire it
+on cancellation or terminal completion. A worker never chooses the requester
+from the bot owner. Structured automations retain exact resources and limits.
+Old runs without provenance cannot acquire new own-data authority.
 
-Each level is ONE Oxy `DelegationGrant` from the owner to the agent's bot over
-the owner's account root of that app, written with the owner's bearer by
-`lib/agent-oxy-apps.ts` (`GET/PUT /agents/:id/oxy-apps`, owner only).
-`agent_oxy_app_permissions` records which grant stands for which level; every
-read reconciles with Oxy, so a grant revoked in the accounts app's Agency tab
-(the advanced view) reads as Nada. Ver = the app's read packages at
-`read_only`; Ver y actuar = every non-sensitive package at `autonomous`.
-`finance`, `security` and `delegate` are never part of a level.
-
-Who is present decides how a call is authorized:
-
-| Turn | Owner's apps (`oxy_*`) | Own account (`self_*`) |
-|---|---|---|
-| Owner in the agent's chat | `direct_request`, owner's bearer, trimmed to the levels | `direct_request`, owner's bearer, no grant |
-| Agent run, nobody present (`runner.ts`) | Oxy agent-run lane; requester derived by Oxy from the bot's owner; effects need Ver y actuar | same lane, no grant |
-| Automation stage | its preauthorized steps only | — |
-| Somebody else (shared/public agent, a stranger on its Telegram bot) | never | not in this phase |
-
-`ownerIsPresent` in `lib/tool-pipeline.ts` is the one place that decides the
-last row. Deleting an agent revokes its level grants; its bot account stays.
+The editor has no own-app access switches. Primary tools choose which catalogue
+tools appear immediately; feature gates still ask the product about entitlement.
+Historical app-level rows stay inert pending archival and external connector
+grants are unaffected. See [Actors](./actors.mdx) for the identity matrix.
 
 ## Governance
 
@@ -622,7 +598,7 @@ Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`).
 An **Oxy app tool** is not classified by name: the builder marks it
 (`declareOxyAppTool`), a read is R0 and an effect R1 with no rollback window, and no
 word in its arguments makes it R3. Oxy authorizes each call (the owner's bearer, the
-agent's level or ceiling, a `finance` grant and its limits), so a payment or a
+original requester/task proof and operation limits), so a payment or a
 deletion runs like any other effect Oxy allows — see
 [Actors → No agent asks for approval](./actors.mdx#no-agent-asks-for-approval). R2
 is about the agent's runtime tools (its browser typing in the background, a
@@ -755,7 +731,7 @@ operator and deployment ids are never returned to users — see
 
 ## Editable communication and materials templates
 
-The existing create screen offers Communication and Materials starting text. Selecting one fills the editable composer and keeps the existing generation, bot creation and editor flow. Generated local capability suggestions are discarded for template-created agents; Oxy app grants still start at None. Editing instructions does not grant access. The editor's Oxy apps controls remain the owner-authorized grant writer; Accounts Agency is linked for exact organization/resource grants.
+The existing create screen offers Communication and Materials starting text. Selecting one fills the editable composer and keeps the existing generation, bot creation and editor flow. Generated local capability suggestions are discarded for template-created agents. Own tools come from the live catalogue and execute for the original requester; editing instructions cannot change that account. External connector permissions remain explicit.
 
 Communication uses Schedio's signed catalog (`listDestinations`, `createDraft`). Only drafts are exposed: the human reviews, approves, schedules or publishes in Schedio. Schedio binds retry keys to account and actor and serializes concurrent retries. Materials uses Mercaria's `listPendingMaterialPickups`, paginated over accepted reservations for the delegated account. It returns references and an existing Mercaria review link, never exact location or copied Moovo facts. A Moovo reference triggers human review, not an assumption that transport is active or complete; cancelled transports can retain a reference. The person checks live transport status, fills missing structured addresses/contact/parcel details, chooses pickup or transport and confirms the current payer and quote in Mercaria/Moovo. No booking or payment tool is introduced.
 

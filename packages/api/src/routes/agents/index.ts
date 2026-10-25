@@ -10,8 +10,6 @@ import memoryRouter from './memory.js';
 import computerRouter from './computer.js';
 import teamsRouter from './teams.js';
 import coworkDevicesRouter from './cowork-devices.js';
-import oxyAppsRouter from './oxy-apps.js';
-import requesterAppsRouter from './requester-apps.js';
 import featureGatesRouter from './feature-gates.js';
 import primaryToolsRouter from './primary-tools.js';
 
@@ -36,8 +34,6 @@ router.use('/', memoryRouter);
 router.use('/', computerRouter);
 router.use('/', teamsRouter);
 router.use('/', coworkDevicesRouter);
-router.use('/', oxyAppsRouter);
-router.use('/', requesterAppsRouter);
 router.use('/', featureGatesRouter);
 router.use('/', primaryToolsRouter);
 

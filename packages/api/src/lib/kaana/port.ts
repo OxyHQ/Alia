@@ -18,6 +18,8 @@
 import type { Kaana } from '@kaana.ai/sdk';
 
 export interface KaanaClient {
+  /** Release the per-operation own transport; external test ports may omit it. */
+  readonly dispose?: () => void;
   readonly models: { readonly list: Kaana['models']['list'] };
   readonly realtime: { readonly connect: Kaana['realtime']['connect'] };
   readonly audio: {

@@ -1,5 +1,8 @@
 # 15. Actors and identities: Alia and agents, for the person and as themselves
 
+> Own-app levels, grants and ceilings are superseded by [ADR0022](./0022-first-party-platform-authority.md). Account separation and the other product rules remain.
+
+
 *Actores e identidades: Alia y los agentes, por la persona y como sí mismos.*
 
 **Status:** Accepted; amended by 0020 (2026-10-16: a public agent reaches the person present's own data under its owner's ceiling, and no agent asks for approval, so §2's "only payments and deletes still confirm" no longer holds)

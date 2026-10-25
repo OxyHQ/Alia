@@ -52,6 +52,12 @@ vi.mock('../../../lib/logger.js', () => {
 vi.mock('../../../lib/chat-core.js', () => ({
   getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
+// This suite isolates billing/storage. The actual Oxy task boundary is covered
+// by oxy-task-authority.test.ts; never contact production using the fake bearer.
+vi.mock('../../../lib/oxy-task-authority.js', () => ({
+  createOxyTask: vi.fn(async () => 'goal-task'),
+  revokeOxyTask: vi.fn(async () => undefined),
+}));
 vi.mock('../../../lib/task-queue.js', () => ({
   enqueueAgentSession: vi.fn(async () => ({ queued: true, jobId: 'job-1' })),
 }));
@@ -65,6 +71,7 @@ import { createAgent } from '../../../db/agents/agentRepository.js';
 import { createAgentThread } from '../../../db/agents/agentRuntimeRepository.js';
 import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepository.js';
 import { enqueueAgentSession } from '../../../lib/task-queue.js';
+import { createOxyTask, revokeOxyTask } from '../../../lib/oxy-task-authority.js';
 import threadsRouter from '../threads.js';
 
 let db: ApiDatabase;
@@ -99,6 +106,7 @@ afterAll(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 /* -------------------------------------------------------------------------- */
@@ -187,9 +195,30 @@ describe('POST /agents/threads/:threadId/goals — the reservation', () => {
 
     expect(res.status, JSON.stringify(res.body)).toBe(202);
     expect(res.body).toMatchObject({ sessionId: expect.any(String) });
+    expect(createOxyTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'token',
+        effectiveAccountId: userId,
+        origin: { kind: 'goal', id: expect.any(String) },
+      }),
+    );
     // The positive control for every case below: a route that refunded
     // unconditionally would satisfy all of them and fail this one.
     expect(await balanceOf(userId)).toEqual({ free: 85, paid: 0 });
+  });
+
+  it('refunds the reservation when original requester authority is refused', async () => {
+    const userId = await account(100, 0);
+    const agentId = await seedAgent();
+    vi.mocked(createOxyTask).mockRejectedValueOnce(new Error('Requester authority revoked'));
+    const result = await hire(userId, await threadFor(userId, agentId), 'must not run');
+    expect(result.status).toBe(500);
+    expect(await balanceOf(userId)).toEqual({ free: 100, paid: 0 });
+    expect(enqueueAgentSession).not.toHaveBeenCalled();
+    expect(revokeOxyTask).not.toHaveBeenCalled();
+    expect(await db.select().from(agentSessions).where(eq(agentSessions.agentId, agentId))).toEqual(
+      [],
+    );
   });
 
   it('comes back when the ENQUEUE fails', async () => {
@@ -216,6 +245,7 @@ describe('POST /agents/threads/:threadId/goals — the reservation', () => {
 
     const rows = await db.select().from(agentSessions).where(eq(agentSessions.agentId, agentId));
     expect(rows.map((row) => row.status)).toEqual(['cancelled']);
+    expect(revokeOxyTask).toHaveBeenCalledWith('goal-task');
     const goals = await db.select().from(agentGoals).where(eq(agentGoals.agentId, agentId));
     expect(goals.map((goal) => goal.status)).toEqual(['cancelled']);
     expect(res.status).toBe(500);

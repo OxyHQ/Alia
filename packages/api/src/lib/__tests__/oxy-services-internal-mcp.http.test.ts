@@ -163,8 +163,13 @@ beforeEach(async () => {
       service: { applicationId: 'fixture-alia-app', credentialId: 'fixture-alia-credential' },
     });
   });
-  authority.post('/capabilities/execution-authorizations', (req, res) => {
-    if (req.header('authorization') !== `Bearer ${requester}` || req.header('x-oxy-user-id'))
+  authority.post('/capabilities/foreground-execution-authorizations', (req, res) => {
+    if (
+      req.header('authorization') !== `Bearer ${serviceToken}` ||
+      req.body.subjectToken !== requester ||
+      req.body.authority !== 'first_party' ||
+      req.header('x-oxy-user-id')
+    )
       faults.push('requester authority');
     approvals += 1;
     authorityBodies.push(req.body);
@@ -377,7 +382,8 @@ describe('Alia installed common agency and internal MCP pilot', () => {
     expect(authorityBodies[0]).toMatchObject({
       runId: 'fixture-run',
       actor: context().actor,
-      ownerAccountId: account,
+      subjectToken: requester,
+      authority: 'first_party',
     });
     expect(ticketBodies[0]).toMatchObject({
       expectedCatalog: binding,

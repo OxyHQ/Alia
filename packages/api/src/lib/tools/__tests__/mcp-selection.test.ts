@@ -4,7 +4,10 @@ const listRunnableMcpServersForUser = vi.fn();
 const getLocalTools = vi.fn();
 
 vi.stubEnv('INTEGRATIONS_URL', 'https://integrations.example.test');
-vi.stubEnv('INTEGRATIONS_SECRET', 'test-secret');
+vi.mock('../../integrations-client.js', () => ({
+  integrationsFetch: (_account: string, path: string, init: RequestInit) =>
+    fetch(`https://integrations.example.test${path}`, init),
+}));
 
 vi.mock('ai', () => ({ tool: (definition: unknown) => definition }));
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({ marker: 'db' }) }));

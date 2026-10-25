@@ -26,15 +26,14 @@ NAME="alia-api-smoke-$$"
 ONE_SHOT_ARGS=(--network host -e DATABASE_URL)
 # The server needs the Oxy variables only because the boot guard requires them:
 # nothing here authenticates. api.oxy.so is pinned to loopback for the server
-# so no background service talks to the real Oxy with placeholder credentials.
+# so no background service talks to the real Oxy. No workload credentials are
+# injected: this check verifies startup, not a successful identity exchange.
 SERVER_ARGS=(
   --network host
   --add-host api.oxy.so:127.0.0.1
   -e DATABASE_URL
   -e PORT="$PORT"
   -e OXY_API_URL=https://api.oxy.so
-  -e OXY_SERVICE_API_KEY=ci-smoke
-  -e OXY_SERVICE_API_SECRET=ci-smoke
 )
 
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }

@@ -196,6 +196,21 @@ describe('the browser-origin policy at the two chat mounts (#244)', () => {
     }
   });
 
+  it('serves the desktop SDK from its actual Tauri origin without widening internal CORS', async () => {
+    for (const mount of [MOUNTS.v1, MOUNTS.conversations]) {
+      expect(await preflight(mount, 'tauri://localhost')).toEqual({
+        status: 200,
+        allowOrigin: '*',
+        allowCredentials: null,
+      });
+    }
+    expect(await preflight(MOUNTS.chat, 'tauri://localhost')).toEqual({
+      status: 204,
+      allowOrigin: null,
+      allowCredentials: null,
+    });
+  });
+
   it('answers * to an Oxy app’s origin on the turn route and the conversations the SDK calls', async () => {
     // `@alia.onl/sdk` runs on the web origin of every Oxy app. These two are everything it calls,
     // with the headers and methods it sends; a foreign origin must read the answer.
