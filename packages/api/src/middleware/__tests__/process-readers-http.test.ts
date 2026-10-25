@@ -193,8 +193,8 @@ describe('mixed-version process readers over real HTTP', () => {
       const headers = {
         'x-channel-bot-secret': 'legacy-bot-secret',
         'x-oxy-user-id': '69b2d3df5d12f58c9800d651',
-        'x-alia-channel': 'telegram',
-        'x-alia-platform-user': 'remote-provider-user',
+        'x-alia-legacy-channel': 'telegram',
+        'x-alia-legacy-platform-user': 'remote-provider-user',
       };
       expect(await send(path, headers)).toEqual({
         status: 200,

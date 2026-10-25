@@ -31,6 +31,9 @@ Deployment order:
 2. Deploy the additive provider metadata preparation (A2) to integrations and
    the API selector. It still emits the existing secret and account header, plus
    the actual platform user ID or connected-session ID captured by the adapter.
+   These use distinct `x-alia-legacy-channel`, `x-alia-legacy-platform-user` and
+   `x-alia-legacy-channel-session` names. API A850 ignores them, so A2 may roll
+   in either process order; it never emits the canonical workload channel header.
    An absent Authorization keeps these calls on the old reader; the added metadata
    never becomes workload or user authority. Drain every pre-A2 integrations task
    before B. A conversation ID is not a substitute: it is not unique in bot links,

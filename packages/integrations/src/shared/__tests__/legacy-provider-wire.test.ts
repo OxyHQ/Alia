@@ -17,7 +17,13 @@ beforeAll(async () => {
     const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
     const path = req.url ?? '';
     requests.push({ path, headers: req.headers });
-    if (req.headers.authorization || req.headers['x-channel-bot-secret'] !== 'legacy-secret') {
+    // A850 selects workload verification as soon as canonical x-alia-channel
+    // exists, even without a bearer. A2 must never send that header.
+    if (
+      req.headers['x-alia-channel'] !== undefined ||
+      req.headers.authorization ||
+      req.headers['x-channel-bot-secret'] !== 'legacy-secret'
+    ) {
       res.writeHead(401).end(JSON.stringify({ error: 'legacy authentication refused' }));
       return;
     }
@@ -58,13 +64,13 @@ describe('legacy producers with additive provider identity', () => {
     [
       'telegram',
       { kind: 'bot', platformUserId: 'provider-123' },
-      'x-alia-platform-user',
+      'x-alia-legacy-platform-user',
       'provider-123',
     ],
     [
       'whatsapp',
       { kind: 'account', sessionId: 'connection-123' },
-      'x-alia-channel-session',
+      'x-alia-legacy-channel-session',
       'connection-123',
     ],
   ] as const)(
@@ -89,13 +95,16 @@ describe('legacy producers with additive provider identity', () => {
         expect(request.headers).toMatchObject({
           'x-channel-bot-secret': 'legacy-secret',
           'x-oxy-user-id': ACCOUNT,
-          'x-alia-channel': platform,
+          'x-alia-legacy-channel': platform,
           [header]: value,
         });
         expect(request.headers.authorization).toBeUndefined();
+        expect(request.headers['x-alia-channel']).toBeUndefined();
         expect(
           request.headers[
-            header === 'x-alia-platform-user' ? 'x-alia-channel-session' : 'x-alia-platform-user'
+            header === 'x-alia-legacy-platform-user'
+              ? 'x-alia-legacy-channel-session'
+              : 'x-alia-legacy-platform-user'
           ],
         ).toBeUndefined();
       }
@@ -128,8 +137,8 @@ describe('legacy producers with additive provider identity', () => {
     const privateRequests = requests.filter(({ path }) => !path.startsWith('/bots/'));
     expect(privateRequests).toHaveLength(2);
     for (const request of privateRequests) {
-      expect(request.headers['x-alia-channel-session']).toBe('actual-session');
-      expect(request.headers['x-alia-platform-user']).toBeUndefined();
+      expect(request.headers['x-alia-legacy-channel-session']).toBe('actual-session');
+      expect(request.headers['x-alia-legacy-platform-user']).toBeUndefined();
     }
   });
 });

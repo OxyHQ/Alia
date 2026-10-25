@@ -1,9 +1,4 @@
-import {
-  ALIA_CHANNEL_HEADER,
-  ALIA_PLATFORM_USER_HEADER,
-  ALIA_CHANNEL_SESSION_HEADER,
-  type AliaChannelIdentity,
-} from '@alia.onl/server/internal';
+import type { AliaChannelIdentity } from '@alia.onl/server/internal';
 import axios, { type AxiosInstance } from 'axios';
 import { errorCode, errorStatus } from './utils';
 import { parseCatalogue, resolveRequestModel, type Catalogue } from './catalogue';
@@ -74,6 +69,9 @@ export class APIClient {
     return { 'X-Channel-Bot-Secret': this.secret };
   }
 
+  // Temporary A2 wire: distinct names are ignored by the already deployed A
+  // reader, which selects workload auth on the canonical x-alia-channel header.
+  // B validates the secret and resolves this provider identity from its live row.
   private accountHeaders(
     oxyUserId: string,
     identity?: AliaChannelIdentity,
@@ -83,10 +81,10 @@ export class APIClient {
       'X-Oxy-User-Id': oxyUserId,
       ...(identity
         ? {
-            [ALIA_CHANNEL_HEADER]: this.platform,
+            'x-alia-legacy-channel': this.platform,
             ...(identity.kind === 'bot'
-              ? { [ALIA_PLATFORM_USER_HEADER]: identity.platformUserId }
-              : { [ALIA_CHANNEL_SESSION_HEADER]: identity.sessionId }),
+              ? { 'x-alia-legacy-platform-user': identity.platformUserId }
+              : { 'x-alia-legacy-channel-session': identity.sessionId }),
           }
         : {}),
     };
