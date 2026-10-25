@@ -28,12 +28,22 @@ Deployment order:
 
 1. Deploy these readers to **both** API and integrations; keep both old secrets.
    Wait for every old task to drain. Verify HTTP and socket health in each direction.
-2. Deploy the producer transition while retaining these dual readers and both
+2. Deploy the additive provider metadata preparation (A2) to integrations and
+   the API selector. It still emits the existing secret and account header, plus
+   the actual platform user ID or connected-session ID captured by the adapter.
+   These use distinct `x-alia-legacy-channel`, `x-alia-legacy-platform-user` and
+   `x-alia-legacy-channel-session` names. API A850 ignores them, so A2 may roll
+   in either process order; it never emits the canonical workload channel header.
+   An absent Authorization keeps these calls on the old reader; the added metadata
+   never becomes workload or user authority. Drain every pre-A2 integrations task
+   before B. A conversation ID is not a substitute: it is not unique in bot links,
+   and history-list/audio requests do not carry one.
+3. Deploy the producer transition while retaining these dual readers and both
    secrets. Verify new workload emission in both directions, linked account
    ownership and old-task drain. Do not remove a reader while the other process
    can still emit the old protocol. Durable user-task reconciliation belongs to
    the runtime migration; local channel context is never a substitute for it.
-3. Deploy22's final removal of legacy readers and both inherited secrets only
+4. Deploy22's final removal of legacy readers and both inherited secrets only
    after both producers use workloads. Confirm no old producers or tasks remain,
    then remove the infra secret wiring.
 
@@ -49,3 +59,9 @@ introspection endpoint. Cases cover both protocols, refusal without downgrade,
 canonical socket audience, removed links, missing context and another account's
 row. The tool-pipeline regression ensures local channel context cannot introduce
 private Oxy/MCP/provider tools.
+
+B must resolve A2 legacy provider metadata through the same live link as the
+workload lane, after validating that channel’s existing secret. It may reuse only
+the reconciled task stored on that link, never create authority from the account
+header. The A2 metadata is temporary rollout compatibility and disappears with
+the remaining secret reader in C.

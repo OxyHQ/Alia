@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { APIClient } from './api-client';
+import type { APIClient } from './api-client';
 import { chunkText } from './utils';
 import { createLogger } from './logger';
 
@@ -47,6 +47,7 @@ export async function handleIncomingMessage(
   const logger = createLogger(`${platform}/Chat`);
 
   try {
+    const identity = { kind: 'account' as const, sessionId: params.sessionId };
     // Get bot user from API
     const botUser = await apiClient.getBotUser(oxyUserId);
 
@@ -77,7 +78,11 @@ export async function handleIncomingMessage(
     // Load conversation history (last 20 messages, user/assistant only)
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId);
+      const conversation = await apiClient.getConversation(
+        botUser.oxyUserId,
+        conversationId,
+        identity,
+      );
       if (conversation?.messages?.length) {
         messages = conversation.messages
           .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -109,6 +114,7 @@ export async function handleIncomingMessage(
       // model and the server's default applies. See `./catalogue.ts`.
       model: await apiClient.requestModel(botUser.preferredModel),
       conversationId,
+      identity,
     });
 
     const fullResponse = result.content;

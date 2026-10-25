@@ -1,4 +1,5 @@
-import axios, { AxiosInstance } from 'axios';
+import type { AliaChannelIdentity } from '@alia.onl/server/internal';
+import axios, { type AxiosInstance } from 'axios';
 import { errorCode, errorStatus } from './utils';
 import { parseCatalogue, resolveRequestModel, type Catalogue } from './catalogue';
 
@@ -68,6 +69,27 @@ export class APIClient {
     return { 'X-Channel-Bot-Secret': this.secret };
   }
 
+  // Temporary A2 wire: distinct names are ignored by the already deployed A
+  // reader, which selects workload auth on the canonical x-alia-channel header.
+  // B validates the secret and resolves this provider identity from its live row.
+  private accountHeaders(
+    oxyUserId: string,
+    identity?: AliaChannelIdentity,
+  ): Record<string, string> {
+    return {
+      ...this.authHeaders,
+      'X-Oxy-User-Id': oxyUserId,
+      ...(identity
+        ? {
+            'x-alia-legacy-channel': this.platform,
+            ...(identity.kind === 'bot'
+              ? { 'x-alia-legacy-platform-user': identity.platformUserId }
+              : { 'x-alia-legacy-channel-session': identity.sessionId }),
+          }
+        : {}),
+    };
+  }
+
   async getBotUser(platformUserId: string): Promise<BotUser | null> {
     try {
       const response = await this.client.get(
@@ -114,10 +136,14 @@ export class APIClient {
     );
   }
 
-  async getConversation(oxyUserId: string, conversationId: string): Promise<Conversation | null> {
+  async getConversation(
+    oxyUserId: string,
+    conversationId: string,
+    identity?: AliaChannelIdentity,
+  ): Promise<Conversation | null> {
     try {
       const response = await this.client.get(`/conversations/${conversationId}`, {
-        headers: { ...this.authHeaders, 'X-Oxy-User-Id': oxyUserId },
+        headers: this.accountHeaders(oxyUserId, identity),
       });
       return response.data;
     } catch (error: unknown) {
@@ -131,18 +157,22 @@ export class APIClient {
     conversationId: string,
     messages: ConversationMessage[],
     title?: string,
+    identity?: AliaChannelIdentity,
   ): Promise<Conversation> {
     const response = await this.client.post(
       '/conversations',
       { conversationId, messages, title },
-      { headers: { ...this.authHeaders, 'X-Oxy-User-Id': oxyUserId } },
+      { headers: this.accountHeaders(oxyUserId, identity) },
     );
     return response.data;
   }
 
-  async getConversations(oxyUserId: string): Promise<Conversation[]> {
+  async getConversations(
+    oxyUserId: string,
+    identity?: AliaChannelIdentity,
+  ): Promise<Conversation[]> {
     const response = await this.client.get('/conversations', {
-      headers: { ...this.authHeaders, 'X-Oxy-User-Id': oxyUserId },
+      headers: this.accountHeaders(oxyUserId, identity),
     });
     return response.data;
   }
@@ -242,14 +272,13 @@ export class APIClient {
   async chatCompletion(
     oxyUserId: string,
     messages: Array<{ role: string; content: MessageContent }>,
-    options: { model?: string; conversationId?: string } = {},
+    options: { model?: string; conversationId?: string; identity?: AliaChannelIdentity } = {},
   ): Promise<{ content: string; finishReason: string }> {
     const response = await fetch(`${this.baseURL}/alia/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Channel-Bot-Secret': this.secret,
-        'X-Oxy-User-Id': oxyUserId,
+        ...this.accountHeaders(oxyUserId, options.identity),
       },
       body: JSON.stringify({
         // Omitted when unset, exactly like `conversationId` beneath it:
@@ -288,12 +317,17 @@ export class APIClient {
   /**
    * Transcribe audio to text via the voice/transcribe API endpoint.
    */
-  async transcribe(oxyUserId: string, audio: string, format?: string): Promise<string> {
+  async transcribe(
+    oxyUserId: string,
+    audio: string,
+    format?: string,
+    identity?: AliaChannelIdentity,
+  ): Promise<string> {
     const response = await this.client.post(
       '/v1/voice/transcribe',
       { audio, format },
       {
-        headers: { ...this.authHeaders, 'X-Oxy-User-Id': oxyUserId },
+        headers: this.accountHeaders(oxyUserId, identity),
         timeout: 30000,
       },
     );
@@ -312,14 +346,13 @@ export class APIClient {
   async *chatCompletionStream(
     oxyUserId: string,
     messages: Array<{ role: string; content: MessageContent }>,
-    options: { model?: string; conversationId?: string } = {},
+    options: { model?: string; conversationId?: string; identity?: AliaChannelIdentity } = {},
   ): AsyncGenerator<string, void, undefined> {
     const response = await fetch(`${this.baseURL}/alia/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Channel-Bot-Secret': this.secret,
-        'X-Oxy-User-Id': oxyUserId,
+        ...this.accountHeaders(oxyUserId, options.identity),
       },
       body: JSON.stringify({
         // Omitted when unset — see `chatCompletion` above.

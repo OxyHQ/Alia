@@ -73,7 +73,9 @@ export function authenticateChannelBot(channelType: ChannelId) {
 }
 
 export function hasChannelContext(req: Request): boolean {
-  return req.headers[ALIA_CHANNEL_HEADER] !== undefined;
+  // Phase A emits legacy secrets with additive provider metadata. Only a
+  // presented bearer selects the workload reader until all old tasks drain.
+  return req.headers.authorization !== undefined && req.headers[ALIA_CHANNEL_HEADER] !== undefined;
 }
 
 /** Resolve the account from the live provider link, never from an account header.

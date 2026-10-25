@@ -39,9 +39,11 @@ vi.mock('../../db/integrations/connectedAccountRepository.js', () => ({
 }));
 vi.mock('../../lib/channels/registry.js', () => ({
   getChannel: () => ({ config: { getBotSecret: () => 'legacy-bot-secret' } }),
+  getConfiguredChannels: () => [{ config: { getBotSecret: () => 'legacy-bot-secret' } }],
 }));
 import { OxyServer } from '@oxy.so/core/server';
 import { authenticateChannelAccount, authenticateChannelBot } from '../channel-auth.js';
+import { authenticateTokenOrApiKey } from '../auth.js';
 
 const KEY = generateKeyPairSync('ed25519');
 const KID = 'process-reader-test';
@@ -156,6 +158,13 @@ beforeAll(async () => {
       bearer: req.accessToken ?? null,
     }),
   );
+  receiver.all(
+    ['/alia/chat', '/conversations', '/conversations/:id'],
+    authenticateTokenOrApiKey,
+    (req, res) => {
+      res.json({ accountId: req.userId, channelContext: req.channelContext ?? null });
+    },
+  );
   product = await listen(receiver);
   baseURL = origin(product);
 });
@@ -178,6 +187,26 @@ describe('mixed-version process readers over real HTTP', () => {
       200,
     );
   });
+  it.each(['/alia/chat', '/conversations', '/conversations/thread'])(
+    'keeps enriched legacy producers on the existing secret reader at %s',
+    async (path) => {
+      const headers = {
+        'x-channel-bot-secret': 'legacy-bot-secret',
+        'x-oxy-user-id': '69b2d3df5d12f58c9800d651',
+        'x-alia-legacy-channel': 'telegram',
+        'x-alia-legacy-platform-user': 'remote-provider-user',
+      };
+      expect(await send(path, headers)).toEqual({
+        status: 200,
+        body: { accountId: headers['x-oxy-user-id'], channelContext: null },
+      });
+      expect(fixture.lookup).not.toHaveBeenCalled();
+      expect((await send(path, { ...headers, 'x-channel-bot-secret': 'wrong' })).status).toBe(401);
+      expect(
+        (await send(path, { ...headers, authorization: 'Bearer invalid' })).status,
+      ).toBeGreaterThanOrEqual(400);
+    },
+  );
   it.each(['invalid-signature', 'revoked', 'wrong-audience', 'wrong-workload', 'external'])(
     'never downgrades %s to a valid legacy secret in either direction',
     async (failure) => {

@@ -4,7 +4,7 @@
  * Uses the shared APIClient (channels API) instead of the legacy /telegram/ routes.
  */
 
-import { Context, Markup } from 'telegraf';
+import { type Context, Markup } from 'telegraf';
 import { randomUUID } from 'node:crypto';
 import { APIClient } from '../../shared/api-client';
 import {
@@ -573,7 +573,10 @@ export async function handleHistory(ctx: Context) {
     }
 
     try {
-      const conversations = await apiClient.getConversations(botUser.oxyUserId);
+      const conversations = await apiClient.getConversations(botUser.oxyUserId, {
+        kind: 'bot',
+        platformUserId: telegramId,
+      });
       if (!conversations || conversations.length === 0) {
         await ctx.reply(
           '📚 <b>No Conversations Yet</b>\n\n' +
