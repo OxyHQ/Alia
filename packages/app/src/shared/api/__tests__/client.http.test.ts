@@ -130,3 +130,44 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     );
   }
 });
+
+test('a pending socket refresh cannot authenticate the previous account after switching', async () => {
+  const api = await import('../client');
+  const { createApiSocketSession } = await import('../socket-session');
+  const token = (id: string, exp: number) =>
+    `e30.${Buffer.from(JSON.stringify({ userId: id, sessionId: id, exp })).toString('base64url')}.fixture`;
+  const oxy = new OxyServices({ baseURL: config.apiUrl });
+  oxy.session.setAccessToken(token('A', 1));
+  let release: (() => void) | undefined;
+  let arrived: (() => void) | undefined;
+  const ready = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  oxy.http.setAuthRefreshHandler(async () => {
+    arrived?.();
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return token('A', 2_000_000_000);
+  });
+  api.bindApiClient(oxy);
+  const session = createApiSocketSession();
+  const disconnect = vi.fn();
+  session.bind({ disconnect } as never);
+  const callback = vi.fn();
+  try {
+    session.auth(callback);
+    await ready;
+    oxy.session.setAccessToken(token('B', 2_000_000_000));
+    release?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(callback.mock.calls.length, 0);
+    assert.equal(disconnect.mock.calls.length, 1);
+    assert.equal(oxy.session.userId, 'B');
+  } finally {
+    release?.();
+    session.dispose();
+    api.releaseApiClient(oxy);
+    oxy.dispose();
+  }
+});
