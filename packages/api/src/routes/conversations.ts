@@ -233,7 +233,8 @@ const INVALID_APP = { error: 'app must be an app slug (^[a-z][a-z0-9-]{0,31}$)' 
 // Create a new empty conversation
 router.post('/new', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -253,7 +254,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
       if (
         agent === null ||
         (await canReachAgent(agent, {
-          oxyUserId: req.user.id,
+          oxyUserId: localAccountId,
           accessToken: req.accessToken,
           surfaceApplicationId: await appSurfaceOf(req),
         })) !== 'reachable'
@@ -263,7 +264,7 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
     }
 
     const conversation = await createConversation(getDb(), {
-      oxyUserId: req.user.id,
+      oxyUserId: localAccountId,
       conversationId,
       title: 'New chat',
       source: sourceFromBody(req.body?.source) ?? 'app',
@@ -289,7 +290,8 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
 // Get all conversations for the authenticated user with cursor-based pagination
 router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -330,7 +332,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
     if (originApp === null) return res.status(400).json(INVALID_APP);
 
     // One extra row decides `hasMore` without a second count query.
-    const rows = await listConversations(getDb(), req.user.id, limit + 1, {
+    const rows = await listConversations(getDb(), localAccountId, limit + 1, {
       ...(before === undefined ? {} : { before }),
       ...(agentId === undefined ? {} : { agentId }),
       ...(originApp === undefined ? {} : { originApp }),
@@ -365,10 +367,11 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
 // Get a specific conversation by ID
 router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const userId = req.user.id;
+    const userId = localAccountId;
 
     const conversationId = String(req.params.id);
     const conversation = await findConversation(getDb(), userId, conversationId);
@@ -399,7 +402,8 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
 // Save or update a conversation
 router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -438,12 +442,12 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
     // An agent may have written into this conversation since the client last
     // loaded it; its message is kept rather than replaced away.
     const toStore = withAgentOutreachKept(
-      await listMessages(getDb(), req.user.id, conversationId),
+      await listMessages(getDb(), localAccountId, conversationId),
       validMessages,
     );
     const [conversation] = await Promise.all([
       upsertConversation(getDb(), {
-        oxyUserId: req.user.id,
+        oxyUserId: localAccountId,
         conversationId,
         ...(lastMessage === undefined ? {} : { lastMessage }),
         ...(typeof title === 'string' && title.length > 0 ? { title } : {}),
@@ -451,7 +455,7 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
         ...(onInsertSource === undefined ? {} : { source: onInsertSource }),
         ...(originApp === undefined ? {} : { originApp }),
       }),
-      replaceMessages(getDb(), req.user.id, conversationId, toStore),
+      replaceMessages(getDb(), localAccountId, conversationId, toStore),
     ]);
 
     res.json({
@@ -475,7 +479,8 @@ router.patch(
   authenticateToken,
   async (req: Request<{ id: string; messageId: string }>, res: Response) => {
     try {
-      if (!req.user?.id) {
+      const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+      if (!localAccountId) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
@@ -486,7 +491,7 @@ router.patch(
 
       const result = await voteMessage(
         getDb(),
-        req.user.id,
+        localAccountId,
         String(req.params.id),
         String(req.params.messageId),
         vote as MessageVote | null,
@@ -538,10 +543,11 @@ router.patch(
  */
 router.delete('/:id/messages', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const userId = req.user.id;
+    const userId = localAccountId;
     const conversationId = String(req.params.id);
 
     await purgeConversationSpeechClips(getDb(), userId, conversationId);
@@ -577,7 +583,8 @@ const shareSchema = z.object({ ttlHours: z.number().int().min(1).max(168) }).str
  */
 router.post('/:id/share', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const parsed = shareSchema.safeParse(req.body ?? {});
@@ -585,12 +592,12 @@ router.post('/:id/share', authenticateToken, async (req: Request, res: Response)
       return res.status(400).json({ error: 'ttlHours must be a whole number from 1 to 168' });
     }
     const conversationId = String(req.params.id);
-    const conversation = await findConversation(getDb(), req.user.id, conversationId);
+    const conversation = await findConversation(getDb(), localAccountId, conversationId);
     if (!conversation) {
       return res.status(404).json({ error: 'Conversation not found' });
     }
     const share = await shareConversation(getDb(), {
-      oxyUserId: req.user.id,
+      oxyUserId: localAccountId,
       conversationId,
       expiresAt: new Date(Date.now() + parsed.data.ttlHours * 60 * 60 * 1000),
     });
@@ -604,10 +611,11 @@ router.post('/:id/share', authenticateToken, async (req: Request, res: Response)
 /** Revoke the conversation's share link. 404 when it has none. */
 router.delete('/:id/share', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const removed = await revokeConversationShare(getDb(), req.user.id, String(req.params.id));
+    const removed = await revokeConversationShare(getDb(), localAccountId, String(req.params.id));
     if (removed === 0) {
       return res.status(404).json({ error: 'Share link not found' });
     }
@@ -621,7 +629,8 @@ router.delete('/:id/share', authenticateToken, async (req: Request, res: Respons
 // Delete a conversation
 router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    const localAccountId = req.user?.id ?? req.channelContext?.accountId;
+    if (!localAccountId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -635,12 +644,12 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
      * The clips spoken from it go first, for the reason the clear above gives.
      */
     const conversationId = String(req.params.id);
-    await purgeConversationSpeechClips(getDb(), req.user.id, conversationId);
+    await purgeConversationSpeechClips(getDb(), localAccountId, conversationId);
     const [removed] = await Promise.all([
-      deleteConversation(getDb(), req.user.id, conversationId),
-      deleteMessages(getDb(), req.user.id, conversationId),
+      deleteConversation(getDb(), localAccountId, conversationId),
+      deleteMessages(getDb(), localAccountId, conversationId),
       // A link to a conversation that no longer exists opens nothing; the row goes with it.
-      revokeConversationShare(getDb(), req.user.id, conversationId),
+      revokeConversationShare(getDb(), localAccountId, conversationId),
     ]);
 
     if (removed === 0) {

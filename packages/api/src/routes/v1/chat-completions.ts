@@ -255,7 +255,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       assembled = req.machineCredential
         ? ToolPipeline.forMachineTurn()
         : await ToolPipeline.forUser({
-            userId: req.user?.id || '',
+            userId: req.user?.id ?? req.channelContext?.accountId ?? '',
             accessToken: req.accessToken,
             isDirectSession: isDirectUserSession,
             // A session acts for the person holding it; an API key does not.

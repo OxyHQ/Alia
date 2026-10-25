@@ -630,7 +630,7 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
     // console-machine-key-entry.test.ts exercises its route and permission boundary.
     expect(prefixesScreened(auth)).toEqual(['Bearer ', 'Bearer oxy_sk_', 'alia_sk_']);
     const branch = read('middleware/auth.ts').match(
-      /if \(token\.startsWith\('alia_sk_'\)\) \{\s*([\s\S]*?)\n {2}\}/,
+      /if \(token\?\.startsWith\('alia_sk_'\)\) \{\s*([\s\S]*?)\n {2}\}/,
     );
     expect(branch?.[1]).toContain('refuseRetiredAliaKey(res)');
     expect(branch?.[1]).not.toContain('next(');
@@ -641,12 +641,19 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
     expect(environmentRead(auth)).toEqual(['OXY_API_URL', 'TELEGRAM_BOT_SECRET']);
   });
 
-  it('the /v1 router itself reads only the channel-bot pair', () => {
+  it('the /v1 legacy pair is excluded whenever Authorization is presented', () => {
     // The other file that reads a credential on this surface. Anything else
     // appearing here is auth logic that grew outside `middleware/auth.ts`, where
     // nobody is looking for it.
     const v1Source = parse('routes/v1.ts');
-    expect(headersRead(v1Source)).toEqual(['x-channel-bot-secret', 'x-oxy-user-id']);
+    expect(headersRead(v1Source)).toEqual([
+      'authorization',
+      'x-channel-bot-secret',
+      'x-oxy-user-id',
+    ]);
+    expect(read('routes/v1.ts')).toContain(
+      'if (req.headers.authorization !== undefined) return next();',
+    );
     expect(prefixesScreened(v1Source)).toEqual([]);
     expect(environmentRead(v1Source)).toEqual([]);
   });

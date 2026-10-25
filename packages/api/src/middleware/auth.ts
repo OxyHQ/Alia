@@ -1,3 +1,4 @@
+import { authenticateChannelAccount, hasChannelContext } from './channel-auth.js';
 import { Request, Response, NextFunction } from 'express';
 import {
   OxyServer,
@@ -273,6 +274,21 @@ export function refuseRetiredAliaKey(res: Response): void {
  */
 export function authenticateTokenOrApiKey(req: Request, res: Response, next: NextFunction): void {
   const presented = req.headers.authorization;
+  const token = presented?.startsWith('Bearer ') ? presented.substring(7) : null;
+  if (token?.startsWith('alia_sk_')) {
+    refuseRetiredAliaKey(res);
+    return;
+  }
+  if (hasChannelContext(req)) {
+    void authenticateChannelAccount(req, res, next);
+    return;
+  }
+  // A presented bearer selects bearer validation, even if legacy secrets are
+  // also supplied. Refused workloads must never downgrade to the old protocol.
+  if (presented !== undefined && !presented.startsWith('Bearer oxy_sk_')) {
+    authenticateToken(req, res, next);
+    return;
+  }
   const rawMachine = presented?.startsWith('Bearer oxy_sk_') === true;
   if (rawMachine) {
     const path = req.originalUrl.split('?')[0];
@@ -310,16 +326,8 @@ export function authenticateTokenOrApiKey(req: Request, res: Response, next: Nex
     return;
   }
 
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
-
   if (!token) {
     res.status(401).json({ error: 'Authentication required' });
-    return;
-  }
-
-  if (token.startsWith('alia_sk_')) {
-    refuseRetiredAliaKey(res);
     return;
   }
 

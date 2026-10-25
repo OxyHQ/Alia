@@ -59,6 +59,8 @@ router.use('/agents', authenticateToken, apiKeyRateLimit, agentsV1Router);
 // Channel bot auth: validates x-channel-bot-secret against registered channels
 // and sets req.user from x-oxy-user-id for trusted bot services.
 router.use((req: Request, _res: Response, next) => {
+  // A presented bearer never enters the finite legacy secret lane.
+  if (req.headers.authorization !== undefined) return next();
   const botSecret = req.headers['x-channel-bot-secret'] as string;
   const oxyUserId = req.headers['x-oxy-user-id'] as string;
   if (!botSecret || !oxyUserId) return next();

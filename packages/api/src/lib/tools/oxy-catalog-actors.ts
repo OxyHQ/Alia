@@ -30,7 +30,7 @@ const toolActorsSchema = z
   .refine((actors) => new Set(actors).size === actors.length, 'actors must not repeat');
 
 /** True once the installed contracts validate `actors` themselves. */
-const CONTRACTS_KNOW_TOOL_ACTORS = 'actors' in catalogToolSchema.innerType().shape;
+const CONTRACTS_KNOW_TOOL_ACTORS = 'actors' in catalogToolSchema.shape;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

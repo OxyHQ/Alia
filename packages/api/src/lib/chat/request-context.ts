@@ -387,10 +387,11 @@ export async function buildChatRequestContext(
     'Processing messages',
   );
 
+  const localAccountId = req.user?.id ?? req.channelContext?.accountId;
   let autonomyRuntime: AutonomyRuntimeContext | null = null;
-  if (req.user?.id) {
+  if (localAccountId) {
     autonomyRuntime = await runAutonomyBeforeChat({
-      userId: req.user.id,
+      userId: localAccountId,
       messages,
     }).catch(() => null);
   }
@@ -772,7 +773,7 @@ export async function buildChatRequestContext(
   // Run independent operations concurrently to reduce time-to-first-token
   const preStreamStart = Date.now();
 
-  const creditAccountId = req.user?.id;
+  const creditAccountId = localAccountId;
   /**
    * The person's memory, profile, entitlements and the turn's agent are the
    * turn's INPUTS, read from an identity by `lib/chat/turn-inputs.ts` — the
@@ -783,7 +784,7 @@ export async function buildChatRequestContext(
   /** Which Oxy app this turn comes from, read once from its app assertion (ADR 0021). */
   const surfaceApplicationId = await appSurfaceOf(req);
   const turnInputs = prefetchTurnInputs({
-    oxyUserId: req.user?.id,
+    oxyUserId: localAccountId,
     accessToken: req.accessToken,
     isDirectUserSession,
     requestedAgentId,
@@ -1055,9 +1056,9 @@ export async function buildChatRequestContext(
      * carries its owner's account — so scoping it to interactive sessions would
      * withhold a person's own skills from their own API key for no reason.
      */
-    const skills = req.user?.id
+    const skills = localAccountId
       ? await buildTurnSkills({
-          oxyUserId: req.user.id,
+          oxyUserId: localAccountId,
           linkedAgent,
           selectedSkillNames,
         })
@@ -1068,9 +1069,9 @@ export async function buildChatRequestContext(
     // An agent's memory is its own (`agent_memory_documents`): Alia's recall is
     // for Alia's turns only.
     const recalledMemories =
-      req.user?.id && linkedAgent === null
+      localAccountId && linkedAgent === null
         ? await recallTurnMemories({
-            oxyUserId: req.user.id,
+            oxyUserId: localAccountId,
             conversationId,
             messages,
             modelId,

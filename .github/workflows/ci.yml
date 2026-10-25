@@ -182,10 +182,12 @@ jobs:
             api:
               - *shared
               - 'packages/api/**'
+              - 'packages/alia-server/**'
               - '.github/scripts/smoke-api-image.sh'
             integrations:
               - *shared
               - 'packages/integrations/**'
+              - 'packages/alia-server/**'
             computer_host:
               - *shared
               - 'packages/alia-computer-host/**'
@@ -363,6 +365,11 @@ jobs:
       - name: Verify that gate can still fail
         run: node .github/scripts/test-check-ts-directives.mjs
 
+      # The package publishes compiled ESM + CJS + types, unlike @alia.onl/sdk.
+      # A build that only runs at `npm publish` time is a build nobody has run.
+      - name: Build server SDK
+        run: bun run --filter @alia.onl/server build
+
       - name: Typecheck API
         run: bun run --filter @alia/api typecheck
 
@@ -402,11 +409,6 @@ jobs:
       # production logs a week later.
       - name: Test server SDK against the API's own stream writers
         run: bun run --filter @alia.onl/server test
-
-      # The package publishes compiled ESM + CJS + types, unlike @alia.onl/sdk.
-      # A build that only runs at `npm publish` time is a build nobody has run.
-      - name: Build server SDK
-        run: bun run --filter @alia.onl/server build
 
       # Typecheck, tests and build all passed on 1.0.0 while the published
       # package could not be compiled against from a CommonJS backend — the
@@ -792,6 +794,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build server SDK dependency
+        run: bun run --filter @alia.onl/server build
+
       - name: Typecheck integrations
         run: bun run --filter @alia/integrations type-check
 
@@ -863,6 +868,9 @@ jobs:
       # The suite creates its own throwaway, fully-migrated database per run via
       # the REAL src/db/migrate.ts entrypoint, so this also exercises the phase
       # and --target-database guards an operator depends on.
+      - name: Build server SDK dependency
+        run: bun run --filter @alia.onl/server build
+
       - name: Test API against Postgres
         env:
           TEST_DATABASE_URL: postgres://alia:alia@127.0.0.1:5440/postgres

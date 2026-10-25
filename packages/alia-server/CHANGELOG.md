@@ -1,5 +1,13 @@
 # @alia.onl/server
 
+## 1.2.0
+
+Adds `createAliaForOxyService` and `createAliaTransportForOxyService` for
+Oxy workload transport with Alia’s canonical audience and verified requester
+context. The `./internal` entry shares the authenticated API/gateway protocol
+without importing React or a server SDK through the client entry. Existing
+external credential clients remain supported.
+
 ## 1.1.0
 
 A failed turn is a typed error, before or after output. The `error` event and

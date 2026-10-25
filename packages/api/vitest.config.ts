@@ -3,11 +3,14 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@oxy.so/core/server': fileURLToPath(
-        new URL('./src/__tests__/mocks/oxy-core-server.ts', import.meta.url),
-      ),
-    },
+    alias: [
+      {
+        find: /^@oxy\.so\/core\/server$/,
+        replacement: fileURLToPath(
+          new URL('./src/__tests__/mocks/oxy-core-server.ts', import.meta.url),
+        ),
+      },
+    ],
   },
   test: {
     globals: true,

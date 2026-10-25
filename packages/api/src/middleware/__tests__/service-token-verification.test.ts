@@ -289,6 +289,8 @@ describe('every principal a request can acquire is mapped (#139 ws15)', () => {
     // functions, two assignments each. (`authenticateApiKey` was a third,
     // retired with the `alia_sk_*` keys.)
     'packages/api/src/middleware/auth.ts': 4,
+    // Verified live workload + database provider link: local account, never req.user.
+    'packages/api/src/middleware/channel-auth.ts': 1,
     // The channel-bot pre-middleware, which sets `req.user` only.
     'packages/api/src/routes/v1.ts': 1,
   };
@@ -368,6 +370,8 @@ describe('every principal a request can acquire is mapped (#139 ws15)', () => {
     expect(readers.sort()).toEqual([
       // Both grants, both behind a compare (asserted above).
       'packages/api/src/middleware/auth.ts',
+      // Explicitly rejects the header; the account comes from the live provider link.
+      'packages/api/src/middleware/channel-auth.ts',
       // The channel-bot pre-middleware, likewise.
       'packages/api/src/routes/v1.ts',
       // `requireSessionOwner`: reads the header to NARROW access, never to grant
@@ -402,15 +406,27 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
     expect(internal).toMatch(/router\.post\('\/trigger',\s*oxyServiceAuth/);
   });
 
-  it('the integrations service compares its shared secret with the SDK helper', () => {
-    // `verifySecret` is `@oxy.so/core/server`'s constant-time compare. A `===`
-    // here would be a timing oracle on the secret that fronts every MCP and
-    // account operation.
+  it('keeps legacy comparison behind an absent bearer and verifies new identities through core', () => {
     const index = code(path.join(REPO_ROOT, 'packages/integrations/src/index.ts'));
-    expect(index).toContain(`verifySecret(secret, INTEGRATIONS_SECRET)`);
-    expect(index).not.toMatch(/secret\s*===\s*INTEGRATIONS_SECRET/);
-    // The floor: the file was read and still has the middleware this is about.
-    expect(index).toContain(`req.headers['x-gateway-secret']`);
+    const auth = code(path.join(REPO_ROOT, 'packages/integrations/src/shared/internal-auth.ts'));
+    expect(index).toContain('requireAliaApi, requireAccountContext');
+    expect(auth).toContain('verifySecret(presented, expected)');
+    expect(auth).toContain('req.headers.authorization === undefined');
+    expect(auth).toContain('oxy.middleware.service({ expectedAudience: ALIA_SERVICE_AUDIENCE })');
+    expect(auth).not.toMatch(/presented\s*===\s*expected/);
+    const channel = code(path.join(REPO_ROOT, 'packages/api/src/middleware/channel-auth.ts'));
+    expect(channel).toContain('req.userId = context.accountId');
+    expect(channel).toContain('findBotUser(getDb(), bot.id, platformUserId)');
+    expect(channel).toContain('findConnectedAccountBySession(');
+    expect(channel).toContain('delete req.accessToken');
+    expect(channel).not.toMatch(/req\.user\s*=/);
+    expect(channel).toContain(
+      'oxy.middleware.service({ expectedAudience: ALIA_SERVICE_AUDIENCE })',
+    );
+    const v1 = code(path.join(REPO_ROOT, 'packages/api/src/routes/v1.ts'));
+    expect(v1.indexOf('req.headers.authorization !== undefined')).toBeLessThan(
+      v1.indexOf("const botSecret = req.headers['x-channel-bot-secret']"),
+    );
   });
 
   it('the outbound Kaana hop presents a token and verifies none', () => {

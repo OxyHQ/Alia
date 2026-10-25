@@ -58,6 +58,8 @@ COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 RUN bun install --frozen-lockfile --filter @alia/integrations
 
 # Copy source
+COPY packages/alia-server/ ./packages/alia-server/
+RUN cd packages/alia-server && bun run build
 COPY packages/integrations/ ./packages/integrations/
 
 # Build TypeScript
@@ -197,6 +199,7 @@ COPY --from=production-deps --chown=node:node /app/ ./
 
 # Copy built output from builder
 COPY --from=builder --chown=node:node /build/packages/integrations/dist ./packages/integrations/dist
+COPY --from=builder --chown=node:node /build/packages/alia-server/dist ./packages/alia-server/dist
 
 # The migrations, which are DATA and are therefore not in `dist`.
 #

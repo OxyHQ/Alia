@@ -55,8 +55,8 @@ const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\
 export type OxyToolAutonomy = AutonomyLevel;
 
 const assignmentTermsSchema = z.object({
-  resource: resourceRefSchema,
-  maximumAutonomy: autonomyLevelSchema,
+  resource: z.custom<ResourceRef>((value) => resourceRefSchema.safeParse(value).success),
+  maximumAutonomy: z.custom<AutonomyLevel>((value) => autonomyLevelSchema.safeParse(value).success),
   limits: z.array(z.object({ key: z.string(), value: z.unknown() })),
   toolNames: z.array(z.string()),
 });
