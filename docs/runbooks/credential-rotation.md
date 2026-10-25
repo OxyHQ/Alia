@@ -40,9 +40,9 @@ Do not restore a revoked binding by rolling back an image. Alia has no Kaana
 signing key; Oxy owns and rotates the Oxy-to-Kaana signing boundary.
 
 `OXY_SERVICE_API_*` is retired and removed. New own process calls use workloads;
-`SERVICE_SECRET` and `INTEGRATIONS_SECRET` remain bound only for the finite phase-B
-reader transition. Phase C removes those inherited bindings explicitly after both
-producers have drained. Do not delete them while A2 callers can still run. After every running task has migrated, remove unused SSM parameters
+`SERVICE_SECRET` and `INTEGRATIONS_SECRET` were retained only during the finite
+phase-B reader transition. Phase C removes their inherited bindings explicitly.
+Verify both running services have drained onto phase C before removing unused SSM parameters
 through the infrastructure rollout. `TOKEN_ENCRYPTION_KEY` remains required for
 stored connector data and is handled separately below.
 

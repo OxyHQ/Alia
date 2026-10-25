@@ -267,7 +267,7 @@ jobs:
           printf 'env_overrides=%s\n' "$env_overrides" >>"$GITHUB_OUTPUT"
 
       # Wire Alia only to Oxy's published inference edge. The SDK exchanges the
-      # application credential for a service token; Oxy derives account,
+      # attested workload identity for a service token; Oxy derives account,
       # application, credential and authorised routes from that token. Alia
       # carries no Kaana URL, edge-signing key or self-asserted principal IDs.
       - name: Stage Oxy inference configuration
@@ -371,70 +371,10 @@ jobs:
           # `dockerfileRuntime.test.ts` holds this line and the Dockerfile together.
           MIGRATION_RUNTIME: bun
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
-          # Stop injecting a static IAM user's keys.
-          #
-          # The task definition declares `taskRoleArn: oxy-ecs-task` and ALSO
-          # injected these two, and the environment beats the task role in the
-          # AWS credential chain — so the declared role had never been used.
-          # Measured: the role's S3 policies are identical in actions and buckets
-          # to the user's. The injection was costing a permission and gaining
-          # none.
-          #
-          # Safe only because `lib/s3.ts` now omits the `credentials` key when
-          # the environment carries no pair, instead of passing an EMPTY one that
-          # the SDK signs with. That landed first, deliberately.
-          #
-          # `OXY_SERVICE_API_KEY` / `_SECRET` are back, and the condition this
-          # waited for is met rather than assumed.
-          #
-          # They came out on 2026-09-19 because attesting the task role minted a
-          # real Oxy service token but not the same AUTHORITY: the workload mint
-          # dropped every privileged scope, and Alia's credential names
-          # `capabilities:read` — what `GET /capabilities/catalogs` and
-          # `POST /capabilities/capability-map` require, and therefore how
-          # `lib/tools/oxy-services.ts` builds Alia's entire tool catalogue. The
-          # same removal had just cost Mention nine hours of federation writes.
-          #
-          # oxy#1350 fixed that at the root: a BINDING names its scopes the way a
-          # credential does, bounded by the application's own grants and gated by
-          # the same staff check. `oxy-alia-task` was re-bound on 2026-09-20 and
-          # a token minted BY ATTESTATION from that role was read back:
-          #
-          #   WORKLOAD_OK appName=Alia scopes=["capabilities:read","inference:invoke","user:read"]
-          #
-          # Which is the credential's set exactly. The second blocker is gone
-          # too: `@oxy.so/core` 1.7.0 shipped `dist/esm` with an extensionless
-          # dynamic import that Node cannot resolve, so `canAttestWorkloadIdentity()`
-          # answered false on a task whose identity is its role — which is why
-          # every Alia deploy failed its readiness gate with `Service credentials
-          # not provided`. 1.7.1 fixes it, and this lockfile takes it.
-          # MEASURED 2026-09-20: with the pair removed the readiness task minted by
-          # attestation and reported `oxy.ready=false` with ALL EIGHT chat profiles
-          # missing. That is why the pair went back, twice.
-          #
-          # The cause was not scopes — it was one resolver away.
-          # `applicationForBearer` (oxy `routes/inferenceCatalogue.ts`) looked the
-          # caller up in `application_credentials` by the token's `credentialId`,
-          # which for an attested caller is a `wl_…` handle in no row. So it became
-          # a PUBLIC viewer, the unpublished catalogue served it an empty list, and
-          # eight profiles "went missing" with no error anywhere. oxy#1355 made a
-          # verified token re-read against the row that authorised it, whichever
-          # proof that is, and oxy#1368 gave an attested identity a real row so the
-          # usage ledger's foreign keys hold.
-          #
-          # MEASURED 2026-09-25 against the deployed fix, attested from
-          # `oxy-alia-task` with no pair anywhere:
-          #
-          #   GET /models/routing-profiles -> 200, count=9,
-          #   all eight of config/oxy-inference-routing-profile-ids.ts visible,
-          #   missingCount=0
-          #
-          # The rule this list has been governed by never moved: a removal is
-          # allowed once the authority survives it. Only the answer did, and it
-          # changed because something was fixed rather than because someone wanted
-          # the removal. The readiness task is still the final judge — it runs on
-          # the revision this list produces, so if the probe above is wrong the
-          # DEPLOY fails closed instead of shipping an Alia that cannot route.
+          # Own service calls use the registered temporary task-role identity.
+          # Remove inherited legacy process, customer-key and static AWS bindings
+          # from every new revision; deleting a sync line would retain them.
+          # Readiness validates the workload-backed inference path before traffic.
           TASK_SECRET_REMOVALS_JSON: '["SERVICE_SECRET","INTEGRATIONS_SECRET","DISCORD_BOT_SECRET","SLACK_BOT_SECRET","WHATSAPP_BOT_SECRET","WHATSAPP_GATEWAY_SECRET","SIGNAL_BOT_SECRET","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]'
           # Remove every legacy plain Relay/direct-Kaana binding inherited from
           # the live task definition. Keeping a removal here is harmless after

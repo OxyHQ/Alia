@@ -6,8 +6,9 @@ short-lived service token. Oxy resolves the application identity, account,
 routing policy and exact authorised routes before it signs and forwards the
 request to Kaana.
 
-Alia must never hold an upstream-provider credential, a Kaana edge-signing
-private key or a direct Kaana URL.
+Alia must never hold an upstream-provider credential or a Kaana edge-signing
+private key. Text inference uses Oxy; voice uses the canonical `https://kaana.ai`
+SDK transport under ADR0017.
 
 ## Configuration contract
 
@@ -17,23 +18,20 @@ The Alia task requires exactly this inference configuration:
 OXY_API_URL
 ```
 
-The credential is the task role. Under oxy ADR 0026 the task proves what it IS —
-a signed `GetCallerIdentity`, which Oxy replays to AWS — and gets back the same
-short-lived Oxy service token; `@oxy.so/core` >= 1.6.1 takes that path whenever
-no `OXY_SERVICE_API_KEY` / `OXY_SERVICE_API_SECRET` pair is set, which on a
-deployed task is always. The origin is not part of that and stays required:
-attestation says what this process is, not where Oxy is.
+Own callers use the registered task role through the shared Oxy workload
+transport. Attestation binds the application, workload and environment, and the
+recipient audience is selected by the shared product SDK. No own API key pair
+or app scopes are configured. `OXY_API_URL` selects the platform endpoint; it is
+not an identity assertion.
 
-A local checkout can attest nothing and adds the pair, which is an Oxy
-ApplicationCredential and not a Kaana or provider credential. Oxy derives
-account, application and credential IDs from the exchanged token either way; do
-not copy those IDs into Alia configuration or introduce legacy aliases.
+For local development use the server-only AWS credential provider with temporary
+IAM credentials for an administratively registered development role, for example
+AWS SSO. A local checkout does not fall back to customer API keys. The same live
+binding and recipient checks apply.
 
-The two SSM parameters still exist and are untouched. What changed is that the
-deploy no longer validates or binds them — see `TASK_SECRET_REMOVALS_JSON` in
-both `deploy-aws.yml` and `deploy-integrations.yml`, which is what takes them off
-a revision that would otherwise inherit them forever. A value in SSM without a
-live task binding is not delivered, and that is now the intended state.
+Both deployment workflows explicitly remove inherited retired credentials with
+`TASK_SECRET_REMOVALS_JSON`. Removing a binding does not delete an SSM parameter;
+parameter cleanup follows verified workload-only runtime and drain receipts.
 
 ## Preconditions
 
@@ -44,17 +42,17 @@ Do not enable production traffic until all of these pass:
    Hosted paths call that client, never a bespoke transport. The repository
    build and inference-boundary tests are the source gate; a version cited by an
    older rollout note is not evidence about the current lock.
-2. Alia sends only the reviewed opaque `routingProfileId`; Oxy authenticates
-   the Alia service credential, validates that exact profile row and resolves it
-   into a non-empty ordered route set before calling Kaana. There is no
-   name/slug/list-order lookup or fallback.
+2. Alia sends the selected power level or exact published model under ADR0012.
+   Oxy verifies workload authority and resolves a non-empty ordered route set
+   before calling Kaana. Alia does not resolve provider deployments itself.
 3. Kaana validates each route against its published inventory and refuses
    anything outside the Oxy-authorised list.
 4. Alia has no provider key, provider endpoint, Kaana signing key or direct
-   Kaana URL in source, environment, SSM bindings or active database rows.
+   Kaana deployment URL outside the canonical voice SDK boundary in source,
+   environment, SSM bindings or active database rows.
 5. Text, tools and structured output have focused coverage; unsupported hosted
    modalities fail with the typed product error.
-6. The Oxy account behind the ApplicationCredential is allowed to spend and a
+6. The verified billing account is allowed to spend and a
    non-production canary returns usage with the expected attribution.
 7. Every agent turn, an app's agent included, is paid by the person using it
    (ADR 0020 §4); no product application pays for an agent. A canary receipt
@@ -73,8 +71,8 @@ Do not enable production traffic until all of these pass:
    variable. The authoritative procedure is Oxy's
    [`kaana-request-v2-cutover.md`](https://github.com/OxyHQ/oxy/blob/main/docs/runbooks/kaana-request-v2-cutover.md).
 4. Inspect the candidate Alia task definition without printing secret values.
-5. Deploy one immutable revision containing the Oxy URL and both service
-   credential bindings. The boot guard fails closed; there is no provider
+5. Deploy one immutable revision containing the Oxy URL and registered workload
+   identity. The boot guard fails closed; there is no provider
    fallback.
 6. Verify `runningCount == desiredCount`, `pendingCount == 0`, rollout state
    `COMPLETED` and the exact task-definition revision.
