@@ -1,4 +1,6 @@
-import { Router, Request, Response } from 'express';
+import { accountOwnership } from '../../shared/account-ownership';
+import { findWhatsAppSessionOwner } from './repository';
+import { Router, type Request, type Response } from 'express';
 import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
@@ -27,6 +29,7 @@ export class WhatsAppAdapter implements AccountAdapter {
 
   getRouter(): Router {
     const router = Router();
+    router.use(accountOwnership((id) => findWhatsAppSessionOwner(getDb(), id)));
 
     /**
      * POST /sessions/connect

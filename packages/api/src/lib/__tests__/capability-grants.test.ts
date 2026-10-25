@@ -257,6 +257,21 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('an agent reaches exactly what it was granted', () => {
+  it('does not turn a local channel account into Oxy or connected-provider authority', async () => {
+    const names = await namesFor(null, {
+      userId: 'linked-channel-account',
+      accessToken: undefined,
+      isDirectSession: false,
+      actsForPerson: false,
+      runtime: undefined,
+    });
+    expect(asked.oxy_service).toEqual([]);
+    expect(asked.mcp).toEqual([]);
+    expect(asked.integration).toEqual([]);
+    expect(names).not.toContain('createAutomation');
+    expect(names).not.toContain('consultAgent');
+  });
+
   it('withholds automation creation when there is no live user session', async () => {
     const names = await namesFor(['automation'], {
       isDirectSession: false,

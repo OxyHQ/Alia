@@ -335,3 +335,24 @@ export async function findConnectedAccountForChannel(
 
   return row ? withLegacyId(row) : null;
 }
+
+export async function findConnectedAccountBySession(
+  db: ApiDatabase,
+  platform: string,
+  sessionId: string,
+): Promise<(ConnectedAccountSafeRow & { oxyUserId: string }) | null> {
+  const rows = await db
+    .select({ ...SAFE_COLUMNS, oxyUserId: connectedAccounts.oxyUserId })
+    .from(connectedAccounts)
+    .where(
+      and(
+        eq(connectedAccounts.platform, platform),
+        eq(connectedAccounts.sessionId, sessionId),
+        eq(connectedAccounts.status, 'connected'),
+      ),
+    )
+    .limit(2);
+  // No unique constraint exists on provider session ids. Ambiguity never chooses an owner.
+  const row = rows.length === 1 ? rows[0] : undefined;
+  return row ? { ...withLegacyId(row), oxyUserId: row.oxyUserId } : null;
+}

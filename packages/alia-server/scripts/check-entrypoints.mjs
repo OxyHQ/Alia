@@ -37,6 +37,10 @@ const manifest = require('./package.json');
 /** Everything a consumer is entitled to import by name. */
 const REQUIRED_EXPORTS = [
   'ALIA_API_URL',
+  'ALIA_APPLICATION_ID',
+  'ALIA_SERVICE_AUDIENCE',
+  'createAliaForOxyService',
+  'createAliaTransportForOxyService',
   'AliaAbortError',
   'AliaRequestError',
   'AliaServerClient',

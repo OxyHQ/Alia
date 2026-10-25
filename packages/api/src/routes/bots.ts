@@ -446,7 +446,7 @@ router.post(
 
 function botAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
   const platform = req.params.platform as ChannelId;
-  authenticateChannelBot(platform)(req, res, next);
+  void authenticateChannelBot(platform)(req, res, next).catch(next);
 }
 
 // Create or update bot user

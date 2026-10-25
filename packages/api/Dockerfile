@@ -98,6 +98,8 @@ ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
 RUN bun install --frozen-lockfile --filter "@alia/api"
 
 # Copy API source and build the bundle.
+COPY packages/alia-server/ ./packages/alia-server/
+RUN cd packages/alia-server && bun run build
 COPY packages/api/ ./packages/api/
 # Build from the workspace directory rather than `bun run --filter`. With the
 # hoisted linker + a filtered install, bun does not materialize
@@ -133,6 +135,9 @@ RUN chown bun:bun /app
 COPY --from=builder --chown=bun:bun /build/node_modules ./node_modules
 COPY --from=builder --chown=bun:bun /build/package.json /build/bun.lock ./
 COPY --from=builder --chown=bun:bun /build/packages/api/package.json ./packages/api/package.json
+# Workspace SDK remains external in the API bundle; preserve its symlink target.
+COPY --from=builder --chown=bun:bun /build/packages/alia-server/package.json ./packages/alia-server/package.json
+COPY --from=builder --chown=bun:bun /build/packages/alia-server/dist ./packages/alia-server/dist
 
 # Built application bundle.
 COPY --from=builder --chown=bun:bun /build/packages/api/dist ./packages/api/dist
