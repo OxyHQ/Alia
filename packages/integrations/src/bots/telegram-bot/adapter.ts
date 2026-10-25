@@ -175,6 +175,7 @@ export class TelegramBotAdapter implements BotAdapter {
         const conversation = await apiClient.getConversation(
           botUser.oxyUserId.toString(),
           conversationId,
+          { kind: 'bot', platformUserId: telegramId },
         );
         if (conversation?.messages?.length) {
           messages = conversation.messages
@@ -224,6 +225,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         // model and the server's default applies. See `shared/catalogue.ts`.
         model: await apiClient.requestModel(botUser.preferredModel),
         conversationId,
+        identity: { kind: 'bot', platformUserId: telegramId },
       });
 
       // Process streaming chunks
@@ -397,6 +399,7 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         botUser.oxyUserId.toString(),
         base64Audio,
         mimeType,
+        { kind: 'bot', platformUserId: telegramId },
       );
 
       if (!transcribedText?.trim()) {

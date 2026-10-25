@@ -235,7 +235,10 @@ export class DiscordBotAdapter implements BotAdapter {
         // Load conversation history (user/assistant only)
         let messages_history: Array<{ role: string; content: string }> = [];
         try {
-          const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId);
+          const conversation = await apiClient.getConversation(botUser.oxyUserId, conversationId, {
+            kind: 'bot',
+            platformUserId: discordUserId,
+          });
           if (conversation?.messages?.length) {
             messages_history = conversation.messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -269,6 +272,7 @@ export class DiscordBotAdapter implements BotAdapter {
           // model and the server's default applies. See `shared/catalogue.ts`.
           model: await apiClient.requestModel(botUser.preferredModel),
           conversationId,
+          identity: { kind: 'bot', platformUserId: discordUserId },
         });
 
         const fullResponse = result.content;
