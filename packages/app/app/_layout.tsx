@@ -9,11 +9,11 @@ import { OxyProvider, useAccountColor, useOxy } from '@oxy.so/services/ui/client
 import * as Linking from 'expo-linking';
 import { Slot, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/shell/error-boundary';
-import { setTokenGetter } from '@/shared/api/client';
+import { bindApiClient, releaseApiClient } from '@/shared/api/client';
 import '@/shared/i18n';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/shared/i18n';
 import { useI18nStore } from '@/shared/i18n/i18n-store';
@@ -47,8 +47,13 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
   const registeredServicesRef = useRef<typeof oxyServices | null>(null);
   if (registeredServicesRef.current !== oxyServices) {
     registeredServicesRef.current = oxyServices;
-    setTokenGetter(() => oxyServices.session.accessToken || null);
+    bindApiClient(oxyServices);
   }
+
+  useEffect(() => {
+    bindApiClient(oxyServices);
+    return () => releaseApiClient(oxyServices);
+  }, [oxyServices]);
 
   // Resolve bare Oxy file IDs to loadable URLs for Bloom components (avatars in
   // ProfileButton, etc.). Single chokepoint: getFileDownloadUrl builds the

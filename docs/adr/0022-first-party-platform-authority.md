@@ -30,8 +30,8 @@ Structured automations retain their original exact operation authorizations,
 resources, limits and idempotency.
 
 The retired app-level routes, editor selectors and persistence writers are
-removed. Historical `agent_oxy_app_permissions` rows remain inert until a
-coordinated archival migration; they never authorize execution. Existing
+removed. Historical `agent_oxy_app_permissions` rows remain inert migration metadata;
+they never authorize execution. Existing
 external grants are not reclassified or deleted by this change.
 
 No new approval flow is introduced. Existing operation policy and sensitive
@@ -124,3 +124,18 @@ secrets and raw account headers grant nothing. User/task roots, provider-link
 checks, and external provider webhook verification remain. Release C only after
 B is verified live in both processes and all old tasks have drained. The removal
 is asserted over real HTTP with previously valid secrets, not only source text.
+
+### Retained migration metadata (2026-10-25)
+
+The legacy `agent_oxy_app_permissions` table is retained deliberately as history
+of the former agent/app/grant mapping and its timestamps. A source census at
+`49bafe68c` found no runtime readers or writers: only the Drizzle definition and
+immutable migration snapshots refer to it. Its old enum is now private to that
+schema, rather than an exported domain authority model. Existing agent deletion
+cascades still remove these rows; retaining them does not preserve deleted users'
+data or restore any app permission. No external Oxy grants are changed.
+
+A future retention/export migration may archive or remove this historical table,
+but no destructive drop is required to complete the runtime authority cutover.
+Deployment acceptance and the final fleet-wide protocol cutover remain separate
+from this retention decision.

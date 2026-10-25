@@ -60,16 +60,17 @@ vi.mock('../../lib/syra/syra.js', async () => {
     await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
   return {
     ...actual,
-    syraForRequest: () => ({
-      createEpisodeDraft: async (podcastId: string, input: Record<string, unknown>) => {
-        drafts.push({ podcastId, input });
-        return {
-          episodeId: 'syra-episode-1',
-          ingestTicket: 'ticket-1',
-          expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-        };
-      },
-    }),
+    withSyraRequest: async (_req: unknown, operation: (client: unknown) => unknown) =>
+      operation({
+        createEpisodeDraft: async (podcastId: string, input: Record<string, unknown>) => {
+          drafts.push({ podcastId, input });
+          return {
+            episodeId: 'syra-episode-1',
+            ingestTicket: 'ticket-1',
+            expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+          };
+        },
+      }),
   };
 });
 

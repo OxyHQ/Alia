@@ -67,7 +67,7 @@ import {
 import { enqueueShowGeneration } from '../lib/show/show-queue.js';
 import { buildSeriesCast, FORMAT_DEFAULTS, SHOW_VOICES } from '../lib/show/voice-roster.js';
 import { generateCoverArt } from '../lib/show/cover-art.js';
-import { syraForRequest } from '../lib/syra/syra.js';
+import { withSyraRequest } from '../lib/syra/syra.js';
 import {
   seriesCoverColumns,
   storeCoverForShow,
@@ -283,7 +283,7 @@ async function mintCover(
     // Oxy (oxy ADR 0043), not an upload into Syra. The series row that names it
     // records Alia's reference in its own transaction; if that row never
     // commits, the file is unreferenced and Oxy collects it.
-    const cover = await storeCoverForShow(syraForRequest(req), art, 'image/png');
+    const cover = await withSyraRequest(req, (syra) => storeCoverForShow(syra, art, 'image/png'));
     await finalizeFixedCredits(reservation, COVER_ART_CREDITS, 'show-cover');
     return cover;
   } catch (err: unknown) {
@@ -327,17 +327,19 @@ router.post('/series', async (req: Request, res: Response) => {
     const speakers = buildSeriesCast(format, input.voiceIds);
     const cover = await mintCover(req, userId, seriesId, input.title, input.brief, format);
 
-    const podcast = await syraForRequest(req).createPodcast({
-      title: input.title,
-      ...(input.description === undefined ? {} : { description: input.description }),
-      ...syraCoverFields(cover),
-      visibility,
-      type: 'episodic',
-      aliaSeriesId: seriesId,
-      // Disclosure, and true: every episode of this show is machine-written and
-      // machine-voiced.
-      aiGenerated: true,
-    });
+    const podcast = await withSyraRequest(req, (syra) =>
+      syra.createPodcast({
+        title: input.title,
+        ...(input.description === undefined ? {} : { description: input.description }),
+        ...syraCoverFields(cover),
+        visibility,
+        type: 'episodic',
+        aliaSeriesId: seriesId,
+        // Disclosure, and true: every episode of this show is machine-written and
+        // machine-voiced.
+        aiGenerated: true,
+      }),
+    );
 
     const series = await createSeries(getDb(), {
       id: seriesId,
@@ -444,19 +446,20 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
           )
         : null;
 
-    const syra = syraForRequest(req);
     if (
       input.title !== undefined ||
       input.description !== undefined ||
       input.visibility !== undefined ||
       cover !== null
     ) {
-      await syra.updatePodcast(series.syraPodcastId, {
-        ...(input.title === undefined ? {} : { title: input.title }),
-        ...(input.description === undefined ? {} : { description: input.description }),
-        ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
-        ...syraCoverFields(cover),
-      });
+      await withSyraRequest(req, (syra) =>
+        syra.updatePodcast(series.syraPodcastId, {
+          ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.description === undefined ? {} : { description: input.description }),
+          ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
+          ...syraCoverFields(cover),
+        }),
+      );
     }
 
     const patch: ShowSeriesPatch = {
@@ -587,8 +590,8 @@ router.delete('/series/:id', async (req: Request, res: Response) => {
     const syraPodcastId = series.syraPodcastId;
     if (syraPodcastId !== null) {
       const letGo = await syraLetGoOf(
-        () => syraForRequest(req).deletePodcast(syraPodcastId),
-        () => syraForRequest(req).getPodcast(syraPodcastId),
+        () => withSyraRequest(req, (syra) => syra.deletePodcast(syraPodcastId)),
+        () => withSyraRequest(req, (syra) => syra.getPodcast(syraPodcastId)),
         { kind: 'series', aliaId: id, syraId: syraPodcastId },
       );
       if (!letGo) {
@@ -695,11 +698,13 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
      */
     const draftTitle = input.title ?? `Episode ${episodeNumber}`;
 
-    const draft = await syraForRequest(req).createEpisodeDraft(series.syraPodcastId, {
-      title: draftTitle,
-      episodeNumber,
-      aiGenerated: true,
-    });
+    const draft = await withSyraRequest(req, (syra) =>
+      syra.createEpisodeDraft(series.syraPodcastId, {
+        title: draftTitle,
+        episodeNumber,
+        aiGenerated: true,
+      }),
+    );
 
     const episode = await createEpisode(getDb(), {
       userId,
@@ -793,8 +798,8 @@ router.delete('/episodes/:id', async (req: Request, res: Response) => {
     const syraEpisodeId = episode.syraEpisodeId;
     if (syraEpisodeId !== null) {
       const letGo = await syraLetGoOf(
-        () => syraForRequest(req).deleteEpisode(syraEpisodeId),
-        () => syraForRequest(req).getEpisode(syraEpisodeId),
+        () => withSyraRequest(req, (syra) => syra.deleteEpisode(syraEpisodeId)),
+        () => withSyraRequest(req, (syra) => syra.getEpisode(syraEpisodeId)),
         { kind: 'episode', aliaId: id, syraId: syraEpisodeId },
       );
       if (!letGo) {

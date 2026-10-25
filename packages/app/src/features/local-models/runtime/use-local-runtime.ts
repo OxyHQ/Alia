@@ -1,3 +1,4 @@
+import { createApiSocketSession } from '@/shared/api/socket-session';
 /**
  * Offer this device's own inference runtime to the account.
  *
@@ -20,7 +21,6 @@ import { io as socketIO, type Socket } from 'socket.io-client';
 import { useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
 import config from '@/shared/platform/config';
-import { getSocketToken } from '@/shared/api/client';
 import { useLocalRuntimeStore } from '@/features/local-models/runtime/local-runtime-store';
 
 interface LocalModelsResponse {
@@ -153,7 +153,7 @@ export function useLocalRuntimeProbe() {
 }
 
 export function useLocalRuntime() {
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, user } = useOxy();
   const consent = useLocalRuntimeStore((state) => state.consent);
   const runtimeId = useLocalRuntimeStore((state) => state.runtimeId);
   const storedLabel = useLocalRuntimeStore((state) => state.label);
@@ -246,17 +246,22 @@ export function useLocalRuntime() {
   );
 
   useEffect(() => {
-    if (consent !== 'granted' || !isAuthenticated) return;
+    if (consent !== 'granted' || !isAuthenticated || !user?.id) return;
 
+    const session = createApiSocketSession();
     const socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
       // Function form so a fresh token is read on every (re)connect, matching
       // every other socket in the app.
-      auth: (cb) => cb({ token: getSocketToken() }),
+      auth: session.auth,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
+    });
+    session.bind(socket, () => {
+      for (const controller of runsRef.current.values()) controller.abort();
+      runsRef.current.clear();
     });
     socketRef.current = socket;
     setSocketEpoch((epoch) => epoch + 1);
@@ -271,10 +276,11 @@ export function useLocalRuntime() {
       for (const controller of runs.values()) controller.abort();
       runs.clear();
       socket.removeAllListeners();
+      session.dispose();
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [consent, isAuthenticated, serve]);
+  }, [consent, isAuthenticated, user?.id, serve]);
 
   /**
    * Announce the catalogue — on connect, and again whenever it changes.

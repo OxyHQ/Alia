@@ -33,10 +33,11 @@
 
 import { io as socketIO, type Socket } from 'socket.io-client';
 import config from '@/shared/platform/config';
-import { getSocketToken } from '@/shared/api/client';
+import { createApiSocketSession } from '@/shared/api/socket-session';
 
 let socket: Socket | null = null;
 let holders = 0;
+let disposeSession: (() => void) | undefined;
 
 /**
  * Take a reference to the shared socket, and get back the way to give it up.
@@ -47,12 +48,14 @@ let holders = 0;
  */
 export function acquireNotificationsSocket(): { socket: Socket; release: () => void } {
   if (socket === null) {
+    const session = createApiSocketSession();
+    disposeSession = () => session.dispose();
     socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
       // Function form so a fresh token is read on every (re)connect — an access
       // token is short-lived and a captured one reconnects with an expired
       // credential after the first refresh.
-      auth: (cb) => cb({ token: getSocketToken() }),
+      auth: session.auth,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -62,8 +65,18 @@ export function acquireNotificationsSocket(): { socket: Socket; release: () => v
     // Joined here rather than by each holder: the room is derived server-side
     // from the authenticated user, so it is a property of the CONNECTION and
     // subscribing once per listener would emit the same join repeatedly.
+    const boundSocket = socket;
+    session.bind(boundSocket, () => {
+      session.dispose();
+      if (socket === boundSocket) {
+        socket = null;
+        holders = 0;
+        disposeSession = undefined;
+      }
+    });
+
     socket.on('connect', () => {
-      socket?.emit('subscribe-notifications');
+      boundSocket.emit('subscribe-notifications');
     });
   }
 
@@ -84,9 +97,12 @@ export function acquireNotificationsSocket(): { socket: Socket; release: () => v
       // holders are still using.
       if (released) return;
       released = true;
+      if (socket !== live) return;
       holders -= 1;
       if (holders <= 0) {
         holders = 0;
+        disposeSession?.();
+        disposeSession = undefined;
         socket?.disconnect();
         socket = null;
       }

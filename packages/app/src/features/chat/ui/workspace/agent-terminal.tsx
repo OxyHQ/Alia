@@ -1,4 +1,6 @@
-import apiClient, { getSocketToken } from '@/shared/api/client';
+import { useOxy } from '@oxy.so/services/ui/client';
+import { createApiSocketSession } from '@/shared/api/socket-session';
+import apiClient from '@/shared/api/client';
 import i18n from '@/shared/i18n';
 import config from '@/shared/platform/config';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -59,10 +61,11 @@ function formatActivity(event: AgentActivityEvent): string {
  * Backfills recent activity on mount via REST API.
  */
 export function AgentTerminal({ agentId }: AgentTerminalProps) {
+  const { user } = useOxy();
   if (Platform.OS === 'web') {
-    return <WebTerminal agentId={agentId} />;
+    return <WebTerminal key={user?.id ?? 'anonymous'} agentId={agentId} />;
   }
-  return <NativeTerminal agentId={agentId} />;
+  return <NativeTerminal key={user?.id ?? 'anonymous'} agentId={agentId} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -183,10 +186,13 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
   useEffect(() => {
     if (!ready) return;
 
+    let active = true;
+
     // Backfill recent activity from REST API
     apiClient
       .get(`/agents/${agentId}/activity`)
       .then((res) => {
+        if (!active) return;
         const events: AgentActivityEvent[] = res.data?.activity || [];
         for (const event of events) {
           terminalRef.current?.write(formatActivity(event));
@@ -201,15 +207,17 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
 
     // Connect Socket.IO
     let wasConnected = false;
+    const session = createApiSocketSession();
     const socket = socketIO(config.apiUrl, {
       // Function form so a fresh token is read on every (re)connect.
-      auth: (cb) => cb({ token: getSocketToken() }),
+      auth: session.auth,
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
     });
+    session.bind(socket);
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -243,6 +251,8 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
     });
 
     return () => {
+      active = false;
+      session.dispose();
       socket.disconnect();
       socketRef.current = null;
     };
@@ -430,10 +440,13 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     // it is in the reader's language.
     writeToWebView(`\x1b[90m--- ${i18n.t('agents.terminal.banner')} ---\x1b[0m\r\n\r\n`);
 
+    let active = true;
+
     // Backfill recent activity
     apiClient
       .get(`/agents/${agentId}/activity`)
       .then((res) => {
+        if (!active) return;
         const events: AgentActivityEvent[] = res.data?.activity || [];
         for (const event of events) {
           writeToWebView(formatActivity(event));
@@ -446,15 +459,17 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
 
     // Connect Socket.IO
     let wasConnected = false;
+    const session = createApiSocketSession();
     const socket = socketIO(config.apiUrl, {
       // Function form so a fresh token is read on every (re)connect.
-      auth: (cb) => cb({ token: getSocketToken() }),
+      auth: session.auth,
       transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
     });
+    session.bind(socket);
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -482,6 +497,8 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
     });
 
     return () => {
+      active = false;
+      session.dispose();
       socket.disconnect();
       socketRef.current = null;
     };

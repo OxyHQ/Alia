@@ -1,4 +1,5 @@
-import apiClient, { getSocketToken } from '@/shared/api/client';
+import { createApiSocketSession } from '@/shared/api/socket-session';
+import apiClient from '@/shared/api/client';
 import config from '@/shared/platform/config';
 import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -39,7 +40,7 @@ export function useChannelLink({
   displayName: string;
 }) {
   const { isLoading: authLoading, signIn } = useAuth();
-  const { isAuthenticated: isOxyAuth } = useOxy();
+  const { isAuthenticated: isOxyAuth, user } = useOxy();
   const { t } = useTranslation();
 
   const [status, setStatus] = useState<Status>('loading');
@@ -109,17 +110,20 @@ export function useChannelLink({
 
   // Real-time socket subscription for Telegram token linking
   useEffect(() => {
-    if (app !== 'telegram' || typeof token !== 'string' || !token) return;
+    if (app !== 'telegram' || typeof token !== 'string' || !token || !user?.id) return;
 
     // The user is already authenticated on the authorize screen (it opens the
     // in-app sign-in modal otherwise), so the connection carries the Oxy bearer
     // token expected by the server's authSocket() middleware. The telegram token
     // is the one-time pairing code, distinct from the auth token.
+    const session = createApiSocketSession();
     const socket = socketIO(config.apiUrl, {
       // Function form so a fresh token is read on every (re)connect.
-      auth: (cb) => cb({ token: getSocketToken() }),
+      auth: session.auth,
       transports: ['websocket'],
     });
+
+    session.bind(socket);
 
     socket.on('connect', () => {
       socket.emit('subscribe-telegram-token', token);
@@ -131,9 +135,10 @@ export function useChannelLink({
     });
 
     return () => {
+      session.dispose();
       socket.disconnect();
     };
-  }, [app, token]);
+  }, [app, token, user?.id, t]);
 
   return { authLoading, status, message, retry: handleChannelAuth };
 }
