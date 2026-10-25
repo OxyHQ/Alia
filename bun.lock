@@ -111,15 +111,15 @@
     },
     "packages/alia-codea": {
       "name": "alia-codea",
-      "version": "1.0.7",
+      "version": "1.0.8",
       "dependencies": {
         "@oxy.so/core": "7.1.0",
-        "jwt-decode": "^4.0.0",
         "openai": "^6.46.0",
+        "pathe": "2.0.3",
       },
       "devDependencies": {
         "@types/node": "^20.19.43",
-        "@types/vscode": "^1.125.0",
+        "@types/vscode": "1.93.0",
         "@vscode/vsce": "^2.32.0",
         "esbuild": "^0.28.1",
         "typescript": "^5.9.3",
@@ -219,8 +219,9 @@
     },
     "packages/alia-cowork": {
       "name": "alia-cowork",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "dependencies": {
+        "@ai-sdk/openai-compatible": "1.0.39",
         "@browserbasehq/stagehand": "^3.7.0",
         "@hugeicons/core-free-icons": "^3.3.0",
         "@hugeicons/react": "^1.1.9",
@@ -250,7 +251,7 @@
         "@types/react": "^19.2.17",
         "@types/react-dom": "^19.2.3",
         "autoprefixer": "^10.5.2",
-        "electron": "^43.1.0",
+        "electron": "43.1.0",
         "electron-builder": "^26.15.3",
         "esbuild": "^0.28.1",
         "esbuild-plugin-html": "^1.0.0",
@@ -1769,7 +1770,7 @@
 
     "@types/vinyl-fs": ["@types/vinyl-fs@3.0.7", "", { "dependencies": { "@types/glob-stream": "*", "@types/node": "*", "@types/vinyl": "*" } }, "sha512-ojGFhBnh5pj5Crf2yBOk3rjJXUX2U4W9z6tZ7hn6pUbQa/J8KH8NrXem0POYVQWI3ifnx4T65DPktuWfxc3iiA=="],
 
-    "@types/vscode": ["@types/vscode@1.125.0", "", {}, "sha512-0icm/ZQAaism87P0ekHqi4/Ju9du+Tm0RUW+y7vqRsxY2cY0FNRX1nAnaW7nT6npPt2tfHiheZ55Zm9UhqonFA=="],
+    "@types/vscode": ["@types/vscode@1.93.0", "", {}, "sha512-kUK6jAHSR5zY8ps42xuW89NLcBpw1kOabah7yv38J8MyiYuOHxLQBi0e7zeXbQgVefDy/mZZetqEFC+Fl5eIEQ=="],
 
     "@types/web-push": ["@types/web-push@3.6.4", "", { "dependencies": { "@types/node": "*" } }, "sha512-GnJmSr40H3RAnj0s34FNTcJi1hmWFV5KXugE0mYWnYhgTAHLJ/dJKAwDmvPJYMke0RplY2XE9LnM4hqSqKIjhQ=="],
 

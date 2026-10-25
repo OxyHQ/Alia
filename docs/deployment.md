@@ -372,3 +372,24 @@ Deploy the matching Clarity receiver before activating this producer.
 Oxy contracts 6 validates catalogue actor declarations directly. Alia no longer
 strips and restores actor fields for pre-4.11 contracts. The registered catalogue
 and its digest remain intact; requester and bot accounts stay separate.
+
+
+## Codea and Cowork desktop artifacts
+
+`alia-codea` and `alia-cowork` are private workspace packages. The npm release
+workflow does not publish them, and the repository currently has no Marketplace
+or Electron distribution workflow. A successful main CI or Alia backend rollout
+therefore does not mean these desktop versions reached users.
+
+After the matching Alia API rollout is verified, produce Codea's VSIX with
+`bun run --cwd packages/alia-codea package`. Its manifest version is the extension
+version. The web and Node bundles are built together; local workspace tools
+still require their supported extension host capabilities.
+
+Cowork uses `bun run --cwd packages/alia-cowork dist`, with `publish: null` and
+`--publish never`. Build each supported OS/architecture on a suitable runner.
+Unsigned Linux artifacts establish packaging only; Windows/macOS signing,
+notarization and the chosen download/store channel require separate configured
+release automation. Do not report those distributions as complete from an
+unsigned local build. Signing-in on an installed desktop app is a separate
+acceptance check from unit tests and artifact creation.

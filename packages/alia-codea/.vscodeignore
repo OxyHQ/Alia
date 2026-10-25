@@ -12,3 +12,4 @@ resources/clawd*
 resources/ClawdWithGradCap*
 webview-ui/**
 !dist/**
+scripts/**

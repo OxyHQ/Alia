@@ -1,4 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../auth', () => ({
+  linkedAliaClient: () => ({
+    fetchOptional: (...args: Parameters<typeof fetch>) => fetch(...args),
+    dispose() {},
+  }),
+}));
 import {
   isModelId,
   loadCatalogue,
@@ -130,16 +136,14 @@ describe('fetching', () => {
     return fetchMock;
   };
 
-  it('resolves against the fetched catalogue, and caches it per base URL', async () => {
+  it('resolves against the current catalogue without reusing a previous account snapshot', async () => {
     const fetchMock = stubFetch(() => new Response(JSON.stringify(BODY), { status: 200 }));
     const base = 'https://cache.test';
-    expect(await resolveModelId(base, 'acme/rocket-1', 'token')).toBe('acme/rocket-1');
-    expect(await resolveModelId(base, 'gone/model', 'token')).toBeUndefined();
+    expect(await resolveModelId(base, 'acme/rocket-1')).toBe('acme/rocket-1');
+    expect(await resolveModelId(base, 'gone/model')).toBeUndefined();
     await loadCatalogue(base);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(`${base}/catalogue`, {
-      headers: { Authorization: 'Bearer token' },
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledWith(`${base}/catalogue`);
   });
 
   it('never throws: an unreachable catalogue leaves the pick alone, and is not cached', async () => {

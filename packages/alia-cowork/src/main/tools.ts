@@ -14,7 +14,8 @@ import Store from 'electron-store';
 import { errorMessage, errorCode } from './errors';
 import { createLogger } from './logger';
 import { resolveRequiredModelId } from './catalogue';
-import { currentAccessToken } from './auth';
+import { linkedAliaClient, onSessionContextChange } from './auth';
+import { stagehandClientForTransport } from './stagehand-transport';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -27,6 +28,8 @@ export class ToolExecutor {
   private openedApplications: Set<string> = new Set();
   private mainWindow?: BrowserWindow;
   private stagehand?: Stagehand;
+  private stagehandTransport?: ReturnType<typeof linkedAliaClient>;
+  private disposeStagehandContext?: () => void;
 
   /** The window a macOS `activate` creates after the last one closed takes over from the old one. */
   setWindow(mainWindow: BrowserWindow): void {
@@ -439,20 +442,52 @@ export class ToolExecutor {
       // Initialize Stagehand if not already initialized
       if (!this.stagehand) {
         logger.debug('Initializing Stagehand in headless mode...');
-        const stagehand = new Stagehand({
-          env: 'LOCAL',
-          verbose: 1,
-          experimental: true, // Required for agent callbacks
-          localBrowserLaunchOptions: {
-            headless: true, // Run browser invisibly - no visible window
-          },
+        const baseUrl = store.get('apiBaseUrl') as string;
+        if (this.stagehandTransport)
+          throw new Error('Browser initialization is already in progress');
+        const transport = linkedAliaClient(baseUrl);
+        this.stagehandTransport = transport;
+        this.disposeStagehandContext = onSessionContextChange(() => {
+          if (this.stagehandTransport === transport) {
+            void this.closeBrowser().catch((error) =>
+              logger.warn('Browser closed after account change', error),
+            );
+          }
         });
+        let stagehand: Stagehand | undefined;
         try {
+          const modelId = await resolveRequiredModelId(
+            baseUrl,
+            store.get('model') as string | undefined,
+          );
+          if (this.stagehandTransport !== transport)
+            throw new Error('Browser account context changed');
+          if (modelId === null)
+            throw new Error(
+              'Browser automation is unavailable: the model catalogue could not be read.',
+            );
+          stagehand = new Stagehand({
+            env: 'LOCAL',
+            llmClient: stagehandClientForTransport(transport, baseUrl, modelId),
+            verbose: 1,
+            experimental: true, // Required for agent callbacks
+            localBrowserLaunchOptions: {
+              headless: true, // Run browser invisibly - no visible window
+            },
+          });
           await stagehand.init();
+          if (this.stagehandTransport !== transport)
+            throw new Error('Browser account context changed');
         } catch (error) {
           // A half-initialised instance would be reused by the next call and fail the same way
           // (or worse); drop it so the next browser action starts clean.
-          await stagehand.close().catch(() => undefined);
+          transport.dispose();
+          if (this.stagehandTransport === transport) {
+            this.disposeStagehandContext?.();
+            this.disposeStagehandContext = undefined;
+            this.stagehandTransport = undefined;
+          }
+          await stagehand?.close().catch(() => undefined);
           throw error;
         }
         this.stagehand = stagehand;
@@ -461,8 +496,15 @@ export class ToolExecutor {
         );
       }
 
+      const stagehand = this.stagehand;
+      const transport = this.stagehandTransport;
+      const assertContext = () => {
+        if (this.stagehand !== stagehand || this.stagehandTransport !== transport) {
+          throw new Error('Browser account context changed');
+        }
+      };
       // Get the first page
-      const pages = this.stagehand.context.pages();
+      const pages = stagehand.context.pages();
       if (pages.length === 0) {
         throw new Error('No browser pages available');
       }
@@ -477,6 +519,7 @@ export class ToolExecutor {
       const capturePreview = async () => {
         try {
           const screenshot = await page.screenshot({ type: 'png', fullPage: false });
+          assertContext();
           const base64 = screenshot.toString('base64');
           if (this.mainWindow) {
             this.sendToWindow('browser:preview', {
@@ -508,7 +551,9 @@ export class ToolExecutor {
         if (normalizedArgs.url) {
           logger.debug(`Navigating to ${normalizedArgs.url}`);
           await page.goto(normalizedArgs.url);
+          assertContext();
           await page.waitForLoadState('networkidle');
+          assertContext();
           await capturePreview();
         }
 
@@ -516,51 +561,10 @@ export class ToolExecutor {
         if (normalizedArgs.action) {
           logger.debug(`Creating agent for action: ${normalizedArgs.action}`);
 
-          // Get Alia API credentials
-          const apiKey = currentAccessToken() ?? '';
-          const baseUrl = store.get('apiBaseUrl') as string;
-
-          /**
-           * The one `/v1` chat caller left in this process, and a legitimate
-           * one: Stagehand is a third-party OpenAI-protocol library that derives
-           * `POST {baseURL}/chat/completions` itself, so the protocol names the
-           * path. `/v1/chat/completions` and `/alia/chat` are one handler
-           * (`packages/api/src/routes/chat.ts`) and both are Alia's permanent
-           * product API (ADR 0010), so nothing is lost by staying here — except
-           * the named product events, which a browser agent has no use for.
-           * Cowork's own chat moved to `/alia/chat` in `./chat.ts` because it
-           * DOES read them.
-           *
-           * The bearer is the Oxy session token. The model is the one the chat
-           * uses — the person's pick if the catalogue lists it — or, since
-           * Stagehand cannot omit a model name, the catalogue's own
-           * `defaultModelId`. Nothing is hardcoded.
-           *
-           * The `openai/` prefix is Stagehand's PROTOCOL selector, not part of
-           * the model id: Stagehand splits `provider/model` at the first slash
-           * and would otherwise read a catalogue id's publisher (`acme/…`) as
-           * an AI SDK provider and talk that provider's own wire protocol to
-           * Alia. With `openai/` it uses the OpenAI-compatible client against
-           * `baseURL`, and sends the whole `publisher/model` id as `model`.
-           * (Stagehand 3's AI SDK OpenAI client calls `{baseURL}/responses`,
-           * which `packages/api/src/routes/v1/responses.ts` adapts onto the same
-           * chat handler.)
-           */
-          const modelId = await resolveRequiredModelId(
-            baseUrl,
-            store.get('model') as string | undefined,
-            apiKey || undefined,
-          );
-          if (modelId === null) {
-            return 'Browser automation is unavailable: the model catalogue could not be read.';
-          }
-          const agent = this.stagehand.agent({
-            model: {
-              modelName: `openai/${modelId}`,
-              apiKey: apiKey,
-              baseURL: `${baseUrl}/v1`, // Alia API endpoint (OpenAI-compatible)
-            },
-          });
+          // No model override: Stagehand reuses the transport-backed model
+          // supplied at construction, including every step of this agent.
+          assertContext();
+          const agent = stagehand.agent();
 
           // Execute with callbacks to capture screenshots during execution
           const agentResult = await agent.execute({
@@ -574,6 +578,7 @@ export class ToolExecutor {
             },
           });
 
+          assertContext();
           logger.debug('Agent result:', JSON.stringify(agentResult, null, 2));
           result += agentResult.message || 'Action completed';
         } else {
@@ -584,7 +589,9 @@ export class ToolExecutor {
       // Extract data if requested
       if (normalizedArgs.extract) {
         logger.debug(`Extracting: ${normalizedArgs.extract}`);
-        const extracted = await this.stagehand.extract(normalizedArgs.extract);
+        assertContext();
+        const extracted = await stagehand.extract(normalizedArgs.extract);
+        assertContext();
         await capturePreview();
         result += `\n\nExtracted data: ${JSON.stringify(extracted, null, 2)}`;
       }
@@ -592,6 +599,7 @@ export class ToolExecutor {
       // Final screenshot
       await capturePreview();
 
+      assertContext();
       return result || 'Browser action completed successfully';
     } catch (error: unknown) {
       logger.error('Browser action failed:', error);
@@ -612,12 +620,17 @@ export class ToolExecutor {
    * Close browser if open
    */
   async closeBrowser(): Promise<string> {
+    const stagehand = this.stagehand;
+    this.stagehand = undefined;
+    this.stagehandTransport?.dispose();
+    this.stagehandTransport = undefined;
+    this.disposeStagehandContext?.();
+    this.disposeStagehandContext = undefined;
     try {
-      if (this.stagehand) {
-        await this.stagehand.close();
-        this.stagehand = undefined;
+      if (stagehand) {
+        await stagehand.close();
 
-        if (this.mainWindow) {
+        if (this.mainWindow && !this.stagehand && !this.stagehandTransport) {
           this.sendToWindow('browser:closed', {});
         }
 
@@ -636,10 +649,9 @@ export class ToolExecutor {
     this.openedApplications.clear();
 
     // Close browser if open
-    if (this.stagehand) {
+    if (this.stagehand || this.stagehandTransport) {
       try {
-        await this.stagehand.close();
-        this.stagehand = undefined;
+        await this.closeBrowser();
       } catch (error) {
         logger.error('Error closing browser during reset:', error);
       }

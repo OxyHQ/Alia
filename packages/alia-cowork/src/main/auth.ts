@@ -135,17 +135,20 @@ export function currentAccessToken(): string | null {
   return oxy.session.accessToken;
 }
 
-/**
- * Re-mint the access token now, for a request that was just answered 401.
- *
- * Delegates to core's `HttpService`, which coalesces the scheduler, the
- * request-time preflight and this call into one network attempt with its own
- * cooldown — the same lane the VS Code extension uses. `null` means the device
- * session itself is gone and the person has to sign in again; a caller should
- * say so rather than retry.
- */
-export async function refreshAccessToken(): Promise<string | null> {
-  return oxy.http.refreshAccessToken('preflight');
+/** Observe account/sign-out changes using core's epoch, allowing same-account refresh. */
+export function onSessionContextChange(listener: () => void): () => void {
+  let epoch = oxy.http.getSessionEpoch();
+  return oxy.http.addTokenChangeListener(() => {
+    const next = oxy.http.getSessionEpoch();
+    if (next === epoch) return;
+    epoch = next;
+    listener();
+  });
+}
+
+/** Product requests use the session owner's refresh and account fences. */
+export function linkedAliaClient(baseURL: string) {
+  return oxy.createLinkedClient({ baseURL });
 }
 
 export interface AuthState {

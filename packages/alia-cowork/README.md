@@ -68,7 +68,6 @@ bun run package
 
 Stored in local app settings:
 
-- `apiKey`
 - `apiBaseUrl`
 - `model`
 - `enableTools`
@@ -76,4 +75,6 @@ Stored in local app settings:
 ## Notes
 
 - Cowork does not require provider-specific client logic.
-- Public hosted selection exposes only Kaana routing-profile identifiers.
+- Sign in with the shared Oxy account; no API key or app permission setup is needed.
+- HTTP, browser-agent inference, and relay sockets use the shared Oxy transport. Account changes cancel the previous context, including pending browser actions and device registration.
+- The catalogue supplies hosted model identifiers; provider credentials remain in Kaana.

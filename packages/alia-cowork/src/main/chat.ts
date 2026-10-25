@@ -24,7 +24,7 @@ import type { ToolExecutor } from './tools';
 import { errorMessage, errorName, errorStack } from './errors';
 import { createLogger } from './logger';
 import { isModelId, loadCatalogue, resolveModelId, type Catalogue } from './catalogue';
-import { currentAccessToken, refreshAccessToken } from './auth';
+import { currentAccessToken, linkedAliaClient, onSessionContextChange } from './auth';
 import {
   AliaChatError,
   completedToolCalls,
@@ -375,10 +375,17 @@ export class ChatProvider {
   private browserUsedInCurrentTurn = false;
   /** Whether any real answer text reached the renderer this turn. */
   private streamedTextThisTurn = false;
+  private readonly disposeSessionObserver: () => void;
+  private contextChanged = false;
 
   constructor(window: BrowserWindow, toolExecutor: ToolExecutor) {
     this.window = window;
     this.toolExecutor = toolExecutor;
+    this.disposeSessionObserver = onSessionContextChange(() => {
+      this.contextChanged = true;
+      this.stop();
+      this.clear();
+    });
   }
 
   /** The window a macOS `activate` creates after the last one closed takes over from the old one. */
@@ -431,6 +438,12 @@ export class ChatProvider {
       // this message does.
       await previous;
       if (turn.controller.signal.aborted) return;
+      // A cancelled local tool may have finished after the account changed.
+      // Its late history is discarded before the next account starts a turn.
+      if (this.contextChanged) {
+        this.clear();
+        this.contextChanged = false;
+      }
 
       const baseUrl = store.get('apiBaseUrl') as string;
       /**
@@ -441,11 +454,7 @@ export class ChatProvider {
        * omits `model` and the server answers with its default.
        */
       const requestedModel = model || store.get('model');
-      const selectedModel = await resolveModelId(
-        baseUrl,
-        requestedModel,
-        currentAccessToken() ?? undefined,
-      );
+      const selectedModel = await resolveModelId(baseUrl, requestedModel);
       if (turn.controller.signal.aborted) return;
       const enableTools = store.get('enableTools') as boolean;
 
@@ -579,9 +588,7 @@ export class ChatProvider {
   /**
    * Stream one request and fold what it produced.
    *
-   * A 401 is retried once on a freshly minted token. The scheduler in
-   * `./auth` normally rotates the token before it expires; this is the path
-   * for a laptop that slept through the rotation.
+   * Shared core transport owns refresh, its single 401 replay and account fencing.
    */
   private async streamOnce(
     turn: Turn,
@@ -597,26 +604,19 @@ export class ChatProvider {
       max_tokens: 4096,
     };
 
-    const attempt = (accessToken: string) =>
-      streamAliaChat({
-        baseUrl: request.baseUrl,
-        accessToken,
-        body,
-        signal: turn.controller.signal,
-      });
-
-    const token = currentAccessToken();
-    if (token === null)
-      throw new AliaChatError('Sign in to Alia to start a conversation.', { status: 401 });
-
+    const linked = linkedAliaClient(request.baseUrl);
     try {
-      return await this.consume(turn, attempt(token));
-    } catch (error: unknown) {
-      if (!(error instanceof AliaChatError) || error.status !== 401) throw error;
-      const fresh = await refreshAccessToken();
-      if (fresh === null || fresh === token) throw error;
-      logger.debug('Retrying after re-minting the session token');
-      return await this.consume(turn, attempt(fresh));
+      return await this.consume(
+        turn,
+        streamAliaChat({
+          baseUrl: request.baseUrl,
+          fetch: linked.fetch,
+          body,
+          signal: turn.controller.signal,
+        }),
+      );
+    } finally {
+      linked.dispose();
     }
   }
 
@@ -804,6 +804,12 @@ export class ChatProvider {
     return systemMessage;
   }
 
+  dispose(): void {
+    this.disposeSessionObserver();
+    this.stop();
+    this.clear();
+  }
+
   stop(): void {
     // Release the provider now (a new message may start at once) and cut the stopped turn's
     // stream; the turn winds down on its own, and the next one waits for it.
@@ -871,7 +877,7 @@ export class ChatProvider {
   async getModels(): Promise<Catalogue | null> {
     const baseUrl = store.get('apiBaseUrl') as string;
     try {
-      return await loadCatalogue(baseUrl, currentAccessToken() ?? undefined);
+      return await loadCatalogue(baseUrl);
     } catch (error: unknown) {
       logger.debug('model catalogue unavailable:', errorMessage(error));
       return null;
@@ -896,10 +902,10 @@ export class ChatProvider {
 
     if (!accessToken) return null;
 
+    const linked = linkedAliaClient(baseUrl);
     try {
-      const response = await fetch(`${baseUrl}/v1/me`, {
+      const response = await linked.fetch(`${baseUrl}/v1/me`, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       if (!response.ok) return null;
@@ -907,6 +913,8 @@ export class ChatProvider {
       return await response.json();
     } catch {
       return null;
+    } finally {
+      linked.dispose();
     }
   }
 
@@ -916,10 +924,10 @@ export class ChatProvider {
 
     if (!accessToken) return null;
 
+    const linked = linkedAliaClient(baseUrl);
     try {
-      const response = await fetch(`${baseUrl}/memory`, {
+      const response = await linked.fetch(`${baseUrl}/memory`, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       if (!response.ok) return null;
@@ -927,6 +935,8 @@ export class ChatProvider {
       return await response.json();
     } catch {
       return null;
+    } finally {
+      linked.dispose();
     }
   }
 }

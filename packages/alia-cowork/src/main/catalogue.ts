@@ -1,3 +1,4 @@
+import { linkedAliaClient } from './auth';
 /**
  * The model catalogue, as the Electron main process consumes it (`GET /catalogue`).
  *
@@ -129,38 +130,21 @@ export function resolveSelection(
 }
 
 /** How long a fetched catalogue is reused: a desktop app stays open for days. */
-const CACHE_TTL_MS = 60 * 60 * 1000;
-
-const cache = new Map<string, { at: number; request: Promise<Catalogue> }>();
-
-/**
- * The catalogue for one API base URL, reused for an hour.
- *
- * A rejected promise is evicted at once, so an outage is not cached past itself.
- */
-export function loadCatalogue(apiBaseUrl: string, accessToken?: string): Promise<Catalogue> {
-  const cached = cache.get(apiBaseUrl);
-  if (cached !== undefined && Date.now() - cached.at < CACHE_TTL_MS) return cached.request;
-
-  const request = (async () => {
-    const response = await fetch(`${apiBaseUrl}/catalogue`, {
-      headers: accessToken === undefined ? {} : { Authorization: `Bearer ${accessToken}` },
-    });
+/** Read the live account context; a different account must not inherit a cached catalogue. */
+export async function loadCatalogue(apiBaseUrl: string): Promise<Catalogue> {
+  const linked = linkedAliaClient(apiBaseUrl);
+  try {
+    const response = await linked.fetchOptional(`${apiBaseUrl}/catalogue`);
     if (!response.ok) throw new Error(`The model catalogue request failed (${response.status}).`);
     return parseCatalogue(await response.json());
-  })();
-
-  cache.set(apiBaseUrl, { at: Date.now(), request });
-  request.catch(() => cache.delete(apiBaseUrl));
-  return request;
+  } finally {
+    linked.dispose();
+  }
 }
 
-async function readCatalogue(
-  apiBaseUrl: string,
-  accessToken?: string,
-): Promise<Catalogue | undefined> {
+async function readCatalogue(apiBaseUrl: string): Promise<Catalogue | undefined> {
   try {
-    return await loadCatalogue(apiBaseUrl, accessToken);
+    return await loadCatalogue(apiBaseUrl);
   } catch {
     return undefined;
   }
@@ -170,9 +154,8 @@ async function readCatalogue(
 export async function resolveModelId(
   apiBaseUrl: string,
   configuredId: string | null | undefined,
-  accessToken?: string,
 ): Promise<string | undefined> {
-  return resolveSelection(configuredId, await readCatalogue(apiBaseUrl, accessToken));
+  return resolveSelection(configuredId, await readCatalogue(apiBaseUrl));
 }
 
 /**
@@ -187,8 +170,7 @@ export async function resolveModelId(
 export async function resolveRequiredModelId(
   apiBaseUrl: string,
   configuredId: string | null | undefined,
-  accessToken?: string,
 ): Promise<string | null> {
-  const catalogue = await readCatalogue(apiBaseUrl, accessToken);
+  const catalogue = await readCatalogue(apiBaseUrl);
   return resolveSelection(configuredId, catalogue) ?? catalogue?.defaultModelId ?? null;
 }

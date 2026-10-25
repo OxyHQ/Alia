@@ -10,7 +10,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import Store from 'electron-store';
 import { errorMessage } from './errors';
 import { createLogger } from './logger';
-import { currentAccessToken } from './auth';
+import { currentAccessToken, linkedAliaClient, onSessionContextChange } from './auth';
 
 const store = new Store();
 const logger = createLogger('MCP');
@@ -91,36 +91,41 @@ export class McpLocalClient {
   private running = false;
   /** Consecutive failed connections: the exponent of the reconnect delay. */
   private reconnectAttempts = 0;
+  private transport?: ReturnType<typeof linkedAliaClient>;
+  private readonly controller = new AbortController();
+  private disposeContext?: () => void;
 
   /**
    * Start the MCP client: fetch local servers, spawn them, and connect to relay.
    */
   async start(): Promise<void> {
     if (this.running || this.stopped) return;
-    const apiKey = currentAccessToken();
-    if (!apiKey) return;
-
+    if (!currentAccessToken()) return;
+    this.running = true;
+    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl';
+    this.transport = linkedAliaClient(baseUrl);
+    this.disposeContext = onSessionContextChange(() => void this.shutdown());
     try {
-      const configs = await this.fetchLocalServers(apiKey);
+      const configs = await this.fetchLocalServers(baseUrl);
+      if (this.stopped) return;
       if (!configs.length) return;
 
       for (const config of configs) {
         if (this.servers.has(config.id)) continue;
         await this.spawnServer(config);
+        if (this.stopped) return;
       }
 
-      this.running = true;
-      this.connectRelay();
+      void this.connectRelay();
     } catch (err) {
       logger.error('Failed to start:', err);
     }
   }
 
-  private async fetchLocalServers(apiKey: string): Promise<McpServerConfig[]> {
-    const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl';
-    const response = await fetch(`${baseUrl}/mcp/installed`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(10_000),
+  private async fetchLocalServers(baseUrl: string): Promise<McpServerConfig[]> {
+    if (!this.transport) return [];
+    const response = await this.transport.fetch(`${baseUrl}/mcp/installed`, {
+      signal: AbortSignal.any([this.controller.signal, AbortSignal.timeout(10_000)]),
     });
     if (!response.ok) return [];
 
@@ -290,29 +295,25 @@ export class McpLocalClient {
     return Math.round(base * (0.75 + Math.random() * 0.5));
   }
 
-  private connectRelay(): void {
-    if (this.stopped) return;
-    // Read now, not at start-up: the token is rotated in the background, and a reconnect
-    // that sent the first one would be refused once it expired.
-    const apiKey = currentAccessToken();
-    if (!apiKey) {
-      logger.info('MCP relay not connected: signed out');
-      this.running = false;
-      return;
-    }
-
+  private async connectRelay(): Promise<void> {
+    if (this.stopped || !this.transport) return;
     const baseUrl = (store.get('apiBaseUrl') as string) || 'https://api.alia.onl';
     const wsUrl = baseUrl.replace(/^http/, 'ws') + '/ws/mcp';
 
     try {
-      this.ws = new WebSocket(wsUrl);
+      const token = await this.transport.getAccessToken(wsUrl, { signal: this.controller.signal });
+      if (this.stopped || !token) return;
+      const socket = new WebSocket(wsUrl);
+      this.ws = socket;
 
-      this.ws.onopen = () => {
+      socket.onopen = () => {
+        if (this.stopped || this.ws !== socket) return;
         logger.info('MCP relay connected');
-        this.sendMessage({ type: 'auth', token: apiKey });
+        this.sendMessage({ type: 'auth', token });
       };
 
-      this.ws.onmessage = (event) => {
+      socket.onmessage = (event) => {
+        if (this.stopped || this.ws !== socket) return;
         try {
           const msg = JSON.parse(event.data as string) as RelayMessage;
           this.handleRelayMessage(msg);
@@ -321,17 +322,18 @@ export class McpLocalClient {
         }
       };
 
-      this.ws.onclose = () => {
-        if (this.stopped) return;
+      socket.onclose = () => {
+        if (this.stopped || this.ws !== socket) return;
         const delay = this.reconnectDelay();
         logger.info(`MCP relay disconnected, reconnecting in ${delay} ms`);
         this.reconnectTimer = setTimeout(() => this.connectRelay(), delay);
       };
 
-      this.ws.onerror = () => {
+      socket.onerror = () => {
         // onclose will handle reconnection
       };
     } catch (err) {
+      if (this.stopped) return;
       logger.error('Failed to connect relay:', err);
       this.reconnectTimer = setTimeout(() => this.connectRelay(), this.reconnectDelay());
     }
@@ -363,6 +365,7 @@ export class McpLocalClient {
   }
 
   private async handleToolCall(msg: RelayMessage): Promise<void> {
+    const socket = this.ws;
     const { callId, serverId, toolName, args } = msg;
     const server = serverId ? this.servers.get(serverId) : undefined;
 
@@ -389,9 +392,11 @@ export class McpLocalClient {
         text = JSON.stringify(result);
       }
 
-      this.sendMessage({ type: 'tool-result', callId, result: text });
+      if (this.ws === socket && !this.stopped)
+        this.sendMessage({ type: 'tool-result', callId, result: text });
     } catch (err: unknown) {
-      this.sendMessage({ type: 'tool-error', callId, error: errorMessage(err) });
+      if (this.ws === socket && !this.stopped)
+        this.sendMessage({ type: 'tool-error', callId, error: errorMessage(err) });
     }
   }
 
@@ -403,6 +408,11 @@ export class McpLocalClient {
 
   async shutdown(): Promise<void> {
     this.stopped = true;
+    this.controller.abort();
+    this.disposeContext?.();
+    this.disposeContext = undefined;
+    this.transport?.dispose();
+    this.transport = undefined;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 
     for (const server of this.servers.values()) {
@@ -414,7 +424,8 @@ export class McpLocalClient {
     }
     this.servers.clear();
 
-    this.ws?.close();
+    const socket = this.ws;
     this.ws = null;
+    socket?.close();
   }
 }

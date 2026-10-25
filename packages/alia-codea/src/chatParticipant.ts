@@ -83,35 +83,39 @@ export class AliaChatParticipant {
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
   ): Promise<vscode.ChatResult | void> {
-    const accessToken = await this.authProvider.getAccessToken();
-    if (!accessToken) {
-      stream.markdown(
-        '**Sign-in Required**\n\nPlease sign in using the `Codea: Sign In` command (Ctrl+Shift+P).',
-      );
-      return { metadata: { error: 'Not authenticated' } };
-    }
-
+    let contextChanged = false;
+    const stopContext = this.authProvider.onSessionContextChange(() => {
+      contextChanged = true;
+    });
     try {
-      // Show thinking indicator
+      const accessToken = await this.authProvider.getAccessToken();
+      if (contextChanged || token.isCancellationRequested) return;
+      const accountId = this.authProvider.getOxyServices().session.userId;
+      if (!accessToken || !accountId) {
+        stream.markdown(
+          '**Sign-in Required**\n\nPlease sign in using the `Codea: Sign In` command (Ctrl+Shift+P).',
+        );
+        return { metadata: { error: 'Not authenticated' } };
+      }
       stream.progress('Thinking...');
-
-      // Get conversation history
-      const messages = this.buildMessages(request, context);
-
-      // Stream the response
-      await this.streamResponse(messages, stream, token, accessToken);
-
-      return { metadata: { success: true } };
+      const messages = this.buildMessages(request, context, accountId);
+      await this.streamResponse(messages, stream, token);
+      if (contextChanged || token.isCancellationRequested) return;
+      return { metadata: { success: true, oxyAccountId: accountId } };
     } catch (error) {
+      if (contextChanged || token.isCancellationRequested) return;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       stream.markdown(`**Error**: ${errorMessage}`);
       return { metadata: { error: errorMessage } };
+    } finally {
+      stopContext();
     }
   }
 
   private buildMessages(
     request: vscode.ChatRequest,
     context: vscode.ChatContext,
+    accountId: string,
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
@@ -121,31 +125,23 @@ export class AliaChatParticipant {
       },
     ];
 
-    // Add conversation history
-    for (const turn of context.history) {
-      if (turn instanceof vscode.ChatRequestTurn) {
-        messages.push({
-          role: 'user',
-          content: turn.prompt,
-        });
-      } else if (turn instanceof vscode.ChatResponseTurn) {
-        // Get the response text
-        const responseText = turn.response
-          .map((part) => {
-            if (part instanceof vscode.ChatResponseMarkdownPart) {
-              return part.value.value;
-            }
-            return '';
-          })
-          .join('\n');
-
-        if (responseText) {
-          messages.push({
-            role: 'assistant',
-            content: responseText,
-          });
-        }
-      }
+    // Native VS Code chat history survives Oxy account changes. Reuse only a
+    // request/response pair that this participant completed for this account.
+    for (let index = 0; index < context.history.length - 1; index++) {
+      const requestTurn = context.history[index];
+      const responseTurn = context.history[index + 1];
+      if (
+        !(requestTurn instanceof vscode.ChatRequestTurn) ||
+        !(responseTurn instanceof vscode.ChatResponseTurn) ||
+        responseTurn.result.metadata?.oxyAccountId !== accountId
+      )
+        continue;
+      messages.push({ role: 'user', content: requestTurn.prompt });
+      const responseText = responseTurn.response
+        .map((part) => (part instanceof vscode.ChatResponseMarkdownPart ? part.value.value : ''))
+        .join('\n');
+      if (responseText) messages.push({ role: 'assistant', content: responseText });
+      index++;
     }
 
     // Add current request with references
@@ -183,7 +179,6 @@ export class AliaChatParticipant {
     messages: OpenAI.Chat.ChatCompletionMessageParam[],
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-    accessToken: string,
   ): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
     const maxTokens = config.get('maxTokens', 4096);
@@ -196,8 +191,8 @@ export class AliaChatParticipant {
      * evaluates ONCE, when the request is built. In the normal case the token
      * is not cancelled yet, so the signal was `undefined` and the stream could
      * never be aborted: cancelling in the chat view stopped the UI and left the
-     * turn running — and billed — to completion. Created outside `makeRequest`
-     * so the 401 retry below shares it.
+     * turn running — and billed — to completion. The linked transport shares
+     * this cancellation with its request-time refresh.
      */
     const controller = new AbortController();
     if (token.isCancellationRequested) controller.abort();
@@ -205,11 +200,12 @@ export class AliaChatParticipant {
       controller.abort();
     });
 
-    const model = await resolveModelId(this.apiBaseUrl, this.model, accessToken);
-    const attempt = (bearerToken: string) =>
+    const linked = this.authProvider.createLinkedClient(this.apiBaseUrl);
+    const stopContext = this.authProvider.onSessionContextChange(() => controller.abort());
+    const attempt = (model: string | undefined) =>
       streamAliaChat({
         baseUrl: this.apiBaseUrl,
-        accessToken: bearerToken,
+        fetch: linked.fetch,
         body: { model, messages, max_tokens: maxTokens, temperature },
         signal: controller.signal,
       });
@@ -220,10 +216,10 @@ export class AliaChatParticipant {
      * not Codea's answer, and a `ChatResult` that says success over it would
      * be remembered by VS Code as one.
      */
-    const render = async (bearerToken: string): Promise<{ retryable: boolean } | null> => {
+    const render = async (model: string | undefined): Promise<{ retryable: boolean } | null> => {
       let synthetic: { retryable: boolean } | null = null;
-      for await (const event of attempt(bearerToken)) {
-        if (token.isCancellationRequested) break;
+      for await (const event of attempt(model)) {
+        if (controller.signal.aborted) break;
         switch (event.type) {
           case 'content':
             stream.markdown(event.text);
@@ -249,18 +245,9 @@ export class AliaChatParticipant {
     };
 
     try {
-      let synthetic: { retryable: boolean } | null;
-      try {
-        synthetic = await render(accessToken);
-      } catch (error: unknown) {
-        // On 401, re-mint once and retry. `getAccessToken` refreshes a stale
-        // token itself; this is for a token the server rejected regardless.
-        if (!(error instanceof AliaChatError) || error.status !== 401) throw error;
-        const refreshed = await this.authProvider.refreshToken();
-        const newToken = refreshed ? await this.authProvider.getAccessToken() : null;
-        if (!newToken || newToken === accessToken) throw error;
-        synthetic = await render(newToken);
-      }
+      const model = await resolveModelId(this.apiBaseUrl, this.model, linked.fetch);
+      if (controller.signal.aborted) return;
+      const synthetic = await render(model);
 
       if (synthetic !== null) {
         throw new AliaChatError(
@@ -279,6 +266,8 @@ export class AliaChatParticipant {
     } finally {
       // The listener is on VS Code's token, which outlives this request.
       cancellation.dispose();
+      stopContext();
+      linked.dispose();
     }
   }
 }

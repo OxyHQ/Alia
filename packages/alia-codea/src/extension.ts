@@ -49,6 +49,23 @@ export function activate(context: vscode.ExtensionContext) {
   mcpClient = new McpLocalClient(authProvider);
   context.subscriptions.push(mcpClient);
   mcpClient.start().catch((err) => log.error('[MCP] Startup error:', err));
+  let mcpLifecycleActive = true;
+  const stopMcpContext = authProvider.onSessionContextChange(() => {
+    mcpClient?.dispose();
+    mcpClient = null;
+    queueMicrotask(() => {
+      if (!mcpLifecycleActive || mcpClient) return;
+      mcpClient = new McpLocalClient(authProvider);
+      context.subscriptions.push(mcpClient);
+      void mcpClient.start().catch((err) => log.error('[MCP] Session startup error:', err));
+    });
+  });
+  context.subscriptions.push({
+    dispose: () => {
+      mcpLifecycleActive = false;
+      stopMcpContext();
+    },
+  });
 
   // Commands
   context.subscriptions.push(

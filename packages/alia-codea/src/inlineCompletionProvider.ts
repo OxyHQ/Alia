@@ -29,7 +29,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
   async provideInlineCompletionItems(
     document: vscode.TextDocument,
     position: vscode.Position,
-    context: vscode.InlineCompletionContext,
+    _context: vscode.InlineCompletionContext,
     token: vscode.CancellationToken,
   ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList | null | undefined> {
     // Check if inline completions are enabled
@@ -39,30 +39,22 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
       return null;
     }
 
-    // Don't provide completions if not authenticated
-    const accessToken = await this.authProvider.getAccessToken();
-    if (!accessToken) {
-      return null;
-    }
-
-    // Don't trigger on every keystroke - only when explicitly invoked or after a pause
-    if (context.triggerKind === vscode.InlineCompletionTriggerKind.Automatic) {
-      // You might want to add a debounce here
-      // For now, we'll just return null on automatic triggers
-      // return null;
-    }
-
+    let contextChanged = false;
+    const stopContext = this.authProvider.onSessionContextChange(() => {
+      contextChanged = true;
+    });
     try {
-      const completion = await this.getCompletion(document, position, token, accessToken);
-
-      if (!completion || token.isCancellationRequested) {
-        return null;
-      }
-
+      const accessToken = await this.authProvider.getAccessToken();
+      if (!accessToken || contextChanged || token.isCancellationRequested) return null;
+      const completion = await this.getCompletion(document, position, token);
+      if (!completion || contextChanged || token.isCancellationRequested) return null;
       return [new vscode.InlineCompletionItem(completion, new vscode.Range(position, position))];
     } catch (error) {
-      log.error('Alia inline completion error:', error);
+      if (!contextChanged && !token.isCancellationRequested)
+        log.error('Alia inline completion error:', error);
       return null;
+    } finally {
+      stopContext();
     }
   }
 
@@ -70,7 +62,6 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     document: vscode.TextDocument,
     position: vscode.Position,
     token: vscode.CancellationToken,
-    accessToken: string,
   ): Promise<string | null> {
     // Get context around the cursor
     const prefix = document.getText(
@@ -116,18 +107,19 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
       controller.abort();
     });
 
+    const linked = this.authProvider.createLinkedClient(this.apiBaseUrl);
+    const stopContext = this.authProvider.onSessionContextChange(() => controller.abort());
     try {
       // The product runtime — same reason as `chatParticipant.ts`.
-      const response = await fetch(`${this.apiBaseUrl}/alia/chat`, {
+      const response = await linked.fetch(`${this.apiBaseUrl}/alia/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           // Resolved at the request. `undefined` drops the key from the JSON,
           // so the server uses its default model.
-          model: await resolveModelId(this.apiBaseUrl, this.model, accessToken),
+          model: await resolveModelId(this.apiBaseUrl, this.model, linked.fetch),
           messages: [
             {
               role: 'system',
@@ -162,6 +154,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
        * currently busy…" — which this used to hand to VS Code as ghost text to
        * insert into the file. No completion is the honest answer.
        */
+      if (controller.signal.aborted) return null;
       if (isSyntheticCompletion(data)) {
         log.warn('Alia inline completion: server sent a synthetic stand-in, offering nothing');
         return null;
@@ -183,6 +176,8 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     } finally {
       // The listener is on VS Code's token, which outlives this request.
       cancellation.dispose();
+      stopContext();
+      linked.dispose();
     }
   }
 

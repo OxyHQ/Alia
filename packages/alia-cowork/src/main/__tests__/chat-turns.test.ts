@@ -27,7 +27,8 @@ vi.mock('electron-store', () => ({
 }));
 vi.mock('../auth', () => ({
   currentAccessToken: () => 'token',
-  refreshAccessToken: async () => null,
+  linkedAliaClient: () => ({ fetch, dispose() {} }),
+  onSessionContextChange: () => () => {},
 }));
 vi.mock('../catalogue', () => ({
   isModelId: () => false,

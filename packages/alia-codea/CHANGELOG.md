@@ -5,6 +5,16 @@ All notable changes to the "Codea by Alia" extension will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-10-25
+
+### Fixed
+
+- Use the shared Oxy session for chat, inline completions, catalogue requests and relay reconnects.
+- Cancel work when the account changes; keep local and native chat history within its original account.
+- Restore only from the shared device credential and clear it on sign-out.
+- Keep workspace containment checks compatible with the browser extension host and load process-backed MCP tools lazily.
+- Align the VS Code engine and typecheck floor to 1.93 for the existing terminal integration API.
+
 ## [1.0.0] - 2026-01-31
 
 ### Added

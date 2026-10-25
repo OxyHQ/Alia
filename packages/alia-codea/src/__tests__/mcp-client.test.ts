@@ -11,6 +11,7 @@ const world = vi.hoisted(() => ({
   token: 'token-1' as string | null,
   procs: [] as (EventEmitter & { stdin: EventEmitter & { write: unknown } })[],
   spawnFails: false,
+  contextListeners: new Set<() => void>(),
 }));
 
 // The module captures `WebSocket` when it loads, so the stand-in is installed before the import.
@@ -70,7 +71,21 @@ vi.mock('child_process', () => ({
 
 import { McpLocalClient } from '../mcp-client';
 
-const auth = { getAccessToken: async () => world.token };
+const auth = {
+  getAccessToken: async () => world.token,
+  createLinkedClient: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+    getAccessToken: async (target: string) => {
+      expect(target).toBe('wss://api.alia.onl/ws/mcp');
+      return world.token;
+    },
+    dispose() {},
+  }),
+  onSessionContextChange: (listener: () => void) => {
+    world.contextListeners.add(listener);
+    return () => world.contextListeners.delete(listener);
+  },
+};
 
 const sockets = (globalThis as unknown as { __sockets: FakeSocketLike[] }).__sockets;
 interface FakeSocketLike {
@@ -81,6 +96,7 @@ interface FakeSocketLike {
 
 beforeEach(() => {
   world.token = 'token-1';
+  world.contextListeners.clear();
   sockets.length = 0;
   world.procs.length = 0;
   world.spawnFails = false;
@@ -132,6 +148,23 @@ describe('McpLocalClient relay', () => {
     await vi.advanceTimersByTimeAsync(2);
     expect(sockets).toHaveLength(3);
 
+    client.dispose();
+  });
+
+  it('stops an old account relay before a late socket open or reconnect', async () => {
+    const client = new McpLocalClient(auth as never);
+    const started = client.start();
+    await vi.advanceTimersByTimeAsync(10);
+    await started;
+    const oldSocket = sockets[0];
+    world.token = 'account-b';
+    for (const listener of [...world.contextListeners]) listener();
+    oldSocket.onopen?.();
+    oldSocket.onclose?.();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(oldSocket.sent).toEqual([]);
+    expect(sockets).toHaveLength(1);
+    expect(world.contextListeners.size).toBe(0);
     client.dispose();
   });
 

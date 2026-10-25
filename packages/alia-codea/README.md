@@ -80,7 +80,10 @@ Access these commands via the Command Palette (`Cmd/Ctrl + Shift + P`):
 ## Privacy & Security
 
 - Your code is sent to Alia's servers for processing
-- Your Oxy session is stored in VS Code's secret storage
+- The shared Oxy device credential is stored in VS Code's secret storage; sign-out clears it.
+- HTTP and WebSocket requests use the shared Oxy transport. Account changes cancel old requests and relay processes; same-account token refresh keeps the conversation active.
+- Local conversation history is partitioned by the shared account. Older unpartitioned records are preserved in storage but never assigned automatically to a new sign-in.
+- Codea is an Oxy application and does not request OAuth scopes. External integrations retain their own limited grants.
 - See [Alia's Privacy Policy](https://alia.onl/privacy) for details
 
 ## Support
@@ -90,6 +93,10 @@ Access these commands via the Command Palette (`Cmd/Ctrl + Shift + P`):
 - **General Support**: [oxy.so/support](https://oxy.so/support)
 
 ## Development
+
+The declared VS Code floor and test typings are 1.93, when the existing
+[terminal shell integration API became stable](https://code.visualstudio.com/updates/v1_93/#_terminal-shell-integration-api).
+
 
 ```bash
 # Install dependencies

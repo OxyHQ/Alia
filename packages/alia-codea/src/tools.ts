@@ -1,4 +1,4 @@
-import * as path from 'node:path';
+import { isAbsolute, relative, sep } from 'pathe';
 import * as vscode from 'vscode';
 import { errorMessage } from './errors';
 
@@ -256,7 +256,7 @@ export class ToolExecutor {
       return this.workspaceRootUri;
     }
     // Absolute paths are accepted only when they already point into the workspace.
-    const target = path.isAbsolute(relativePath)
+    const target = isAbsolute(relativePath)
       ? vscode.Uri.file(relativePath)
       : vscode.Uri.joinPath(this.workspaceRootUri, relativePath);
     if (!this.isInsideWorkspace(target)) {
@@ -267,17 +267,21 @@ export class ToolExecutor {
 
   private isInsideWorkspace(uri: vscode.Uri): boolean {
     if (!this.workspaceRootUri) return false;
-    const rel = path.relative(this.workspaceRootUri.fsPath, uri.fsPath);
-    return (
-      rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
-    );
+    if (
+      uri.scheme !== this.workspaceRootUri.scheme ||
+      uri.authority !== this.workspaceRootUri.authority
+    ) {
+      return false;
+    }
+    const rel = relative(this.workspaceRootUri.fsPath, uri.fsPath);
+    return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
   }
 
   private getRelativePath(uri: vscode.Uri): string {
     if (!this.workspaceRootUri || !this.isInsideWorkspace(uri)) {
       return uri.fsPath;
     }
-    return path.relative(this.workspaceRootUri.fsPath, uri.fsPath);
+    return relative(this.workspaceRootUri.fsPath, uri.fsPath);
   }
 
   async execute(
