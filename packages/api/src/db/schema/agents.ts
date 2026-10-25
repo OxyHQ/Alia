@@ -79,7 +79,7 @@ import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
 import type { AvatarCharacter } from '@oxy.so/contracts';
-import { STORED_OXY_APP_LEVELS, type StoredOxyAppLevel } from '../../domain/agent-oxy-app-level.js';
+
 import type { AgentFeatureGates, AgentStarter } from '../../domain/agent-features.js';
 import { skills } from './skills';
 import { libraryFiles } from './library';
@@ -339,17 +339,18 @@ export const agentKnowledge = pgTable(
   ],
 );
 
+const HISTORICAL_OXY_APP_LEVELS = ['read', 'act'] as const;
+type HistoricalOxyAppLevel = (typeof HISTORICAL_OXY_APP_LEVELS)[number];
+
 /** Historical rows only: retired app-level settings. No runtime readers/writers.
- * Preserve audit data until the coordinated post-cutover archival migration.
+ * Retained migration history; existing agent deletion cascades still apply.
  */
 export const agentOxyAppPermissions = pgTable(
   'agent_oxy_app_permissions',
   {
     agentId: text().notNull(),
     appId: text().notNull(),
-    level: text({ enum: STORED_OXY_APP_LEVELS as unknown as [string, ...string[]] })
-      .$type<StoredOxyAppLevel>()
-      .notNull(),
+    level: text({ enum: HISTORICAL_OXY_APP_LEVELS }).$type<HistoricalOxyAppLevel>().notNull(),
     oxyGrantId: text().notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -362,6 +363,6 @@ export const agentOxyAppPermissions = pgTable(
     }).onDelete('cascade'),
     uniqueIndex('agent_oxy_app_permissions_agent_app_key').on(t.agentId, t.appId),
     uniqueIndex('agent_oxy_app_permissions_grant_key').on(t.oxyGrantId),
-    checkOneOf('agent_oxy_app_permissions_level_check', t.level, STORED_OXY_APP_LEVELS),
+    checkOneOf('agent_oxy_app_permissions_level_check', t.level, HISTORICAL_OXY_APP_LEVELS),
   ],
 );
