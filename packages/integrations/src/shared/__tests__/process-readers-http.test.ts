@@ -152,20 +152,20 @@ afterAll(async () => {
   delete process.env.INTEGRATIONS_SECRET;
 });
 
-describe('mixed-version process readers over real HTTP', () => {
-  it('keeps old producers working with no Authorization', async () => {
+describe('workload-only process readers over real HTTP', () => {
+  it('rejects retired gateway secrets for HTTP and sockets', async () => {
     expect(
       await send('/gateway/sessions/connect', {
         'x-gateway-secret': 'legacy-gateway-secret',
         'x-alia-account-context': OWNER,
       }),
-    ).toMatchObject({ status: 200, body: { bodyOwner: 'forged-owner' } });
+    ).toMatchObject({ status: 401 });
     expect(
       await authorizeInternalUpgrade({
         'x-gateway-secret': 'legacy-gateway-secret',
         'x-oxy-user-id': OWNER,
       }),
-    ).toBe(OWNER);
+    ).toBeNull();
   });
   it('accepts the exact new API workload and overwrites body owner', async () => {
     expect(

@@ -1,14 +1,10 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import { internalAccount, isWorkloadRequest } from './internal-auth';
+import { internalAccount } from './internal-auth';
 
 export function accountOwnership(
   ownerOf: (sessionId: string) => Promise<string | null>,
 ): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
-    if (!isWorkloadRequest(req)) {
-      next();
-      return;
-    }
     const accountId = internalAccount(req);
     if (!accountId) {
       res.status(401).json({ error: 'Internal account context required' });

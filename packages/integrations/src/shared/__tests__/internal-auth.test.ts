@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 describe('internal product authority', () => {
   it('accepts only the exact live Alia API workload, never a user session', async () => {
-    const req: any = { headers: { authorization: 'Bearer workload' } };
+    const req: any = { headers: {} };
     const next = vi.fn();
     await requireAliaApi(req, response(), next);
     expect(next).toHaveBeenCalledOnce();
@@ -50,17 +50,14 @@ describe('internal product authority', () => {
     state.principal = principal;
     const next = vi.fn();
     const res = response();
-    await requireAliaApi({ headers: { authorization: 'Bearer workload' } } as any, res, next);
+    await requireAliaApi({ headers: {} } as any, res, next);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
-  it('does not treat an Oxy user header as internal account authority', async () => {
+  it('does not treat an Oxy user header as internal account authority', () => {
     const next = vi.fn();
     const res = response();
-    const req: any = { headers: { authorization: 'Bearer workload' } };
-    await requireAliaApi(req, response(), () => {});
-    req.headers['x-oxy-user-id'] = ACCOUNT;
-    requireAccountContext(req, res, next);
+    requireAccountContext({ headers: { 'x-oxy-user-id': ACCOUNT } } as any, res, next);
     expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
   });
@@ -85,7 +82,7 @@ describe('account row ownership', () => {
     const res = response();
     const req: any = {
       path: '/sessions/opaque/chats',
-      headers: { authorization: 'Bearer workload', 'x-alia-account-context': ACCOUNT },
+      headers: { 'x-alia-account-context': ACCOUNT },
     };
     await requireAliaApi(req, response(), () => {});
     await guard(req, res, next);
@@ -97,7 +94,7 @@ describe('account row ownership', () => {
     const next = vi.fn();
     const req: any = {
       path: '/sessions/connect',
-      headers: { authorization: 'Bearer workload', 'x-alia-account-context': ACCOUNT },
+      headers: { 'x-alia-account-context': ACCOUNT },
       body: { oxyUserId: 'forged' },
     };
     await requireAliaApi(req, response(), () => {});

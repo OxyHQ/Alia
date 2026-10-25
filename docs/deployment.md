@@ -259,10 +259,10 @@ definition, per the order above.
 rotation must re-encrypt stored rows and roll both processes. Authentication
 between those processes uses the shared `@alia.onl/server/internal` workload
 transport with the exact receiving process identity. `SERVICE_SECRET`,
-`INTEGRATIONS_SECRET` remain bound for the finite B reader transition. The
-retired Oxy key pair is already explicitly removed. Phase C adds process secrets
-to `TASK_SECRET_REMOVALS_JSON`; merely deleting an input would leave a live
-inherited secret in place. Remove the corresponding
+`INTEGRATIONS_SECRET` and the retired Oxy key pair are explicitly removed through
+`TASK_SECRET_REMOVALS_JSON`; merely deleting an input would leave a live inherited
+secret in place. The phase-C release is allowed only after both phase-B processes
+are verified live and their previous tasks have drained. Remove the corresponding
 SSM parameters only after the coordinated rollout and live readback prove that
 no task still uses them.
 

@@ -1,12 +1,4 @@
 import 'dotenv/config';
-import {
-  requireAliaApi,
-  requireAccountContext,
-  internalAccount,
-  isWorkloadRequest,
-  authorizeInternalUpgrade,
-} from './shared/internal-auth';
-import { isLiveEntityId } from '@oxy.so/db';
 import { startPlatformActivity } from './platform-activity';
 import express from 'express';
 import { oxyTrustProxy } from '@oxy.so/core/server';
@@ -17,6 +9,12 @@ import type { AccountAdapter } from './accounts/types';
 import type { BotAdapter } from './bots/types';
 import { setWss, type SessionWebSocket } from './realtime/wss-global';
 import { maySubscribe } from './realtime/subscription-auth';
+import {
+  requireAliaApi,
+  requireAccountContext,
+  internalAccount,
+  authorizeInternalUpgrade,
+} from './shared/internal-auth';
 import { createLogger } from './shared/logger';
 import { runShutdownSteps } from './shared/shutdown';
 
@@ -32,11 +30,6 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 const POSTGRES_URL: string = DATABASE_URL;
-
-if (!process.env.INTEGRATIONS_SECRET) {
-  logger.error('INTEGRATIONS_SECRET is required');
-  process.exit(1);
-}
 
 let activityReady = false;
 const activity = startPlatformActivity(() => activityReady);
@@ -147,22 +140,14 @@ async function main() {
     });
   });
 
-  /**
-   * Bind terminal/browser session access to the requesting user. The API
-   * gateway namespaces every session id as `${oxyUserId}:${clientSessionId}`
-   * and forwards the authoritative user id in `X-Oxy-User-Id`. We re-verify
-   * here so the in-memory session Map can never be addressed across users even
-   * if the gateway secret leaks or a path is forged.
-   */
+  /** Scope terminal/browser resources to the verified API operation account. */
   const requireSessionOwner = (
     req: express.Request,
     res: express.Response,
     next: express.NextFunction,
   ): void => {
-    const ownerUserId = isWorkloadRequest(req)
-      ? internalAccount(req)
-      : (req.headers['x-oxy-user-id'] as string | undefined);
-    if (!ownerUserId || !isLiveEntityId(ownerUserId)) {
+    const ownerUserId = internalAccount(req);
+    if (!ownerUserId) {
       res.status(401).json({ error: 'User context required' });
       return;
     }
@@ -225,24 +210,11 @@ async function main() {
 
   // WebSocket for real-time streaming (terminal output, browser screenshots)
   const wss = new WebSocketServer({ server, path: '/ws' });
-  /**
-   * The upgrade carries the SAME credentials the HTTP routes require, and the
-   * subscription is bound to the user they identify.
-   *
-   * Before this, `/ws` had no secret check and no user check: it took the
-   * session id straight off the client's first frame, so a `subscribe` naming
-   * another user's `${oxyUserId}:${clientSessionId}` streamed that PTY's
-   * output back — the exact cross-user addressing `requireSessionOwner` says
-   * it prevents "even if the gateway secret leaks". The HTTP half was scoped
-   * and the WebSocket half was open.
-   *
-   * The rules live in `realtime/subscription-auth.ts` so they can be tested
-   * without racing a socket against a live server; this is the wiring.
-   */
+  // The upgrade verifies the same workload and account context as HTTP.
   wss.on('connection', async (ws, request) => {
     const ownerUserId = await authorizeInternalUpgrade(request.headers);
     if (!ownerUserId) {
-      logger.debug('Rejected an unauthenticated WebSocket upgrade');
+      logger.debug('Rejected an unauthenticated internal WebSocket upgrade');
       // 1008 is "policy violation" — the honest code, and it reaches the client
       // as a close reason rather than as a connection that silently never
       // receives anything.

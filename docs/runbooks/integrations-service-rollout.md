@@ -21,12 +21,12 @@ never manufacture requester authority from an account ID.
 
 ## Configuration
 
-Phase B deploys overlay `INTEGRATIONS_URL` and retain process secrets for A2
-callers. The gateway release waits for exact-commit API deployment success,
-post-rollout task reconciliation, and a fully drained ECS service using that
-commit’s arm64 image. Both manual and automatic deployment obey this barrier.
-Phase C removes process secrets and the barrier after both new producers are live. Terraform alone does not update the running revision;
-read back deployed task definitions.
+Deploys overlay `INTEGRATIONS_URL` and explicitly remove inherited process secrets.
+Phase C no longer has a dependency between the two deployment workflows: both
+sides already emit workloads. Before releasing C, verify the phase-B API and
+gateway runtime digests, completed task reconciliation and old-task drain. Do not
+use C to skip that transition. Terraform alone does not update the running
+revision; read back deployed task definitions.
 
 `/oxy/alia-integrations/DATABASE_URL` remains an SSM-owned database credential.
 `TOKEN_ENCRYPTION_KEY` remains storage encryption for connector records; rotation

@@ -91,20 +91,15 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain('TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}');
   });
 
-  it('wires integrations from exact SSM metadata and the Terraform Cloud Map name', () => {
+  it('wires integrations through workload identity and the Terraform Cloud Map name', () => {
     const from = workflow.indexOf('      - name: Stage the integrations service wiring');
     const to = workflow.indexOf('      - name: Stage Oxy inference configuration', from);
     const stage = workflow.slice(from, to);
 
     expect(from).toBeGreaterThanOrEqual(0);
     expect(to).toBeGreaterThan(from);
-    expect(stage).toContain('aws ssm get-parameter');
-    expect(stage).toContain('--no-with-decryption');
-    expect(stage).toContain("--query 'Parameter.[Name,Type]'");
-    expect(stage).toContain('actual_type" != "SecureString');
-    expect(stage).toContain(
-      'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET',
-    );
+    expect(stage).not.toContain('aws ssm get-parameter');
+    expect(stage).not.toContain('INTEGRATIONS_SECRET');
     expect(stage).toContain('http://integrations.alia.internal.oxy.so:3005');
     expect(stage).not.toContain('secrets.INTEGRATIONS_SECRET');
     expect(stage).not.toContain('vars.INTEGRATIONS_URL');
@@ -119,28 +114,11 @@ describe('deploy-aws.yml migration wiring', () => {
     ] as const) {
       expect(source, name).not.toContain('secrets.INTEGRATIONS_SECRET');
       expect(source, name).not.toMatch(/put-parameter[^\n]*INTEGRATIONS_SECRET/);
-      expect(source, name).toContain('aws ssm get-parameter');
-      expect(source, name).toContain('--no-with-decryption');
       expect(source, name).not.toContain('--with-decryption');
       expect(source, name).not.toContain('aws ssm describe-parameters');
     }
   });
 
-  /**
-   * The API attests its task role — and still keeps the credential, because the
-   * two are not interchangeable.
-   *
-   * The deploy stops INJECTING the pair: nothing here reads it out of SSM, and
-   * that half is permanent. What the deploy must not do is REMOVE it, which is
-   * a separate lever and the only one that takes a secret off a revision (a
-   * release renders from the task definition the service is RUNNING, so the
-   * inherited pair survives on its own). Attesting mints a token without
-   * `capabilities:read`, and Alia's tool catalogue is built from the two
-   * capability endpoints that require it.
-   *
-   * The SSM parameters are out of scope here and untouched; this is about the
-   * task definition's reference to them.
-   */
   it('injects no Oxy service credential and now removes the inherited one too', () => {
     const from = workflow.indexOf('      - name: Stage Oxy inference configuration');
     const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
@@ -156,44 +134,9 @@ describe('deploy-aws.yml migration wiring', () => {
       'arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/OXY_SERVICE_API_SECRET',
     );
     expect(workflow).toContain(
-      'TASK_SECRET_REMOVALS_JSON: \'["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
+      'TASK_SECRET_REMOVALS_JSON: \'["SERVICE_SECRET","INTEGRATIONS_SECRET","DISCORD_BOT_SECRET","SLACK_BOT_SECRET","WHATSAPP_BOT_SECRET","WHATSAPP_GATEWAY_SECRET","SIGNAL_BOT_SECRET","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","KAANA_EDGE_SIGNING_PRIVATE_KEY","ALIA_RELAY_CREDENTIAL_KEY","ALIA_RELAY_CREDENTIAL_SECRET","ALIA_KAANA_CREDENTIAL_KEY","ALIA_KAANA_CREDENTIAL_SECRET","OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
     );
-    /**
-     * And the pair is NOT in it. The rule has never changed — a removal is
-     * allowed once the authority survives it — and on 2026-09-20 the answer
-     * went back to no, this time from a deploy rather than from a probe.
-     *
-     * The entry came out on 2026-09-19 because attesting yielded a token
-     * without `capabilities:read`, the scope Alia reads its capability
-     * catalogue with. oxy#1350 gave a BINDING its own scopes, `oxy-alia-task`
-     * was re-bound, a token minted by attestation read back all three, and the
-     * entry went back in.
-     *
-     * Then the first deploy that could actually exercise it ran. The readiness
-     * task executes on the revision this list produces, so with the pair
-     * removed it minted by attestation — and reported `oxy.ready=false` with
-     * ALL EIGHT chat profiles missing. Carrying the scope and being able to
-     * read the profiles turn out to be different things, and a probe that mints
-     * a token cannot tell them apart. Only this gate can.
-     *
-     * The cause was one resolver away, not the scopes. `applicationForBearer`
-     * looked the caller up in `application_credentials` by the token's
-     * `credentialId`, which for an attested caller is a `wl_…` handle in no row
-     * — so it became a PUBLIC viewer and the unpublished catalogue served it an
-     * empty list. oxy#1355 made a verified token re-read against the row that
-     * authorised it, and oxy#1368 gave an attested identity a real row.
-     *
-     * Measured 2026-09-25 against the deployed fix, attested from
-     * `oxy-alia-task` with no pair: `GET /models/routing-profiles` answers 200
-     * with all eight visible, missingCount=0. So the pair is back in the list,
-     * and the rule it has always been governed by is unchanged — a removal is
-     * allowed once the authority survives it. The readiness task is still the
-     * final judge and still runs on the revision this list produces, so a wrong
-     * answer fails the DEPLOY rather than shipping an Alia that cannot route.
-     *
-     * Parsed as JSON rather than matched as a string, so a reordering cannot
-     * smuggle one out.
-     */
+
     const removals = workflow.match(/TASK_SECRET_REMOVALS_JSON: '(\[[^\]]*\])'/)?.[1];
     expect(removals).toBeDefined();
     expect(JSON.parse(removals!)).toContain('OXY_SERVICE_API_KEY');
@@ -216,7 +159,7 @@ describe('deploy-aws.yml migration wiring', () => {
    */
   it('removes the same pair from the alia-integrations revision', () => {
     expect(integrationsWorkflow).toContain(
-      'TASK_SECRET_REMOVALS_JSON: \'["OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET"]\'',
+      'TASK_SECRET_REMOVALS_JSON: \'["OXY_SERVICE_API_KEY","OXY_SERVICE_API_SECRET","SERVICE_SECRET","INTEGRATIONS_SECRET","DISCORD_BOT_SECRET","SLACK_BOT_SECRET","WHATSAPP_BOT_SECRET","WHATSAPP_GATEWAY_SECRET","SIGNAL_BOT_SECRET"]\'',
     );
     expect(integrationsWorkflow).not.toContain('secrets.OXY_SERVICE_API_KEY');
     expect(integrationsWorkflow).not.toContain('sync_secret OXY_SERVICE_API_');
@@ -479,22 +422,16 @@ describe('the deploy removes retired credentials and runtime configuration', () 
       'ALIA_RELAY_CREDENTIAL_SECRET',
       'AWS_ACCESS_KEY_ID',
       'AWS_SECRET_ACCESS_KEY',
+      'DISCORD_BOT_SECRET',
+      'INTEGRATIONS_SECRET',
       'KAANA_EDGE_SIGNING_PRIVATE_KEY',
-      // Alia's own Oxy credential, retired once an attested caller could both
-      // carry `capabilities:read` AND see its eight chat routing profiles —
-      // measured 200/missingCount=0 on 2026-09-25, after oxy#1355 and #1368.
       'OXY_SERVICE_API_KEY',
       'OXY_SERVICE_API_SECRET',
-      // Alia's own Oxy credential is deliberately NOT here, and this is the
-      // second time the answer has moved. `oxy-alia-task` is bound with
-      // `capabilities:read`, `inference:invoke` and `user:read` (oxy#1350), and
-      // a probe that minted BY ATTESTATION read back exactly those three — on
-      // which the pair was retired. The first deploy that could exercise that
-      // then ran its readiness task on a revision without the pair, and the
-      // task reported `oxy.ready=false` with all eight chat profiles missing.
-      // Carrying the scope and being able to read the profiles are not the same
-      // thing. The pair returns to this list when a readiness run WITHOUT it
-      // comes back ready — the deploy is the only instrument that can say so.
+      'SERVICE_SECRET',
+      'SIGNAL_BOT_SECRET',
+      'SLACK_BOT_SECRET',
+      'WHATSAPP_BOT_SECRET',
+      'WHATSAPP_GATEWAY_SECRET',
     ]);
   });
 

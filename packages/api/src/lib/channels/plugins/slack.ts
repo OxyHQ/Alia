@@ -30,7 +30,6 @@ export const slackPlugin: ChannelPlugin = {
 
   config: {
     isConfigured: () => !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_SIGNING_SECRET),
-    getBotSecret: () => process.env.SLACK_BOT_SECRET,
     getEnvPrefix: () => 'SLACK',
   },
 

@@ -203,76 +203,20 @@ afterAll(async () => {
   delete process.env.INTEGRATIONS_SECRET;
 });
 
-describe('mixed-version process readers over real HTTP', () => {
-  it('keeps old producers working with no Authorization', async () => {
-    expect((await send('/api/bot', { 'x-channel-bot-secret': 'legacy-bot-secret' })).status).toBe(
-      200,
-    );
-  });
-  it.each(['/alia/chat', '/conversations', '/conversations/thread'])(
-    'resolves enriched legacy producer provider links and tasks at %s',
+describe('workload-only process readers over real HTTP', () => {
+  it.each(['/api/bot', '/alia/chat', '/conversations', '/conversations/thread'])(
+    'rejects retired shared secrets and provider metadata at %s',
     async (path) => {
-      fixture.owner = '69b2d3df5d12f58c9800d651';
-      const headers = {
+      const response = await send(path, {
         'x-channel-bot-secret': 'legacy-bot-secret',
-        'x-oxy-user-id': '69b2d3df5d12f58c9800d651',
+        'x-oxy-user-id': OWNER,
         'x-alia-legacy-channel': 'telegram',
         'x-alia-legacy-platform-user': 'remote-provider-user',
-      };
-      expect(await send(path, headers)).toMatchObject({
-        status: 200,
-        body: {
-          accountId: headers['x-oxy-user-id'],
-          channelContext: { accountId: fixture.owner, taskId: 'durable-task' },
-          user: null,
-          bearer: null,
-        },
       });
-      expect(fixture.lookup).toHaveBeenCalledWith('system-bot', 'remote-provider-user');
-      expect((await send(path, { ...headers, 'x-oxy-user-id': OWNER })).status).toBe(403);
-      fixture.linked = false;
-      expect((await send(path, headers)).status).toBe(401);
-      fixture.linked = true;
-      expect((await send(path, { ...headers, 'x-channel-bot-secret': 'wrong' })).status).toBe(401);
-      expect(
-        (await send(path, { ...headers, authorization: 'Bearer invalid' })).status,
-      ).toBeGreaterThanOrEqual(400);
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(fixture.lookup).not.toHaveBeenCalled();
     },
   );
-  it('resolves enriched personal-channel legacy calls by connection, without owner substitution', async () => {
-    const headers = {
-      'x-channel-bot-secret': 'legacy-gateway-secret',
-      'x-oxy-user-id': OWNER,
-      'x-alia-legacy-channel': 'whatsapp',
-      'x-alia-legacy-channel-session': 'actual-connected-session',
-    };
-    expect(await send('/alia/chat', headers)).toMatchObject({
-      status: 200,
-      body: {
-        channelContext: { kind: 'account', accountId: OWNER, taskId: 'durable-task' },
-        user: null,
-        bearer: null,
-      },
-    });
-    expect(fixture.lookup).toHaveBeenCalledWith('whatsapp', 'actual-connected-session');
-    fixture.task = false;
-    expect((await send('/alia/chat', headers)).body).toMatchObject({
-      channelContext: { accountId: OWNER },
-    });
-    expect((await send('/alia/chat', headers)).body).not.toHaveProperty('channelContext.taskId');
-    fixture.linked = false;
-    expect((await send('/alia/chat', headers)).status).toBe(401);
-    fixture.linked = true;
-    expect(
-      (await send('/alia/chat', { ...headers, 'x-alia-legacy-platform-user': 'unrelated' })).status,
-    ).toBe(401);
-    expect(
-      (await send('/alia/chat', { ...headers, 'x-oxy-user-id': 'another-owner' })).status,
-    ).toBe(403);
-    expect((await send('/alia/chat', { ...headers, authorization: 'Bearer invalid' })).status).toBe(
-      403,
-    );
-  });
   it.each(['invalid-signature', 'revoked', 'wrong-audience', 'wrong-workload', 'external'])(
     'never downgrades %s to a valid legacy secret in either direction',
     async (failure) => {
