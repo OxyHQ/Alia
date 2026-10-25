@@ -1,55 +1,69 @@
+import type { LinkedHttpClient, OxyServices } from '@oxy.so/core';
 import axios from 'axios';
 import config from '@/shared/platform/config';
 
-// Create axios instance
+let owner: OxyServices | undefined;
+let linked: LinkedHttpClient | undefined;
+let unsubscribe: (() => void) | undefined;
+const contextListeners = new Set<() => void>();
+
+/** Keep Axios response/error conventions; Oxy owns session, refresh and origin fencing. */
 const apiClient = axios.create({
   baseURL: config.apiUrl,
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
+  headers: { 'Content-Type': 'application/json' },
+  adapter: 'fetch',
+  xsrfCookieName: '',
+  withXSRFToken: false,
+  withCredentials: false,
+  env: {
+    fetch: (input, init) => {
+      if (!linked) throw new Error('The Oxy provider has not bound the product API');
+      return linked.fetchOptional(input, init);
+    },
   },
 });
 
-// Token getter - will be set by AuthSetup component
-let getAccessToken: (() => string | null) | null = null;
-
-export function setTokenGetter(getter: () => string | null) {
-  getAccessToken = getter;
+/** Called during provider render so children cannot dispatch before binding. */
+export function bindApiClient(oxy: OxyServices): void {
+  if (owner === oxy) return;
+  unsubscribe?.();
+  linked?.dispose();
+  owner = oxy;
+  linked = oxy.createLinkedClient({ baseURL: config.apiUrl });
+  let epoch = linked.client.getSessionEpoch();
+  unsubscribe = linked.client.addTokenChangeListener(() => {
+    const next = linked?.client.getSessionEpoch();
+    if (next === epoch) return;
+    epoch = next ?? epoch;
+    for (const listener of contextListeners) listener();
+  });
+  for (const listener of contextListeners) listener();
 }
 
-/**
- * Returns the current Oxy access token for Socket.IO handshakes.
- * Socket connections must authenticate via the auth-function form
- * `auth: (cb) => cb({ token: getSocketToken() })` so a fresh token is read on
- * every (re)connect and the server's `oxy.middleware.socket()` middleware accepts it.
- */
-export function getSocketToken(): string | null {
-  return getAccessToken ? getAccessToken() : null;
+/** Dispose only this provider's binding, without disturbing a newer provider. */
+export function releaseApiClient(oxy: OxyServices): void {
+  if (owner !== oxy) return;
+  unsubscribe?.();
+  linked?.dispose();
+  unsubscribe = undefined;
+  linked = undefined;
+  owner = undefined;
+  for (const listener of contextListeners) listener();
 }
 
-// Request interceptor to add Bearer JWT token
-apiClient.interceptors.request.use(
-  (config) => {
-    if (getAccessToken) {
-      const token = getAccessToken();
-      if (token) {
-        config.headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  },
-);
-
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // Let components handle auth errors
-    return Promise.reject(error);
-  },
-);
-
+/** Socket handshakes read the same bound session; HTTP never copies its bearer. */
+export function socketAccessToken(signal: AbortSignal): Promise<string> {
+  if (!linked) return Promise.reject(new Error('The Oxy provider has not bound the product API'));
+  return linked.getAccessToken(config.apiUrl, { signal });
+}
+export function hasApiSession(): boolean {
+  return Boolean(owner?.session.userId);
+}
+export function onApiSessionContextChange(listener: () => void): () => void {
+  contextListeners.add(listener);
+  return () => {
+    contextListeners.delete(listener);
+  };
+}
 export default apiClient;

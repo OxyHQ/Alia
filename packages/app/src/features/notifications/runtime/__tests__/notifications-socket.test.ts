@@ -37,7 +37,10 @@ vi.mock('socket.io-client', () => ({
 }));
 
 vi.mock('@/shared/platform/config', () => ({ default: { apiUrl: 'https://api.example.test' } }));
-vi.mock('@/shared/api/client', () => ({ getSocketToken: () => 'test-token' }));
+vi.mock('@/shared/api/client', () => ({
+  socketAccessToken: async () => 'test-token',
+  onApiSessionContextChange: () => () => {},
+}));
 
 async function loadModule() {
   // A fresh module registry per test: the refcount is module state by design,
