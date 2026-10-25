@@ -2,7 +2,7 @@
   "name": "alia-codea",
   "displayName": "Codea by Alia",
   "description": "AI coding assistant powered by Alia",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "publisher": "oxy",
   "license": "MIT",
@@ -12,7 +12,7 @@
   },
   "icon": "resources/codea-logo.png",
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.93.0"
   },
   "categories": [
     "Machine Learning",
@@ -236,7 +236,7 @@
     "build": "bun run build:webview && bun run build:extension && bun run build:browser",
     "typecheck": "tsc --noEmit",
     "build:extension": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
-    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --external:crypto --external:node:crypto --format=cjs --platform=browser",
+    "build:browser": "esbuild ./src/extension.ts --bundle --outfile=dist/web/extension.js --external:vscode --external:child_process --external:crypto --external:node:crypto --format=cjs --platform=browser && node scripts/check-browser-bundle.mjs",
     "build:webview": "cd webview-ui && bun run build",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
     "watch:webview": "cd webview-ui && bun run dev",
@@ -250,7 +250,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
-    "@types/vscode": "^1.125.0",
+    "@types/vscode": "1.93.0",
     "@vscode/vsce": "^2.32.0",
     "esbuild": "^0.28.1",
     "typescript": "^5.9.3",

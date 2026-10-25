@@ -83,35 +83,39 @@ export class AliaChatParticipant {
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
   ): Promise<vscode.ChatResult | void> {
-    const accessToken = await this.authProvider.getAccessToken();
-    if (!accessToken) {
-      stream.markdown(
-        '**Sign-in Required**\n\nPlease sign in using the `Codea: Sign In` command (Ctrl+Shift+P).',
-      );
-      return { metadata: { error: 'Not authenticated' } };
-    }
-
+    let contextChanged = false;
+    const stopContext = this.authProvider.onSessionContextChange(() => {
+      contextChanged = true;
+    });
     try {
-      // Show thinking indicator
+      const accessToken = await this.authProvider.getAccessToken();
+      if (contextChanged || token.isCancellationRequested) return;
+      const accountId = this.authProvider.getOxyServices().session.userId;
+      if (!accessToken || !accountId) {
+        stream.markdown(
+          '**Sign-in Required**\n\nPlease sign in using the `Codea: Sign In` command (Ctrl+Shift+P).',
+        );
+        return { metadata: { error: 'Not authenticated' } };
+      }
       stream.progress('Thinking...');
-
-      // Get conversation history
-      const messages = this.buildMessages(request, context);
-
-      // Stream the response
+      const messages = this.buildMessages(request, context, accountId);
       await this.streamResponse(messages, stream, token);
-
-      return { metadata: { success: true } };
+      if (contextChanged || token.isCancellationRequested) return;
+      return { metadata: { success: true, oxyAccountId: accountId } };
     } catch (error) {
+      if (contextChanged || token.isCancellationRequested) return;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       stream.markdown(`**Error**: ${errorMessage}`);
       return { metadata: { error: errorMessage } };
+    } finally {
+      stopContext();
     }
   }
 
   private buildMessages(
     request: vscode.ChatRequest,
     context: vscode.ChatContext,
+    accountId: string,
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
@@ -121,31 +125,23 @@ export class AliaChatParticipant {
       },
     ];
 
-    // Add conversation history
-    for (const turn of context.history) {
-      if (turn instanceof vscode.ChatRequestTurn) {
-        messages.push({
-          role: 'user',
-          content: turn.prompt,
-        });
-      } else if (turn instanceof vscode.ChatResponseTurn) {
-        // Get the response text
-        const responseText = turn.response
-          .map((part) => {
-            if (part instanceof vscode.ChatResponseMarkdownPart) {
-              return part.value.value;
-            }
-            return '';
-          })
-          .join('\n');
-
-        if (responseText) {
-          messages.push({
-            role: 'assistant',
-            content: responseText,
-          });
-        }
-      }
+    // Native VS Code chat history survives Oxy account changes. Reuse only a
+    // request/response pair that this participant completed for this account.
+    for (let index = 0; index < context.history.length - 1; index++) {
+      const requestTurn = context.history[index];
+      const responseTurn = context.history[index + 1];
+      if (
+        !(requestTurn instanceof vscode.ChatRequestTurn) ||
+        !(responseTurn instanceof vscode.ChatResponseTurn) ||
+        responseTurn.result.metadata?.oxyAccountId !== accountId
+      )
+        continue;
+      messages.push({ role: 'user', content: requestTurn.prompt });
+      const responseText = responseTurn.response
+        .map((part) => (part instanceof vscode.ChatResponseMarkdownPart ? part.value.value : ''))
+        .join('\n');
+      if (responseText) messages.push({ role: 'assistant', content: responseText });
+      index++;
     }
 
     // Add current request with references

@@ -7,7 +7,7 @@
  */
 
 import * as vscode from 'vscode';
-import { spawn, type ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { errorMessage } from './errors';
 import { log } from './logger';
@@ -157,6 +157,9 @@ export class McpLocalClient implements vscode.Disposable {
   }
 
   private async spawnServer(config: McpServerConfig): Promise<void> {
+    // Browser extension hosts can load Codea without a Node process API.
+    // Process-backed tools are resolved only when starting a local server.
+    const { spawn } = await import('child_process');
     try {
       const proc = spawn(config.command, config.args, {
         env: { ...process.env, ...config.env },

@@ -94,6 +94,10 @@ Access these commands via the Command Palette (`Cmd/Ctrl + Shift + P`):
 
 ## Development
 
+The declared VS Code floor and test typings are 1.93, when the existing
+[terminal shell integration API became stable](https://code.visualstudio.com/updates/v1_93/#_terminal-shell-integration-api).
+
+
 ```bash
 # Install dependencies
 bun install

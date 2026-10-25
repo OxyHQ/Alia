@@ -29,7 +29,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
   async provideInlineCompletionItems(
     document: vscode.TextDocument,
     position: vscode.Position,
-    context: vscode.InlineCompletionContext,
+    _context: vscode.InlineCompletionContext,
     token: vscode.CancellationToken,
   ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList | null | undefined> {
     // Check if inline completions are enabled
@@ -39,30 +39,22 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
       return null;
     }
 
-    // Don't provide completions if not authenticated
-    const accessToken = await this.authProvider.getAccessToken();
-    if (!accessToken) {
-      return null;
-    }
-
-    // Don't trigger on every keystroke - only when explicitly invoked or after a pause
-    if (context.triggerKind === vscode.InlineCompletionTriggerKind.Automatic) {
-      // You might want to add a debounce here
-      // For now, we'll just return null on automatic triggers
-      // return null;
-    }
-
+    let contextChanged = false;
+    const stopContext = this.authProvider.onSessionContextChange(() => {
+      contextChanged = true;
+    });
     try {
+      const accessToken = await this.authProvider.getAccessToken();
+      if (!accessToken || contextChanged || token.isCancellationRequested) return null;
       const completion = await this.getCompletion(document, position, token);
-
-      if (!completion || token.isCancellationRequested) {
-        return null;
-      }
-
+      if (!completion || contextChanged || token.isCancellationRequested) return null;
       return [new vscode.InlineCompletionItem(completion, new vscode.Range(position, position))];
     } catch (error) {
-      log.error('Alia inline completion error:', error);
+      if (!contextChanged && !token.isCancellationRequested)
+        log.error('Alia inline completion error:', error);
       return null;
+    } finally {
+      stopContext();
     }
   }
 
