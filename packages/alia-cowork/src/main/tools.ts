@@ -630,7 +630,7 @@ export class ToolExecutor {
       if (stagehand) {
         await stagehand.close();
 
-        if (this.mainWindow) {
+        if (this.mainWindow && !this.stagehand && !this.stagehandTransport) {
           this.sendToWindow('browser:closed', {});
         }
 

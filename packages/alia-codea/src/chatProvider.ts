@@ -93,6 +93,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _abortController?: AbortController;
   /** The turn that owns the provider: a stopped turn finishing late must not touch the next one. */
   private _turnSeq = 0;
+  private _sessionEpoch = 0;
   private _currentTurn = 0;
   /** Settles when the latest turn has wound down; a stopped one may still be finishing a tool. */
   private _settled: Promise<void> = Promise.resolve();
@@ -102,7 +103,6 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _currentMode: string = 'ask';
   private _lastRequestParams: {
     baseUrl: string;
-    accessToken: string;
     model: string | undefined;
     clientContext: string;
   } | null = null;
@@ -115,13 +115,30 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     this._toolExecutor = new ToolExecutor();
 
     // Re-fetch user info when auth state changes (sign-in/sign-out)
-    this._authProvider.onDidChangeSessions(() => {
-      this.fetchAndSendUserInfo();
+    this._context.subscriptions.push(
+      this._authProvider.onDidChangeSessions(() => {
+        void this.fetchAndSendUserInfo();
+      }),
+    );
+    const stopContext = this._authProvider.onSessionContextChange(() => {
+      this._sessionEpoch++;
+      this.stopGeneration();
+      this._currentTurn = ++this._turnSeq;
+      this._messages = [];
+      this._currentConversationId = null;
+      this._lastRequestParams = null;
+      this._userName = null;
+      this._view?.webview.postMessage({ type: 'clearChat' });
+      this._view?.webview.postMessage({ type: 'userInfo', userName: null });
+      void this.fetchAndSendModels();
     });
+    this._context.subscriptions.push({ dispose: stopContext });
   }
 
   private async fetchAndSendUserInfo(): Promise<void> {
+    const epoch = this._sessionEpoch;
     const accessToken = await this._authProvider.getAccessToken();
+    if (epoch !== this._sessionEpoch) return;
 
     if (!accessToken) {
       this._view?.webview.postMessage({ type: 'userInfo', userName: null });
@@ -131,6 +148,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     try {
       const oxyServices = this._authProvider.getOxyServices();
       const userInfo = await oxyServices.users.me();
+      if (epoch !== this._sessionEpoch) return;
       // Prefer the canonical API-composed display name on `name.displayName`;
       // do not recompute from first/last.
       const displayName = (userInfo.name as { displayName?: string } | undefined)?.displayName;
@@ -155,14 +173,21 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private async fetchAndSendModels(): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
     const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
-    const accessToken = await this._authProvider.getAccessToken().catch(() => null);
-
-    const picker = await fetchPickerCatalogue(baseUrl, accessToken ?? undefined);
-    this._view?.webview.postMessage({
-      type: 'models',
-      groups: picker.groups,
-      defaultLabel: picker.defaultLabel,
-    });
+    const epoch = this._sessionEpoch;
+    await this._authProvider.getAccessToken().catch(() => null);
+    if (epoch !== this._sessionEpoch) return;
+    const linked = this._authProvider.createLinkedClient(baseUrl);
+    try {
+      const picker = await fetchPickerCatalogue(baseUrl, linked.fetchOptional);
+      if (epoch !== this._sessionEpoch) return;
+      this._view?.webview.postMessage({
+        type: 'models',
+        groups: picker.groups,
+        defaultLabel: picker.defaultLabel,
+      });
+    } finally {
+      linked.dispose();
+    }
   }
 
   private async handleSignOut(): Promise<void> {
@@ -181,9 +206,11 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     // Remove the last assistant message if it was an error (it won't be in _messages
     // because synthetic errors are not pushed, but clear any leftover state)
     this._isProcessing = true;
-    const { baseUrl, accessToken, model, clientContext } = this._lastRequestParams;
+    const { baseUrl, model, clientContext } = this._lastRequestParams;
+    const epoch = this._sessionEpoch;
     await this._settled;
-    await this.processConversation(baseUrl, accessToken, model, clientContext);
+    if (epoch !== this._sessionEpoch) return;
+    await this.processConversation(baseUrl, model, clientContext);
   }
 
   public resolveWebviewView(
@@ -658,8 +685,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       this._currentMode = mode;
     }
 
+    const epoch = this._sessionEpoch;
     const config = vscode.workspace.getConfiguration('codea');
     const accessToken = await this._authProvider.getAccessToken();
+    if (epoch !== this._sessionEpoch) return;
     const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
     /**
      * Resolved once here, then carried through the whole conversation —
@@ -671,7 +700,14 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     // The picker's choice, else the `codea.model` setting; empty in both means
     // `model` is omitted and the server uses its default model.
     const requestedModel = selectedModel || config.get<string>('model') || '';
-    const model = await resolveModelId(baseUrl, requestedModel, accessToken ?? undefined);
+    const linked = this._authProvider.createLinkedClient(baseUrl);
+    let model: string | undefined;
+    try {
+      model = await resolveModelId(baseUrl, requestedModel, linked.fetch);
+    } finally {
+      linked.dispose();
+    }
+    if (epoch !== this._sessionEpoch) return;
 
     if (!accessToken) {
       vscode.window.showErrorMessage('Please sign in to use Codea', 'Sign In').then((selection) => {
@@ -683,6 +719,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     const context = await this._toolExecutor.getContext();
+    if (epoch !== this._sessionEpoch) return;
 
     // Build client-specific context to send to backend
     const clientContext = this.buildClientContext(this._currentMode, context);
@@ -723,8 +760,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     });
 
     this._isProcessing = true;
-    this._lastRequestParams = { baseUrl, accessToken, model, clientContext };
-    await this.processConversation(baseUrl, accessToken, model, clientContext);
+    this._lastRequestParams = { baseUrl, model, clientContext };
+    await this.processConversation(baseUrl, model, clientContext);
   }
 
   private buildClientContext(mode: string, context: EditorContext): string {
@@ -784,14 +821,13 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
   /**
    * One user message, to completion: stream, run tools, stream again.
    *
-   * `accessToken` is the token the caller read; a 401 is retried once on a
-   * freshly minted one and the fresh token is used for the rest of the turn.
+   * The linked transport owns refresh and account fencing. No bearer is
+   * captured in retry or tool-continuation state.
    * The final round is sent with `tool_choice: 'none'` so a model that would
    * keep calling tools is made to answer instead of being cut off silently.
    */
   private async processConversation(
     baseUrl: string,
-    accessToken: string,
     model: string | undefined,
     clientContext: string,
   ): Promise<void> {
@@ -808,7 +844,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     const live = (): boolean =>
       this._currentTurn === turn && this._isProcessing && !controller.signal.aborted;
 
-    let currentToken = accessToken;
+    const linked = this._authProvider.createLinkedClient(baseUrl);
     let retriedSynthetic = false;
 
     /**
@@ -827,30 +863,16 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       max_tokens: 4096,
     });
 
-    const streamOnce = async (finalRound: boolean): Promise<StreamOutcome> => {
-      const attempt = (token: string) =>
-        this.consume(
-          streamAliaChat({
-            baseUrl,
-            accessToken: token,
-            body: request(finalRound),
-            signal: controller.signal,
-          }),
-          live,
-        );
-      try {
-        return await attempt(currentToken);
-      } catch (error: unknown) {
-        if (!(error instanceof AliaChatError) || error.status !== 401) throw error;
-        // On 401, re-mint once and retry. `getAccessToken` refreshes a stale
-        // token itself; this is for a token the server rejected regardless.
-        const refreshed = await this._authProvider.refreshToken();
-        const fresh = refreshed ? await this._authProvider.getAccessToken() : null;
-        if (!fresh || fresh === currentToken) throw error;
-        currentToken = fresh;
-        return await attempt(currentToken);
-      }
-    };
+    const streamOnce = (finalRound: boolean): Promise<StreamOutcome> =>
+      this.consume(
+        streamAliaChat({
+          baseUrl,
+          fetch: linked.fetch,
+          body: request(finalRound),
+          signal: controller.signal,
+        }),
+        live,
+      );
 
     try {
       for (let round = 0; live(); round++) {
@@ -900,6 +922,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
         for (const [index, toolCall] of outcome.toolCalls.entries()) {
           if (!live()) {
+            if (this._currentTurn !== turn) return;
             // Stopped between tools: the ones not run are answered as cancelled, so the saved
             // history never holds a request without its result.
             for (const skipped of outcome.toolCalls.slice(index)) {
@@ -911,13 +934,13 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
             }
             break;
           }
-          await this.runToolCall(toolCall);
+          await this.runToolCall(toolCall, () => this._currentTurn === turn);
         }
       }
 
       this._view?.webview.postMessage({ type: 'endAssistantMessage' });
     } catch (error: unknown) {
-      if (errorName(error) !== 'AbortError') {
+      if (live() && errorName(error) !== 'AbortError') {
         const errorMsg = this.formatErrorMessage(error);
         this._view?.webview.postMessage({
           type: 'error',
@@ -933,6 +956,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         if (this._abortController === controller) this._abortController = undefined;
         this.saveCurrentConversation();
       }
+      linked.dispose();
       settle();
     }
   }
@@ -978,7 +1002,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
   }
 
   /** Execute one tool call in this window and append its result to the history. */
-  private async runToolCall(toolCall: StreamedToolCall): Promise<void> {
+  private async runToolCall(toolCall: StreamedToolCall, live: () => boolean): Promise<void> {
+    if (!live()) return;
     const toolName = toolCall.function.name;
 
     let args: Record<string, unknown> = {};
@@ -1012,6 +1037,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
     try {
       const result = await this._toolExecutor.execute(toolName, args);
+      if (!live()) return;
 
       this._messages.push({
         role: 'tool',
@@ -1026,6 +1052,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         result: result.result.slice(0, 500) + (result.result.length > 500 ? '...' : ''),
       });
     } catch (error: unknown) {
+      if (!live()) return;
       const errorMsg = errorMessage(error);
       this._messages.push({
         role: 'tool',

@@ -99,7 +99,7 @@ export class AliaChatParticipant {
       const messages = this.buildMessages(request, context);
 
       // Stream the response
-      await this.streamResponse(messages, stream, token, accessToken);
+      await this.streamResponse(messages, stream, token);
 
       return { metadata: { success: true } };
     } catch (error) {
@@ -183,7 +183,6 @@ export class AliaChatParticipant {
     messages: OpenAI.Chat.ChatCompletionMessageParam[],
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
-    accessToken: string,
   ): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
     const maxTokens = config.get('maxTokens', 4096);
@@ -196,8 +195,8 @@ export class AliaChatParticipant {
      * evaluates ONCE, when the request is built. In the normal case the token
      * is not cancelled yet, so the signal was `undefined` and the stream could
      * never be aborted: cancelling in the chat view stopped the UI and left the
-     * turn running — and billed — to completion. Created outside `makeRequest`
-     * so the 401 retry below shares it.
+     * turn running — and billed — to completion. The linked transport shares
+     * this cancellation with its request-time refresh.
      */
     const controller = new AbortController();
     if (token.isCancellationRequested) controller.abort();
@@ -205,11 +204,12 @@ export class AliaChatParticipant {
       controller.abort();
     });
 
-    const model = await resolveModelId(this.apiBaseUrl, this.model, accessToken);
-    const attempt = (bearerToken: string) =>
+    const linked = this.authProvider.createLinkedClient(this.apiBaseUrl);
+    const stopContext = this.authProvider.onSessionContextChange(() => controller.abort());
+    const attempt = (model: string | undefined) =>
       streamAliaChat({
         baseUrl: this.apiBaseUrl,
-        accessToken: bearerToken,
+        fetch: linked.fetch,
         body: { model, messages, max_tokens: maxTokens, temperature },
         signal: controller.signal,
       });
@@ -220,10 +220,10 @@ export class AliaChatParticipant {
      * not Codea's answer, and a `ChatResult` that says success over it would
      * be remembered by VS Code as one.
      */
-    const render = async (bearerToken: string): Promise<{ retryable: boolean } | null> => {
+    const render = async (model: string | undefined): Promise<{ retryable: boolean } | null> => {
       let synthetic: { retryable: boolean } | null = null;
-      for await (const event of attempt(bearerToken)) {
-        if (token.isCancellationRequested) break;
+      for await (const event of attempt(model)) {
+        if (controller.signal.aborted) break;
         switch (event.type) {
           case 'content':
             stream.markdown(event.text);
@@ -249,18 +249,9 @@ export class AliaChatParticipant {
     };
 
     try {
-      let synthetic: { retryable: boolean } | null;
-      try {
-        synthetic = await render(accessToken);
-      } catch (error: unknown) {
-        // On 401, re-mint once and retry. `getAccessToken` refreshes a stale
-        // token itself; this is for a token the server rejected regardless.
-        if (!(error instanceof AliaChatError) || error.status !== 401) throw error;
-        const refreshed = await this.authProvider.refreshToken();
-        const newToken = refreshed ? await this.authProvider.getAccessToken() : null;
-        if (!newToken || newToken === accessToken) throw error;
-        synthetic = await render(newToken);
-      }
+      const model = await resolveModelId(this.apiBaseUrl, this.model, linked.fetch);
+      if (controller.signal.aborted) return;
+      const synthetic = await render(model);
 
       if (synthetic !== null) {
         throw new AliaChatError(
@@ -279,6 +270,8 @@ export class AliaChatParticipant {
     } finally {
       // The listener is on VS Code's token, which outlives this request.
       cancellation.dispose();
+      stopContext();
+      linked.dispose();
     }
   }
 }

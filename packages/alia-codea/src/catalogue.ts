@@ -214,29 +214,11 @@ export function pickerCatalogue(catalogue: Catalogue): PickerCatalogue {
   return { groups, defaultLabel };
 }
 
-const cache = new Map<string, Promise<Catalogue>>();
-
-/**
- * The catalogue for one API base URL, fetched at most once per URL.
- *
- * A rejected promise is evicted: an extension host lives for days, so caching a
- * failure would outlast the outage that caused it by a very long way.
- */
-function fetchCatalogue(apiBaseUrl: string, accessToken?: string): Promise<Catalogue> {
-  const cached = cache.get(apiBaseUrl);
-  if (cached !== undefined) return cached;
-
-  const request = (async () => {
-    const response = await fetch(`${apiBaseUrl}/catalogue`, {
-      headers: accessToken === undefined ? {} : { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!response.ok) throw new Error(`The model catalogue request failed (${response.status}).`);
-    return parseCatalogue(await response.json());
-  })();
-
-  cache.set(apiBaseUrl, request);
-  request.catch(() => cache.delete(apiBaseUrl));
-  return request;
+/** Read through the caller's account-fenced transport; never cache across accounts. */
+async function fetchCatalogue(apiBaseUrl: string, doFetch: typeof fetch): Promise<Catalogue> {
+  const response = await doFetch(`${apiBaseUrl}/catalogue`);
+  if (!response.ok) throw new Error(`The model catalogue request failed (${response.status}).`);
+  return parseCatalogue(await response.json());
 }
 
 /**
@@ -245,10 +227,10 @@ function fetchCatalogue(apiBaseUrl: string, accessToken?: string): Promise<Catal
  */
 export async function fetchPickerCatalogue(
   apiBaseUrl: string,
-  accessToken?: string,
+  doFetch: typeof fetch,
 ): Promise<PickerCatalogue> {
   try {
-    return pickerCatalogue(await fetchCatalogue(apiBaseUrl, accessToken));
+    return pickerCatalogue(await fetchCatalogue(apiBaseUrl, doFetch));
   } catch {
     return { groups: [], defaultLabel: 'Default' };
   }
@@ -261,11 +243,11 @@ export async function fetchPickerCatalogue(
 export async function resolveModelId(
   apiBaseUrl: string,
   configured: string | null | undefined,
-  accessToken?: string,
+  doFetch: typeof fetch,
 ): Promise<string | undefined> {
   if ((configured?.trim() ?? '') === '') return undefined;
   try {
-    return resolveSelection(configured, await fetchCatalogue(apiBaseUrl, accessToken));
+    return resolveSelection(configured, await fetchCatalogue(apiBaseUrl, doFetch));
   } catch {
     return resolveSelection(configured, undefined);
   }

@@ -10,6 +10,7 @@ const world = vi.hoisted(() => ({
   streams: [] as (() => AsyncGenerator<unknown>)[],
   requests: [] as { messages: unknown[] }[],
   saved: [] as { messages: { role: string; tool_call_id?: string; tool_calls?: unknown }[] }[][],
+  listeners: new Set<() => void>(),
   toolStarted: null as (() => void) | null,
   toolRelease: null as (() => void) | null,
 }));
@@ -65,6 +66,7 @@ function makeProvider() {
   posted = [];
   const state = new Map<string, unknown>();
   const context = {
+    subscriptions: [],
     globalState: {
       get: (key: string, fallback: unknown) => state.get(key) ?? fallback,
       update: (key: string, value: unknown) => {
@@ -76,6 +78,15 @@ function makeProvider() {
   const auth = {
     onDidChangeSessions: () => ({ dispose: () => undefined }),
     getAccessToken: async () => 'token',
+    createLinkedClient: () => ({
+      fetch: globalThis.fetch,
+      fetchOptional: globalThis.fetch,
+      dispose() {},
+    }),
+    onSessionContextChange: (listener: () => void) => {
+      world.listeners.add(listener);
+      return () => world.listeners.delete(listener);
+    },
     refreshToken: async () => false,
     getOxyServices: () => ({ users: { me: async () => ({ username: 'u' }) } }),
   };
@@ -103,6 +114,7 @@ const send = (message: string) => handler({ type: 'sendMessage', message, mode: 
 const lastSaved = () => world.saved.at(-1)?.[0].messages ?? [];
 
 beforeEach(() => {
+  world.listeners.clear();
   world.streams.length = 0;
   world.requests.length = 0;
   world.saved.length = 0;
@@ -184,5 +196,30 @@ describe('the server’s stand-in', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('account context', () => {
+  it('never forwards a late tool result into the replacement account conversation', async () => {
+    makeProvider();
+    let started!: () => void;
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    world.toolStarted = started;
+    world.streams.push(() => script(toolCalls('old-tool')));
+    const first = send('private old message');
+    await running;
+    for (const listener of world.listeners) listener();
+    world.streams.push(() => script({ type: 'content', text: 'new account response' }));
+    const second = send('new account message');
+    world.toolRelease?.();
+    await first;
+    await second;
+    expect(world.requests).toHaveLength(2);
+    const messages = world.requests[1].messages as { role: string; content: string }[];
+    expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
+    expect(messages.at(-1)?.content).toContain('new account message');
+    expect(posted.filter((m) => m.type === 'toolResult')).toHaveLength(0);
   });
 });

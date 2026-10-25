@@ -36,11 +36,14 @@ import type * as vscode from 'vscode';
  * call; if the extension grows its own rotation again, this stops being called
  * and the first test below fails.
  */
-const { refreshAccessTokenMock, installHandlerMock, schedulerMock } = vi.hoisted(() => ({
-  refreshAccessTokenMock: vi.fn(),
-  installHandlerMock: vi.fn(),
-  schedulerMock: vi.fn(),
-}));
+const { refreshAccessTokenMock, installHandlerMock, schedulerMock, coldBootMock } = vi.hoisted(
+  () => ({
+    refreshAccessTokenMock: vi.fn(),
+    installHandlerMock: vi.fn(),
+    schedulerMock: vi.fn(),
+    coldBootMock: vi.fn(),
+  }),
+);
 
 vi.mock('@oxy.so/core', () => {
   class OxyServices {
@@ -60,9 +63,9 @@ vi.mock('@oxy.so/core', () => {
         throw new Error('network disabled in tests');
       },
     };
+    dispose() {}
     constructor() {
-      const owner = this;
-      Object.defineProperty(this.session, 'accessToken', { get: () => owner.access });
+      Object.defineProperty(this.session, 'accessToken', { get: () => this.access });
     }
   }
   return { OxyServices };
@@ -95,6 +98,7 @@ vi.mock('@oxy.so/core/session', () => {
 
   return {
     createNativeAuthStateStore,
+    runSessionColdBoot: coldBootMock,
     installAuthRefreshHandler: installHandlerMock.mockReturnValue(() => undefined),
     startTokenRefreshScheduler: schedulerMock.mockReturnValue({ dispose: () => undefined }),
   };
@@ -129,6 +133,7 @@ beforeEach(() => {
   refreshAccessTokenMock.mockReset();
   installHandlerMock.mockClear();
   schedulerMock.mockClear();
+  coldBootMock.mockReset().mockResolvedValue({ kind: 'unauthenticated' });
 });
 
 afterEach(() => {
@@ -197,7 +202,24 @@ describe("the session is core's, not the extension's", () => {
     provider.dispose();
   });
 
-  it('re-mints on cold start when the planted token has expired', async () => {
+  it('sign-out clears the device credential as well as display metadata', async () => {
+    const { context, secrets } = makeContext({
+      accessToken: 'access',
+      expiresAt: futureExpiry(),
+      userId: 'qa',
+      username: 'QA',
+    });
+    secrets.set('oxy.auth.v1', JSON.stringify({ deviceId: 'device', deviceSecret: 'test-only' }));
+    const provider = new AliaAuthenticationProvider(context);
+    await provider.getSessions();
+    await provider.removeSession('alia-session-qa');
+    expect(secrets.has('oxy.auth.v1')).toBe(false);
+    expect(secrets.has(SESSION_KEY)).toBe(false);
+    expect(provider.getOxyServices().session.accessToken).toBeNull();
+    provider.dispose();
+  });
+
+  it('delegates cold boot to the shared device session authority', async () => {
     const { context } = makeContext({
       accessToken: 'stale',
       expiresAt: pastExpiry(),
@@ -208,7 +230,15 @@ describe("the session is core's, not the extension's", () => {
 
     const provider = new AliaAuthenticationProvider(context);
     await provider.getSessions();
-    expect(refreshAccessTokenMock).toHaveBeenCalledWith('preflight');
+    expect(coldBootMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        oxy: provider.getOxyServices(),
+        platform: { isWeb: false, isNative: false },
+        overallDeadlineMs: 15000,
+      }),
+    );
+    expect(refreshAccessTokenMock).not.toHaveBeenCalled();
+    expect(await provider.getSessions()).toEqual([]);
 
     provider.dispose();
   });
@@ -322,7 +352,8 @@ describe('the duplication does not come back', () => {
     visit(ast);
 
     // Positive control: the interface was found and read.
-    expect(members).toContain('accessToken');
+    expect(members).toContain('userId');
+    expect(members).not.toContain('accessToken');
     expect(members).not.toContain('refreshToken');
 
     // And the credential the model DOES use is the one being written.

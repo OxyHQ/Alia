@@ -1,13 +1,12 @@
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
-import { OxyServices } from '@oxy.so/core';
+import { generateOAuthState, generatePkcePair, OxyServices } from '@oxy.so/core';
 import {
   createNativeAuthStateStore,
   installAuthRefreshHandler,
+  runSessionColdBoot,
   startTokenRefreshScheduler,
   type AuthStateStore,
 } from '@oxy.so/core/session';
-import { jwtDecode } from 'jwt-decode';
 import { errorMessage } from './errors';
 
 const AUTH_URL = 'https://auth.oxy.so';
@@ -15,12 +14,8 @@ const OXY_PLATFORM_URL = 'https://api.oxy.so';
 const OXY_CLIENT_ID = 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 const CALLBACK_PATH = '/auth-callback';
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
-// Refresh a planted access token this long before its JWT `exp` so an in-flight
-// request never races the boundary.
-const REFRESH_BUFFER_MS = 60 * 1000;
-// SecretStorage slot holding the persisted device session (access + rotating
-// refresh token). The device-first SDK no longer ships a headless AuthManager,
-// so the extension owns its own persistence and refresh loop.
+// VS Code display/session metadata. Core's AuthStateStore owns the device
+// credential, and its handler/scheduler own refresh; no refresh token exists.
 const SESSION_STORAGE_KEY = 'alia.session.v1';
 
 /**
@@ -33,8 +28,6 @@ const SESSION_STORAGE_KEY = 'alia.session.v1';
  * session list needs and core does not model — the display name.
  */
 interface PersistedSession {
-  accessToken: string;
-  expiresAt: string;
   userId: string;
   username: string;
 }
@@ -56,6 +49,7 @@ export class AliaAuthenticationProvider
   private readonly _ready: Promise<void>;
 
   private _sessions: vscode.AuthenticationSession[] = [];
+  private _disposed = false;
   private _pendingAuthState: string | null = null;
   private _pendingAuthResolve: ((session: vscode.AuthenticationSession) => void) | null = null;
   private _pendingAuthReject: ((error: Error) => void) | null = null;
@@ -174,32 +168,10 @@ export class AliaAuthenticationProvider
       }
       this._oxyServices.session.setAccessToken(token);
 
-      let userId = '';
-      let username = '';
-      let resolvedSessionId = result.sessionId;
+      const userId = result.user.id;
+      const resolvedSessionId = result.sessionId;
       const expiresAt = result.expiresAt;
-
-      try {
-        const payload = jwtDecode<{
-          userId?: string;
-          sub?: string;
-          id?: string;
-          username?: string;
-          sessionId?: string;
-        }>(token);
-        userId = payload.userId || payload.sub || payload.id || userId;
-        username = payload.username || username;
-        if (payload.sessionId) {
-          resolvedSessionId = payload.sessionId;
-        }
-      } catch {
-        /* token is not a decodable JWT */
-      }
-
-      const displayName = (await this.resolveDisplayName()) || username || 'Oxy User';
-      if (!userId) {
-        userId = `user-${Date.now()}`;
-      }
+      const displayName = (await this.resolveDisplayName()) || result.user.username || 'Oxy User';
 
       /**
        * Two stores, and they hold different things on purpose.
@@ -228,8 +200,6 @@ export class AliaAuthenticationProvider
       this.installRefresh();
 
       await this.persistSession({
-        accessToken: token,
-        expiresAt,
         userId,
         username: displayName,
       });
@@ -251,9 +221,10 @@ export class AliaAuthenticationProvider
   // --- Browser sign-in ---
 
   public async signInWithBrowser(): Promise<vscode.AuthenticationSession> {
-    const state = crypto.randomBytes(32).toString('base64url');
-    const codeVerifier = crypto.randomBytes(32).toString('base64url');
-    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+    const [state, { codeVerifier, codeChallenge }] = await Promise.all([
+      generateOAuthState(),
+      generatePkcePair(),
+    ]);
     this._pendingAuthState = state;
     this._pendingCodeVerifier = codeVerifier;
 
@@ -269,7 +240,6 @@ export class AliaAuthenticationProvider
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
-    authUrl.searchParams.set('scope', 'openid profile email');
 
     await vscode.env.openExternal(vscode.Uri.parse(authUrl.toString()));
 
@@ -302,44 +272,26 @@ export class AliaAuthenticationProvider
   }
 
   private async initialize(): Promise<void> {
-    // The handler goes on FIRST: a token planted below can expire while the
-    // window is open, and the reactive 401 lane must already be installed when
-    // it does.
     this.installRefresh();
-
-    const persisted = await this.readPersistedSession();
-    if (!persisted) {
-      return;
-    }
-
-    this._oxyServices.session.setAccessToken(persisted.accessToken);
-
-    if (!this.isPlantedTokenFresh(persisted.expiresAt)) {
-      // Expired on cold start — re-mint from the device secret before surfacing
-      // a session. `refreshToken` now delegates to core's mint lane, so a
-      // failure here means the device credential is gone or revoked, not that a
-      // rotation raced.
-      const refreshed = await this.refreshToken();
-      if (!refreshed) {
-        await this.clearPersistedSession();
-        return;
-      }
-      return;
-    }
-
-    // Restore synchronously from storage — never block cold start on a network
-    // round-trip (offline / slow API would otherwise stall extension startup).
-    // `username` is the display name resolved at the last sign-in; refresh it
-    // lazily in the background and re-emit the session if it has changed.
+    const outcome = await runSessionColdBoot({
+      oxy: this._oxyServices,
+      store: this._authStore,
+      platform: { isWeb: false, isNative: false },
+      overallDeadlineMs: 15_000,
+    });
+    if (this._disposed || outcome.kind !== 'session') return;
+    const { sessionId, userId, accessToken } = outcome.session;
+    const display = await this.readPersistedSession();
+    if (this._disposed) return;
     this._sessions = [
       this.buildSession(
-        `alia-session-${persisted.userId}`,
-        persisted.accessToken,
-        persisted.userId,
-        persisted.username || 'Oxy User',
+        sessionId,
+        accessToken,
+        userId,
+        display?.userId === userId ? display.username : 'Oxy User',
       ),
     ];
-    void this.refreshSessionDisplayName(persisted.userId);
+    void this.refreshSessionDisplayName(userId);
   }
 
   private async refreshSessionDisplayName(userId: string): Promise<void> {
@@ -368,38 +320,33 @@ export class AliaAuthenticationProvider
 
   public async getAccessToken(): Promise<string | null> {
     await this._ready;
-
-    const persisted = await this.readPersistedSession();
-    if (persisted) {
-      if (this.isPlantedTokenFresh(persisted.expiresAt)) {
-        return this._oxyServices.session.accessToken;
-      }
-      if (await this.refreshToken()) {
-        return this._oxyServices.session.accessToken;
-      }
+    if (this._disposed) return null;
+    const client = this.createLinkedClient(OXY_PLATFORM_URL);
+    try {
+      return await client.getAccessToken(OXY_PLATFORM_URL);
+    } finally {
+      client.dispose();
     }
-
-    return null;
   }
 
-  /**
-   * Re-mint the access token.
-   *
-   * This used to be a hand-rolled rotation: read a persisted `refreshToken`,
-   * call `OxyServices.refreshWithToken`, plant and re-persist the pair, all
-   * behind a single-flight promise this class maintained itself. Two things
-   * were wrong with it. `refreshWithToken` does not exist in `@oxy.so/core@19`
-   * — it was the pre-device-first API, and calling it was the single type error
-   * that kept this package out of CI. And the single-flight guard duplicated
-   * `HttpService`, which already coalesces the timer, the request-time
-   * preflight and a 401 into one network attempt with its own cooldown.
-   *
-   * So this delegates. `refreshAccessToken` runs the handler installed by
-   * {@link installRefresh}, which is core's device-secret mint lane.
-   */
+  public createLinkedClient(baseURL: string) {
+    return this._oxyServices.createLinkedClient({ baseURL });
+  }
+
+  /** Same-account refresh stays live; account/sign-out changes cancel old work. */
+  public onSessionContextChange(listener: () => void): () => void {
+    let epoch = this._oxyServices.http.getSessionEpoch();
+    return this._oxyServices.http.addTokenChangeListener(() => {
+      const next = this._oxyServices.http.getSessionEpoch();
+      if (next === epoch) return;
+      epoch = next;
+      listener();
+    });
+  }
+
+  /** Explicit refresh command; request-time refresh belongs to the linked transport. */
   public async refreshToken(): Promise<boolean> {
-    const token = await this._oxyServices.http.refreshAccessToken('preflight');
-    return token !== null;
+    return (await this._oxyServices.http.refreshAccessToken('preflight')) !== null;
   }
 
   public getOxyServices(): OxyServices {
@@ -410,7 +357,8 @@ export class AliaAuthenticationProvider
 
   async getSessions(): Promise<vscode.AuthenticationSession[]> {
     await this._ready;
-    return this._sessions;
+    const token = this._oxyServices.session.accessToken;
+    return token ? this._sessions.map((session) => ({ ...session, accessToken: token })) : [];
   }
 
   async createSession(): Promise<vscode.AuthenticationSession> {
@@ -418,8 +366,12 @@ export class AliaAuthenticationProvider
   }
 
   async removeSession(sessionId: string): Promise<void> {
-    await this.clearPersistedSession();
+    this._disposeRefresh?.();
+    this._disposeRefresh = null;
+    this._scheduler?.dispose();
+    this._scheduler = null;
     this._oxyServices.session.clear();
+    await Promise.all([this.clearPersistedSession(), this._authStore.clear()]);
 
     const removed = this._sessions.filter((s) => s.id === sessionId);
     this._sessions = this._sessions.filter((s) => s.id !== sessionId);
@@ -430,9 +382,13 @@ export class AliaAuthenticationProvider
   }
 
   dispose(): void {
+    this._disposed = true;
     this.clearPendingAuth();
     this._disposable.dispose();
     this._sessionChangeEmitter.dispose();
+    this._disposeRefresh?.();
+    this._scheduler?.dispose();
+    this._oxyServices.dispose();
   }
 
   // --- Private helpers ---
@@ -446,22 +402,6 @@ export class AliaAuthenticationProvider
     return { id, accessToken: token, account: { id: userId, label }, scopes: [] };
   }
 
-  private isPlantedTokenFresh(fallbackExpiresAt: string): boolean {
-    if (!this._oxyServices.session.accessToken) {
-      return false;
-    }
-
-    // Prefer the JWT `exp` claim; fall back to the persisted ISO expiry for
-    // opaque tokens that carry no decodable expiry.
-    const expSeconds = this._oxyServices.session.accessTokenExpiry;
-    const expiresAtMs = expSeconds != null ? expSeconds * 1000 : Date.parse(fallbackExpiresAt);
-    if (Number.isNaN(expiresAtMs)) {
-      return true;
-    }
-
-    return expiresAtMs > Date.now() + REFRESH_BUFFER_MS;
-  }
-
   private async persistSession(session: PersistedSession): Promise<void> {
     await this._secrets.store(SESSION_STORAGE_KEY, JSON.stringify(session));
   }
@@ -473,14 +413,18 @@ export class AliaAuthenticationProvider
     }
     try {
       // `JSON.parse` yields null/primitives for a corrupt or literal `'null'`
-      // slot — reading `.accessToken` off those would throw. Reject anything
+      // slot — reading fields off those would throw. Reject anything
       // that is not a populated object.
       const parsed = JSON.parse(raw) as unknown;
       if (typeof parsed !== 'object' || parsed === null) {
         return null;
       }
       const session = parsed as PersistedSession;
-      if (!session.accessToken || !session.userId) {
+      if (
+        typeof session.userId !== 'string' ||
+        !session.userId ||
+        typeof session.username !== 'string'
+      ) {
         return null;
       }
       return session;

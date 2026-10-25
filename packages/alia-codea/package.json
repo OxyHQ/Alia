@@ -245,8 +245,8 @@
   },
   "dependencies": {
     "@oxy.so/core": "7.1.0",
-    "jwt-decode": "^4.0.0",
-    "openai": "^6.46.0"
+    "openai": "^6.46.0",
+    "pathe": "2.0.3"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

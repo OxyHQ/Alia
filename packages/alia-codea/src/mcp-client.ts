@@ -95,19 +95,32 @@ export class McpLocalClient implements vscode.Disposable {
   private stopped = false;
   /** Consecutive failed connections: the exponent of the reconnect delay. */
   private reconnectAttempts = 0;
+  private transport?: ReturnType<AliaAuthenticationProvider['createLinkedClient']>;
+  private readonly controller = new AbortController();
+  private disposeContext?: () => void;
+  private running = false;
 
   constructor(private readonly authProvider: AliaAuthenticationProvider) {}
 
   async start(): Promise<void> {
-    const token = await this.getToken();
-    if (!token) return;
-
+    if (this.running || this.stopped) return;
+    this.running = true;
+    const token = await this.authProvider.getAccessToken();
+    if (this.stopped) return;
+    if (!token) {
+      this.running = false;
+      return;
+    }
+    this.transport = this.authProvider.createLinkedClient(this.getBaseUrl());
+    this.disposeContext = this.authProvider.onSessionContextChange(() => this.dispose());
     try {
-      const configs = await this.fetchLocalServers(token);
+      const configs = await this.fetchLocalServers();
+      if (this.stopped) return;
       if (!configs.length) return;
 
       for (const config of configs) {
         await this.spawnServer(config);
+        if (this.stopped) return;
       }
 
       void this.connectRelay();
@@ -116,19 +129,15 @@ export class McpLocalClient implements vscode.Disposable {
     }
   }
 
-  private async getToken(): Promise<string | null> {
-    return this.authProvider.getAccessToken();
-  }
-
   private getBaseUrl(): string {
     const config = vscode.workspace.getConfiguration('codea');
     return config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
   }
 
-  private async fetchLocalServers(token: string): Promise<McpServerConfig[]> {
-    const response = await fetch(`${this.getBaseUrl()}/mcp/installed`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10_000),
+  private async fetchLocalServers(): Promise<McpServerConfig[]> {
+    if (!this.transport) return [];
+    const response = await this.transport.fetch(`${this.getBaseUrl()}/mcp/installed`, {
+      signal: AbortSignal.any([this.controller.signal, AbortSignal.timeout(10_000)]),
     });
     if (!response.ok) return [];
 
@@ -299,27 +308,23 @@ export class McpLocalClient implements vscode.Disposable {
   }
 
   private async connectRelay(): Promise<void> {
-    if (this.stopped) return;
-    // Read now, not at start-up: the token is rotated, and a reconnect that sent the first one
-    // would be refused once it expired.
-    const token = await this.getToken();
-    if (this.stopped) return;
-    if (!token) {
-      log.info('[MCP] relay not connected: signed out');
-      return;
-    }
-
+    if (this.stopped || !this.transport) return;
     const wsUrl = this.getBaseUrl().replace(/^http/, 'ws') + '/ws/mcp';
 
     try {
-      this.ws = new WebSocketImpl(wsUrl);
+      const token = await this.transport.getAccessToken(wsUrl, { signal: this.controller.signal });
+      if (this.stopped || !token) return;
+      const socket = new WebSocketImpl(wsUrl);
+      this.ws = socket;
 
-      this.ws.onopen = () => {
+      socket.onopen = () => {
+        if (this.stopped || this.ws !== socket) return;
         log.info('[MCP] relay connected');
         this.sendMessage({ type: 'auth', token });
       };
 
-      this.ws.onmessage = (event: MessageEvent) => {
+      socket.onmessage = (event: MessageEvent) => {
+        if (this.stopped || this.ws !== socket) return;
         try {
           const msg = JSON.parse(event.data as string) as RelayMessage;
           this.handleRelayMessage(msg);
@@ -328,17 +333,18 @@ export class McpLocalClient implements vscode.Disposable {
         }
       };
 
-      this.ws.onclose = () => {
-        if (this.stopped) return;
+      socket.onclose = () => {
+        if (this.stopped || this.ws !== socket) return;
         const delay = this.reconnectDelay();
         log.info(`[MCP] relay disconnected, reconnecting in ${delay} ms`);
         this.reconnectTimer = setTimeout(() => void this.connectRelay(), delay);
       };
 
-      this.ws.onerror = () => {
+      socket.onerror = () => {
         // onclose will handle reconnection
       };
     } catch (err) {
+      if (this.stopped) return;
       log.error('[MCP] Failed to connect relay:', err);
       this.reconnectTimer = setTimeout(() => void this.connectRelay(), this.reconnectDelay());
     }
@@ -370,6 +376,7 @@ export class McpLocalClient implements vscode.Disposable {
   }
 
   private async handleToolCall(msg: RelayMessage): Promise<void> {
+    const socket = this.ws;
     const { callId, serverId, toolName, args } = msg;
     const server = serverId ? this.servers.get(serverId) : undefined;
 
@@ -395,9 +402,11 @@ export class McpLocalClient implements vscode.Disposable {
         text = JSON.stringify(result);
       }
 
-      this.sendMessage({ type: 'tool-result', callId, result: text });
+      if (this.ws === socket && !this.stopped)
+        this.sendMessage({ type: 'tool-result', callId, result: text });
     } catch (err: unknown) {
-      this.sendMessage({ type: 'tool-error', callId, error: errorMessage(err) });
+      if (this.ws === socket && !this.stopped)
+        this.sendMessage({ type: 'tool-error', callId, error: errorMessage(err) });
     }
   }
 
@@ -409,6 +418,11 @@ export class McpLocalClient implements vscode.Disposable {
 
   dispose(): void {
     this.stopped = true;
+    this.controller.abort();
+    this.disposeContext?.();
+    this.disposeContext = undefined;
+    this.transport?.dispose();
+    this.transport = undefined;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 
     for (const server of this.servers.values()) {
@@ -420,7 +434,8 @@ export class McpLocalClient implements vscode.Disposable {
     }
     this.servers.clear();
 
-    this.ws?.close();
+    const socket = this.ws;
     this.ws = null;
+    socket?.close();
   }
 }
