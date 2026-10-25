@@ -1,9 +1,10 @@
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   concatenateAudioSegments,
   measureAudioDurationMs,
@@ -38,7 +39,9 @@ let workspace: string;
 
 /** A pure sine of a known length at a chosen bitrate. */
 async function synthesize(seconds: number, bitrate: string): Promise<Buffer> {
-  const path = join(workspace, `tone-${seconds}-${bitrate}.mp3`);
+  // Equal-duration concurrent calls must not let two ffmpeg processes truncate
+  // the same output. The cleanup fixture deliberately synthesizes equal parts.
+  const path = join(workspace, `tone-${seconds}-${bitrate}-${randomUUID()}.mp3`);
   await run(ffmpeg, [
     '-y',
     '-f',
@@ -237,6 +240,6 @@ describe('cleaning up after itself', () => {
 });
 
 // The synthesised fixtures are this file's own; nothing else reads them.
-process.on('exit', () => {
-  if (workspace !== undefined) void rm(workspace, { recursive: true, force: true });
+afterAll(async () => {
+  if (workspace !== undefined) await rm(workspace, { recursive: true, force: true });
 });
