@@ -443,33 +443,51 @@ export class ToolExecutor {
       if (!this.stagehand) {
         logger.debug('Initializing Stagehand in headless mode...');
         const baseUrl = store.get('apiBaseUrl') as string;
-        const modelId = await resolveRequiredModelId(baseUrl, store.get('model') as string | undefined);
-        if (modelId === null) throw new Error('Browser automation is unavailable: the model catalogue could not be read.');
+        if (this.stagehandTransport)
+          throw new Error('Browser initialization is already in progress');
         const transport = linkedAliaClient(baseUrl);
         this.stagehandTransport = transport;
         this.disposeStagehandContext = onSessionContextChange(() => {
-          transport.dispose();
-          void this.closeBrowser().catch((error) => logger.warn('Browser closed after account change', error));
+          if (this.stagehandTransport === transport) {
+            void this.closeBrowser().catch((error) =>
+              logger.warn('Browser closed after account change', error),
+            );
+          }
         });
-        const stagehand = new Stagehand({
-          env: 'LOCAL',
-          llmClient: stagehandClientForTransport(transport, baseUrl, modelId),
-          verbose: 1,
-          experimental: true, // Required for agent callbacks
-          localBrowserLaunchOptions: {
-            headless: true, // Run browser invisibly - no visible window
-          },
-        });
+        let stagehand: Stagehand | undefined;
         try {
+          const modelId = await resolveRequiredModelId(
+            baseUrl,
+            store.get('model') as string | undefined,
+          );
+          if (this.stagehandTransport !== transport)
+            throw new Error('Browser account context changed');
+          if (modelId === null)
+            throw new Error(
+              'Browser automation is unavailable: the model catalogue could not be read.',
+            );
+          stagehand = new Stagehand({
+            env: 'LOCAL',
+            llmClient: stagehandClientForTransport(transport, baseUrl, modelId),
+            verbose: 1,
+            experimental: true, // Required for agent callbacks
+            localBrowserLaunchOptions: {
+              headless: true, // Run browser invisibly - no visible window
+            },
+          });
           await stagehand.init();
+          if (this.stagehandTransport !== transport)
+            throw new Error('Browser account context changed');
         } catch (error) {
           // A half-initialised instance would be reused by the next call and fail the same way
           // (or worse); drop it so the next browser action starts clean.
           transport.dispose();
-          this.disposeStagehandContext?.();
-          this.disposeStagehandContext = undefined;
-          this.stagehandTransport = undefined;
-          await stagehand.close().catch(() => undefined);
+          if (this.stagehandTransport === transport) {
+            this.disposeStagehandContext?.();
+            this.disposeStagehandContext = undefined;
+            this.stagehandTransport = undefined;
+          }
+          await stagehand?.close().catch(() => undefined);
           throw error;
         }
         this.stagehand = stagehand;
@@ -478,8 +496,15 @@ export class ToolExecutor {
         );
       }
 
+      const stagehand = this.stagehand;
+      const transport = this.stagehandTransport;
+      const assertContext = () => {
+        if (this.stagehand !== stagehand || this.stagehandTransport !== transport) {
+          throw new Error('Browser account context changed');
+        }
+      };
       // Get the first page
-      const pages = this.stagehand.context.pages();
+      const pages = stagehand.context.pages();
       if (pages.length === 0) {
         throw new Error('No browser pages available');
       }
@@ -494,6 +519,7 @@ export class ToolExecutor {
       const capturePreview = async () => {
         try {
           const screenshot = await page.screenshot({ type: 'png', fullPage: false });
+          assertContext();
           const base64 = screenshot.toString('base64');
           if (this.mainWindow) {
             this.sendToWindow('browser:preview', {
@@ -525,7 +551,9 @@ export class ToolExecutor {
         if (normalizedArgs.url) {
           logger.debug(`Navigating to ${normalizedArgs.url}`);
           await page.goto(normalizedArgs.url);
+          assertContext();
           await page.waitForLoadState('networkidle');
+          assertContext();
           await capturePreview();
         }
 
@@ -535,7 +563,8 @@ export class ToolExecutor {
 
           // No model override: Stagehand reuses the transport-backed model
           // supplied at construction, including every step of this agent.
-          const agent = this.stagehand.agent();
+          assertContext();
+          const agent = stagehand.agent();
 
           // Execute with callbacks to capture screenshots during execution
           const agentResult = await agent.execute({
@@ -549,6 +578,7 @@ export class ToolExecutor {
             },
           });
 
+          assertContext();
           logger.debug('Agent result:', JSON.stringify(agentResult, null, 2));
           result += agentResult.message || 'Action completed';
         } else {
@@ -559,7 +589,9 @@ export class ToolExecutor {
       // Extract data if requested
       if (normalizedArgs.extract) {
         logger.debug(`Extracting: ${normalizedArgs.extract}`);
-        const extracted = await this.stagehand.extract(normalizedArgs.extract);
+        assertContext();
+        const extracted = await stagehand.extract(normalizedArgs.extract);
+        assertContext();
         await capturePreview();
         result += `\n\nExtracted data: ${JSON.stringify(extracted, null, 2)}`;
       }
@@ -567,6 +599,7 @@ export class ToolExecutor {
       // Final screenshot
       await capturePreview();
 
+      assertContext();
       return result || 'Browser action completed successfully';
     } catch (error: unknown) {
       logger.error('Browser action failed:', error);
@@ -587,14 +620,15 @@ export class ToolExecutor {
    * Close browser if open
    */
   async closeBrowser(): Promise<string> {
+    const stagehand = this.stagehand;
+    this.stagehand = undefined;
     this.stagehandTransport?.dispose();
     this.stagehandTransport = undefined;
     this.disposeStagehandContext?.();
     this.disposeStagehandContext = undefined;
     try {
-      if (this.stagehand) {
-        await this.stagehand.close();
-        this.stagehand = undefined;
+      if (stagehand) {
+        await stagehand.close();
 
         if (this.mainWindow) {
           this.sendToWindow('browser:closed', {});
@@ -615,7 +649,7 @@ export class ToolExecutor {
     this.openedApplications.clear();
 
     // Close browser if open
-    if (this.stagehand) {
+    if (this.stagehand || this.stagehandTransport) {
       try {
         await this.closeBrowser();
       } catch (error) {

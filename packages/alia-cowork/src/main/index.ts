@@ -133,7 +133,8 @@ function createWindow(): void {
 
 /** Start the local MCP client once there is a session to authenticate its relay with. */
 function startMcpClient(): void {
-  if (!mcpClient) mcpClient = new McpLocalClient();
+  void mcpClient?.shutdown();
+  mcpClient = new McpLocalClient();
   mcpClient.start().catch((err) => logger.error('MCP startup failed:', err));
 }
 

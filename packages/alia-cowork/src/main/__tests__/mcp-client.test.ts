@@ -9,9 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const world = vi.hoisted(() => ({
   token: 'token-1' as string | null,
+  listeners: new Set<() => void>(),
+  holdToolCalls: false,
   sockets: [] as {
     onopen?: () => void;
     onclose?: () => void;
+    onmessage?: (event: { data: string }) => void;
+    closed: boolean;
     sent: string[];
   }[],
   procs: [] as (EventEmitter & { stdin: EventEmitter & { write: unknown } })[],
@@ -25,7 +29,21 @@ vi.mock('electron-store', () => ({
     }
   },
 }));
-vi.mock('../auth', () => ({ currentAccessToken: () => world.token }));
+vi.mock('../auth', () => ({
+  currentAccessToken: () => world.token,
+  linkedAliaClient: () => ({
+    fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
+    getAccessToken: async (target: string) => {
+      expect(target).toBe('wss://api.alia.onl/ws/mcp');
+      return world.token;
+    },
+    dispose: vi.fn(),
+  }),
+  onSessionContextChange: (listener: () => void) => {
+    world.listeners.add(listener);
+    return () => world.listeners.delete(listener);
+  },
+}));
 vi.mock('../logger', () => ({
   createLogger: () => ({ debug() {}, info() {}, warn() {}, error() {} }),
 }));
@@ -45,6 +63,7 @@ vi.mock('child_process', () => ({
         callback?.();
         if (world.spawnFails) return true;
         const parsed = JSON.parse(message) as { id?: number; method?: string };
+        if (world.holdToolCalls && parsed.method === 'tools/call') return true;
         if (parsed.id !== undefined) {
           const result = parsed.method === 'tools/list' ? { tools: [] } : {};
           queueMicrotask(() =>
@@ -67,10 +86,11 @@ import { McpLocalClient } from '../mcp-client';
 class FakeSocket {
   static OPEN = 1;
   readyState = 1;
+  closed = false;
   sent: string[] = [];
   onopen?: () => void;
   onclose?: () => void;
-  onmessage?: () => void;
+  onmessage?: (event: { data: string }) => void;
   onerror?: () => void;
   constructor() {
     world.sockets.push(this);
@@ -78,11 +98,16 @@ class FakeSocket {
   send(data: string) {
     this.sent.push(data);
   }
-  close() {}
+  close() {
+    this.closed = true;
+    this.readyState = 3;
+  }
 }
 
 beforeEach(() => {
   world.token = 'token-1';
+  world.listeners.clear();
+  world.holdToolCalls = false;
   world.sockets.length = 0;
   world.procs.length = 0;
   world.spawnFails = false;
@@ -148,6 +173,29 @@ describe('McpLocalClient relay', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(world.sockets).toHaveLength(1);
     await client.shutdown();
+  });
+
+  it('account switch closes the relay and refuses a pending old tool result', async () => {
+    const client = new McpLocalClient();
+    const started = client.start();
+    await vi.advanceTimersByTimeAsync(10);
+    await started;
+    world.sockets[0].onopen?.();
+    world.holdToolCalls = true;
+    world.sockets[0].onmessage?.({
+      data: JSON.stringify({
+        type: 'tool-call',
+        callId: 'old-call',
+        serverId: 's1',
+        toolName: 'read',
+      }),
+    });
+    for (const listener of world.listeners) listener();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(world.sockets[0].closed).toBe(true);
+    expect(world.sockets).toHaveLength(1);
+    expect(world.sockets[0].sent.map((text) => JSON.parse(text).type)).toEqual(['auth']);
+    expect(world.listeners.size).toBe(0);
   });
 
   it('a second start is a no-op while connected', async () => {

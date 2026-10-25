@@ -13,8 +13,8 @@ export function stagehandClientForTransport(
     fetch: transport.fetch,
   });
   const model = provider.chatModel(modelId);
-  // AISdkClient implements act/extract; its documented optional LLMClient
-  // method also supplies the model to Stagehand's multi-step agent runner.
+  // The public AISdkClient export handles act/extract but does not expose
+  // the optional model getter used by Stagehand's agent runner.
   class AliaStagehandClient extends AISdkClient {
     getLanguageModel() {
       return model;
