@@ -82,12 +82,13 @@ vi.mock('../../lib/syra/syra.js', async () => {
   };
   return {
     ...actual,
-    syraForRequest: () => ({
-      deletePodcast: remove('deletePodcast'),
-      deleteEpisode: remove('deleteEpisode'),
-      getPodcast: read('getPodcast'),
-      getEpisode: read('getEpisode'),
-    }),
+    withSyraRequest: async (_req: unknown, operation: (client: unknown) => unknown) =>
+      operation({
+        deletePodcast: remove('deletePodcast'),
+        deleteEpisode: remove('deleteEpisode'),
+        getPodcast: read('getPodcast'),
+        getEpisode: read('getEpisode'),
+      }),
   };
 });
 

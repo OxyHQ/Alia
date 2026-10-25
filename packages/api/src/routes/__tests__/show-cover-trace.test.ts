@@ -61,16 +61,17 @@ vi.mock('../../lib/syra/syra.js', async () => {
     await vi.importActual<typeof import('../../lib/syra/syra.js')>('../../lib/syra/syra.js');
   return {
     ...actual,
-    syraForRequest: () => ({
-      createPodcast: async (payload: Record<string, unknown>) => {
-        podcastsCreated.push(payload);
-        return { id: PODCAST_ID };
-      },
-      uploadPodcastImage: async (image: Blob, filename?: string) => {
-        coversUploadedToSyra.push({ type: image.type, filename });
-        return { id: 'syra-image-1' };
-      },
-    }),
+    withSyraRequest: async (_req: unknown, operation: (client: unknown) => unknown) =>
+      operation({
+        createPodcast: async (payload: Record<string, unknown>) => {
+          podcastsCreated.push(payload);
+          return { id: PODCAST_ID };
+        },
+        uploadPodcastImage: async (image: Blob, filename?: string) => {
+          coversUploadedToSyra.push({ type: image.type, filename });
+          return { id: 'syra-image-1' };
+        },
+      }),
   };
 });
 

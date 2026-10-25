@@ -208,23 +208,24 @@ only after the request actually succeeded.
 **This is the part most likely to be "simplified" by somebody who has not read
 this paragraph.**
 
-Syra authenticates exactly one thing: a user's Oxy JWT. Alia's show pipeline runs
-in a BullMQ worker minutes after the request, and by then it holds no user
-credential. Service-token delegation is closed platform-wide until ADR 0012's
-Ed25519/JWKS migration lands and every verifier ships a JWKS-capable core.
+Syra's personal podcast routes require the caller's verified Oxy session. Alia
+passes that same session through `syraForOxySession` and the shared Oxy linked
+transport. Each foreground operation closes its client in `finally`; Alia has
+no device refresh secret and does not replace an expired session with a workload
+or the owner's identity. Service, machine and channel contexts cannot enter this
+personal session lane.
 
-So the two halves are split deliberately:
+The show pipeline runs in a BullMQ worker after the originating HTTP request has
+ended. Its authority is the episode's operation ticket, not a stored user bearer:
 
-- `POST /shows/series/:id/episodes` runs while the caller's token is live. It
-  reserves the Syra episode (`createEpisodeDraft`) and stores the **single-use
-  ingest ticket** Syra answers with.
-- The worker redeems that ticket (`ingestEpisode`), authenticated by the ticket
-  alone, and clears it.
+- `POST /shows/series/:id/episodes` reserves the Syra episode while the human
+  session is live and stores the single-use ingest ticket from Syra.
+- The worker redeems that ticket with `ingestEpisode`, authenticated by the
+  ticket alone, and clears it. Abandoning the reservation uses the same bounded
+  ticket contract.
 
-A service credential in place of the ticket would simply be refused, and there is
-no shortcut past it. `lib/syra/syra.ts` is the whole seam: two clients, one
-carrying the caller's token, one carrying nothing. Every call goes through
-`@syra.fm/sdk` — Syra owns its wire format the way Kaana owns inference.
+`lib/syra/syra.ts` keeps these two lanes distinct. All requests use the published
+`@syra.fm/sdk`; its wire formats and ticket lifecycle remain owned by Syra.
 
 ### The name is written twice, and the second one is real
 
