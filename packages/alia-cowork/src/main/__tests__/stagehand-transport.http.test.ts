@@ -92,12 +92,10 @@ it('the Stagehand model propagates caller cancellation through the shared transp
   disposers.push(() => linked.dispose());
   const client = stagehandClientForTransport(linked, baseURL, 'publisher/model');
   const abort = new AbortController();
-  const response = client
-    .getLanguageModel()
-    .doGenerate({
-      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
-      abortSignal: abort.signal,
-    });
+  const response = client.getLanguageModel().doGenerate({
+    prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+    abortSignal: abort.signal,
+  });
   const rejected = expect(response).rejects.toBeDefined();
   await received;
   abort.abort();
