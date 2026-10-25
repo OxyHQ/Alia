@@ -363,6 +363,12 @@ jobs:
       - name: Verify that gate can still fail
         run: node .github/scripts/test-check-ts-directives.mjs
 
+      # API and integrations consume the published server entry points.
+      # The package publishes compiled ESM + CJS + types, unlike @alia.onl/sdk.
+      # A build that only runs at `npm publish` time is a build nobody has run.
+      - name: Build server SDK
+        run: bun run --filter @alia.onl/server build
+
       - name: Typecheck API
         run: bun run --filter @alia/api typecheck
 
@@ -402,11 +408,6 @@ jobs:
       # production logs a week later.
       - name: Test server SDK against the API's own stream writers
         run: bun run --filter @alia.onl/server test
-
-      # The package publishes compiled ESM + CJS + types, unlike @alia.onl/sdk.
-      # A build that only runs at `npm publish` time is a build nobody has run.
-      - name: Build server SDK
-        run: bun run --filter @alia.onl/server build
 
       # Typecheck, tests and build all passed on 1.0.0 while the published
       # package could not be compiled against from a CommonJS backend — the
@@ -577,7 +578,9 @@ jobs:
         run: node scripts/check-model-defaults.mjs
 
       - name: Check production chat canary contract
-        run: node scripts/check-production-chat-canary.mjs
+        run: |
+          node scripts/check-production-chat-canary.mjs
+          node scripts/test-check-production-chat-canary.mjs
 
       # Retired product routes and the retired app-agent lane (ADR 0020 §8).
       - name: Check retired vocabulary cannot return
