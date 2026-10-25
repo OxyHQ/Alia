@@ -2,8 +2,9 @@
 
 This is the finite preparation for ADR0022 and SDK22. Both processes must accept
 new workloads before either producer stops sending its existing secret. This
-commit publishes only the additive `@alia.onl/server`1.2 package; it does not
-publish SDK22, switch producers or remove deployment secrets.
+phase publishes additive `@alia.onl/server` 1.2 and CLI 3.0.1 (its Oxy runtime
+dependency alignment). It does not publish SDK 22, switch producers or remove
+deployment secrets.
 
 The API and integrations readers validate the signed Oxy workload with the
 shared core7.1 middleware, canonical Alia audience and exact caller workload
@@ -38,9 +39,9 @@ Deployment order:
 
 The new server package is built before either consumer in CI and Docker, and the
 integrations image carries its compiled workspace target. Backend reader packages
-use the published core7.1/contracts6. Existing frontend and CLI dependencies remain
-on their current versions until SDK22; removing root force-overrides permits that
-intentional independent rollout.
+use the published core7.1/contracts6. The whole workspace uses one aligned Oxy dependency set, as required by the
+repository doctor. Existing frontend source remains on21.5.4 until SDK22; CLI3.0.1
+records its runtime dependency change without switching the process producers.
 
 Evidence: `process-readers-http.test.ts` in each process uses real HTTP, real
 Ed25519 signatures/JWKS and the installed Oxy middleware, with a controlled live
