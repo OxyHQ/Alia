@@ -86,12 +86,11 @@ export class APIClient {
     body?: unknown,
     options: { headers?: HeadersInit; timeout?: number } = {},
   ): Promise<{ data: any }> {
+    const headers = new Headers(options.headers);
+    if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
     const response = await aliaApiFetch(path, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...Object.fromEntries(new Headers(options.headers)),
-      },
+      headers,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(options.timeout ?? 30_000),
     });
