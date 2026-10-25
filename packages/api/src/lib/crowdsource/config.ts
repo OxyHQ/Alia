@@ -10,8 +10,8 @@
  * ## There is no `CROWDSOURCE_SERVICE_KEY` and no `CROWDSOURCE_APP_ID`
  *
  * Alia is a first-party Oxy application, so `crowdSourceForOxyService()` presents
- * the Oxy service token this process already mints and CrowdSource resolves the
- * tenant from the Oxy application that token names (oxy ADR 0026). There is
+ * a recipient-bound workload token through Alia’s shared OxyServer; CrowdSource
+ * resolves the tenant from that live Oxy application (Oxy ADR 0049). There is
  * nothing to issue by hand, store in a parameter or rotate.
  *
  * A variable holding a tenant could only ever disagree with the token — and a

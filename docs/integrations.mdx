@@ -178,3 +178,14 @@ IAM user keys and product API keys are not substitutes. Readiness requires a tok
 mint against the intended environment's active workload binding and the recipient's
 `oxy-service:<applicationId>` audience, not merely a configured API URL. Keep each
 process role distinct even when API and integrations share an application id.
+
+## CrowdSource moderation delivery
+
+Alia's durable moderation outbox uses the published CrowdSource SDK factory with
+Alia's existing OxyServer. The factory owns the canonical recipient audience and
+refresh; the shared temporary IAM provider also supports local role/SSO sessions.
+No Oxy customer key, static service key or caller-selected tenant substitutes for
+the workload. One process client is reused and disposed on reset. Delivery flags,
+idempotent outbox rows and the external CrowdSource webhook signature remain
+independent of this identity change. Deploy this producer only after the
+CrowdSource workload reader is verified live.
