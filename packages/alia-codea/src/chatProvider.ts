@@ -263,12 +263,21 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private conversationStorageKey(): string | null {
+    const userId = this._authProvider.getOxyServices().session.userId;
+    return userId ? `codea.conversations.account.${encodeURIComponent(userId)}` : null;
+  }
+
   private getConversations(): Conversation[] {
-    return this._context.globalState.get<Conversation[]>('codea.conversations', []);
+    const key = this.conversationStorageKey();
+    // The legacy unpartitioned key has no verifiable owner. Preserve it, but
+    // never assign its contents to the next account that signs in.
+    return key ? this._context.globalState.get<Conversation[]>(key, []) : [];
   }
 
   private saveConversations(conversations: Conversation[]): void {
-    this._context.globalState.update('codea.conversations', conversations);
+    const key = this.conversationStorageKey();
+    if (key) void this._context.globalState.update(key, conversations);
   }
 
   private saveCurrentConversation(): void {
@@ -613,6 +622,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async showConversationHistory(): Promise<void> {
+    const epoch = this._sessionEpoch;
     const conversations = this.getConversations();
 
     if (conversations.length === 0) {
@@ -633,7 +643,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       matchOnDetail: true,
     });
 
-    if (selected) {
+    if (selected && epoch === this._sessionEpoch) {
       this.loadConversation(selected.conversation);
     }
   }

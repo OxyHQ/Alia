@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as vscode from 'vscode';
 import { CodeaChatViewProvider } from '../chatProvider';
 
 /**
@@ -11,6 +12,8 @@ const world = vi.hoisted(() => ({
   requests: [] as { messages: unknown[] }[],
   saved: [] as { messages: { role: string; tool_call_id?: string; tool_calls?: unknown }[] }[][],
   listeners: new Set<() => void>(),
+  accountId: 'account-a',
+  state: new Map<string, unknown>(),
   toolStarted: null as (() => void) | null,
   toolRelease: null as (() => void) | null,
 }));
@@ -64,7 +67,7 @@ let handler: (data: unknown) => Promise<void>;
 
 function makeProvider() {
   posted = [];
-  const state = new Map<string, unknown>();
+  const state = world.state;
   const context = {
     subscriptions: [],
     globalState: {
@@ -88,7 +91,10 @@ function makeProvider() {
       return () => world.listeners.delete(listener);
     },
     refreshToken: async () => false,
-    getOxyServices: () => ({ users: { me: async () => ({ username: 'u' }) } }),
+    getOxyServices: () => ({
+      session: { userId: world.accountId },
+      users: { me: async () => ({ username: 'u' }) },
+    }),
   };
   const provider = new CodeaChatViewProvider({} as never, context as never, auth as never);
   provider.resolveWebviewView(
@@ -114,6 +120,8 @@ const send = (message: string) => handler({ type: 'sendMessage', message, mode: 
 const lastSaved = () => world.saved.at(-1)?.[0].messages ?? [];
 
 beforeEach(() => {
+  world.accountId = 'account-a';
+  world.state.clear();
   world.listeners.clear();
   world.streams.length = 0;
   world.requests.length = 0;
@@ -222,4 +230,43 @@ describe('account context', () => {
     expect(messages.at(-1)?.content).toContain('new account message');
     expect(posted.filter((m) => m.type === 'toolResult')).toHaveLength(0);
   });
+});
+
+it('partitions saved conversations and rejects a history selection from the previous account', async () => {
+  const provider = makeProvider();
+  const conversation = {
+    id: 'private-a',
+    title: 'Private A',
+    updatedAt: Date.now(),
+    createdAt: Date.now(),
+    messages: [{ role: 'user', content: 'account A secret' }],
+  };
+  world.state.set('codea.conversations.account.account-a', [conversation]);
+  world.state.set('codea.conversations', [conversation]);
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const picker = vi.spyOn(vscode.window, 'showQuickPick').mockImplementation(async (items) => {
+    const choices = await items;
+    await pending;
+    return choices[0];
+  });
+  const view = provider as unknown as {
+    showConversationHistory(): Promise<void>;
+    getConversations(): unknown[];
+  };
+  const choosing = view.showConversationHistory();
+  expect(picker).toHaveBeenCalledOnce();
+  world.accountId = 'account-b';
+  for (const listener of world.listeners) listener();
+  expect(view.getConversations()).toEqual([]);
+  release();
+  await choosing;
+  expect(posted.filter((message) => message.type === 'addMessage')).toEqual([]);
+  expect(world.state.get('codea.conversations')).toEqual([conversation]);
+  world.accountId = 'account-a';
+  for (const listener of world.listeners) listener();
+  expect(view.getConversations()).toEqual([conversation]);
+  picker.mockRestore();
 });

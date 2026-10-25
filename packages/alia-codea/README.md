@@ -82,6 +82,7 @@ Access these commands via the Command Palette (`Cmd/Ctrl + Shift + P`):
 - Your code is sent to Alia's servers for processing
 - The shared Oxy device credential is stored in VS Code's secret storage; sign-out clears it.
 - HTTP and WebSocket requests use the shared Oxy transport. Account changes cancel old requests and relay processes; same-account token refresh keeps the conversation active.
+- Local conversation history is partitioned by the shared account. Older unpartitioned records are preserved in storage but never assigned automatically to a new sign-in.
 - Codea is an Oxy application and does not request OAuth scopes. External integrations retain their own limited grants.
 - See [Alia's Privacy Policy](https://alia.onl/privacy) for details
 

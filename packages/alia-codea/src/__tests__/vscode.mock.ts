@@ -45,6 +45,8 @@ export const authentication = {
 export const window = {
   registerUriHandler: () => ({ dispose: () => undefined }),
   showInformationMessage: () => undefined,
+  showQuickPick: async <T>(_items: readonly T[], _options?: unknown): Promise<T | undefined> =>
+    undefined,
   showErrorMessage: () => undefined,
 };
 
