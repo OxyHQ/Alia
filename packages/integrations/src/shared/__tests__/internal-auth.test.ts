@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ALIA_APPLICATION_ID, ALIA_API_WORKLOAD_ID } from '@alia.onl/server/internal';
+import {
+  ALIA_APPLICATION_ID,
+  ALIA_API_WORKLOAD_ID,
+  ALIA_SERVICE_AUDIENCE,
+} from '@alia.onl/server/internal';
 const state = vi.hoisted(() => ({ principal: undefined as any, introspect: vi.fn() }));
 vi.mock('../oxy', () => ({
   oxy: {
@@ -60,6 +64,7 @@ describe('internal product authority', () => {
   it('verifies live workload identity before opening an account-bound socket', async () => {
     state.introspect.mockResolvedValue({
       active: true,
+      audience: ALIA_SERVICE_AUDIENCE,
       authority: 'first_party',
       applicationId: ALIA_APPLICATION_ID,
       credentialId: ALIA_API_WORKLOAD_ID,

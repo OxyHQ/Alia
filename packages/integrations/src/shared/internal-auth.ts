@@ -65,7 +65,11 @@ export async function authorizeInternalUpgrade(
     return null;
   try {
     const principal = await oxy.introspectServiceToken(authorization.slice(7));
-    return principal.active && isAliaWorkload(principal, expectedWorkload()) ? accountId : null;
+    return principal.active &&
+      principal.audience === ALIA_SERVICE_AUDIENCE &&
+      isAliaWorkload(principal, expectedWorkload())
+      ? accountId
+      : null;
   } catch {
     return null;
   }
