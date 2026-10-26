@@ -23,6 +23,8 @@ vi.mock('@oxy.so/services/ui/client', async () => ({
     oxyServices: {
       createLinkedClient: () => ({
         client: {
+          getSessionEpoch: () => 0,
+          addTokenChangeListener: () => () => {},
           requestAuthenticatedResponse: async (config: { body: string }) => {
             harness.requests.push({ body: JSON.parse(config.body) });
             const reply = harness.replies.shift() ?? { status: 200, frames: [] };

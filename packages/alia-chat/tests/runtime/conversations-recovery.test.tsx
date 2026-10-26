@@ -23,6 +23,8 @@ vi.mock('@oxy.so/services/ui/client', async () => ({
     oxyServices: {
       createLinkedClient: () => ({
         client: {
+          getSessionEpoch: () => 0,
+          addTokenChangeListener: () => () => {},
           requestAuthenticatedResponse: async (config: { method: string; url: string }) => {
             server.calls.push(`${config.method} ${config.url}`);
             const { status, body } = server.respond(config.method, config.url);

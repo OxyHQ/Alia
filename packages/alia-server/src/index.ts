@@ -3,6 +3,8 @@ export {
   AliaServerClient,
   createAliaServerClient,
   type AliaChatCompletionRequest,
+  type AliaCancelTurnRequest,
+  type AliaTurnCancellation,
   type AliaChatMessage,
   type AliaHeaders,
   type AliaServerClientOptions,

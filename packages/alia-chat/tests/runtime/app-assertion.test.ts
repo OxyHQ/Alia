@@ -16,6 +16,8 @@ function recordingOxy() {
   const oxy: LinkableOxy = {
     createLinkedClient: () => ({
       client: {
+        getSessionEpoch: () => 0,
+        addTokenChangeListener: () => () => {},
         requestAuthenticatedResponse: async (config) => {
           sent.push({ method: config.method, url: config.url, headers: config.headers });
           return new Response('{}', { status: 200 });

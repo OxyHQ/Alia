@@ -15,6 +15,7 @@ import {
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
 import { aliaQueryKeys } from './query-keys';
 import { createRandomUuid } from './random-uuid';
+import { createChatTurnControl } from './chat-turn-control';
 import { type AliaHostTools, HostOutcomeQueue, hostRequest } from './host-tools';
 import { API_ROUTES } from './routes';
 import { createSseFrameReader } from './sse-frame-reader';
@@ -213,6 +214,7 @@ export function useConversationStream({
   const appAssertionHeaders = useAppAssertionHeaders();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const turnControlRef = useRef<ReturnType<typeof createChatTurnControl> | null>(null);
 
   // Batching refs: accumulate streaming text and flush at ~20fps instead of per-chunk
   const pendingContentRef = useRef('');
@@ -615,6 +617,7 @@ export function useConversationStream({
       /** The request's own controller: `finally` asks it whether the person stopped the turn. */
       let controller: AbortController | null = null;
       let linked: ReturnType<typeof oxyServices.createLinkedClient> | null = null;
+      let turnControl: ReturnType<typeof createChatTurnControl> | null = null;
       /** Cut THIS turn's stream. Never the ref's: by now it may hold a later turn's controller. */
       const abortThisTurn = (): void => {
         controller?.abort();
@@ -626,6 +629,10 @@ export function useConversationStream({
         // conversation change reach a turn that is still collecting device info.
         controller = new AbortController();
         abortControllerRef.current = controller;
+        linked = oxyServices.createLinkedClient({ baseURL: apiUrl });
+        const assertion = appAssertionHeaders();
+        turnControl = createChatTurnControl(linked, assertion, conversationId, controller);
+        turnControlRef.current = turnControl;
 
         // Collect device info (will be available to AI via tool if needed)
         const deviceInfo = host.deviceInfo ? await host.deviceInfo() : undefined;
@@ -646,8 +653,8 @@ export function useConversationStream({
         // Authentication, the preflight refresh and the single 401 replay belong
         // to the linked Oxy client; this layer never reads or writes a bearer.
         // Which Oxy app this turn is in (ADR 0021): an agent Oxy confines to an app opens only there.
-        const appAssertion = await appAssertionHeaders();
-        linked = oxyServices.createLinkedClient({ baseURL: apiUrl });
+        const appAssertion = await assertion;
+        if (controller.signal.aborted) return 'aborted';
         const response = await linked.client.requestAuthenticatedResponse({
           method: 'POST',
           url: API_ROUTES.chat,
@@ -658,6 +665,7 @@ export function useConversationStream({
             ...(deviceInfo === undefined ? {} : { 'X-Device-Info': JSON.stringify(deviceInfo) }),
           },
           body: JSON.stringify({
+            turnId: turnControl.id,
             messages: messagesToSend,
             // The reply is stored under the id it is drawn under here, so a vote
             // or a read-aloud on it needs no reload to find it.
@@ -1362,7 +1370,9 @@ export function useConversationStream({
         const ownsTurn =
           abortControllerRef.current === null || abortControllerRef.current === controller;
         if (abortControllerRef.current === controller) abortControllerRef.current = null;
-        linked?.dispose();
+        if (turnControlRef.current === turnControl) turnControlRef.current = null;
+        if (turnControl) await turnControl.finish();
+        else linked?.dispose();
         // A turn that is still streaming here ended without an error path
         // settling it: on its own, or because `stop()` aborted the controller.
         // (The error paths abort it too, but they have settled it first.)
@@ -1397,12 +1407,22 @@ export function useConversationStream({
     ],
   );
 
-  const stop = useCallback(() => {
+  const detach = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     setIsLoading(false);
+  }, []);
+
+  const stop = useCallback(() => {
+    const turn = turnControlRef.current;
+    if (!turn) return;
+    void turn.stop().catch((error: unknown) => {
+      if (turnControlRef.current === turn && mountedRef.current) {
+        setError(error instanceof Error ? error : new Error('Generation could not be stopped.'));
+      }
+    });
   }, []);
 
   const clearError = useCallback(() => setError(null), []);
@@ -1451,6 +1471,7 @@ export function useConversationStream({
     error,
     append,
     stop,
+    detach,
     setMessages: setMessagesAndRef,
     conversationTitle,
     clearError,

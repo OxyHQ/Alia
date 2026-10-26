@@ -9,23 +9,23 @@ const content = read('AliaChatContent.tsx');
 const composer = read('../hooks/useChatComposer.ts');
 
 describe('AliaChatSheet request lifecycle wiring', () => {
-  it('stops both chats when the imperative dismiss begins', () => {
+  it('detaches both chats when the imperative dismiss begins', () => {
     expect(source).toMatch(
-      /const handleDismiss = useCallback\(\(\) => \{\s*conversationStopRef\.current\?\.\(\);\s*mainStopRef\.current\?\.\(\);/,
+      /const handleDismiss = useCallback\(\(\) => \{\s*conversationDetachRef\.current\?\.\(\);\s*mainDetachRef\.current\?\.\(\);/,
     );
   });
 
-  it('stops the turn when a drag, backdrop press, Back or Escape starts closing either sheet', () => {
+  it('detaches the reader when a drag, backdrop press, Back or Escape starts closing either sheet', () => {
     expect(source).toMatch(/onDismissAttempt=\{onMainDismissAttempt\}/);
     expect(source).toMatch(/onDismissAttempt=\{onConversationDismissAttempt\}/);
     expect(source).toMatch(
-      /const onConversationDismissAttempt = useCallback\(\(\) => \{\s*conversationStopRef\.current\?\.\(\);\s*return true;/,
+      /const onConversationDismissAttempt = useCallback\(\(\) => \{\s*conversationDetachRef\.current\?\.\(\);\s*return true;/,
     );
   });
 
-  it("registers each sheet's own stop callback with its chat content", () => {
-    expect(source).toMatch(/onStopReady=\{registerMainStop\}/);
-    expect(source).toMatch(/onStopReady=\{registerConversationStop\}/);
+  it("registers each sheet's own detach callback with its chat content", () => {
+    expect(source).toMatch(/onDetachReady=\{registerMainDetach\}/);
+    expect(source).toMatch(/onDetachReady=\{registerConversationDetach\}/);
   });
 });
 

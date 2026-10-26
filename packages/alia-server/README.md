@@ -130,3 +130,18 @@ bun run build
 ## Licence
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
+
+
+## Explicit Stop (1.3)
+
+For a verified human session or exact app-only credential, choose a UUID v4 before
+`stream()` and supply `turnId`. `cancelTurn({ turnId, conversationId })` uses the
+same authentication and surface headers; `conversationId` must be the value
+known at admission, including absence for a new conversation. Its signal is
+independent of the stream's AbortSignal. Aborting the latter only detaches the
+reader and allows background completion.
+
+Deploy the API receiver before adopting this producer. Delegated service/channel
+callers without a verifiable original actor must omit `turnId`; their existing
+chat remains supported, but they cannot use this cancellation lane. Details and
+settlement/retry limits: [explicit Stop](../../docs/explicit-chat-stop.md).

@@ -1,5 +1,14 @@
 # @alia.onl/server
 
+## 1.3.0
+
+- Add optional typed `turnId` to chat requests and `cancelTurn()` for explicit
+  authenticated Stop. Aborting a stream remains transport detachment.
+- The explicit Stop receiver must be deployed first. Supported control lanes are
+  human sessions and exact app-only credentials; delegated services without a
+  verified original actor retain their existing chat behavior without `turnId`.
+
+
 ## 1.2.0
 
 Adds `createAliaForOxyService` and `createAliaTransportForOxyService` for

@@ -112,3 +112,5 @@ export type { BuiltMessageContent, DroppedAttachment, UploadDocument } from './a
 
 // The conversation as data (also the leaf entry `@alia.onl/sdk/model`).
 export * from './model';
+
+export { createChatTurnControl, type AliaChatTurnControl } from './chat-turn-control';

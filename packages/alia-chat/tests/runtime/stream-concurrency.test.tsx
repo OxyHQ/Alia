@@ -46,8 +46,12 @@ vi.mock('@oxy.so/services/ui/client', async () => ({
     oxyServices: {
       createLinkedClient: () => ({
         client: {
+          getSessionEpoch: () => 0,
+          addTokenChangeListener: () => () => {},
           requestAuthenticatedResponse: (config: { url: string }) =>
-            stream.fetch(config.url, config as never),
+            config.url.endsWith('/cancel')
+              ? Promise.resolve(Response.json({ state: 'cancelled' }))
+              : stream.fetch(config.url, config as never),
         },
         dispose: () => {},
       }),

@@ -1,5 +1,15 @@
 # @alia.onl/sdk
 
+## 22.1.0
+
+- Stop explicitly cancels the authenticated foreground turn across API replicas;
+  closing a sheet or losing its transport still allows background completion.
+- Export `createChatTurnControl` / `AliaChatTurnControl` from `@alia.onl/sdk/runtime`
+  for custom Stop controls, with account-change fences and early-turn ids.
+- Requires the explicit Stop API receiver to be deployed before adoption; see
+  `docs/explicit-chat-stop.md` in the repository.
+
+
 ## 22.0.1
 
 Remove the Bloom peer upper bound to follow the first-party package policy.

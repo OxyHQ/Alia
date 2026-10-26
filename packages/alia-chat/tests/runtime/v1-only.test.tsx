@@ -25,6 +25,8 @@ vi.mock('@oxy.so/services/ui/client', async () => ({
     oxyServices: {
       createLinkedClient: ({ baseURL }: { baseURL: string }) => ({
         client: {
+          getSessionEpoch: () => 0,
+          addTokenChangeListener: () => () => {},
           requestAuthenticatedResponse: async (config: { url: string; method: string }) => {
             wire.urls.push(new URL(config.url, baseURL).pathname);
             // A conversation for the reads, a stream for the turn; both well-formed.
