@@ -1,7 +1,20 @@
 import type { AliaTurnControl } from '@alia.onl/server';
 
+export interface ConversationControl {
+  readonly lifetimeSignal: AbortSignal;
+  readonly activitySignal: AbortSignal;
+  readonly stopped: boolean;
+  readonly stopAcknowledged: boolean;
+  readonly stopRequested: boolean;
+  bindAccount(subscribe: () => () => void): void;
+  attach(turn: AliaTurnControl, controller: AbortController): boolean;
+  finish(turn: AliaTurnControl): Promise<void>;
+  stop(): Promise<void>;
+  dispose(): void;
+}
+
 /** One CLI submission, potentially containing several independently controlled tool rounds. */
-export function createConversationControl() {
+export function createConversationControl(): ConversationControl {
   const lifetime = new AbortController();
   const activity = new AbortController();
   let removeAccountListener: (() => void) | undefined;
@@ -51,4 +64,3 @@ export function createConversationControl() {
     },
   };
 }
-export type ConversationControl = ReturnType<typeof createConversationControl>;
