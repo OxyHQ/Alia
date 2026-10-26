@@ -65,6 +65,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
     control,
   } = opts;
 
+  const detached = () => Boolean(control?.lifetimeSignal.aborted || signal?.aborted);
   const isActive = () => callerIsActive() && !signal?.aborted && !control?.stopped;
   let consecutiveFailures = 0;
   let toolRounds = 0;
@@ -130,6 +131,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         break;
       }
 
+      const roundHistoryLength = messages.length;
       messages.push({
         role: 'assistant',
         content: fullContent,
@@ -141,6 +143,10 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
 
       for (const [index, tc] of toolCalls.entries()) {
         if (!isActive()) {
+          if (detached()) {
+            messages.splice(roundHistoryLength);
+            break;
+          }
           // Stopped between tools: the ones not run are answered as cancelled, so the saved
           // session never holds a tool call without its result (the server refuses that history).
           for (const skipped of toolCalls.slice(index)) {
@@ -186,6 +192,10 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
         // Check approval
         if (needsApproval(tc.function.name, approvalMode)) {
           const approved = await requestApproval(execution);
+          if (detached()) {
+            messages.splice(roundHistoryLength);
+            break;
+          }
           if (!approved) {
             execution.approved = false;
             execution.success = false;
@@ -206,6 +216,10 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
 
         // Approval may resolve after Stop/account teardown. Never execute that late approval.
         if (!isActive()) {
+          if (detached()) {
+            messages.splice(roundHistoryLength);
+            break;
+          }
           for (const skipped of toolCalls.slice(index))
             messages.push({
               role: 'tool',
@@ -215,6 +229,12 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
           break;
         }
         const result = await executeTool(tc.function.name, args);
+        if (detached()) {
+          // A running local action cannot be undone. Its late result nevertheless
+          // belongs to the old owner: publish/save nothing after that lifetime.
+          messages.splice(roundHistoryLength);
+          break;
+        }
         execution.result = result.result;
         execution.success = result.success;
         hasAnyExecution = true;

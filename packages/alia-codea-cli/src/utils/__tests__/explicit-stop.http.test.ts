@@ -549,3 +549,60 @@ it('account detach never stores a partially streamed response in conversation hi
   await running;
   expect(messages).toEqual([{ role: 'user', content: 'fixture' }]);
 });
+
+it.each(['account-switch', 'explicit-stop'] as const)(
+  'fences a running local tool result on %s',
+  async (action) => {
+    let generations = 0;
+    await start((_req, res) => {
+      generations++;
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end(
+        data({
+          tool_calls: [
+            { index: 0, id: 'read-inflight', function: { name: 'read_file', arguments: '{}' } },
+          ],
+        }) + done,
+      );
+    });
+    const result = deferred<{ result: string; success: boolean }>(),
+      entered = deferred();
+    executeTool.mockImplementationOnce(() => {
+      entered.resolve();
+      return result.promise;
+    });
+    const messages: Message[] = [{ role: 'user', content: 'fixture' }],
+      events: string[] = [],
+      runControl = control();
+    const running = processConversation({
+      messages,
+      systemMessage: '',
+      model: '',
+      approvalMode: 'full-auto',
+      control: runControl,
+      isActive: () => true,
+      requestApproval: async () => true,
+      onEvent: (event) => events.push(event.type),
+    });
+    await entered.promise;
+    if (action === 'account-switch') {
+      if (!world.oxy) throw new Error('Missing test session');
+      world.oxy.session.setAccessToken(token('bob'));
+    } else await runControl.stop();
+    result.resolve({ result: 'old-account-tool-result', success: true });
+    await running;
+    expect(generations).toBe(1);
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    if (action === 'account-switch') {
+      expect(events).not.toContain('tool_done');
+      expect(messages).toEqual([{ role: 'user', content: 'fixture' }]);
+    } else {
+      expect(events).toContain('tool_done');
+      expect(messages).toContainEqual({
+        role: 'tool',
+        tool_call_id: 'read-inflight',
+        content: 'old-account-tool-result',
+      });
+    }
+  },
+);
