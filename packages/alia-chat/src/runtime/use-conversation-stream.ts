@@ -216,6 +216,8 @@ export function useConversationStream({
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
   const turnControlRef = useRef<ReturnType<typeof createChatTurnControl> | null>(null);
+  // A Stop acknowledgement can outlive its stream, thread, or the next send.
+  const turnGenerationRef = useRef(0);
 
   // Batching refs: accumulate streaming text and flush at ~20fps instead of per-chunk
   const pendingContentRef = useRef('');
@@ -279,6 +281,8 @@ export function useConversationStream({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      turnGenerationRef.current++;
+      turnControlRef.current = null;
       flushPendingUpdates();
       if (flushTimerRef.current) {
         clearTimeout(flushTimerRef.current);
@@ -324,6 +328,8 @@ export function useConversationStream({
     const was = conversationRef.current;
     conversationRef.current = conversationId;
     if (was !== undefined && was !== conversationId) {
+      turnGenerationRef.current++;
+      turnControlRef.current = null;
       hostOutcomesRef.current.clear();
       // The reply still streaming belongs to the thread that was left: cut it, drop what it had
       // batched (it would land on this thread's last message) and let the screen be idle.
@@ -350,6 +356,8 @@ export function useConversationStream({
     const was = accountRef.current;
     accountRef.current = accountId;
     if (was === null || was === accountId) return;
+    turnGenerationRef.current++;
+    turnControlRef.current = null;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     dropPendingUpdates();
@@ -367,6 +375,7 @@ export function useConversationStream({
 
   const append = useCallback(
     async (message: Omit<Message, 'id'>, options?: SendOptions): Promise<SendOutcome> => {
+      const turnGeneration = ++turnGenerationRef.current;
       setIsLoading(true);
       setError(null);
       // A new send answers the old failure, whether it is the retry or a fresh
@@ -1376,33 +1385,31 @@ export function useConversationStream({
         setError(finalError);
         return keepFailedTurn(true, finalError.message);
       } finally {
-        // Flush any remaining batched content
-        flushPendingUpdates();
-        if (flushTimerRef.current) {
-          clearTimeout(flushTimerRef.current);
-          flushTimerRef.current = null;
+        // Batches belong to the current turn. An older finally must not flush or clear
+        // the next turn's shared timer, even when its controller ref has been cleared.
+        if (turnGenerationRef.current === turnGeneration) {
+          flushPendingUpdates();
+          if (flushTimerRef.current) {
+            clearTimeout(flushTimerRef.current);
+            flushTimerRef.current = null;
+          }
         }
-        // Only the turn that still owns the ref clears it and the loading flag: after Stop and a new
-        // send, this `finally` belongs to the old turn and must not idle the new one.
-        const ownsTurn =
-          abortControllerRef.current === null || abortControllerRef.current === controller;
-        if (abortControllerRef.current === controller) abortControllerRef.current = null;
-        if (turnControlRef.current === turnControl) turnControlRef.current = null;
+        // Settle only this turn's message ids, including when a new send has already
+        // started in the same conversation. Error paths may have settled them first.
+        settleAssistant(controller?.signal.aborted === true ? 'cancelled' : 'completed');
+        // Retain this control while its ACK drains so repeated Stop remains deduplicated.
+        // Local transport cleanup is required even after the thread has been replaced.
         if (turnControl) await turnControl.finish();
         else linked?.dispose();
-        // A turn that is still streaming here ended without an error path
-        // settling it: on its own, or because `stop()` aborted the controller.
-        // (The error paths abort it too, but they have settled it first.)
-        settleAssistant(controller?.signal.aborted === true ? 'cancelled' : 'completed');
-        if (ownsTurn) setIsLoading(false);
-        /*
-         * The answer replaces your own line in the sidebar — once per turn rather
-         * than once per token. Read from what this turn received, not from the
-         * rendered messages, which have not caught up with the last batched flush.
-         */
-        if (replyText !== '') host.onTurnPreview?.(agentId, replyText);
-        // Every way a turn stops streaming — finished, stopped, failed — passes here once.
-        if (mountedRef.current) host.onTurnEnd?.();
+        if (abortControllerRef.current === controller) abortControllerRef.current = null;
+        if (turnControlRef.current === turnControl) turnControlRef.current = null;
+        // Recheck after the await: another turn, thread, account or mount may now own UI.
+        if (mountedRef.current && turnGenerationRef.current === turnGeneration) {
+          setIsLoading(false);
+          // The sidebar preview and completion notification belong to this visible turn.
+          if (replyText !== '') host.onTurnPreview?.(agentId, replyText);
+          host.onTurnEnd?.();
+        }
       }
     },
     [
@@ -1434,9 +1441,14 @@ export function useConversationStream({
 
   const stop = useCallback(() => {
     const turn = turnControlRef.current;
+    const turnGeneration = turnGenerationRef.current;
     if (!turn) return;
     void turn.stop().catch((error: unknown) => {
-      if (turnControlRef.current === turn && mountedRef.current) {
+      if (
+        turnControlRef.current === turn &&
+        turnGenerationRef.current === turnGeneration &&
+        mountedRef.current
+      ) {
         setError(error instanceof Error ? error : new Error('Generation could not be stopped.'));
       }
     });

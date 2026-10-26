@@ -1,5 +1,13 @@
 # @alia.onl/sdk
 
+## 22.1.1
+
+- A delayed Stop acknowledgement cannot idle a newer turn, replace its sidebar
+  preview, or notify a different conversation. Thread/account changes and unmounts
+  invalidate old completion callbacks while the original acknowledgement drains.
+- Keep repeated Stop requests deduplicated during that drain; errors from an old
+  Stop cannot appear in a replacement thread. Public APIs and peer ranges are unchanged.
+
 ## 22.1.0
 
 - Stop explicitly cancels the authenticated foreground turn across API replicas;
