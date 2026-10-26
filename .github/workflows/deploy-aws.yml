@@ -301,12 +301,14 @@ jobs:
             exit 1
           fi
 
-          required_env="$(jq -cn --arg computer_instance_id "$computer_instance_id" '{
+          voice_peer_vpc_cidr="$(python3 .github/scripts/voice-peer-vpc.py --cluster "$CLUSTER" --service "$APP")"
+          required_env="$(jq -cn --arg computer_instance_id "$computer_instance_id" --arg voice_peer_vpc_cidr "$voice_peer_vpc_cidr" '{
             API_BASE_URL: "https://api.alia.onl",
             ALIA_API_URL: "https://api.alia.onl",
             OXY_API_URL: "https://api.oxy.so",
             ALIA_COMPUTER_HOST_URL: "http://computer.alia.internal.oxy.so:8080",
-            ALIA_COMPUTER_HOST_INSTANCE_ID: $computer_instance_id
+            ALIA_COMPUTER_HOST_INSTANCE_ID: $computer_instance_id,
+            VOICE_PEER_VPC_CIDR: $voice_peer_vpc_cidr
           }')"
 
           merged_env="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$required_env"))"

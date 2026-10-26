@@ -338,7 +338,10 @@ export class VoiceCall {
     }
     if (this.graceTimer) clearTimeout(this.graceTimer);
     this.graceTimer = null;
+    const previous = this.sink;
     this.sink = sink;
+    // A late close from the previous socket cannot detach the new holder.
+    if (previous && previous !== sink) previous.close();
     if (afterSeq !== undefined) {
       for (const event of this.replay) if (event.seq > afterSeq) sink.sendEvent(event);
       this.emit({ type: 'session.resumed', afterSeq });
@@ -347,6 +350,10 @@ export class VoiceCall {
   }
 
   /** The socket went away without hanging up: keep the call for the resume window. */
+  hasClient(sink: VoiceClientSink): boolean {
+    return this.sink === sink && !this.isClosed;
+  }
+
   detach(sink: VoiceClientSink): void {
     if (this.sink !== sink) return;
     this.sink = null;

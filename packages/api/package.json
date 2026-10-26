@@ -21,7 +21,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/db/migrate.ts",
     "test:pg": "vitest run --config vitest.pg.config.ts",
-    "test:bun-runtime": "bun test src/lib/__tests__/websocket-upgrades.test.ts src/lib/__tests__/oxy-revocation-feed.test.ts",
+    "test:voice-routing": "vitest run --config vitest.voice-routing.config.ts",
+    "test:bun-runtime": "bun test src/lib/__tests__/websocket-upgrades.test.ts src/lib/__tests__/oxy-revocation-feed.test.ts && bun test src/lib/voice/__tests__/peer-resume.test.ts",
     "scan:credentials": "bun src/scripts/scan-credential-history.ts",
     "migrate:oxy-files": "bun src/scripts/migrate-to-oxy-files.ts"
   },

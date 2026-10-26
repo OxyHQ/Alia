@@ -29,7 +29,12 @@ export default defineConfig({
      * do. A reader who doubts it can check the named job instead of grepping for
      * `test:pg` and trusting whatever tree they happen to be standing in.
      */
-    exclude: ['**/node_modules/**', '**/dist/**', 'src/**/*.pgdb.test.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      'src/**/*.pgdb.test.ts',
+      'src/**/*.redis.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
