@@ -31,6 +31,11 @@ export type {
 } from './events.js';
 
 export { readAliaEventStream, type ReadAliaEventStreamOptions } from './stream.js';
+export {
+  createAliaTurnControl,
+  type AliaTurnControl,
+  type AliaTurnControlOptions,
+} from './turn-control.js';
 
 export { ALIA_APPLICATION_ID, ALIA_SERVICE_AUDIENCE } from './identity.js';
 export {

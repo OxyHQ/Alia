@@ -4,6 +4,8 @@
 
 - Add optional typed `turnId` to chat requests and `cancelTurn()` for explicit
   authenticated Stop. Aborting a stream remains transport detachment.
+- Add `createAliaTurnControl()` for early IDs, deduplicated Stop acknowledgement
+  and transport cleanup; callers retain their shared account fencing.
 - The explicit Stop receiver must be deployed first. Supported control lanes are
   human sessions and exact app-only credentials; delegated services without a
   verified original actor retain their existing chat behavior without `turnId`.
