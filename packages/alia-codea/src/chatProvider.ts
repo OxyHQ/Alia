@@ -92,6 +92,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = [];
   private _currentConversationId: string | null = null;
   private _abortController?: AbortController;
+  private _lifetimeController?: AbortController;
   private _control?: AliaTurnControl;
   private _stopping?: { controller: AbortController; promise: Promise<void> };
   /** The turn that owns the provider: a stopped turn finishing late must not touch the next one. */
@@ -210,6 +211,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     if (this._isProcessing || !this._lastRequestParams) return;
 
     const controller = new AbortController();
+    const lifetime = new AbortController();
+    this._lifetimeController = lifetime;
     this._abortController = controller;
     this._isProcessing = true;
     const { baseUrl, model, clientContext } = this._lastRequestParams;
@@ -217,8 +220,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     try {
       await this._settled;
       if (epoch !== this._sessionEpoch || controller.signal.aborted) return;
-      await this.processConversation(baseUrl, model, clientContext, controller);
+      await this.processConversation(baseUrl, model, clientContext, controller, lifetime);
     } finally {
+      lifetime.abort();
+      if (this._lifetimeController === lifetime) this._lifetimeController = undefined;
       if (this._abortController === controller) {
         this._abortController = undefined;
         this._isProcessing = false;
@@ -721,6 +726,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private detachGeneration() {
+    this._lifetimeController?.abort();
+    this._lifetimeController = undefined;
     this._control = undefined;
     this._isProcessing = false;
     if (this._abortController) {
@@ -738,6 +745,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   ) {
     if (this._isProcessing) return;
     const controller = new AbortController();
+    const lifetime = new AbortController();
+    this._lifetimeController = lifetime;
     this._abortController = controller;
     this._isProcessing = true;
     try {
@@ -823,8 +832,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
 
       this._isProcessing = true;
       this._lastRequestParams = { baseUrl, model, clientContext };
-      await this.processConversation(baseUrl, model, clientContext, controller);
+      await this.processConversation(baseUrl, model, clientContext, controller, lifetime);
     } finally {
+      lifetime.abort();
+      if (this._lifetimeController === lifetime) this._lifetimeController = undefined;
       if (this._abortController === controller) {
         this._abortController = undefined;
         this._isProcessing = false;
@@ -898,7 +909,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     baseUrl: string,
     model: string | undefined,
     clientContext: string,
-    controller = new AbortController(),
+    controller: AbortController,
+    lifetime: AbortController,
   ): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
     const turn = ++this._turnSeq;
@@ -934,7 +946,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     const streamOnce = async (finalRound: boolean): Promise<StreamOutcome> => {
       const control = createAliaTurnControl(
         new AliaServerClient({ baseUrl, fetch: linked.fetch }),
-        { controller },
+        { controller, lifetimeSignal: lifetime.signal },
       );
       this._control = control;
       try {
@@ -1039,6 +1051,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         if (this._abortController === controller) this._abortController = undefined;
         this.saveCurrentConversation();
       }
+      lifetime.abort();
+      if (this._lifetimeController === lifetime) this._lifetimeController = undefined;
       linked.dispose();
       settle();
     }
@@ -1053,32 +1067,41 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     const toolCalls: StreamedToolCall[] = [];
     let synthetic: StreamOutcome['synthetic'] = null;
 
-    for await (const event of stream) {
-      // `stopGeneration` aborts the controller, which ends the iteration with
-      // an AbortError; this is the guard for the frames already in flight.
-      if (!live()) break;
+    try {
+      for await (const event of stream) {
+        // `stopGeneration` aborts the controller, which ends the iteration with
+        // an AbortError; this is the guard for the frames already in flight.
+        if (!live()) break;
 
-      switch (event.type) {
-        case 'content':
-          text += event.text;
-          this._view?.webview.postMessage({ type: 'streamContent', content: event.text });
-          break;
-        case 'tool_calls':
-          mergeToolCallDeltas(toolCalls, event.deltas);
-          break;
-        case 'synthetic':
-          log.warn('[Codea] Server sent a synthetic stand-in:', event.text);
-          synthetic = { retryable: event.retryable };
-          break;
-        case 'reasoning':
-        case 'tool_result':
-        case 'finish':
-        case 'event':
-          // The webview has no reasoning surface; a tool result for one of
-          // this extension's own tools is the server's echo of the arguments,
-          // and the real result comes from `runToolCall`.
-          break;
+        switch (event.type) {
+          case 'content':
+            text += event.text;
+            this._view?.webview.postMessage({ type: 'streamContent', content: event.text });
+            break;
+          case 'tool_calls':
+            mergeToolCallDeltas(toolCalls, event.deltas);
+            break;
+          case 'synthetic':
+            log.warn('[Codea] Server sent a synthetic stand-in:', event.text);
+            synthetic = { retryable: event.retryable };
+            break;
+          case 'reasoning':
+          case 'tool_result':
+          case 'finish':
+          case 'event':
+            // The webview has no reasoning surface; a tool result for one of
+            // this extension's own tools is the server's echo of the arguments,
+            // and the real result comes from `runToolCall`.
+            break;
+        }
       }
+    } catch (error) {
+      // The terminal cancellation frame may precede its control acknowledgement.
+      // Keep delivered text once, without incomplete tool calls, in this account's history.
+      if (error instanceof AliaChatError && error.code === 'turn_cancelled' && live() && text) {
+        this._messages.push({ role: 'assistant', content: text });
+      }
+      throw error;
     }
 
     return { text, toolCalls: completedToolCalls(toolCalls), synthetic };

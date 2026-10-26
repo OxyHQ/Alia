@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { afterEach, expect, it, vi } from 'vitest';
 import { OxyServices } from '@oxy.so/core';
 
@@ -52,19 +52,35 @@ afterEach(async () => {
 function bearer(account: string) {
   return `e30.${Buffer.from(JSON.stringify({ userId: account, sessionId: account, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
 }
-async function fixture(twoRounds = false) {
+async function fixture(twoRounds = false, lateAck = false) {
   const requests: { path?: string; auth?: string; turnId?: string }[] = [];
   let arrived!: () => void;
   const started = new Promise<void>((resolve) => {
     arrived = resolve;
   });
   let refused = false;
+  let chatResponse: ServerResponse | undefined;
+  let cancelled!: () => void;
+  const cancelArrived = new Promise<void>((resolve) => {
+    cancelled = resolve;
+  });
+  let acknowledge!: () => void;
+  const acknowledgement = new Promise<void>((resolve) => {
+    acknowledge = resolve;
+  });
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
     const value = body ? JSON.parse(body) : {};
     requests.push({ path: req.url, auth: req.headers.authorization, turnId: value.turnId });
     if (req.url === '/alia/chat') {
+      chatResponse = res;
+      if (lateAck) {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(
+          `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial answer' }, finish_reason: null }] })}\n\n`,
+        );
+      }
       if (twoRounds && requests.filter((r) => r.path === '/alia/chat').length === 1) {
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.end(
@@ -72,6 +88,13 @@ async function fixture(twoRounds = false) {
         );
       } else arrived();
     } else if (req.url?.endsWith('/cancel')) {
+      if (lateAck) {
+        chatResponse?.end(
+          `data: ${JSON.stringify({ error: { code: 'turn_cancelled', message: 'Stopped' } })}\n\n`,
+        );
+        cancelled();
+        await acknowledgement;
+      }
       res.writeHead(refused ? 503 : 200, { 'content-type': 'application/json' });
       res.end(
         JSON.stringify(
@@ -110,6 +133,8 @@ async function fixture(twoRounds = false) {
     chat,
     requests,
     started,
+    cancelArrived,
+    acknowledge,
     sent,
     token,
     setRefused: (value: boolean) => {
@@ -181,4 +206,32 @@ it('each tool continuation has its own ID and Stop targets only the active HTTP 
     `/v1/chat/turns/${turns[1].turnId}/cancel`,
   ]);
   expect(f.requests.filter((r) => r.path === '/alia/chat')).toHaveLength(2);
+});
+
+it('Cowork waits for held Stop acknowledgement after terminal SSE and preserves partial output without error', async () => {
+  const f = await fixture(false, true);
+  let runEnded = false;
+  let stopEnded = false;
+  const run = f.chat.handleMessage('owned fixture').then(() => {
+    runEnded = true;
+  });
+  await f.started;
+  const stopped = f.chat.stop().then(() => {
+    stopEnded = true;
+  });
+  await f.cancelArrived;
+  await expect.poll(() => f.sent.some((message) => message.channel === 'chat:stream')).toBe(true);
+  expect(runEnded).toBe(false);
+  expect(stopEnded).toBe(false);
+  expect(f.sent.some((message) => message.channel === 'chat:error')).toBe(false);
+  f.acknowledge();
+  await stopped;
+  await run;
+  expect(f.sent.some((message) => message.channel === 'chat:error')).toBe(false);
+  expect(f.sent.some((message) => message.channel === 'chat:end')).toBe(true);
+  expect((f.chat as unknown as { messages: unknown[] }).messages).toContainEqual({
+    role: 'assistant',
+    content: 'partial answer',
+  });
+  expect(f.requests.filter((request) => request.path?.endsWith('/cancel'))).toHaveLength(1);
 });

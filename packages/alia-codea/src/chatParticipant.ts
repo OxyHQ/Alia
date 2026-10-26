@@ -188,11 +188,12 @@ export class AliaChatParticipant {
     // The native chat panel's Stop is explicit remote cancellation. Context
     // changes only detach; no request may migrate to a replacement account.
     const controller = new AbortController();
+    const lifetime = new AbortController();
     if (token.isCancellationRequested) controller.abort();
     const linked = this.authProvider.createLinkedClient(this.apiBaseUrl);
     const control = createAliaTurnControl(
       new AliaServerClient({ baseUrl: this.apiBaseUrl, fetch: linked.fetch }),
-      { controller },
+      { controller, lifetimeSignal: lifetime.signal },
     );
     const cancellation = token.onCancellationRequested(() => {
       void control.stop().catch(() => {
@@ -203,7 +204,10 @@ export class AliaChatParticipant {
         }
       });
     });
-    const stopContext = this.authProvider.onSessionContextChange(() => controller.abort());
+    const stopContext = this.authProvider.onSessionContextChange(() => {
+      lifetime.abort();
+      controller.abort();
+    });
     const attempt = (model: string | undefined) =>
       streamAliaChat({
         baseUrl: this.apiBaseUrl,
@@ -268,6 +272,7 @@ export class AliaChatParticipant {
     } finally {
       // The listener is on VS Code's token, which outlives this request.
       await control.finish();
+      lifetime.abort();
       cancellation.dispose();
       stopContext();
       linked.dispose();

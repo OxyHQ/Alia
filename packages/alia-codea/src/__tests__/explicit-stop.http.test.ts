@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { afterEach, expect, it, vi } from 'vitest';
 import { OxyServices } from '@oxy.so/core';
 import * as vscode from 'vscode';
@@ -36,22 +36,45 @@ afterEach(async () => {
 function bearer(account: string) {
   return `e30.${Buffer.from(JSON.stringify({ userId: account, sessionId: account, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
 }
-async function fixture() {
+async function fixture(lateAck = false) {
   const requests: { path?: string; auth?: string; turnId?: string }[] = [];
   let arrived!: () => void;
   const started = new Promise<void>((resolve) => {
     arrived = resolve;
   });
   let refused = false;
+  let chatResponse: ServerResponse | undefined;
+  let cancelled!: () => void;
+  const cancelArrived = new Promise<void>((resolve) => {
+    cancelled = resolve;
+  });
+  let acknowledge!: () => void;
+  const acknowledgement = new Promise<void>((resolve) => {
+    acknowledge = resolve;
+  });
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
     const value = body ? JSON.parse(body) : {};
     requests.push({ path: req.url, auth: req.headers.authorization, turnId: value.turnId });
     if (req.url === '/alia/chat') {
+      chatResponse = res;
+      if (lateAck) {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.write(
+          `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial answer' }, finish_reason: null }] })}\n\n`,
+        );
+      }
       // No metadata or response headers yet: Stop must already know this UUID.
       arrived();
     } else if (req.url?.endsWith('/cancel')) {
+      if (lateAck) {
+        chatResponse?.end(
+          `data: ${JSON.stringify({ error: { code: 'turn_cancelled', message: 'Stopped' } })}\n\n`,
+        );
+        cancelled();
+        await acknowledgement;
+      }
       res.writeHead(refused ? 503 : 200, { 'content-type': 'application/json' });
       res.end(
         JSON.stringify(
@@ -102,6 +125,7 @@ async function fixture() {
   const posted: { type: string; generationContinues?: boolean }[] = [];
   const control = provider as unknown as {
     _view: unknown;
+    _messages: unknown[];
     handleUserMessage(content: string): Promise<void>;
     stopGeneration(): Promise<void>;
   };
@@ -118,6 +142,8 @@ async function fixture() {
     posted,
     requests,
     started,
+    cancelArrived,
+    acknowledge,
     setRefused: (value: boolean) => {
       refused = value;
     },
@@ -219,4 +245,29 @@ it('native chat panel Stop uses the same acknowledged control rather than just a
   expect(f.requests.filter((r) => r.path?.endsWith('/cancel'))).toHaveLength(1);
   expect(f.requests[1].path).toBe(`/v1/chat/turns/${f.requests[0].turnId}/cancel`);
   expect(disposed).toBe(true);
+});
+
+it('webview drains a held Stop acknowledgement after terminal cancellation SSE without an error card', async () => {
+  const f = await fixture(true);
+  let runEnded = false;
+  let stopEnded = false;
+  const run = f.control.handleUserMessage('owned fixture').then(() => {
+    runEnded = true;
+  });
+  await f.started;
+  const stopped = f.control.stopGeneration().then(() => {
+    stopEnded = true;
+  });
+  await f.cancelArrived;
+  await expect.poll(() => f.posted.some((message) => message.type === 'streamContent')).toBe(true);
+  expect(runEnded).toBe(false);
+  expect(stopEnded).toBe(false);
+  expect(f.posted.some((message) => message.type === 'error')).toBe(false);
+  f.acknowledge();
+  await stopped;
+  await run;
+  expect(f.posted.some((message) => message.type === 'error')).toBe(false);
+  expect(f.posted.some((message) => message.type === 'endAssistantMessage')).toBe(true);
+  expect(f.control._messages).toContainEqual({ role: 'assistant', content: 'partial answer' });
+  expect(f.requests.filter((request) => request.path?.endsWith('/cancel'))).toHaveLength(1);
 });

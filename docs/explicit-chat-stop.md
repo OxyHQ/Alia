@@ -113,7 +113,6 @@ provider cancellation and partial usage settlement require a bounded retest afte
 the reviewed source is deployed. No new production generation is part of these
 local tests.
 
-
 ### Desktop adoption
 
 Codea's webview Stop and native chat panel Stop, and Cowork's Stop, use the
@@ -121,6 +120,9 @@ server SDK lifecycle helper over their existing Oxy linked transport. Each HTTP
 request in a local tool loop has a fresh cancellation ID; stopping between local
 tools prevents further rounds and does not undo an action that already ran.
 A failed acknowledgement is reported without claiming the generation stopped.
+The account lifetime signal is separate from the stream signal: a terminal
+`turn_cancelled` frame preserves delivered partial text and does not abort the
+control request while its acknowledgement is still pending.
 Account changes, view teardown and Codea inline-suggestion invalidation only
 detach. Typing a character is not treated as an explicit chat Stop command.
 

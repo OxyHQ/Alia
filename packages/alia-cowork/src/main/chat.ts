@@ -318,6 +318,7 @@ interface StreamOutcome {
 interface Turn {
   id: number;
   controller: AbortController;
+  lifetime: AbortController;
   control?: AliaTurnControl;
   stopping?: Promise<void>;
 }
@@ -420,7 +421,11 @@ export class ChatProvider {
       return;
     }
 
-    const turn: Turn = { id: ++this.turnSeq, controller: new AbortController() };
+    const turn: Turn = {
+      id: ++this.turnSeq,
+      controller: new AbortController(),
+      lifetime: new AbortController(),
+    };
     this.activeTurn = turn;
     const previous = this.settled;
     const run = this.runMessage(turn, previous, content, mode, model, context);
@@ -520,6 +525,7 @@ export class ChatProvider {
       }
       logger.debug('===== SESSION END =====');
       logger.debug('Final message count:', this.messages.length);
+      turn.lifetime.abort();
       // Only the turn that still owns the provider hands it back: a stopped turn finishing late
       // must not end the one that replaced it.
       if (this.activeTurn === turn) {
@@ -614,7 +620,7 @@ export class ChatProvider {
     const linked = linkedAliaClient(request.baseUrl);
     const control = createAliaTurnControl(
       new AliaServerClient({ baseUrl: request.baseUrl, fetch: linked.fetch }),
-      { controller: turn.controller },
+      { controller: turn.controller, lifetimeSignal: turn.lifetime.signal },
     );
     turn.control = control;
     try {
@@ -644,37 +650,51 @@ export class ChatProvider {
     let synthetic: StreamOutcome['synthetic'] = null;
     let chunkCount = 0;
 
-    for await (const event of stream) {
-      if (turn.controller.signal.aborted) throw abortError();
-      chunkCount++;
-      switch (event.type) {
-        case 'content':
-          text += event.text;
-          this.streamedTextThisTurn = true;
-          this.emit(turn, 'chat:stream', { content: event.text });
-          break;
-        case 'reasoning':
-          this.emit(turn, 'chat:thinking', { content: event.text });
-          break;
-        case 'tool_calls':
-          mergeToolCallDeltas(toolCalls, event.deltas);
-          break;
-        case 'synthetic':
-          logger.warn('Server sent a synthetic stand-in:', event.text);
-          synthetic = { retryable: event.retryable };
-          break;
-        case 'tool_result':
-          // For this process's own tools the output is the server's echo of the
-          // arguments; the real result is produced by `runToolCall`.
-          logger.debug(`Server tool result for ${event.name}`);
-          break;
-        case 'finish':
-          logger.debug('Stream finished:', event.reason);
-          break;
-        case 'event':
-          logger.debug('Product event:', event.name);
-          break;
+    try {
+      for await (const event of stream) {
+        if (turn.controller.signal.aborted) throw abortError();
+        chunkCount++;
+        switch (event.type) {
+          case 'content':
+            text += event.text;
+            this.streamedTextThisTurn = true;
+            this.emit(turn, 'chat:stream', { content: event.text });
+            break;
+          case 'reasoning':
+            this.emit(turn, 'chat:thinking', { content: event.text });
+            break;
+          case 'tool_calls':
+            mergeToolCallDeltas(toolCalls, event.deltas);
+            break;
+          case 'synthetic':
+            logger.warn('Server sent a synthetic stand-in:', event.text);
+            synthetic = { retryable: event.retryable };
+            break;
+          case 'tool_result':
+            // For this process's own tools the output is the server's echo of the
+            // arguments; the real result is produced by `runToolCall`.
+            logger.debug(`Server tool result for ${event.name}`);
+            break;
+          case 'finish':
+            logger.debug('Stream finished:', event.reason);
+            break;
+          case 'event':
+            logger.debug('Product event:', event.name);
+            break;
+        }
       }
+    } catch (error) {
+      // Only the still-owned turn may retain its delivered partial answer.
+      if (
+        error instanceof AliaChatError &&
+        error.code === 'turn_cancelled' &&
+        this.activeTurn === turn &&
+        !turn.lifetime.signal.aborted &&
+        text
+      ) {
+        this.messages.push({ role: 'assistant', content: text });
+      }
+      throw error;
     }
 
     logger.debug('Stream processing complete');
@@ -848,6 +868,7 @@ export class ChatProvider {
     // stream; the turn winds down on its own, and the next one waits for it.
     const turn = this.activeTurn;
     this.activeTurn = null;
+    turn?.lifetime.abort();
     turn?.controller.abort();
     this.send('chat:end', {});
   }
