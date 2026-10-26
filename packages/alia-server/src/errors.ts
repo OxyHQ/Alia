@@ -35,6 +35,8 @@ export type AliaStreamFailure =
   | 'choice_without_delta'
   /** `delta.content` was present and not a string. */
   | 'content_not_string'
+  /** Tool fragments have invalid indices or field types. */
+  | 'invalid_tool_calls'
   /** The body ended before `data: [DONE]`. */
   | 'truncated'
   /** The stream exceeded this client's byte or frame limits. */

@@ -8,6 +8,7 @@
  * understand drops an error payload and reports an empty answer.
  */
 export type AliaStreamEvent =
+  | AliaToolCallsEvent
   | AliaTextEvent
   | AliaReasoningEvent
   | AliaNamedEvent
@@ -85,4 +86,15 @@ export interface AliaErrorEvent {
 /** `data: [DONE]`. The stream is complete; nothing follows it. */
 export interface AliaDoneEvent {
   readonly type: 'done';
+}
+
+/** OpenAI tool fragments; assembly/execution remain the consuming product's domain. */
+export interface AliaToolCallDelta {
+  readonly index?: number;
+  readonly id?: string;
+  readonly function?: { readonly name?: string; readonly arguments?: string };
+}
+export interface AliaToolCallsEvent {
+  readonly type: 'tool_calls';
+  readonly deltas: readonly AliaToolCallDelta[];
 }

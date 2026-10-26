@@ -257,10 +257,12 @@ export function labelForChoice(choice: string, catalogue: Catalogue | undefined)
 }
 
 /** Read the current account's catalogue; never reuse another account's snapshot. */
-export async function fetchCatalogue(): Promise<Catalogue> {
+export async function fetchCatalogue(signal?: AbortSignal): Promise<Catalogue> {
   const linked = linkedAliaClient();
   try {
-    const response = await linked.fetchOptional(`${config.get('apiBaseUrl')}/catalogue`);
+    const response = await linked.fetchOptional(`${config.get('apiBaseUrl')}/catalogue`, {
+      signal,
+    });
     if (!response.ok) throw new Error(`The model catalogue request failed (${response.status}).`);
     return parseCatalogue(await response.json());
   } finally {
@@ -269,18 +271,21 @@ export async function fetchCatalogue(): Promise<Catalogue> {
 }
 
 /** The catalogue, or `undefined` if it cannot be read. Never throws. */
-export async function tryCatalogue(): Promise<Catalogue | undefined> {
+export async function tryCatalogue(signal?: AbortSignal): Promise<Catalogue | undefined> {
   try {
-    return await fetchCatalogue();
+    return await fetchCatalogue(signal);
   } catch {
     return undefined;
   }
 }
 
 /** The `model` a request should carry, or `undefined` to omit it. Never throws. */
-export async function resolveModelId(choice: string): Promise<string | undefined> {
+export async function resolveModelId(
+  choice: string,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   if (choice.trim() === '') return undefined;
-  return resolveSelection(choice, await tryCatalogue());
+  return resolveSelection(choice, await tryCatalogue(signal));
 }
 
 /** The header label for a choice. Never throws. */

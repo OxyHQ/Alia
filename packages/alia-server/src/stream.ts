@@ -6,7 +6,7 @@ import {
   isRecord,
   type AliaChunkShape,
 } from './errors.js';
-import type { AliaStreamEvent } from './events.js';
+import type { AliaStreamEvent, AliaToolCallDelta } from './events.js';
 
 /** Ceilings, not tuning knobs: a runaway stream must end as an error, not as RAM. */
 const MAX_STREAM_BYTES = 32 * 1024 * 1024;
@@ -66,6 +66,30 @@ function* eventsFromChunk(value: unknown, shape: () => AliaChunkShape): Generato
     }
     if (typeof delta.reasoning === 'string' && delta.reasoning !== '') {
       yield { type: 'reasoning', text: delta.reasoning };
+    }
+    if (delta.tool_calls !== undefined && delta.tool_calls !== null) {
+      if (!Array.isArray(delta.tool_calls))
+        throw new AliaStreamError('invalid_tool_calls', shape());
+      const deltas: AliaToolCallDelta[] = [];
+      for (const call of delta.tool_calls) {
+        if (
+          !isRecord(call) ||
+          (call.index !== undefined &&
+            (typeof call.index !== 'number' ||
+              !Number.isInteger(call.index) ||
+              call.index < 0 ||
+              call.index > 1024)) ||
+          (call.id !== undefined && typeof call.id !== 'string') ||
+          (call.function !== undefined &&
+            (!isRecord(call.function) ||
+              (call.function.name !== undefined && typeof call.function.name !== 'string') ||
+              (call.function.arguments !== undefined &&
+                typeof call.function.arguments !== 'string')))
+        )
+          throw new AliaStreamError('invalid_tool_calls', shape());
+        deltas.push(call as AliaToolCallDelta);
+      }
+      if (deltas.length > 0) yield { type: 'tool_calls', deltas };
     }
     if (typeof rawChoice.finish_reason === 'string') {
       yield {

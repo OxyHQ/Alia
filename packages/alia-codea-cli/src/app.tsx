@@ -1,17 +1,18 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Box, useApp, useInput } from 'ink';
 import { Header } from './components/Header.js';
-import { MessageList, DisplayMessage } from './components/MessageList.js';
+import { MessageList, type DisplayMessage } from './components/MessageList.js';
 import { InputBar } from './components/InputBar.js';
 import { ApprovalPrompt } from './components/ApprovalPrompt.js';
-import { processConversation, Message, ToolExecution } from './utils/conversation.js';
+import { createConversationControl, type ConversationControl } from './utils/turn-control.js';
+import { processConversation, type Message, type ToolExecution } from './utils/conversation.js';
 import {
   buildSystemMessage,
   getCodebaseContext,
   loadProjectInstructions,
 } from './utils/context.js';
 import { createSession, saveSession } from './utils/config.js';
-import { ApprovalMode, parseApprovalMode } from './utils/approval.js';
+import { type ApprovalMode, parseApprovalMode } from './utils/approval.js';
 import {
   formatModelList,
   labelFor,
@@ -60,8 +61,17 @@ export function App({ options }: { options: AppOptions }) {
   const messagesRef = useRef<Message[]>([]);
   const sessionRef = useRef(createSession());
   const activeRef = useRef(true);
-  /** The in-flight request of the current turn, so Ctrl+C stops it on the wire. */
-  const abortRef = useRef<AbortController | null>(null);
+  const controlRef = useRef<ConversationControl | null>(null);
+  const approvalRef = useRef(pendingApproval);
+  approvalRef.current = pendingApproval;
+  useEffect(
+    () => () => {
+      activeRef.current = false;
+      controlRef.current?.dispose();
+      approvalRef.current?.resolve(false);
+    },
+    [],
+  );
   const streamingIdRef = useRef<string | null>(null);
   const msgCounterRef = useRef(0);
 
@@ -115,26 +125,30 @@ export function App({ options }: { options: AppOptions }) {
   useInput((input, key) => {
     if (key.ctrl && (input === 'c' || input === 'C')) {
       if (isProcessing) {
-        activeRef.current = false;
-        // Stop the request itself, not only the rendering of it: a stream
-        // nobody reads still runs — and is billed — to completion.
-        abortRef.current?.abort();
-        setIsProcessing(false);
-        /**
-         * Settle the approval before dropping it. `requestApproval` hands
-         * `processConversation` a promise that ONLY this object's `resolve`
-         * can settle (`:242-243`), so clearing the state without calling it
-         * left that await pending for the lifetime of the process: the tool
-         * loop never reached `isActive()`, the session was never saved, and
-         * the abandoned chain kept mutating `messagesRef` behind the
-         * cancelled turn. Declining is the honest answer to Ctrl+C.
-         */
+        const control = controlRef.current;
+        if (!control) return;
+        setThinkingLabel('Stopping');
         pendingApproval?.resolve(false);
         setPendingApproval(null);
-        setDisplayMessages((prev) => [
-          ...prev,
-          { id: nextId(), type: 'info', content: 'Cancelled.' },
-        ]);
+        void control
+          .stop()
+          .then(() => {
+            setDisplayMessages((prev) => [
+              ...prev,
+              { id: nextId(), type: 'info', content: 'Stopped.' },
+            ]);
+          })
+          .catch(() => {
+            setThinkingLabel('Stop not acknowledged — Ctrl+C to retry');
+            setDisplayMessages((prev) => [
+              ...prev,
+              {
+                id: nextId(),
+                type: 'info',
+                content: 'Stop was not acknowledged. Press Ctrl+C to retry.',
+              },
+            ]);
+          });
       } else {
         exit();
       }
@@ -280,75 +294,81 @@ export function App({ options }: { options: AppOptions }) {
 
       setIsProcessing(true);
       activeRef.current = true;
-      abortRef.current = new AbortController();
+      const control = createConversationControl();
+      controlRef.current = control;
       streamingIdRef.current = null;
 
       const systemMessage = buildSystemMessage(codebaseContext, instructions);
 
-      await processConversation({
-        messages: messagesRef.current,
-        systemMessage,
-        model,
-        approvalMode,
-        isActive: () => activeRef.current,
-        signal: abortRef.current.signal,
-        requestApproval: (execution) => {
-          return new Promise<boolean>((resolve) => {
-            setPendingApproval({ execution, resolve });
-          });
-        },
-        onEvent: (event) => {
-          switch (event.type) {
-            case 'thinking':
-              setThinkingLabel('Thinking');
-              streamingIdRef.current = nextId();
-              setDisplayMessages((prev) => [
-                ...prev,
-                { id: streamingIdRef.current!, type: 'assistant', content: '', streaming: true },
-              ]);
-              break;
-            case 'content':
-              updateLastAssistant(event.text);
-              break;
-            case 'tool_start':
-              finalizeAssistant();
-              setThinkingLabel(`Running ${event.execution.tool}`);
-              addMessage({
-                id: nextId(),
-                type: 'tool',
-                content: '',
-                toolExecution: { ...event.execution },
-              });
-              break;
-            case 'tool_done':
-              setDisplayMessages((prev) => {
-                const idx = prev.findLastIndex(
-                  (m) => m.type === 'tool' && m.toolExecution?.id === event.execution.id,
-                );
-                if (idx >= 0) {
-                  const updated = [...prev];
-                  updated[idx] = {
-                    ...updated[idx],
-                    toolExecution: { ...event.execution },
-                  };
-                  return updated;
-                }
-                return prev;
-              });
-              break;
-            case 'done':
-              finalizeAssistant();
-              break;
-            case 'error':
-              finalizeAssistant();
-              addMessage({ id: nextId(), type: 'info', content: `Error: ${event.message}` });
-              break;
-          }
-        },
-      });
-
-      setIsProcessing(false);
-      setPendingApproval(null);
+      try {
+        await processConversation({
+          messages: messagesRef.current,
+          systemMessage,
+          model,
+          approvalMode,
+          isActive: () => activeRef.current,
+          control,
+          requestApproval: (execution) => {
+            return new Promise<boolean>((resolve) => {
+              setPendingApproval({ execution, resolve });
+            });
+          },
+          onEvent: (event) => {
+            switch (event.type) {
+              case 'thinking':
+                setThinkingLabel('Thinking');
+                streamingIdRef.current = nextId();
+                setDisplayMessages((prev) => [
+                  ...prev,
+                  { id: streamingIdRef.current!, type: 'assistant', content: '', streaming: true },
+                ]);
+                break;
+              case 'content':
+                updateLastAssistant(event.text);
+                break;
+              case 'tool_start':
+                finalizeAssistant();
+                setThinkingLabel(`Running ${event.execution.tool}`);
+                addMessage({
+                  id: nextId(),
+                  type: 'tool',
+                  content: '',
+                  toolExecution: { ...event.execution },
+                });
+                break;
+              case 'tool_done':
+                setDisplayMessages((prev) => {
+                  const idx = prev.findLastIndex(
+                    (m) => m.type === 'tool' && m.toolExecution?.id === event.execution.id,
+                  );
+                  if (idx >= 0) {
+                    const updated = [...prev];
+                    updated[idx] = {
+                      ...updated[idx],
+                      toolExecution: { ...event.execution },
+                    };
+                    return updated;
+                  }
+                  return prev;
+                });
+                break;
+              case 'done':
+                finalizeAssistant();
+                break;
+              case 'error':
+                finalizeAssistant();
+                addMessage({ id: nextId(), type: 'info', content: `Error: ${event.message}` });
+                break;
+            }
+          },
+        });
+      } finally {
+        control.dispose();
+        if (controlRef.current === control) controlRef.current = null;
+        setIsProcessing(false);
+        setPendingApproval(null);
+        finalizeAssistant();
+      }
 
       // Save session
       const session = sessionRef.current;

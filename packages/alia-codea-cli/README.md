@@ -11,6 +11,8 @@ AI coding assistant for your terminal by Alia.
    ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
 ```
 
+Requires Node 22 or newer.
+
 ## Installation
 
 ```bash
@@ -19,7 +21,7 @@ npm install -g @alia-codea/cli
 
 ## Quick Start
 
-1. Login with your Alia API key:
+1. Sign in to Oxy using the shared device approval flow:
 ```bash
 codea login
 ```
@@ -128,3 +130,15 @@ Config is stored in `~/.config/alia-codea-cli/config.json`. `defaultModel` is a
 ## License
 
 MIT - Created by [Alia](https://alia.onl)
+
+## Stopping a turn
+
+Ctrl+C during a turn sends authenticated Stop and waits for acknowledgement.
+If acknowledgement fails, press Ctrl+C again to retry control; the CLI does not
+retry generation. While stopping, no new local tool is started and pending approval
+is declined. Already completed tool actions are not undone. Each tool continuation
+uses a new turn ID.
+
+Closing the terminal, a broken output pipe, or changing accounts detaches the reader;
+it does not claim remote cancellation. Billing and any recovery remain the server's
+measured settlement. During interactive use, Ctrl+C when idle exits normally.

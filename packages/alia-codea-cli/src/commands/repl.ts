@@ -1,6 +1,6 @@
 import React from 'react';
 import { render } from 'ink';
-import { App, AppOptions } from '../app.js';
+import { App, type AppOptions } from '../app.js';
 import { parseApprovalMode } from '../utils/approval.js';
 
 interface ReplOptions {
@@ -16,6 +16,8 @@ export async function startRepl(options: ReplOptions): Promise<void> {
     context: options.context,
   };
 
-  const { waitUntilExit } = render(React.createElement(App, { options: appOptions }));
+  const { waitUntilExit } = render(React.createElement(App, { options: appOptions }), {
+    exitOnCtrlC: false,
+  });
   await waitUntilExit();
 }
