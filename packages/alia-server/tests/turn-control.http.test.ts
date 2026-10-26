@@ -45,6 +45,7 @@ it('deduplicates early Stop and waits for the HTTP acknowledgement before detach
   const controller = new AbortController();
   const turn = createAliaTurnControl(new AliaServerClient({ baseUrl, token: 'fixture-a' }), {
     controller,
+    lifetimeSignal: new AbortController().signal,
   });
   const first = turn.stop();
   expect(turn.stop()).toBe(first);
@@ -54,6 +55,10 @@ it('deduplicates early Stop and waits for the HTTP acknowledgement before detach
   const finishing = turn.finish().then(() => {
     finished = true;
   });
+  await Promise.resolve();
+  expect(finished).toBe(false);
+  // The chat response can terminate before the independent control response.
+  controller.abort(new Error('terminal SSE'));
   await Promise.resolve();
   expect(finished).toBe(false);
   acknowledge();
@@ -82,7 +87,10 @@ it('a refused Stop remains retryable and never claims remote cancellation', asyn
     }),
   );
   const controller = new AbortController();
-  const turn = createAliaTurnControl(new AliaServerClient({ baseUrl }), { controller });
+  const turn = createAliaTurnControl(new AliaServerClient({ baseUrl }), {
+    controller,
+    lifetimeSignal: new AbortController().signal,
+  });
   await expect(turn.stop()).rejects.toThrow();
   expect(controller.signal.aborted).toBe(false);
   await turn.stop();
@@ -101,7 +109,10 @@ it('detach/account change before dispatch never sends Stop under another identit
     }),
   );
   const controller = new AbortController();
-  const turn = createAliaTurnControl(new AliaServerClient({ baseUrl }), { controller });
+  const turn = createAliaTurnControl(new AliaServerClient({ baseUrl }), {
+    controller,
+    lifetimeSignal: new AbortController().signal,
+  });
   controller.abort();
   await turn.stop();
   await turn.finish();
@@ -117,7 +128,10 @@ it('bounds credential preparation within Stop and never dispatches after late re
   });
   const fetchClient = vi.fn<typeof fetch>();
   const client = new AliaServerClient({ headers: () => headers, fetch: fetchClient });
-  const turn = createAliaTurnControl(client, { controller: new AbortController() });
+  const turn = createAliaTurnControl(client, {
+    controller: new AbortController(),
+    lifetimeSignal: new AbortController().signal,
+  });
   try {
     const stopped = turn.stop();
     const rejected = expect(stopped).rejects.toThrow('deadline');
@@ -132,4 +146,30 @@ it('bounds credential preparation within Stop and never dispatches after late re
     timeoutFactory.mockRestore();
     await turn.finish();
   }
+});
+
+it('an account lifetime change cancels an outstanding acknowledgement even after the stream ended', async () => {
+  let arrived!: () => void;
+  const requestArrived = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  const baseUrl = await listen(
+    createServer((req) => {
+      req.resume();
+      arrived();
+    }),
+  );
+  const controller = new AbortController();
+  const lifetime = new AbortController();
+  const turn = createAliaTurnControl(new AliaServerClient({ baseUrl }), {
+    controller,
+    lifetimeSignal: lifetime.signal,
+  });
+  const stopped = turn.stop();
+  const rejected = expect(stopped).rejects.toThrow('account changed');
+  await requestArrived;
+  controller.abort();
+  lifetime.abort(new Error('account changed'));
+  await rejected;
+  await turn.finish();
 });

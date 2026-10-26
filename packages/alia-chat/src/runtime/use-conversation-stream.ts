@@ -700,6 +700,12 @@ export function useConversationStream({
           const lockedFeature = lockedFeatureOf(
             errorData?.error && typeof errorData.error === 'object' ? errorData.error : null,
           );
+          if (errorCode(errorData?.error) === 'turn_cancelled') {
+            flushPendingUpdates();
+            settleAssistant('cancelled');
+            abortThisTurn();
+            return 'aborted';
+          }
           if (lockedFeature !== null) {
             host.onFeatureLocked?.(lockedFeature);
             return rollback();
@@ -1049,6 +1055,13 @@ export function useConversationStream({
               // Handle structured error events sent via SSE
               if (parsed.error) {
                 const err = parsed.error;
+                if (errorCode(err) === 'turn_cancelled') {
+                  flushPendingUpdates();
+                  settleAssistant('cancelled');
+                  abortThisTurn();
+                  reader.cancel().catch(() => {});
+                  return 'aborted';
+                }
                 // An agent's feature gate refused the turn before anything was spent: the host
                 // shows its own upsell, and the person's words go back to the composer.
                 const lockedFeature = lockedFeatureOf(err);

@@ -1,15 +1,17 @@
 import type { AliaServerClient } from './client.js';
 
 export interface AliaTurnControlOptions {
-  /** Shared with this request's stream. Account changes and teardown abort it locally. */
+  /** Shared with this request's stream; a terminal SSE frame may abort it before Stop is acknowledged. */
   readonly controller: AbortController;
+  /** Separate account/owner lifetime fence; never the stream's own signal. */
+  readonly lifetimeSignal: AbortSignal;
   readonly conversationId?: string;
 }
 
 /**
  * One HTTP generation, created before asynchronous preparation. A tool continuation
  * is another generation and needs a fresh handle. The caller retains ownership of
- * its authenticated transport and must fence account changes through the controller.
+ * its authenticated transport and must fence account changes through both the controller and lifetimeSignal.
  */
 export function createAliaTurnControl(
   client: Pick<AliaServerClient, 'cancelTurn'>,
@@ -27,7 +29,7 @@ export function createAliaTurnControl(
       pending = client
         .cancelTurn(
           { turnId: id, conversationId: options.conversationId },
-          { signal: AbortSignal.any([options.controller.signal, AbortSignal.timeout(10_000)]) },
+          { signal: AbortSignal.any([options.lifetimeSignal, AbortSignal.timeout(10_000)]) },
         )
         .then(() => {
           options.controller.abort();

@@ -17,10 +17,15 @@ export function createChatTurnControl(
   const id = createRandomUuid();
   let stopping: Promise<void> | undefined;
   let ended = false;
+  const lifetime = new AbortController();
   const epoch = linked.client.getSessionEpoch();
   const current = () => linked.client.getSessionEpoch() === epoch;
   const unsubscribe = linked.client.addTokenChangeListener(() => {
-    if (!current()) controller.abort(new Error('The conversation account changed'));
+    if (!current()) {
+      const reason = new Error('The conversation account changed');
+      lifetime.abort(reason);
+      controller.abort(reason);
+    }
   });
   return {
     id,
@@ -29,7 +34,7 @@ export function createChatTurnControl(
       if (stopping) return stopping;
       if (ended || controller.signal.aborted) return Promise.resolve();
       stopping = (async () => {
-        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+        const signal = AbortSignal.any([lifetime.signal, AbortSignal.timeout(10_000)]);
         const assertionHeaders = await awaitTurnPreparation(headers, signal);
         signal.throwIfAborted();
         controller.signal.throwIfAborted();
@@ -58,6 +63,7 @@ export function createChatTurnControl(
       ended = true;
       // The stream can close before the replica answering Stop sends its acknowledgement.
       await stopping?.catch(() => undefined);
+      lifetime.abort();
       unsubscribe();
       linked.dispose();
     },
