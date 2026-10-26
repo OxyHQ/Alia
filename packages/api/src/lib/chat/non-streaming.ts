@@ -74,6 +74,7 @@ export interface NonStreamingParams {
    * before anything is stored or charged: a turn that timed out is neither.
    */
   assertLive?: () => void;
+  beforeFinish?: () => Promise<void>;
   /** The turn runs as an agent: Alia's after-chat learning skips it. */
   agentTurn?: boolean;
 }
@@ -103,6 +104,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     observation,
     settlement,
     assertLive,
+    beforeFinish,
     agentTurn,
   } = params;
 
@@ -175,6 +177,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   assertLive?.();
 
   // Save conversation + generate title
+  await beforeFinish?.();
   await saveConversationResult(lifecycleCtx, assistantResponse, nonStreamToolInvocations);
   if (conversationId && req.user?.id && assistantResponse) {
     generateTitleAsync(req.user.id, conversationId, messages);

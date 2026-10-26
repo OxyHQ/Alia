@@ -90,3 +90,7 @@ export type FileEvent = import('@oxy.so/core/server').FileEvent;
  * subject of `clientIp.test.ts`, and a stub would measure itself.
  */
 export const oxyTrustProxy: OxyCoreServer['oxyTrustProxy'] = real.oxyTrustProxy;
+
+/** Verified principal projection and canonical application identity are real shared contracts. */
+export const getOxyActor = real.getOxyActor;
+export const OXY_ALIA_RESOURCE_APPLICATION_ID = real.OXY_ALIA_RESOURCE_APPLICATION_ID;

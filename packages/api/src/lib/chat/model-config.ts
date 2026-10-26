@@ -136,6 +136,7 @@ export interface BuildBaseConfigParams {
    * tests build a config with no observation to write into.
    */
   onInferenceRequest?: import('../inference/kaana-language-model.js').KaanaModelOptions['onInferenceRequest'];
+  onInferenceAttempt?: import('../inference/kaana-language-model.js').KaanaModelOptions['onInferenceAttempt'];
   onResolvedModel?: (reference: string) => void;
 }
 
@@ -203,6 +204,7 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
   };
 
   const model = getAIModel(resolved, 'chat', oxyUserId, serviceToken, {
+    onInferenceAttempt: params.onInferenceAttempt,
     reasoningEffort,
     onInferenceRequest,
   });

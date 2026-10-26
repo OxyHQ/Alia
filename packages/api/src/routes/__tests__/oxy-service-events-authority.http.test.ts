@@ -177,15 +177,16 @@ describe('event receiver with real signed service credentials and live Oxy reads
     ['nilo', nilo],
     ['inbox', inboxPublisher],
   ])(
-    'accepts old %s v1 and canonical scope-free v2 without changing deduplication',
+    'rejects retired %s v1 and accepts canonical scope-free v2 without changing deduplication',
     async (slug, appId) => {
       state.catalogOwner = appId;
-      for (const lane of ['v1', 'v2'] as const) {
-        const response = await post(token(appId, lane), slug);
-        expect(response.status, JSON.stringify(await response.clone().json())).toBe(202);
-        expect(await response.json()).toEqual({ accepted: true, duplicate: true });
-      }
-      expect(state.claim).toHaveBeenCalledTimes(2);
+      expect((await post(token(appId, 'v1'), slug)).status).toBe(401);
+      expect(state.claim).not.toHaveBeenCalled();
+      expect(state.catalogueReads).toBe(0);
+      const response = await post(token(appId, 'v2'), slug);
+      expect(response.status, JSON.stringify(await response.clone().json())).toBe(202);
+      expect(await response.json()).toEqual({ accepted: true, duplicate: true });
+      expect(state.claim).toHaveBeenCalledOnce();
     },
   );
   it('rejects revoked, wrong-recipient and forged service credentials before claiming', async () => {

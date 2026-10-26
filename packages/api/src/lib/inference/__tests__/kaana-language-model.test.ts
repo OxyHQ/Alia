@@ -396,3 +396,47 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     expect(parts.filter((part) => part.type === 'tool-call')).toHaveLength(1);
   });
 });
+
+describe('canonical disjoint token accounting', () => {
+  it.each([
+    { input: 0, cached: 3000, output: 0, reasoning: 60 },
+    { input: 20, cached: 3000, output: 5, reasoning: 60 },
+  ])(
+    'includes cache and reasoning exactly once in streamed AI SDK totals: %j',
+    async (quantities) => {
+      mocks.events.length = 0;
+      mocks.streamFailure = null;
+      mocks.events.push(
+        {
+          type: 'usage',
+          units: [
+            { unit: 'input_tokens', quantity: quantities.input },
+            { unit: 'cached_input_tokens', quantity: quantities.cached },
+            { unit: 'output_tokens', quantity: quantities.output },
+            { unit: 'reasoning_tokens', quantity: quantities.reasoning },
+          ],
+        },
+        { type: 'done', requestId: 'req-accounting', finishReason: 'stop' },
+      );
+      const model = kaanaLanguageModel({
+        target: { kind: 'model', model: 'acme/chat-1' },
+        modelId: 'acme/chat-1',
+        surface: 'chat',
+      });
+      const parts = await drain((await model.doStream({ prompt } as never)).stream);
+      expect(parts.at(-1)?.usage).toEqual({
+        inputTokens: {
+          total: quantities.input + quantities.cached,
+          noCache: quantities.input,
+          cacheRead: quantities.cached,
+          cacheWrite: undefined,
+        },
+        outputTokens: {
+          total: quantities.output + quantities.reasoning,
+          text: quantities.output,
+          reasoning: quantities.reasoning,
+        },
+      });
+    },
+  );
+});

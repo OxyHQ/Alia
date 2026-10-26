@@ -286,3 +286,53 @@ describe('runDeepResearch — decomposition', () => {
     }
   });
 });
+
+describe('explicit research cancellation', () => {
+  it('passes one abort signal and durable attempt hook through every model stage', async () => {
+    const { getAIModel } = await import('../../chat-core.js');
+    const { generateText } = await import('ai');
+    vi.mocked(getAIModel).mockClear();
+    vi.mocked(generateText).mockClear();
+    const controller = new AbortController();
+    const attempt = vi.fn();
+    H.script.push({ when: isGaps, answer: '[]' });
+    await runDeepResearch('Research React architecture comprehensively', [], {
+      userId: 'requester',
+      signal: controller.signal,
+      onInferenceAttempt: attempt,
+      onProgress: progress(),
+    });
+    expect(getAIModel).toHaveBeenCalled();
+    for (const call of vi.mocked(getAIModel).mock.calls) {
+      expect(call[2]).toBe('requester');
+      expect(call[4]?.onInferenceAttempt).toBe(attempt);
+    }
+    const stages = vi.mocked(generateText).mock.calls;
+    expect(stages.some(([args]) => isDecomposition(String(args.system)))).toBe(true);
+    expect(stages.some(([args]) => isSynthesis(String(args.system)))).toBe(true);
+    expect(stages.some(([args]) => isGaps(String(args.system)))).toBe(true);
+    for (const [args] of stages) expect(args.abortSignal).toBe(controller.signal);
+  });
+  it('does not turn an aborted synthesis into a completed partial report or another model call', async () => {
+    const controller = new AbortController();
+    const reason = new Error('explicit Stop');
+    H.script.push({
+      when: isSynthesis,
+      answer: () => {
+        controller.abort(reason);
+        return reason;
+      },
+    });
+    const onProgress = progress();
+    await expect(
+      runDeepResearch('Research React architecture', [], {
+        userId: 'requester',
+        signal: controller.signal,
+        onInferenceAttempt: vi.fn(),
+        onProgress,
+      }),
+    ).rejects.toBe(reason);
+    expect(onProgress.mock.calls.some(([event]) => event.phase === 'complete')).toBe(false);
+    expect(H.calls.some((call) => isGaps(call.system))).toBe(false);
+  });
+});

@@ -443,3 +443,8 @@ chat reference with the Oxy error/request ID for incident correlation.
 `/automations` is the normalized task control plane. Conversation can create a
 future assistant task with no connected-app action, or connected work with exact
 Oxy authority. Creation never runs the task; a separate Run now operation does.
+
+
+Explicit Stop and transport detach are separate operations. See [the foreground
+turn control contract](./explicit-chat-stop.md) for authority, early cancellation,
+usage recovery and the API-before-SDK rollout order.

@@ -23,6 +23,18 @@ import { ASK_USER_QUESTION_TOOL } from '../../lib/tools/ask-user-question.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
 import {
+  chatTurnControl,
+  turnIdentity,
+  answerTurnControlError,
+  TurnControlError,
+} from '../../lib/chat/turn-control.js';
+import type { TurnIdentity } from '../../db/chat/turnControlRepository.js';
+import {
+  recordChatInferenceAttempt,
+  requestCreditReconciliation,
+  retireTerminalCreditReconciliation,
+} from '../../lib/credit-reconciliation.js';
+import {
   AgentTurnCoordinator,
   type CoordinatedAgentTurn,
 } from '../../lib/agent/agent-turn-coordinator.js';
@@ -38,6 +50,11 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   const requestId = `chatcmpl-${crypto.randomUUID()}`;
   const sse = new SSEWriter(res);
   let coordinatedTurn: CoordinatedAgentTurn | null = null;
+  let controlIdentity: TurnIdentity | undefined;
+  let observation:
+    | ReturnType<ReturnType<typeof chatTurnControl>['observer']['observe']>
+    | undefined;
+  let completed = false;
 
   // Retry-mutable state shared with the provider loop, the global-timeout timer,
   // the outer catch, and the failed-turn response.
@@ -146,7 +163,29 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   try {
     log.v1.info('Request received');
 
-    const ctx = await buildChatRequestContext(req, res, sse, globalTimer, requestId);
+    if (req.body?.turnId !== undefined) {
+      try {
+        controlIdentity = await turnIdentity(req, req.body.turnId);
+        const control = chatTurnControl();
+        await control.repository.claim(controlIdentity, requestId);
+        observation = control.observer.observe(controlIdentity, requestId, providerAbort);
+        state.inferenceAttemptKeys = new Set();
+      } catch (error) {
+        // A rejected duplicate never owns or finalizes the existing turn.
+        controlIdentity = undefined;
+        answerTurnControlError(res, error);
+        return;
+      }
+    }
+
+    const ctx = await buildChatRequestContext(
+      req,
+      res,
+      sse,
+      globalTimer,
+      requestId,
+      providerAbort.signal,
+    );
     if (!ctx) return; // response already written (validation error or gate rejection)
 
     const {
@@ -172,6 +211,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       linkedAgent,
     } = ctx;
     state.creditReservation = ctx.creditReservation;
+    providerAbort.signal.throwIfAborted();
     state.resolved = ctx.resolved;
     state.modelId = ctx.modelId;
     const { autonomyRuntime, recalledMemories } = ctx;
@@ -204,9 +244,21 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         autonomyRuntime,
         requestStartTime,
         globalTimer,
-        signal: req.socket.destroyed ? AbortSignal.abort() : undefined,
+        signal: req.socket.destroyed ? AbortSignal.abort() : providerAbort.signal,
+        beforeFinish: observation?.beginFinish,
+        settlement: state,
+        onInferenceAttempt: state.inferenceAttemptKeys
+          ? async (key, phase) => {
+              await recordChatInferenceAttempt(state.creditReservation, key, phase, 0);
+              if (phase === 'prepared') state.inferenceAttemptKeys?.add(key);
+              else state.inferenceAttemptKeys?.delete(key);
+            }
+          : undefined,
       });
-      if (handled) return;
+      if (handled) {
+        completed = !providerAbort.signal.aborted;
+        return;
+      }
     }
 
     if (agentRuntimeEnabled && linkedAgent && req.user?.id && isDirectUserSession) {
@@ -431,6 +483,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       globalTimer,
       globalTimeoutMs: GLOBAL_TIMEOUT_MS,
       providerAbort,
+      beforeFinish: observation?.beginFinish,
       agentTurn: linkedAgent != null,
       state,
       body,
@@ -458,6 +511,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     });
 
     if (loopResult.status === 'completed') {
+      completed = true;
       // Streaming settles before [DONE] and clears the handle. Non-streaming
       // has no client-side send race, so it is completed here as before.
       await coordinatedTurn?.complete();
@@ -516,8 +570,31 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Most often an upstream error after text or tools were already streamed.
     // Nothing was saved and nothing is charged: the release point below
     // refunds the reservation.
-    failTurn(aliaError);
+    if (
+      providerAbort.signal.reason instanceof TurnControlError &&
+      providerAbort.signal.reason.code === 'turn_cancelled'
+    ) {
+      if (!res.writableEnded) {
+        const error = {
+          code: 'turn_cancelled',
+          message: 'Generation stopped',
+          type: 'cancelled',
+          retryable: false,
+        };
+        if (res.headersSent) sse.writeError(error);
+        else res.status(409).json({ error });
+      }
+    } else failTurn(aliaError);
   } finally {
+    clearTimeout(globalTimer);
+    observation?.stop();
+    if (controlIdentity) {
+      await chatTurnControl()
+        .repository.finish(controlIdentity, requestId, completed)
+        .catch((err: unknown) => {
+          log.v1.warn({ err, requestId }, 'Turn control finalization failed');
+        });
+    }
     /**
      * The one place a reservation is released.
      *
@@ -526,9 +603,25 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
      * got — the 80s timeout and the catch above both did, each having simply
      * forgotten. Releasing here means the next exit path cannot forget.
      */
-    if (state.creditReservation && !state.creditsSettled) {
+    if (state.creditReservation && !state.creditsSettled && state.inferenceAttemptKeys?.size) {
+      // The durable intent was written before dispatch. Lost metadata or a 404
+      // cannot justify a refund; the existing ledger's worker will reconcile.
+      await requestCreditReconciliation(state.creditReservation).catch((err: unknown) => {
+        log.v1.warn(
+          { err, requestId },
+          'Credit reconciliation remains scheduled after interruption',
+        );
+      });
+    } else if (state.creditReservation && !state.creditsSettled) {
       state.creditsSettled = true;
       await safeRefund(state.creditReservation, 'request ended without charging');
+    }
+    if (state.creditReservation?.operationId && state.creditsSettled) {
+      await retireTerminalCreditReconciliation(state.creditReservation.operationId).catch(
+        (err: unknown) => {
+          log.v1.warn({ err, requestId }, 'Terminal credit scheduling cleanup failed');
+        },
+      );
     }
   }
 };

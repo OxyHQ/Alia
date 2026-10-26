@@ -160,6 +160,7 @@ export async function resolveStoredModel(
 }
 
 export interface AIModelOptions {
+  readonly onInferenceAttempt?: import('./inference/kaana-language-model.js').KaanaModelOptions['onInferenceAttempt'];
   readonly onInferenceRequest?: import('./inference/kaana-language-model.js').KaanaModelOptions['onInferenceRequest'];
   /** Forwarded to Oxy as `reasoning: { effort }` for a hosted model. */
   readonly reasoningEffort?: ReasoningEffort | null;
@@ -191,6 +192,7 @@ export function getAIModel(
     throw new Error('A hosted inference route arrived without an Oxy inference target');
   }
   return kaanaLanguageModel({
+    ...(options.onInferenceAttempt ? { onInferenceAttempt: options.onInferenceAttempt } : {}),
     target,
     ...(options.onInferenceRequest === undefined
       ? {}

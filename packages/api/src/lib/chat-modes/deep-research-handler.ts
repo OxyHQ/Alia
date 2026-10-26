@@ -30,6 +30,9 @@ export interface DeepResearchContext {
   requestStartTime: number;
   globalTimer: ReturnType<typeof setTimeout>;
   signal?: AbortSignal;
+  beforeFinish?: () => Promise<void>;
+  settlement?: { creditsSettled: boolean };
+  onInferenceAttempt?: import('../chat-core.js').AIModelOptions['onInferenceAttempt'];
 }
 
 /**
@@ -65,6 +68,7 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
         userId,
         modelId,
         signal: ctx.signal,
+        onInferenceAttempt: ctx.onInferenceAttempt,
         onProgress: (progress: ResearchProgress) => {
           if (!res.writableEnded) {
             res.write(
@@ -83,6 +87,8 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
       },
     );
 
+    ctx.signal?.throwIfAborted();
+    await ctx.beforeFinish?.();
     // Stream the final report as content deltas (OpenAI SSE format)
     const CHUNK_SIZE = 100;
     for (let i = 0; i < result.report.length; i += CHUNK_SIZE) {
@@ -156,22 +162,23 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
       }
     }
 
-    // Finalize credits
-    if (creditReservation) {
+    // Controlled research has durable receipts for every helper call. Its route
+    // schedules authoritative reconciliation, including on successful completion.
+    // Legacy clients retain their existing research pricing behavior.
+    if (creditReservation && !ctx.onInferenceAttempt) {
       const promptTokenEstimate = messages.reduce(
         (sum: number, m: ChatMessage) =>
           sum + estimateMessageTokens(m.role, typeof m.content === 'string' ? m.content : ''),
         0,
       );
       const completionTokens = Math.ceil(result.report.length / 4);
-      finalizeCredits(creditReservation, {
+      await finalizeCredits(creditReservation, {
         promptTokens: promptTokenEstimate,
         completionTokens,
         totalTokens: promptTokenEstimate + completionTokens,
         systemPromptTokens: 0,
-      } as CreditUsage).catch((err: unknown) =>
-        log.v1.error({ err }, 'finalizeCredits failed after deep research'),
-      );
+      } as CreditUsage);
+      if (ctx.settlement) ctx.settlement.creditsSettled = true;
     }
 
     runAutonomyAfterChat({
@@ -185,6 +192,9 @@ export async function handleDeepResearch(ctx: DeepResearchContext): Promise<bool
     clearTimeout(globalTimer);
     return true;
   } catch (err: unknown) {
+    // The route reconciles controlled cancellations from the durable intents.
+    // Do not race it with the legacy research-error refund.
+    if (ctx.onInferenceAttempt) throw ctx.signal?.aborted ? ctx.signal.reason : err;
     log.v1.error({ err }, 'Deep research failed');
     if (creditReservation) {
       refundReservation(creditReservation).catch((err2: unknown) =>
