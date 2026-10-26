@@ -2,13 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   AliaChatError,
   completedToolCalls,
-  createSseFrameReader,
   failureDetail,
-  interpretFrame,
   isCreditsRefusal,
   mergeToolCallDeltas,
   streamAliaChat,
   withFailureDetail,
+  type AliaChatRequestBody,
   type AliaStreamEvent,
   type StreamedToolCall,
 } from '../alia-chat';
@@ -101,67 +100,6 @@ async function collect(text: string, chunkSize?: number): Promise<AliaStreamEven
   }
   return events;
 }
-
-describe('createSseFrameReader', () => {
-  it('keeps the event name across a chunk boundary and drops it at the blank line', () => {
-    const reader = createSseFrameReader();
-    expect(reader.push('event: alia.rea')).toEqual([]);
-    expect(reader.push('soning\ndata: {"a":1}\n')).toEqual([
-      { event: 'alia.reasoning', data: '{"a":1}' },
-    ]);
-    // The next unnamed frame must not inherit the name.
-    expect(reader.push('\ndata: {"b":2}\n\n')).toEqual([{ event: '', data: '{"b":2}' }]);
-  });
-
-  it('strips CR from a CRLF stream and ignores comments', () => {
-    const reader = createSseFrameReader();
-    expect(reader.push(': keep-alive\r\n\r\ndata: [DONE]\r\n\r\n')).toEqual([
-      { event: '', data: '[DONE]' },
-    ]);
-  });
-});
-
-describe('interpretFrame', () => {
-  it('turns a stand-in chunk into a synthetic event and never into content', () => {
-    const frame = {
-      event: '',
-      data: chunk({ content: 'busy' }, { alia_meta: { synthetic: true, retryable: true } })
-        .slice(6)
-        .trim(),
-    };
-    expect(interpretFrame(frame)).toEqual([{ type: 'synthetic', text: 'busy', retryable: true }]);
-  });
-
-  it('throws the server error envelope, in both of its spellings', () => {
-    expect(() =>
-      interpretFrame({
-        event: '',
-        data: '{"error":{"message":"Upgrade your plan to use this model.","code":"MODEL_NOT_IN_PLAN"}}',
-      }),
-    ).toThrowError(AliaChatError);
-    try {
-      interpretFrame({
-        event: '',
-        data: '{"error":{"message":"nope","code":"unknown_routing_profile"}}',
-      });
-    } catch (error) {
-      expect(error).toBeInstanceOf(AliaChatError);
-      expect((error as AliaChatError).code).toBe('unknown_routing_profile');
-      expect((error as AliaChatError).status).toBeNull();
-    }
-    expect(() =>
-      interpretFrame({ event: '', data: '{"error":"Authentication required"}' }),
-    ).toThrowError('Authentication required');
-  });
-
-  it('skips a frame that is not JSON rather than ending the turn', () => {
-    expect(interpretFrame({ event: '', data: 'not json' })).toEqual([]);
-  });
-
-  it('reports [DONE] as null', () => {
-    expect(interpretFrame({ event: '', data: '[DONE]' })).toBeNull();
-  });
-});
 
 describe('streamAliaChat', () => {
   const expected: AliaStreamEvent[] = [
@@ -290,7 +228,7 @@ describe('streamAliaChat', () => {
   });
 
   it('stops at [DONE] even when bytes follow it', async () => {
-    const text = chunk({ content: 'a' }) + 'data: [DONE]\n\n' + chunk({ content: 'ghost' });
+    const text = `${chunk({ content: 'a' })}data: [DONE]\n\n${chunk({ content: 'ghost' })}`;
     expect(await collect(text)).toEqual([{ type: 'content', text: 'a' }]);
   });
 
@@ -441,13 +379,86 @@ describe('a typed failure keeps what support needs, and a cut stream is an error
     expect(thrown).toMatchObject({ code: 'STREAM_INCOMPLETE', retryable: true });
   });
 
-  it('accepts a finish reason without [DONE], and reads a last frame with no trailing newline', async () => {
+  it('rejects a finish reason without the shared terminal marker', async () => {
     const wire = chunk({ content: 'whole' }, {}, 'stop').trimEnd();
-    const seen: AliaStreamEvent[] = [];
-    for await (const event of run(wire)) seen.push(event);
-    expect(seen).toEqual([
+    await expect(collect(wire)).rejects.toMatchObject({
+      code: 'STREAM_INCOMPLETE',
+      retryable: true,
+    });
+  });
+
+  it('surfaces malformed JSON and invalid tool fragments as readable failures', async () => {
+    for (const wire of ['data: not json\n\n', chunk({ tool_calls: [{ index: -1 }] })]) {
+      await expect(collect(`${wire}data: [DONE]\n\n`)).rejects.toMatchObject({
+        code: 'STREAM_INVALID',
+        retryable: true,
+        message: 'Alia’s response could not be read. Please try again.',
+      });
+    }
+  });
+
+  it('maps a synthetic shared text event without presenting it as an answer', async () => {
+    await expect(
+      collect(
+        chunk({ content: 'busy' }, { alia_meta: { synthetic: true, retryable: true } }) +
+          'data: [DONE]\n\n',
+      ),
+    ).resolves.toEqual([{ type: 'synthetic', text: 'busy', retryable: true }]);
+  });
+
+  it('uses the shared CRLF and multi-line SSE framing contract', async () => {
+    const wire =
+      ': keep-alive\r\n\r\ndata: {"choices":[{\r\ndata: "delta":{"content":"whole"},"finish_reason":"stop"}]}\r\n\r\ndata: [DONE]';
+    await expect(collect(wire)).resolves.toEqual([
       { type: 'content', text: 'whole' },
       { type: 'finish', reason: 'stop' },
     ]);
   });
+});
+
+it('preserves multimodal, assistant tool-call and tool-result request bodies through shared parsing', async () => {
+  const body: AliaChatRequestBody = {
+    turnId: 'bca3a59a-37eb-43ae-a637-9382d2230626',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'owned fixture' },
+          { type: 'image_url', image_url: { url: 'https://example.test/owned.png' } },
+        ],
+      },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'tool-1', type: 'function', function: { name: 'read_file', arguments: '{}' } },
+        ],
+      },
+      { role: 'tool', tool_call_id: 'tool-1', content: 'owned result' },
+    ],
+    tools: [{ type: 'function', function: { name: 'read_file', parameters: { type: 'object' } } }],
+  };
+  let sent: unknown;
+  for await (const _event of streamAliaChat({
+    baseUrl: 'https://api.example',
+    body,
+    fetch: async (_url, init) => {
+      sent = JSON.parse(String(init?.body));
+      return responseOf('data: [DONE]\n\n');
+    },
+  })) {
+    /* terminal-only fixture */
+  }
+  expect(sent).toEqual({ ...body, stream: true });
+});
+
+it('preserves a synthetic terminal marker even when it carries no content', async () => {
+  await expect(
+    collect(
+      `${chunk({}, { alia_meta: { synthetic: true, retryable: true } }, 'stop')}data: [DONE]\n\n`,
+    ),
+  ).resolves.toEqual([
+    { type: 'synthetic', text: '', retryable: true },
+    { type: 'finish', reason: 'stop' },
+  ]);
 });

@@ -5,6 +5,13 @@ All notable changes to the "Codea by Alia" extension will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.10] - 2026-10-26
+
+- Use the shared Alia server SDK 1.3.1 SSE reader for framing, typed tool fragments and stream termination.
+- Show malformed or truncated streams as failures instead of saving an incomplete successful reply.
+- Preserve synthetic-message presentation, tool assembly, multimodal requests and the existing Stop/account lifecycle.
+- Distribution remains separate from source merge and local packaging.
+
 ## [1.0.9] - 2026-10-26
 
 - Send acknowledged, authenticated Stop through the shared Alia server SDK before detaching a foreground generation.

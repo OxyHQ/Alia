@@ -52,7 +52,12 @@ afterEach(async () => {
 function bearer(account: string) {
   return `e30.${Buffer.from(JSON.stringify({ userId: account, sessionId: account, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
 }
-async function fixture(twoRounds = false, lateAck = false, readFile = async () => 'owned fixture') {
+async function fixture(
+  twoRounds = false,
+  lateAck = false,
+  readFile = async () => 'owned fixture',
+  responseWire?: string,
+) {
   const requests: { path?: string; auth?: string; turnId?: string }[] = [];
   let arrived!: () => void;
   const started = new Promise<void>((resolve) => {
@@ -75,6 +80,12 @@ async function fixture(twoRounds = false, lateAck = false, readFile = async () =
     requests.push({ path: req.url, auth: req.headers.authorization, turnId: value.turnId });
     if (req.url === '/alia/chat') {
       chatResponse = res;
+      if (responseWire !== undefined) {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.end(responseWire);
+        arrived();
+        return;
+      }
       if (lateAck) {
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.write(
@@ -274,5 +285,24 @@ it.each(['stream', 'tool'] as const)(
         ),
     ).toBe(false);
     expect(f.requests.map((request) => request.path)).toEqual(['/alia/chat']);
+  },
+);
+
+it.each(['malformed', 'truncated', 'synthetic-terminal'] as const)(
+  'Cowork displays a shared %s stream failure without storing a successful reply',
+  async (failure) => {
+    const wire =
+      failure === 'synthetic-terminal'
+        ? `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], alia_meta: { synthetic: true, retryable: true } })}\n\ndata: [DONE]\n\n`
+        : failure === 'malformed'
+          ? 'data: not-json\n\ndata: [DONE]\n\n'
+          : `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' }, finish_reason: 'stop' }] })}\n\n`;
+    const f = await fixture(false, false, undefined, wire);
+    await f.chat.handleMessage('owned fixture');
+    expect(f.sent.some((entry) => entry.channel === 'chat:error')).toBe(true);
+    expect((f.chat as unknown as { messages: unknown[] }).messages).not.toContainEqual(
+      expect.objectContaining({ role: 'assistant' }),
+    );
+    expect(f.requests.map((entry) => entry.path)).toEqual(['/alia/chat']);
   },
 );

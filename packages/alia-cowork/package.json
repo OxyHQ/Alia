@@ -1,6 +1,6 @@
 {
   "name": "alia-cowork",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Alia Cowork - scoped local execution for Windows and Linux Xorg",
   "main": "dist/main/index.js",

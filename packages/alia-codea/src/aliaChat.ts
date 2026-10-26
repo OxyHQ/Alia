@@ -1,130 +1,16 @@
 /**
- * Alia's product chat stream, as the VS Code extension host consumes it
- * (`POST /alia/chat`).
- *
- * ## Why one reader, and why not the `openai` package
- *
- * The extension had two readers for one wire. The webview chat went through
- * `new OpenAI({ baseURL: `${baseUrl}/v1` })`, whose stream parser DROPS every
- * named event — for an `event: alia.reasoning` frame it parses the payload and
- * yields it as if it were a completion chunk, and a chunk with no `choices` is
- * skipped by every consumer. The `@codea` participant and the inline
- * completions posted to `/alia/chat` by hand, and the participant's reader
- * only looked at `data:` lines: an in-stream error envelope
- * (`data: {"error": …}`) was silently ignored and the turn reported success
- * with no text, and the `alia_meta.synthetic` stand-in — "I'm sorry, all models
- * are currently busy" — was rendered as the answer. The webview chat checked
- * the marker; its sibling did not.
- *
- * A fetch and a frame reader are ~150 lines, and one copy serves all three.
- * The `openai` dependency stays for its message and tool TYPES, which are the
- * vocabulary the server accepts.
- *
- * ## The wire contract this reads
- *
- * Trust the code, not the docs: `packages/api/src/lib/chat/stream-runner.ts`,
- * `lib/chat/provider-loop.ts`, `lib/chat/sse-writer.ts` and
- * `lib/streaming-helpers.ts` are what write the frames below. `/alia/chat` and
- * `/v1/chat/completions` are one handler (`routes/chat.ts`).
- *
- *  - `: keep-alive` comments, ignored per the SSE specification.
- *  - Unnamed `data:` frames: OpenAI `chat.completion.chunk` objects carrying
- *    `choices[0].delta.content`, `choices[0].delta.tool_calls` and
- *    `choices[0].finish_reason`. A chunk may carry `alia_meta: { synthetic,
- *    retryable }`, in which case its content is a stand-in and not an answer.
- *  - Named frames `event: alia.<name>\ndata: {…}`: `alia.reasoning`
- *    (`{ content }`), `alia.tool_result` (`{ tool_call_id, name, output }`) and
- *    a handful this extension has no use for (`alia.title`, `alia.agent`,
- *    `alia.plan_preview`, …), passed through as `event`.
- *  - `data: {"error": {…}}` followed by `[DONE]`: a refusal AFTER the headers
- *    went out. Surfaced as {@link AliaChatError}, never as text.
- *  - `data: [DONE]` closes the stream.
- *
- * ## Why this is a copy rather than a shared module
- *
- * `packages/alia-cowork` and `@alia-codea/cli` carry the same reader, for the
- * reason `./catalogue.ts` states: the CLI is published and this extension is
- * bundled, so neither can depend on an unpublished workspace package. The three
- * are kept in step by their tests, which feed the same frames.
+ * Desktop presentation and local tool assembly over the published Alia SSE reader.
+ * Shared Oxy linked fetch owns request authentication and account fencing. The
+ * server SDK owns framing, decoding, typed events, cancellation and byte limits.
+ * OpenAI types preserve the product's multimodal and tool-message request bodies.
  */
-
+import { AliaStreamError, readAliaEventStream, type AliaToolCallDelta } from '@alia.onl/server';
 import type OpenAI from 'openai';
-
-// ── Frames ──────────────────────────────────────────────────────────────────
-
-export interface SseFrame {
-  /** The `event:` name, or `''` for an unnamed (OpenAI-shaped) frame. */
-  readonly event: string;
-  /** The `data:` payload, trimmed. `[DONE]` is passed through as-is. */
-  readonly data: string;
-}
-
-export interface SseFrameReader {
-  /** Feed one decoded chunk; get back every frame it completed. */
-  push(chunk: string): SseFrame[];
-}
-
-/**
- * Reassemble an SSE byte stream into whole frames.
- *
- * A port of `packages/app/src/features/chat/runtime/sse-frame-reader.ts`, and the reason it is
- * an object rather than two variables in a read loop is the bug that module
- * records: a frame is `event: X\ndata: {…}\n\n` and a chunk boundary falls
- * wherever the network puts it, so the event name and the payload must both
- * outlive a `read()`. The largest frames — tool results — are the ones most
- * likely to be split.
- */
-export function createSseFrameReader(): SseFrameReader {
-  let buffer = '';
-  let currentEventType = '';
-
-  return {
-    push(chunk: string): SseFrame[] {
-      buffer += chunk;
-
-      const frames: SseFrame[] = [];
-      const lines = buffer.split('\n');
-      // Whatever followed the last newline is an incomplete line, unless the
-      // chunk ended on a boundary, in which case it is `''` and costs nothing.
-      buffer = lines.pop() ?? '';
-
-      for (const rawLine of lines) {
-        // A CRLF stream leaves the CR on every line; `data: {…}\r` is not JSON.
-        const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
-
-        if (line.startsWith('event: ')) {
-          currentEventType = line.slice(7).trim();
-          continue;
-        }
-
-        // A blank line closes a frame, so the NEXT frame's `data:` cannot
-        // inherit this frame's event name.
-        if (line === '') {
-          currentEventType = '';
-          continue;
-        }
-
-        if (line.startsWith('data: ')) {
-          frames.push({ event: currentEventType, data: line.slice(6).trim() });
-          currentEventType = '';
-        }
-
-        // Comments (`: keep-alive`) and fields this client does not read.
-      }
-
-      return frames;
-    },
-  };
-}
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
-/** One `delta.tool_calls[]` entry, exactly as the chunk carries it. */
-export interface ToolCallDelta {
-  readonly index?: number;
-  readonly id?: string;
-  readonly function?: { readonly name?: string; readonly arguments?: string };
-}
+/** Tool fragments are the shared server contract; assembly stays local. */
+export type ToolCallDelta = AliaToolCallDelta;
 
 /** A tool call assembled from its deltas; the shape the history stores. */
 export interface StreamedToolCall {
@@ -276,73 +162,6 @@ function isRetryableStatus(status: number | null): boolean {
 }
 
 /**
- * Interpret one frame as zero or more events.
- *
- * Throws {@link AliaChatError} for an error frame. Returns `null` for `[DONE]`,
- * which the caller treats as the end of the stream, and `[]` for anything
- * unreadable — a frame that is not JSON is skipped rather than fatal, which is
- * what the app does and what keeps one malformed keep-alive from killing a
- * turn.
- */
-export function interpretFrame(frame: SseFrame): AliaStreamEvent[] | null {
-  if (frame.data === '[DONE]') return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(frame.data);
-  } catch {
-    return [];
-  }
-  const payload = asObject(parsed);
-  if (payload === null) return [];
-
-  if (frame.event !== '') {
-    switch (frame.event) {
-      case 'alia.reasoning': {
-        const text = typeof payload.content === 'string' ? payload.content : '';
-        return text === '' ? [] : [{ type: 'reasoning', text }];
-      }
-      case 'alia.tool_result': {
-        const toolCallId = typeof payload.tool_call_id === 'string' ? payload.tool_call_id : '';
-        const name = typeof payload.name === 'string' ? payload.name : '';
-        return [{ type: 'tool_result', toolCallId, name, output: payload.output }];
-      }
-      default:
-        return [{ type: 'event', name: frame.event, data: payload }];
-    }
-  }
-
-  if (payload.error !== undefined) throw errorFrom(payload, null);
-
-  const events: AliaStreamEvent[] = [];
-  const choice = Array.isArray(payload.choices) ? asObject(payload.choices[0]) : null;
-  const delta = choice === null ? null : asObject(choice.delta);
-  const content = typeof delta?.content === 'string' ? delta.content : '';
-
-  const meta = asObject(payload.alia_meta);
-  if (meta?.synthetic === true) {
-    // The whole chunk is the stand-in. Its text goes out under its own event
-    // and nowhere else, so no consumer can render it by forgetting to check.
-    events.push({ type: 'synthetic', text: content, retryable: meta.retryable === true });
-  } else if (content !== '') {
-    events.push({ type: 'content', text: content });
-  }
-
-  if (delta !== null && Array.isArray(delta.tool_calls)) {
-    const deltas = delta.tool_calls
-      .map(asObject)
-      .filter((call): call is JsonObject => call !== null) as unknown as ToolCallDelta[];
-    if (deltas.length > 0) events.push({ type: 'tool_calls', deltas });
-  }
-
-  if (typeof choice?.finish_reason === 'string') {
-    events.push({ type: 'finish', reason: choice.finish_reason });
-  }
-
-  return events;
-}
-
-/**
  * Fold `delta.tool_calls` fragments into whole calls, by index.
  *
  * The first fragment for an index carries the id and the name; later ones
@@ -381,14 +200,8 @@ export function completedToolCalls(
 }
 
 /**
- * One streaming turn against `POST /alia/chat`.
- *
- * Yields {@link AliaStreamEvent}s as frames complete and returns when the
- * server writes `[DONE]` or closes the connection. A refusal — HTTP or an
- * in-stream error frame — is thrown as {@link AliaChatError}; an abort through
- * `signal` rejects with the runtime's `AbortError`, which callers already
- * distinguish by name. A consumer that stops iterating early releases the
- * connection: the `finally` cancels the reader.
+ * One product request, with shared SSE parsing and product error/presentation mapping.
+ * Only [DONE] completes a stream. Malformed or truncated responses stay failures.
  */
 export async function* streamAliaChat(
   options: AliaChatStreamOptions,
@@ -417,39 +230,68 @@ export async function* streamAliaChat(
     throw new AliaChatError('Alia returned no response body.', { status: response.status });
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  const frames = createSseFrameReader();
-  /** The server closed the turn: `[DONE]` or a finish reason. A bare close is not that. */
-  let finished = false;
-
   try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      // On close, flush the decoder and terminate the last line: a final
-      // `data:` frame the server did not newline-terminate is still a frame.
-      const text = done ? `${decoder.decode()}\n` : decoder.decode(value, { stream: true });
-      for (const frame of frames.push(text)) {
-        const events = interpretFrame(frame);
-        if (events === null) return;
-        for (const event of events) {
-          if (event.type === 'finish') finished = true;
+    for await (const event of readAliaEventStream(response.body, { signal: options.signal })) {
+      switch (event.type) {
+        case 'text':
+          if (event.meta?.synthetic === true) {
+            yield { type: 'synthetic', text: event.text, retryable: event.meta.retryable === true };
+          } else if (event.text !== '') {
+            yield { type: 'content', text: event.text };
+          }
+          break;
+        case 'reasoning':
+        case 'tool_calls':
           yield event;
+          break;
+        case 'finish':
+          if (event.meta?.synthetic === true) {
+            yield { type: 'synthetic', text: '', retryable: event.meta.retryable === true };
+          }
+          yield { type: 'finish', reason: event.reason };
+          break;
+        case 'error':
+          throw new AliaChatError(event.message, {
+            code: event.code,
+            retryable: event.retryable,
+            reference: event.reference,
+          });
+        case 'event': {
+          const payload = asObject(event.data);
+          if (payload === null) break;
+          if (event.event === 'alia.reasoning') {
+            if (typeof payload.content === 'string' && payload.content !== '') {
+              yield { type: 'reasoning', text: payload.content };
+            }
+          } else if (event.event === 'alia.tool_result') {
+            yield {
+              type: 'tool_result',
+              toolCallId: typeof payload.tool_call_id === 'string' ? payload.tool_call_id : '',
+              name: typeof payload.name === 'string' ? payload.name : '',
+              output: payload.output,
+            };
+          } else {
+            yield { type: 'event', name: event.event, data: payload };
+          }
+          break;
         }
-      }
-      if (done) {
-        // A connection cut mid-answer is an error, never a finished answer.
-        if (finished) return;
-        throw new AliaChatError('Alia’s response ended before it was complete.', {
-          code: 'STREAM_INCOMPLETE',
-          retryable: true,
-        });
+        case 'done':
+          return;
       }
     }
-  } finally {
-    // Reached by `[DONE]`, by an error and by a consumer that stopped early. A
-    // cancelled reader on an already-closed body rejects, and that is noise.
-    reader.cancel().catch(() => {});
+  } catch (error) {
+    if (error instanceof AliaStreamError) {
+      throw new AliaChatError(
+        error.failure === 'truncated'
+          ? 'Alia’s response ended before it was complete.'
+          : 'Alia’s response could not be read. Please try again.',
+        {
+          code: error.failure === 'truncated' ? 'STREAM_INCOMPLETE' : 'STREAM_INVALID',
+          retryable: true,
+        },
+      );
+    }
+    throw error;
   }
 }
 
