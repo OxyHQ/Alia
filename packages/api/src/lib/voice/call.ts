@@ -775,7 +775,14 @@ export class VoiceCall {
     upstream: UpstreamState,
     event: Extract<RealtimeServerEvent, { type: 'session.created' }>,
   ): void {
+    const firstCreated = upstream.requestId === null;
     upstream.requestId = event.requestId;
+    if (firstCreated) {
+      log.voice.info(
+        { callId: this.callId, kaanaRequestId: event.requestId },
+        'Voice upstream session created',
+      );
+    }
     upstream.createdAt = this.now();
     this.servedModel = event.model;
     this.servedEver = true;
