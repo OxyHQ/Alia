@@ -26,6 +26,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0019](./0019-alia-stores-files-in-oxy-files.md) | Alia stores files in Oxy Files, behind one seam | Accepted (implemented; switched on per Oxy and Syra deploy) | 2026-10-16 |
 | [0020](./0020-every-agent-is-the-same-agent.md) | Every agent is the same agent: one base for Alia, people's agents and app agents | Accepted | 2026-10-16 |
 | [0021](./0021-app-confined-agents.md) | An app's agent may be confined to that app, by Oxy | Accepted | 2026-10-16 |
+| [0023](./0023-cookie-free-voice-resume.md) | Voice reconnects through its owner without browser cookies | Accepted; receiver-first deployment required | 2026-10-26 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 

@@ -23,6 +23,13 @@ import { type VoiceCallEnvironment, type VoiceClientSink, VoiceCall } from './ca
 import { createVoiceEnvironment } from './environment.js';
 import { VOICE_ERROR_TEXT } from './errors.js';
 import {
+  relayVoiceResume,
+  type VoicePeerAuth,
+  type VoicePeerConnection,
+  voicePeerRoute,
+} from './peer-relay.js';
+import { productionVoiceRouting, type VoiceRouting } from './routing-directory.js';
+import {
   parseVoiceClientEvent,
   type SequencedVoiceEvent,
   VOICE_PROTOCOL_VERSION,
@@ -49,6 +56,12 @@ export interface VoiceSocketOptions {
   authenticate?: (token: string) => Promise<SocketSession | null>;
   /** The app assertion → its application, for that session (`lib/app-surface.ts`); tests replace it. */
   surface?: (assertion: string | undefined, session: SocketSession) => Promise<string | null>;
+  routing?: () => Promise<VoiceRouting | null>;
+  peerAuth?: VoicePeerAuth;
+  /** Instance-owned calls; injected only to exercise separate tasks in real-wire tests. */
+  calls?: Map<string, VoiceCall>;
+  /** Private peer connections cannot open calls or forward to another task. */
+  resumeOnly?: boolean;
 }
 
 function isMachineCredential(token: string): boolean {
@@ -63,11 +76,18 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
     ((assertion: string | undefined, session: SocketSession) =>
       verifySurface(assertion, session).catch(() => null));
   const environment = options.environment ?? createVoiceEnvironment;
+  const calls = options.calls ?? liveCalls;
+  const routing = options.routing ?? productionVoiceRouting;
+  const lifetime = new AbortController();
+  let authFrame: string | null = null;
+  let peer: VoicePeerConnection | null = null;
+  let resuming = false;
   let oxyUserId: string | null = null;
   let token: string | null = null;
   /** The app the call comes from, by the latest `auth`'s assertion (ADR 0021). */
   let surfaceApplicationId: string | null = null;
   let call: VoiceCall | null = null;
+  let pendingStart = false;
   let authenticating = false;
   const connectedAt = Date.now();
   /** Whether this side sent the close frame; otherwise the device or the network ended it. */
@@ -119,8 +139,22 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
   ping.unref?.();
 
   ws.on('message', (data, isBinary) => {
+    // A superseded socket cannot refresh credentials, inject audio or end the
+    // call while its close handshake is still in flight.
+    if (call && !pendingStart && !call.hasClient(sink)) return;
+    if (peer) {
+      peer.send(data, isBinary);
+      return;
+    }
+    if (resuming) {
+      if (!isBinary && parseVoiceClientEvent(data.toString())?.type === 'session.end') {
+        lifetime.abort();
+        sink.close();
+      }
+      return;
+    }
     if (isBinary) {
-      if (!call) return;
+      if (!call || pendingStart) return;
       const bytes = Array.isArray(data)
         ? Buffer.concat(data)
         : data instanceof ArrayBuffer
@@ -150,6 +184,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
         })
         .then(({ id, surface }) => {
           authenticating = false;
+          if (lifetime.signal.aborted) return;
           if (id === null) {
             refuse('not-authenticated', 4003);
             return;
@@ -164,6 +199,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
           const first = oxyUserId === null;
           oxyUserId = id;
           token = event.token;
+          authFrame = JSON.stringify(event);
           surfaceApplicationId = surface;
           call?.setAccessToken(event.token);
           if (first) sendPre({ type: 'auth.ok' });
@@ -179,52 +215,108 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
     switch (event.type) {
       case 'session.start': {
         if (call) return;
-        if (event.protocol !== VOICE_PROTOCOL_VERSION) {
+        if (options.resumeOnly || event.protocol !== VOICE_PROTOCOL_VERSION) {
           refuse('invalid-request', 4400);
           return;
         }
         const started = new VoiceCall(environment(oxyUserId), oxyUserId, token);
         call = started;
-        liveCalls.set(started.id, started);
-        started.attach(sink);
-        // The map holds a call only while it can be resumed.
-        void started.ended.then(() => liveCalls.delete(started.id));
-        void started.open({
-          conversationId: event.conversationId,
-          ...(event.agentId === undefined ? {} : { agentId: event.agentId }),
-          voice: event.voice,
-          locale: event.locale,
-          surfaceApplicationId,
+        pendingStart = true;
+        const owner = oxyUserId;
+        void (async () => {
+          // Publish before any accepted frame exposes this session to a reconnect.
+          const directory = await routing();
+          const lease = await directory?.register(started.id, owner);
+          void started.ended.finally(() => {
+            calls.delete(started.id);
+            void lease?.release().catch(() => undefined);
+          });
+          if (lifetime.signal.aborted) {
+            pendingStart = false;
+            await started.end('hangup');
+            return;
+          }
+          pendingStart = false;
+          calls.set(started.id, started);
+          started.attach(sink);
+          await started.open({
+            conversationId: event.conversationId,
+            ...(event.agentId === undefined ? {} : { agentId: event.agentId }),
+            voice: event.voice,
+            locale: event.locale,
+            surfaceApplicationId,
+          });
+        })().catch(() => {
+          pendingStart = false;
+          refuse('realtime-unavailable', 4503);
+          void started.end('error');
         });
         return;
       }
       case 'session.resume': {
         if (call) return;
-        const held = liveCalls.get(event.voiceSessionId);
+        const held = calls.get(event.voiceSessionId);
         if (
           event.protocol !== VOICE_PROTOCOL_VERSION ||
-          !held ||
-          held.oxyUserId !== oxyUserId ||
-          !held.attach(sink, event.afterSeq)
+          (held && (held.oxyUserId !== oxyUserId || !held.attach(sink, event.afterSeq)))
         ) {
-          // Sticky routing should bring a resume here; a task that died cannot serve it.
           refuse('resume-unavailable', 4404);
           return;
         }
-        held.setAccessToken(token);
-        call = held;
+        if (held) {
+          held.setAccessToken(token);
+          call = held;
+          return;
+        }
+        if (options.resumeOnly || !authFrame) {
+          refuse('resume-unavailable', 4404);
+          return;
+        }
+        resuming = true;
+        const originalAuth = authFrame;
+        const owner = oxyUserId;
+        void (async () => {
+          const directory = await routing();
+          const route = await directory?.find(event.voiceSessionId, owner);
+          if (!directory || !route || route.generation === directory.generation)
+            throw new Error('Voice owner unavailable');
+          peer = await relayVoiceResume({
+            client: ws,
+            routing: directory,
+            route,
+            authFrame: originalAuth,
+            resumeFrame: JSON.stringify(event),
+            signal: lifetime.signal,
+            auth: options.peerAuth,
+          });
+          if (lifetime.signal.aborted) peer.close();
+        })()
+          .catch(() => {
+            if (!lifetime.signal.aborted) refuse('resume-unavailable', 4404);
+          })
+          .finally(() => {
+            resuming = false;
+          });
         return;
       }
       case 'playback.interrupted':
         call?.onPlaybackInterrupted(event.itemId, event.playedMs);
         return;
       case 'session.end':
+        if (pendingStart) {
+          // Stop is meaningful before admission too. Closing the socket aborts
+          // the pending open; any lease that arrives later is released by ended.
+          lifetime.abort();
+          sink.close();
+        }
         void call?.end('hangup');
         return;
     }
   });
 
   ws.on('close', (closeCode) => {
+    lifetime.abort();
+    peer?.close();
     clearTimeout(authTimer);
     clearInterval(ping);
     // The close code is the only trace of a drop: 1006 is the network or the
@@ -244,6 +336,15 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
 
   ws.on('error', (err) => {
     log.voice.warn({ err }, 'Voice socket error');
+  });
+}
+
+/** Private one-hop sibling route; the original person still passes ordinary socket auth. */
+export function voiceResumePeerRoute(options: VoiceSocketOptions = {}): WebSocketRoute {
+  return voicePeerRoute({
+    routing: options.routing ?? productionVoiceRouting,
+    auth: options.peerAuth,
+    accept: (socket) => handleVoiceConnection(socket, { ...options, resumeOnly: true }),
   });
 }
 

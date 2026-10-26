@@ -9,6 +9,11 @@ the answers are decisions here, not open points (see "Owner's answers").
 
 **Date:** 2026-10-15
 
+**Routing amendment:** [ADR 0023](./0023-cookie-free-voice-resume.md) replaces the
+cookie-affinity requirement below with private owner routing. Deploy compatible
+readers and drain old calls before removing affinity; the historical delivery
+steps below are not authorization to reintroduce cookies.
+
 **Implementation:** phase 1 (Alia) is built and tested on branch `feat/voice-realtime`,
 against a port of `@kaana.ai/sdk` and a contract-faithful fake; at the owner's request it
 also carries the phase-4 cut of on-device recognition (`@alia.onl/sdk` 15.0.0). Not

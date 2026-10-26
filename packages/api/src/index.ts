@@ -62,7 +62,11 @@ import { initSocket } from './socket.js';
 import { mcpRelayRoute, shutdownMcpRelay } from './lib/mcp-relay.js';
 import { disposeClarityClient } from './lib/clarity-client.js';
 // Voice calls: `GET /v1/voice/session`, a WebSocket of its own (ADR 0017)
-import { shutdownVoiceSessions, voiceSessionRoute } from './lib/voice/voice-socket.js';
+import {
+  shutdownVoiceSessions,
+  voiceSessionRoute,
+  voiceResumePeerRoute,
+} from './lib/voice/voice-socket.js';
 import { routeWebSocketUpgrades } from './lib/websocket-upgrades.js';
 
 // Bun loads `.env` from the working directory before any module runs; the
@@ -121,7 +125,11 @@ const observeAiSocket = (socket: WebSocket, headers: http.IncomingHttpHeaders) =
 };
 routeWebSocketUpgrades(server, {
   socketIoPath: io.path(),
-  routes: [mcpRelayRoute(observeAiSocket), voiceSessionRoute(observeAiSocket)],
+  routes: [
+    mcpRelayRoute(observeAiSocket),
+    voiceSessionRoute(observeAiSocket),
+    voiceResumePeerRoute(),
+  ],
 });
 
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
