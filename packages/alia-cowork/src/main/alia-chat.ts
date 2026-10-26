@@ -245,6 +245,9 @@ export async function* streamAliaChat(
           yield event;
           break;
         case 'finish':
+          if (event.meta?.synthetic === true) {
+            yield { type: 'synthetic', text: '', retryable: event.meta.retryable === true };
+          }
           yield { type: 'finish', reason: event.reason };
           break;
         case 'error':

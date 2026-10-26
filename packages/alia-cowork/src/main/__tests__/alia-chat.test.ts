@@ -451,3 +451,14 @@ it('preserves multimodal, assistant tool-call and tool-result request bodies thr
   }
   expect(sent).toEqual({ ...body, stream: true });
 });
+
+it('preserves a synthetic terminal marker even when it carries no content', async () => {
+  await expect(
+    collect(
+      `${chunk({}, { alia_meta: { synthetic: true, retryable: true } }, 'stop')}data: [DONE]\n\n`,
+    ),
+  ).resolves.toEqual([
+    { type: 'synthetic', text: '', retryable: true },
+    { type: 'finish', reason: 'stop' },
+  ]);
+});

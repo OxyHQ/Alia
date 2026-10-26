@@ -340,17 +340,23 @@ it.each(['stream', 'tool'] as const)(
   },
 );
 
-it.each(['malformed', 'truncated'] as const)(
+it.each(['malformed', 'truncated', 'synthetic-terminal'] as const)(
   'Codea displays a shared %s stream failure without storing a successful reply',
   async (failure) => {
     const wire =
-      failure === 'malformed'
-        ? 'data: not-json\n\ndata: [DONE]\n\n'
-        : `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' }, finish_reason: 'stop' }] })}\n\n`;
+      failure === 'synthetic-terminal'
+        ? `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], alia_meta: { synthetic: true, retryable: true } })}\n\ndata: [DONE]\n\n`
+        : failure === 'malformed'
+          ? 'data: not-json\n\ndata: [DONE]\n\n'
+          : `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' }, finish_reason: 'stop' }] })}\n\n`;
     const f = await fixture(false, false, wire);
     await f.control.handleUserMessage('owned fixture');
     expect(f.posted.some((entry) => entry.type === 'error')).toBe(true);
     expect(f.control._messages).not.toContainEqual(expect.objectContaining({ role: 'assistant' }));
-    expect(f.requests.map((entry) => entry.path)).toEqual(['/alia/chat']);
+    // Codea retains its existing one retry for a retryable synthetic refusal.
+    expect(f.requests.map((entry) => entry.path)).toEqual(
+      failure === 'synthetic-terminal' ? ['/alia/chat', '/alia/chat'] : ['/alia/chat'],
+    );
+    expect(new Set(f.requests.map((entry) => entry.turnId)).size).toBe(f.requests.length);
   },
 );

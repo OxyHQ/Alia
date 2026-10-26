@@ -288,13 +288,15 @@ it.each(['stream', 'tool'] as const)(
   },
 );
 
-it.each(['malformed', 'truncated'] as const)(
+it.each(['malformed', 'truncated', 'synthetic-terminal'] as const)(
   'Cowork displays a shared %s stream failure without storing a successful reply',
   async (failure) => {
     const wire =
-      failure === 'malformed'
-        ? 'data: not-json\n\ndata: [DONE]\n\n'
-        : `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' }, finish_reason: 'stop' }] })}\n\n`;
+      failure === 'synthetic-terminal'
+        ? `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], alia_meta: { synthetic: true, retryable: true } })}\n\ndata: [DONE]\n\n`
+        : failure === 'malformed'
+          ? 'data: not-json\n\ndata: [DONE]\n\n'
+          : `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' }, finish_reason: 'stop' }] })}\n\n`;
     const f = await fixture(false, false, undefined, wire);
     await f.chat.handleMessage('owned fixture');
     expect(f.sent.some((entry) => entry.channel === 'chat:error')).toBe(true);
