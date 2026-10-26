@@ -253,6 +253,7 @@ it.each([
       });
       expect(host.onTurnEnd).not.toHaveBeenCalled();
       expect(host.onTurnPreview).not.toHaveBeenCalled();
+      expect(api.error).toBeNull();
       return;
     }
     act(() => {
