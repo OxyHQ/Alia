@@ -45,7 +45,7 @@ async function cluster() {
         const value = entries.get(id);
         return value && value.accountId === owner && value.expiresAt > Date.now() ? value : null;
       }),
-      register: vi.fn(async (id, owner) => {
+      register: async (id, owner) => {
         const value = {
           accountId: owner,
           generation,
@@ -59,7 +59,7 @@ async function cluster() {
             if (entries.get(id) === value) entries.delete(id);
           },
         };
-      }),
+      },
       peerUrl: (route) =>
         `ws://127.0.0.1:${(route as VoiceRoute & { port: number }).port}/internal/voice/relay`,
       permitsPeer: (address, host) => address === '127.0.0.1' && host === `127.0.0.1:${port}`,
@@ -147,6 +147,68 @@ async function start(c: Awaited<ReturnType<typeof cluster>>) {
 }
 
 describe('cookie-free resume through another task', () => {
+  it.each(['complete', 'fail'] as const)(
+    'cancels start/end before delayed registration can %s without admitting a call',
+    async (outcome) => {
+      const c = await cluster();
+      const register = c.a.routing.register;
+      let unblock = () => {};
+      const waiting = new Promise<void>((resolve) => {
+        unblock = resolve;
+      });
+      let completed = false;
+      const pending = vi.spyOn(c.a.routing, 'register').mockImplementation(async (...args) => {
+        await waiting;
+        try {
+          if (outcome === 'fail') throw new Error('directory unavailable');
+          return await register(...args);
+        } finally {
+          completed = true;
+        }
+      });
+      const client = await connect(c.a.url);
+      client.send({
+        type: 'session.start',
+        protocol: 2,
+        conversationId: 'conv-A',
+        voice: 'female',
+        locale: 'es-ES',
+      });
+      try {
+        await until('registration waiting', () => pending.mock.calls.length === 1);
+        client.send({ type: 'session.end' }); // The person does not close the socket.
+        await until('server closed cancelled start', client.closed);
+      } finally {
+        unblock();
+      }
+      await until('late registration disposed', () => completed && c.entries.size === 0);
+      expect(c.a.held.size).toBe(0);
+      expect(c.h.startCall).not.toHaveBeenCalled();
+      expect(c.h.finishCall).not.toHaveBeenCalled();
+      expect(c.h.server.sessions).toHaveLength(0);
+      expect(client.events.some((event) => event.type === 'session.accepted')).toBe(false);
+    },
+  );
+
+  it('closes a failed start without publishing a holder or opening a provider session', async () => {
+    const c = await cluster();
+    vi.spyOn(c.a.routing, 'register').mockRejectedValue(new Error('directory unavailable'));
+    const client = await connect(c.a.url);
+    client.send({
+      type: 'session.start',
+      protocol: 2,
+      conversationId: 'conv-A',
+      voice: 'female',
+      locale: 'es-ES',
+    });
+    await until('failed start closed', client.closed);
+    expect(client.events.at(-1)).toMatchObject({ type: 'error', code: 'realtime-unavailable' });
+    expect(c.a.held.size).toBe(0);
+    expect(c.entries.size).toBe(0);
+    expect(c.h.startCall).not.toHaveBeenCalled();
+    expect(c.h.server.sessions).toHaveLength(0);
+  });
+
   it('reattaches the original call with replay/audio and one admission and settlement', async () => {
     const c = await cluster();
     const started = await start(c);
@@ -309,28 +371,35 @@ describe('cookie-free resume through another task', () => {
     expect(c.h.server.sessions).toHaveLength(0);
   });
 
-  it('cancels a pending peer handshake when the person disconnects without forwarding their proof', async () => {
-    const c = await cluster();
-    const started = await start(c);
-    let mintSignal: AbortSignal | undefined;
-    c.b.peerAuth.token.mockImplementation(async (...args: unknown[]) => {
-      mintSignal = args[1] as AbortSignal;
-      return new Promise<string>((_resolve, reject) =>
-        mintSignal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }),
-      );
-    });
-    const resumed = await connect(c.b.url);
-    resumed.send({
-      type: 'session.resume',
-      protocol: 2,
-      voiceSessionId: started.id,
-      afterSeq: started.seq,
-    });
-    await until('mint waiting', () => Boolean(mintSignal));
-    resumed.ws.terminate();
-    await until('mint cancelled', () => mintSignal?.aborted === true);
-    expect(c.a.authenticate).toHaveBeenCalledTimes(1);
-    expect(c.a.peerAuth.verify).not.toHaveBeenCalled();
-    expect(c.h.startCall).toHaveBeenCalledTimes(1);
-  });
+  it.each(['disconnect', 'session.end'] as const)(
+    'cancels a pending peer handshake on %s without forwarding the human proof',
+    async (action) => {
+      const c = await cluster();
+      const started = await start(c);
+      let mintSignal: AbortSignal | undefined;
+      c.b.peerAuth.token.mockImplementation(async (...args: unknown[]) => {
+        mintSignal = args[1] as AbortSignal;
+        return new Promise<string>((_resolve, reject) =>
+          mintSignal?.addEventListener('abort', () => reject(new Error('cancelled')), {
+            once: true,
+          }),
+        );
+      });
+      const resumed = await connect(c.b.url);
+      resumed.send({
+        type: 'session.resume',
+        protocol: 2,
+        voiceSessionId: started.id,
+        afterSeq: started.seq,
+      });
+      await until('mint waiting', () => Boolean(mintSignal));
+      if (action === 'disconnect') resumed.ws.terminate();
+      else resumed.send({ type: 'session.end' });
+      await until('cancelled handshake closed', resumed.closed);
+      await until('mint cancelled', () => mintSignal?.aborted === true);
+      expect(c.a.authenticate).toHaveBeenCalledTimes(1);
+      expect(c.a.peerAuth.verify).not.toHaveBeenCalled();
+      expect(c.h.startCall).toHaveBeenCalledTimes(1);
+    },
+  );
 });

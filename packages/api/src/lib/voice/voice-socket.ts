@@ -87,6 +87,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
   /** The app the call comes from, by the latest `auth`'s assertion (ADR 0021). */
   let surfaceApplicationId: string | null = null;
   let call: VoiceCall | null = null;
+  let pendingStart = false;
   let authenticating = false;
   const connectedAt = Date.now();
   /** Whether this side sent the close frame; otherwise the device or the network ended it. */
@@ -140,14 +141,20 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
   ws.on('message', (data, isBinary) => {
     // A superseded socket cannot refresh credentials, inject audio or end the
     // call while its close handshake is still in flight.
-    if (call && !call.hasClient(sink)) return;
+    if (call && !pendingStart && !call.hasClient(sink)) return;
     if (peer) {
       peer.send(data, isBinary);
       return;
     }
-    if (resuming) return;
+    if (resuming) {
+      if (!isBinary && parseVoiceClientEvent(data.toString())?.type === 'session.end') {
+        lifetime.abort();
+        sink.close();
+      }
+      return;
+    }
     if (isBinary) {
-      if (!call) return;
+      if (!call || pendingStart) return;
       const bytes = Array.isArray(data)
         ? Buffer.concat(data)
         : data instanceof ArrayBuffer
@@ -214,6 +221,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
         }
         const started = new VoiceCall(environment(oxyUserId), oxyUserId, token);
         call = started;
+        pendingStart = true;
         const owner = oxyUserId;
         void (async () => {
           // Publish before any accepted frame exposes this session to a reconnect.
@@ -224,9 +232,11 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
             void lease?.release().catch(() => undefined);
           });
           if (lifetime.signal.aborted) {
+            pendingStart = false;
             await started.end('hangup');
             return;
           }
+          pendingStart = false;
           calls.set(started.id, started);
           started.attach(sink);
           await started.open({
@@ -237,6 +247,7 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
             surfaceApplicationId,
           });
         })().catch(() => {
+          pendingStart = false;
           refuse('realtime-unavailable', 4503);
           void started.end('error');
         });
@@ -292,6 +303,12 @@ export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions
         call?.onPlaybackInterrupted(event.itemId, event.playedMs);
         return;
       case 'session.end':
+        if (pendingStart) {
+          // Stop is meaningful before admission too. Closing the socket aborts
+          // the pending open; any lease that arrives later is released by ended.
+          lifetime.abort();
+          sink.close();
+        }
         void call?.end('hangup');
         return;
     }
