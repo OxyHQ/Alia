@@ -317,6 +317,7 @@ interface StreamOutcome {
 /** One user message's run: its id tells a turn that was stopped from the one that replaced it. */
 interface Turn {
   id: number;
+  historyGeneration: number;
   controller: AbortController;
   lifetime: AbortController;
   control?: AliaTurnControl;
@@ -374,6 +375,7 @@ export class ChatProvider {
   /** The turn the renderer is showing, or `null`. `stop()` clears it before the turn has wound down. */
   private activeTurn: Turn | null = null;
   private turnSeq = 0;
+  private historyGeneration = 0;
   /** Settles when the latest turn has fully wound down (a stopped one may still be finishing a tool). */
   private settled: Promise<void> = Promise.resolve();
   private browserUsedInCurrentTurn = false;
@@ -387,7 +389,6 @@ export class ChatProvider {
     this.toolExecutor = toolExecutor;
     this.disposeSessionObserver = onSessionContextChange(() => {
       this.contextChanged = true;
-      this.detach();
       this.clear();
     });
   }
@@ -423,6 +424,7 @@ export class ChatProvider {
 
     const turn: Turn = {
       id: ++this.turnSeq,
+      historyGeneration: this.historyGeneration,
       controller: new AbortController(),
       lifetime: new AbortController(),
     };
@@ -449,7 +451,8 @@ export class ChatProvider {
       // A cancelled local tool may have finished after the account changed.
       // Its late history is discarded before the next account starts a turn.
       if (this.contextChanged) {
-        this.clear();
+        this.resetHistory();
+        turn.historyGeneration = this.historyGeneration;
         this.contextChanged = false;
       }
 
@@ -550,6 +553,7 @@ export class ChatProvider {
         logger.warn(`Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`);
 
       const outcome = await this.streamOnce(turn, request, lastRound);
+      if (turn.historyGeneration !== this.historyGeneration) return;
 
       // A stand-in turn never runs its tools, so its `tool_calls` are not remembered either: an
       // assistant message that asks for tools nobody answers is a history the server refuses.
@@ -579,6 +583,7 @@ export class ChatProvider {
       logger.debug('===== EXECUTING TOOLS =====');
       logger.debug('Number of tools to execute:', outcome.toolCalls.length);
       for (const [index, toolCall] of outcome.toolCalls.entries()) {
+        if (turn.historyGeneration !== this.historyGeneration) return;
         if (turn.controller.signal.aborted) {
           // Stopped between tools: the ones not run are answered as cancelled, so the saved
           // history never holds a request without its result.
@@ -706,6 +711,7 @@ export class ChatProvider {
 
   /** Execute one tool call locally and append its result to the history. */
   private async runToolCall(turn: Turn, toolCall: StreamedToolCall): Promise<void> {
+    if (turn.historyGeneration !== this.historyGeneration) return;
     const toolName = toolCall.function.name;
     logger.debug(`Executing tool: ${toolName}`);
     logger.debug(`Tool call ID: ${toolCall.id}`);
@@ -742,6 +748,7 @@ export class ChatProvider {
 
     try {
       let result = await this.executeTool(toolName, args);
+      if (turn.historyGeneration !== this.historyGeneration) return;
       logger.debug(`Tool ${toolName} executed successfully`);
       logger.debug(`Result length: ${result.length}`);
 
@@ -759,6 +766,7 @@ export class ChatProvider {
         result: result.slice(0, 500),
       });
     } catch (error: unknown) {
+      if (turn.historyGeneration !== this.historyGeneration) return;
       const errorMsg = errorMessage(error);
       logger.error(`Tool ${toolName} execution failed:`, errorMsg);
       logger.error('Error stack:', errorStack(error));
@@ -840,7 +848,6 @@ export class ChatProvider {
 
   dispose(): void {
     this.disposeSessionObserver();
-    this.detach();
     this.clear();
   }
 
@@ -874,6 +881,12 @@ export class ChatProvider {
   }
 
   clear(): void {
+    this.detach();
+    this.resetHistory();
+  }
+
+  private resetHistory(): void {
+    this.historyGeneration++;
     this.messages = [];
     this.toolExecutor.reset();
     this.send('chat:cleared', {});

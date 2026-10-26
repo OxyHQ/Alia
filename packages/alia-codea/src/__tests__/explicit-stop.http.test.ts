@@ -10,11 +10,17 @@ vi.mock('../catalogue', () => ({
   resolveModelId: async () => undefined,
   fetchPickerCatalogue: async () => ({ groups: [], defaultLabel: '' }),
 }));
+const tools = vi.hoisted(() => ({
+  execute: async () => ({ success: true, result: 'owned fixture' }),
+}));
 vi.mock('../tools', () => ({
   fileTools: [],
   ToolExecutor: class {
     async getContext() {
       return {};
+    }
+    execute() {
+      return tools.execute();
     }
   },
 }));
@@ -36,7 +42,8 @@ afterEach(async () => {
 function bearer(account: string) {
   return `e30.${Buffer.from(JSON.stringify({ userId: account, sessionId: account, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
 }
-async function fixture(lateAck = false) {
+async function fixture(lateAck = false, toolRound = false) {
+  tools.execute = async () => ({ success: true, result: 'owned fixture' });
   const requests: { path?: string; auth?: string; turnId?: string }[] = [];
   let arrived!: () => void;
   const started = new Promise<void>((resolve) => {
@@ -63,6 +70,12 @@ async function fixture(lateAck = false) {
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.write(
           `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial answer' }, finish_reason: null }] })}\n\n`,
+        );
+      }
+      if (toolRound) {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.end(
+          `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'old-tool', function: { name: 'read_file', arguments: '{}' } }] }, finish_reason: 'tool_calls' }] })}\n\ndata: [DONE]\n\n`,
         );
       }
       // No metadata or response headers yet: Stop must already know this UUID.
@@ -126,6 +139,8 @@ async function fixture(lateAck = false) {
   const control = provider as unknown as {
     _view: unknown;
     _messages: unknown[];
+    _currentConversationId: string | null;
+    loadConversation(conversation: unknown): void;
     handleUserMessage(content: string): Promise<void>;
     stopGeneration(): Promise<void>;
   };
@@ -271,3 +286,50 @@ it('webview drains a held Stop acknowledgement after terminal cancellation SSE w
   expect(f.control._messages).toContainEqual({ role: 'assistant', content: 'partial answer' });
   expect(f.requests.filter((request) => request.path?.endsWith('/cancel'))).toHaveLength(1);
 });
+
+it.each(['stream', 'tool'] as const)(
+  'opening another saved conversation detaches an old %s without remote Stop or late history writes',
+  async (phase) => {
+    const f = await fixture(phase === 'stream', phase === 'tool');
+    let toolStarted!: () => void;
+    const runningTool = new Promise<void>((resolve) => {
+      toolStarted = resolve;
+    });
+    let finishTool!: () => void;
+    const toolResult = new Promise<void>((resolve) => {
+      finishTool = resolve;
+    });
+    tools.execute = async () => {
+      toolStarted();
+      await toolResult;
+      return { success: true, result: 'old conversation result' };
+    };
+    const run = f.control.handleUserMessage('old conversation');
+    await f.started;
+    if (phase === 'tool') await runningTool;
+    else
+      await expect
+        .poll(() => f.posted.some((message) => message.type === 'streamContent'))
+        .toBe(true);
+    const messages = [{ role: 'user', content: 'selected saved conversation' }];
+    f.control.loadConversation({
+      id: 'selected',
+      title: 'Selected',
+      createdAt: 1,
+      updatedAt: 1,
+      messages,
+    });
+    const postSelection = f.posted.length;
+    finishTool();
+    await run;
+    await f.control.stopGeneration();
+    expect(f.control._currentConversationId).toBe('selected');
+    expect(f.control._messages).toEqual(messages);
+    expect(
+      f.posted
+        .slice(postSelection)
+        .some((message) => ['streamContent', 'toolResult', 'error'].includes(message.type)),
+    ).toBe(false);
+    expect(f.requests.map((request) => request.path)).toEqual(['/alia/chat']);
+  },
+);

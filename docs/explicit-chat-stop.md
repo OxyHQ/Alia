@@ -123,8 +123,9 @@ A failed acknowledgement is reported without claiming the generation stopped.
 The account lifetime signal is separate from the stream signal: a terminal
 `turn_cancelled` frame preserves delivered partial text and does not abort the
 control request while its acknowledgement is still pending.
-Account changes, view teardown and Codea inline-suggestion invalidation only
-detach. Typing a character is not treated as an explicit chat Stop command.
+Account changes, opening saved history, clearing a conversation, view teardown
+and Codea inline-suggestion invalidation only detach. Late text and local tool
+results cannot enter a replacement conversation. Typing a character is not treated as an explicit chat Stop command.
 
 These consumers do not calculate or refund credits. The receiver's measured
 reconciliation remains authoritative, and their HTTP fixtures establish request

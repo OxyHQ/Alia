@@ -52,7 +52,7 @@ afterEach(async () => {
 function bearer(account: string) {
   return `e30.${Buffer.from(JSON.stringify({ userId: account, sessionId: account, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
 }
-async function fixture(twoRounds = false, lateAck = false) {
+async function fixture(twoRounds = false, lateAck = false, readFile = async () => 'owned fixture') {
   const requests: { path?: string; auth?: string; turnId?: string }[] = [];
   let arrived!: () => void;
   const started = new Promise<void>((resolve) => {
@@ -126,7 +126,7 @@ async function fixture(twoRounds = false, lateAck = false) {
           sent.push({ channel, data }),
       },
     } as never,
-    { reset() {}, closeBrowser: async () => {}, readFile: async () => 'owned fixture' } as never,
+    { reset() {}, closeBrowser: async () => {}, readFile } as never,
   );
   disposers.push(() => chat.dispose());
   return {
@@ -235,3 +235,44 @@ it('Cowork waits for held Stop acknowledgement after terminal SSE and preserves 
   });
   expect(f.requests.filter((request) => request.path?.endsWith('/cancel'))).toHaveLength(1);
 });
+
+it.each(['stream', 'tool'] as const)(
+  'clearing Cowork detaches an old %s without remote Stop or resurrected history',
+  async (phase) => {
+    let toolStarted!: () => void;
+    const runningTool = new Promise<void>((resolve) => {
+      toolStarted = resolve;
+    });
+    let finishTool!: () => void;
+    const toolResult = new Promise<void>((resolve) => {
+      finishTool = resolve;
+    });
+    const f = await fixture(phase === 'tool', phase === 'stream', async () => {
+      toolStarted();
+      await toolResult;
+      return 'old conversation result';
+    });
+    const run = f.chat.handleMessage('old conversation');
+    if (phase === 'tool') await runningTool;
+    else {
+      await f.started;
+      await expect
+        .poll(() => f.sent.some((message) => message.channel === 'chat:stream'))
+        .toBe(true);
+    }
+    f.chat.clear();
+    const postClear = f.sent.length;
+    finishTool();
+    await run;
+    await f.chat.stop();
+    expect((f.chat as unknown as { messages: unknown[] }).messages).toEqual([]);
+    expect(
+      f.sent
+        .slice(postClear)
+        .some((message) =>
+          ['chat:stream', 'chat:toolResult', 'chat:error'].includes(message.channel),
+        ),
+    ).toBe(false);
+    expect(f.requests.map((request) => request.path)).toEqual(['/alia/chat']);
+  },
+);

@@ -674,6 +674,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private loadConversation(conversation: Conversation): void {
+    this.detachGeneration();
+    this._currentTurn = ++this._turnSeq;
+    this.saveCurrentConversation();
+    this._lastRequestParams = null;
     this._currentConversationId = conversation.id;
     this._messages = [...conversation.messages];
 
@@ -691,6 +695,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     this.detachGeneration();
     this._currentTurn = ++this._turnSeq;
     this.saveCurrentConversation();
+    this._lastRequestParams = null;
     this._currentConversationId = null;
     this._messages = [];
     this._view?.webview.postMessage({ type: 'clearChat' });
@@ -976,7 +981,8 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         if (!live()) {
           // Stopped mid-stream: what arrived is kept as text only. Its tool calls are cut off
           // part-way (truncated arguments) and nothing will answer them.
-          if (outcome.text) this._messages.push({ role: 'assistant', content: outcome.text });
+          if (this._currentTurn === turn && outcome.text)
+            this._messages.push({ role: 'assistant', content: outcome.text });
           break;
         }
 
