@@ -28,6 +28,8 @@ export type {
   AliaReasoningEvent,
   AliaStreamEvent,
   AliaTextEvent,
+  AliaToolCallDelta,
+  AliaToolCallsEvent,
 } from './events.js';
 
 export { readAliaEventStream, type ReadAliaEventStreamOptions } from './stream.js';

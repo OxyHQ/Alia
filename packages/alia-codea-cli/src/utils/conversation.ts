@@ -1,3 +1,4 @@
+import type { ConversationControl } from './turn-control.js';
 import { streamChat } from './api.js';
 import { executeTool } from '../tools/executor.js';
 import { type ApprovalMode, needsApproval } from './approval.js';
@@ -43,16 +44,9 @@ export interface ConversationOptions {
   onEvent: (event: ConversationEvent) => void;
   requestApproval: (execution: ToolExecution) => Promise<boolean>;
   isActive: () => boolean;
-  /**
-   * Fired to stop the request on the wire, not only the rendering.
-   *
-   * `isActive` is polled between events, which is enough to stop printing and
-   * to leave the tool loop — but a stream that is no longer read still runs,
-   * and is billed, until the server finishes. Ctrl+C in the REPL and SIGINT in
-   * `codea run` abort this, and `streamChat` treats the abort as silence
-   * rather than as an error to report.
-   */
+  /** Incidental reader teardown only; use control.stop() for explicit user cancellation. */
   signal?: AbortSignal;
+  control?: ConversationControl;
 }
 
 const MAX_CONSECUTIVE_FAILURES = 2;
@@ -66,10 +60,12 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
     approvalMode,
     onEvent,
     requestApproval,
-    isActive,
+    isActive: callerIsActive,
     signal,
+    control,
   } = opts;
 
+  const isActive = () => callerIsActive() && !signal?.aborted && !control?.stopped;
   let consecutiveFailures = 0;
   let toolRounds = 0;
 
@@ -100,6 +96,7 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
           },
         },
         signal,
+        control,
       );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -111,7 +108,18 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
     // not an answer. It is neither saved to the session nor closed with `done`.
     if (failed) break;
 
-    if (!isActive()) break;
+    if (!isActive()) {
+      // Keep only text the user actually saw before acknowledged Stop. Incomplete
+      // tool fragments are not executable history; account teardown owns no reply.
+      if (
+        control?.stopAcknowledged &&
+        !control.lifetimeSignal.aborted &&
+        !signal?.aborted &&
+        fullContent
+      )
+        messages.push({ role: 'assistant', content: fullContent });
+      break;
+    }
 
     if (toolCalls && toolCalls.length > 0) {
       toolRounds++;
@@ -196,6 +204,16 @@ export async function processConversation(opts: ConversationOptions): Promise<vo
           execution.approved = true;
         }
 
+        // Approval may resolve after Stop/account teardown. Never execute that late approval.
+        if (!isActive()) {
+          for (const skipped of toolCalls.slice(index))
+            messages.push({
+              role: 'tool',
+              tool_call_id: skipped.id,
+              content: 'Error: Cancelled before this tool ran.',
+            });
+          break;
+        }
         const result = await executeTool(tc.function.name, args);
         execution.result = result.result;
         execution.success = result.success;

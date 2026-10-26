@@ -1,5 +1,11 @@
 # @alia.onl/server
 
+## 1.3.1
+
+Preserve streamed `delta.tool_calls` as typed `tool_calls` events, including
+fragmented arguments and indices, so terminal consumers can share the wire reader
+without losing client-owned tools. Invalid tool fragment shapes fail explicitly.
+
 ## 1.3.0
 
 - Add optional typed `turnId` to chat requests and `cancelTurn()` for explicit

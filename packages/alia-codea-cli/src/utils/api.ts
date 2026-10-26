@@ -1,8 +1,9 @@
-import type OpenAI from 'openai';
+import { AliaServerClient, createAliaTurnControl } from '@alia.onl/server';
+import type { ConversationControl } from './turn-control.js';
 import { config } from './config.js';
 import type { Message, ToolCall } from './conversation.js';
 import { resolveModelId } from './catalogue.js';
-import { linkedAliaClient, restoreSession } from './oxy-session.js';
+import { linkedAliaClient, restoreSession, onSessionContextChange } from './oxy-session.js';
 import {
   AliaChatError,
   completedToolCalls,
@@ -154,8 +155,8 @@ export const fileTools = [
  *    the conversation and never saved into the session file for `codea
  *    resume` to replay. Its `retryable` flag decides the message.
  *  - **An abort is silent.** When `signal` fires neither callback runs: the
- *    caller asked for this and already knows. The request stops on the wire,
- *    which is what stops it being billed.
+ *    reader has detached. Only an acknowledged explicit Stop cancels the
+ *    durable turn; billing follows the server's measured settlement.
  *  - **Named product events are read, not dropped.** `alia.reasoning` has no
  *    terminal surface yet and is ignored on purpose; the rest are logged
  *    nowhere because a CLI has nowhere to put them.
@@ -166,22 +167,43 @@ export async function streamChat(
   model: string,
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
+  control?: ConversationControl,
 ): Promise<void> {
+  if (signal?.aborted || control?.stopped) return;
   if (!(await restoreSession())) throw new Error('Not signed in. Run `codea login` first.');
+  if (signal?.aborted || control?.stopped) return;
   const linked = linkedAliaClient();
 
   const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
+  const controller = new AbortController();
+  const accountLifetime = new AbortController();
+  const lifetimeSignal = control
+    ? AbortSignal.any([accountLifetime.signal, control.lifetimeSignal])
+    : accountLifetime.signal;
+  const streamSignal = AbortSignal.any([
+    controller.signal,
+    lifetimeSignal,
+    ...(signal ? [signal] : []),
+  ]);
+  control?.bindAccount(() => onSessionContextChange(() => control.dispose()));
+  const removeSessionListener = onSessionContextChange(() => {
+    accountLifetime.abort();
+    controller.abort();
+    control?.dispose();
+  });
+  const client = new AliaServerClient({ baseUrl, path: '/alia/chat', fetch: linked.fetch });
+  const turn = createAliaTurnControl(client, { controller, lifetimeSignal });
 
-  const allMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+  const allMessages: Message[] = [
     { role: 'system', content: systemMessage },
-    ...messages.map((m): OpenAI.Chat.ChatCompletionMessageParam => {
+    ...messages.map((m): Message => {
       if (m.role === 'tool') {
         return { role: 'tool' as const, tool_call_id: m.tool_call_id!, content: m.content };
       } else if (m.tool_calls) {
         return {
           role: 'assistant' as const,
           content: m.content || '',
-          tool_calls: m.tool_calls as unknown as OpenAI.Chat.ChatCompletionMessageToolCall[],
+          tool_calls: m.tool_calls,
         };
       }
       return { role: m.role as 'user' | 'assistant', content: m.content };
@@ -189,7 +211,11 @@ export async function streamChat(
   ];
 
   try {
+    if (control && !control.attach(turn, controller)) return;
+    const resolvedModel = await resolveModelId(model, streamSignal);
+    if (streamSignal.aborted || control?.stopped) return;
     const stream = streamAliaChat({
+      client,
       baseUrl,
       fetch: linked.fetch,
       body: {
@@ -199,11 +225,12 @@ export async function streamChat(
          * `undefined` (no choice, or one the catalogue no longer lists) drops
          * the key, and the server uses its default model.
          */
-        model: await resolveModelId(model),
+        model: resolvedModel,
+        turnId: turn.id,
         messages: allMessages,
-        tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
+        extra: { tools: fileTools },
       },
-      signal,
+      signal: streamSignal,
     });
 
     let fullContent = '';
@@ -254,9 +281,15 @@ export async function streamChat(
 
     callbacks.onDone(fullContent, completed.length > 0 ? completed : undefined);
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'AbortError') return;
+    if (streamSignal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+    if (control?.stopRequested && error instanceof AliaChatError && error.code === 'turn_cancelled')
+      return;
     callbacks.onError(new Error(extractErrorMessage(error)));
   } finally {
+    // A terminal SSE can precede the Stop ACK: retain both transport and account fence.
+    if (control) await control.finish(turn);
+    else await turn.finish();
+    removeSessionListener();
     linked.dispose();
   }
 }
@@ -264,9 +297,8 @@ export async function streamChat(
 /**
  * A message a person can act on.
  *
- * A structured refusal carries its own message and, where the server sent
- * one, a code — `MODEL_NOT_IN_PLAN` reads "Upgrade your plan to use this
- * model." exactly as the server wrote it. The two status branches are for the
+ * The shared reader retains refusal codes/references and excludes untrusted
+ * HTTP upstream prose. The two status branches are for the
  * refusals whose server message is not written for a person: the auth
  * middleware's bare `Authentication required`, and a credit refusal.
  */

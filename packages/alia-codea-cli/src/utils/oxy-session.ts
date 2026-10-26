@@ -294,3 +294,12 @@ export async function signOut(): Promise<void> {
   // part that would matter.
   config.delete('apiKey');
 }
+
+/** Core's account/session epoch changes on logout/switch, but not a same-session refresh. */
+export function onSessionContextChange(listener: () => void): () => void {
+  const http = oxy().http;
+  const epoch = http.getSessionEpoch();
+  return http.addTokenChangeListener(() => {
+    if (http.getSessionEpoch() !== epoch) listener();
+  });
+}
