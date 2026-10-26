@@ -57,6 +57,7 @@ import { runNonStreaming } from './non-streaming.js';
 import { runStream, type AgentMessage, type StreamRunnerState } from './stream-runner.js';
 import { runTextToolFallback } from './text-tool-fallback.js';
 import type { ToolRouting } from '../tool-budget.js';
+import { recordChatInferenceAttempt } from '../credit-reconciliation.js';
 
 /** Terminal model-response errors that need no route-level substitution. */
 const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set([
@@ -71,6 +72,8 @@ const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set([
  * failed-turn response read the same state.
  */
 export interface ChatLoopState {
+  /** Only explicitly controlled turns record intents; legacy admission remains unchanged. */
+  inferenceAttemptKeys?: Set<string>;
   resolved: ResolvedModel | null;
   modelId: string;
   creditReservation: CreditReservation | null;
@@ -123,6 +126,8 @@ export interface ProviderLoopParams {
   inferenceServiceToken?: string;
   /** Release durable turn state before the client is told it may send again. */
   beforeStreamClose?: () => Promise<void>;
+  /** Atomic cancellation/finalization boundary after inference, before persisted success. */
+  beforeFinish?: () => Promise<void>;
   /**
    * The abort controller of the provider call, owned by the route so its global
    * timeout can actually stop the call it answered the client about.
@@ -177,6 +182,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     skills,
     inferenceServiceToken,
     beforeStreamClose,
+    beforeFinish,
     providerAbort,
     agentTurn,
   } = params;
@@ -256,6 +262,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    * neither, and its hold is refunded by the route's release point.
    */
   const assertLive = (): void => {
+    providerAbort?.signal.throwIfAborted();
     if (state.globalTimedOut) throw timedOut();
   };
 
@@ -315,6 +322,20 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         serviceToken: inferenceServiceToken,
         onInferenceRequest: (request) =>
           recordCreditInferenceRequest(state.creditReservation, request),
+        ...(state.inferenceAttemptKeys
+          ? {
+              onInferenceAttempt: async (key: string, phase: 'prepared' | 'not_sent') => {
+                await recordChatInferenceAttempt(
+                  state.creditReservation,
+                  key,
+                  phase,
+                  systemPromptTokens,
+                );
+                if (phase === 'prepared') state.inferenceAttemptKeys?.add(key);
+                else state.inferenceAttemptKeys?.delete(key);
+              },
+            }
+          : {}),
         onUsage: (usage) => {
           tokenUsage = usage;
         },
@@ -349,6 +370,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
             toolNameMapping,
             observation,
             assertLive,
+            beforeFinish,
             ...(agentTurn ? { agentTurn: true } : {}),
           });
           // Stable, metadata-free positive signal for the passive public status
@@ -460,6 +482,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         assertLive();
 
         // Build lifecycle context for post-stream operations
+        await beforeFinish?.();
         const lifecycleCtx = lifecycleContext();
 
         // Save conversation
@@ -576,6 +599,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         sse.stopKeepAlive();
         clearFirstByteTimer();
         watchdog?.stop();
+        // Preserve explicit control cancellation even before the first metadata byte.
+        if (providerAbort?.signal.aborted) throw providerAbort.signal.reason;
         // The class this failure would end the turn with, if nothing after it
         // succeeds. `toAliaError` owns the reason -> code table, so this is the
         // same classification the client is answered with rather than a second

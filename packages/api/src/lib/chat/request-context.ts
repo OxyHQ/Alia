@@ -205,6 +205,7 @@ export async function buildChatRequestContext(
   sse: SSEWriter,
   globalTimer: NodeJS.Timeout,
   aliaRequestId?: string,
+  signal?: AbortSignal,
 ): Promise<ChatRequestContext | null> {
   const body = req.body;
   const machineTurn = admitMachineTurn(req);
@@ -838,6 +839,7 @@ export async function buildChatRequestContext(
   const reserve = admission.then((admitted) =>
     admitted.ok && creditAccountId !== undefined && !req.serviceApp && localRuntime === null
       ? (async () => {
+          signal?.throwIfAborted();
           await getOrCreateUserCredits(creditAccountId);
           // The rolling window first (`lib/usage-window.ts`): a turn that
           // would start with it spent reserves nothing and is refused below.
@@ -857,6 +859,7 @@ export async function buildChatRequestContext(
             return { reservation: null, error: false as const, window };
           }
           const priceBook = await captureCreditPriceBook();
+          signal?.throwIfAborted();
           const reservation = await reserveCredits(creditAccountId, undefined, {
             priceBook,
             requestedModel,

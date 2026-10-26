@@ -5,6 +5,7 @@ import {
 } from '@oxy.so/core/server';
 
 const MACHINE_CHAT_FIELDS = new Set([
+  'turnId',
   'messages',
   'input',
   'model',

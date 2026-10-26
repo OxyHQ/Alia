@@ -492,7 +492,9 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     const route = codeOfFile(path.join(API_SRC, 'routes/v1/chat-completions.ts'));
     expect(route).toContain(snippet('export const handleChatCompletions'));
     expect(route).toContain(
-      snippet('const ctx = await buildChatRequestContext(req, res, sse, globalTimer, requestId);'),
+      snippet(
+        'const ctx = await buildChatRequestContext(req, res, sse, globalTimer, requestId, providerAbort.signal);',
+      ),
     );
     expect(route).toContain(snippet('if (!ctx) return;'));
   });

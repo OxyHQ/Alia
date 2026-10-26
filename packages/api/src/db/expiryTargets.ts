@@ -47,10 +47,18 @@ import { MCP_OAUTH_STATE_TTL_SECONDS, mcpOauthStates, oauthStates } from './sche
 import { emailOutreachDecisions } from './schema/proactive';
 import { apiKeyUsage } from './schema/telemetry';
 import { oxyFileEvents } from './schema/oxy-files';
+import { chatTurnControls } from './schema/chat-turn-controls';
 
 const DAY = 24 * 60 * 60;
 
 export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
+  {
+    table: chatTurnControls,
+    column: chatTurnControls.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      '24-hour turn admission and early-Stop tombstones; no financial or conversation history.',
+  },
   {
     table: apiKeyUsage,
     /**

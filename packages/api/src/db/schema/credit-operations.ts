@@ -2,7 +2,7 @@
 import { productCreditAllocations } from './product-credit-allocations';
 import { sql } from 'drizzle-orm';
 import { pgTable, text, integer, numeric, primaryKey, check, index } from 'drizzle-orm/pg-core';
-import { timestamptz, generatedId } from '@oxy.so/db';
+import { timestamptz, generatedId, createdAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 import { CREDIT_FUNDING_SOURCES } from '../../domain/credit-funding';
 import {
@@ -115,4 +115,31 @@ export const creditOperationRequests = pgTable(
     modelReference: text(),
   },
   (t) => [index('credit_operation_requests_operation_idx').on(t.operationId)],
+);
+
+/** Persisted BEFORE dispatch, so cancellation before response metadata remains recoverable. */
+export const creditOperationAttempts = pgTable(
+  'credit_operation_attempts',
+  {
+    idempotencyKey: text().primaryKey(),
+    operationId: text()
+      .notNull()
+      .references(() => creditOperations.id, { onDelete: 'restrict' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('credit_operation_attempts_operation_idx').on(t.operationId)],
+);
+
+/** Retry scheduling only; the immutable parent remains the sole financial authority. */
+export const creditReconciliations = pgTable(
+  'credit_reconciliations',
+  {
+    operationId: text()
+      .primaryKey()
+      .references(() => creditOperations.id, { onDelete: 'cascade' }),
+    systemPromptTokens: integer().notNull(),
+    nextAttemptAt: timestamptz(),
+    attempts: integer().notNull().default(0),
+  },
+  (t) => [index('credit_reconciliations_next_idx').on(t.nextAttemptAt)],
 );

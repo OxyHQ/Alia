@@ -8,6 +8,10 @@ import { closePostgres } from './db/index.js';
 import { runBootGuards } from './lib/boot-guards.js';
 import { createInternalCors } from './lib/cors-origins.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
+import {
+  startCreditReconciliation,
+  stopCreditReconciliation,
+} from './lib/credit-reconciliation.js';
 import { isTriggerLeader } from './lib/trigger-engine.js';
 import { startSpeechClipSweeper, stopSpeechClipSweeper } from './lib/speech-clips.js';
 import { startOxyFileSync, stopOxyFileSync } from './lib/files/oxy-file-sync.js';
@@ -428,6 +432,7 @@ server.listen(PORT, '0.0.0.0', () => {
    * moves the sweep with it.
    */
   startExpirySweeper(isTriggerLeader);
+  startCreditReconciliation(isTriggerLeader);
 
   /**
    * Spoken clips nobody has used for a month go, rows and objects together
@@ -526,6 +531,7 @@ const shutdown = async (signal: string) => {
     // Stop sweeping before the pool closes, so a sweep in flight is not cut off
     // mid-statement by the handle disappearing underneath it.
     stopExpirySweeper();
+    await stopCreditReconciliation();
     stopSpeechClipSweeper();
     stopOxyFileSync();
 

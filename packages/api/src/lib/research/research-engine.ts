@@ -31,6 +31,7 @@ import {
   resolveUtilityModel,
   getAIModel,
   utilityOutputTokens,
+  type AIModelOptions,
 } from '../chat-core.js';
 import { webSearchTool } from '../tools/web-search.js';
 import { SourceTracker, formatSourceLink } from './source-tracker.js';
@@ -99,6 +100,7 @@ interface ResearchOptions {
   onProgress: (progress: ResearchProgress) => void;
   signal?: AbortSignal;
   maxIterations?: number;
+  onInferenceAttempt?: AIModelOptions['onInferenceAttempt'];
 }
 
 // ── Constants ──
@@ -136,7 +138,7 @@ export async function runDeepResearch(
 
   onProgress({ phase: 'decomposing', message: 'Breaking down the research question...' });
 
-  const subQuestions = await decomposeQuery(query, contract, messages, userId);
+  const subQuestions = await decomposeQuery(query, contract, messages, userId, options);
   onProgress({
     phase: 'decomposing',
     message: `Identified ${subQuestions.length} research angles`,
@@ -188,7 +190,7 @@ export async function runDeepResearch(
         }
 
         // Extract findings for this sub-question
-        const findings = await extractFindings(sq, sourceTracker.getAll(), userId);
+        const findings = await extractFindings(sq, sourceTracker.getAll(), userId, options);
         allFindings[globalIdx] = findings;
       }),
     );
@@ -219,6 +221,7 @@ export async function runDeepResearch(
     sourceTracker,
     userId,
     modelId,
+    options,
   );
 
   // ── Phase 4: Follow-up iterations (identify gaps + targeted search) ──
@@ -239,7 +242,7 @@ export async function runDeepResearch(
       sourcesFound: sourceTracker.count(),
     });
 
-    const gaps = await identifyGaps(query, report ?? '', userId);
+    const gaps = await identifyGaps(query, report ?? '', userId, options);
     if (!gaps || gaps.length === 0) break;
 
     // Search for each gap
@@ -264,7 +267,12 @@ export async function runDeepResearch(
     // Re-synthesize with new sources. A failed re-synthesis keeps the report
     // we already have — it was a complete write-up, and a later round failing
     // does not make it less of one — and stops iterating.
-    const gapFindings = await extractFindings(gaps.join('; '), sourceTracker.getAll(), userId);
+    const gapFindings = await extractFindings(
+      gaps.join('; '),
+      sourceTracker.getAll(),
+      userId,
+      options,
+    );
     allFindings.push(gapFindings);
     const revised = await synthesize(
       query,
@@ -274,6 +282,7 @@ export async function runDeepResearch(
       sourceTracker,
       userId,
       modelId,
+      options,
     );
     if (revised === null) break;
     report = revised;
@@ -370,13 +379,20 @@ async function decomposeQuery(
   contract: OutputContract,
   messages: Array<{ role: string; content: string }>,
   _userId: string,
+  control: Pick<ResearchOptions, 'signal' | 'onInferenceAttempt'> = {},
 ): Promise<string[]> {
   const range = contract.shape === 'report' ? '3-5' : '2-3';
   const limit = contract.shape === 'report' ? 5 : 3;
 
   try {
     const resolved = await resolveUtilityModel();
-    const model = getAIModel(resolved, 'deep_research');
+    const model = getAIModel(
+      resolved,
+      'deep_research',
+      control.onInferenceAttempt ? _userId : undefined,
+      undefined,
+      { onInferenceAttempt: control.onInferenceAttempt },
+    );
 
     const contextSummary = messages
       .filter((m) => m.role === 'user')
@@ -392,8 +408,10 @@ async function decomposeQuery(
         ? `Original request (context only — its length, format and citation instructions are handled elsewhere and must NOT become sub-questions):\n${query}\n\n`
         : '';
 
+    control.signal?.throwIfAborted();
     const { text } = await generateText({
       model,
+      abortSignal: control.signal,
       system: `You are a research planning assistant. Given a research SUBJECT, decompose it into ${range} focused sub-questions that would help answer it comprehensively.
 Every sub-question must be ABOUT THE SUBJECT ITSELF. Never produce a sub-question about how to write, summarize, shorten, cite, reference, format or structure an answer — those are not research topics.
 Return ONLY a JSON array of strings, nothing else.`,
@@ -416,6 +434,7 @@ Return ONLY a JSON array of strings, nothing else.`,
       if (onTopic.length > 0) return onTopic.slice(0, limit);
     }
   } catch (err) {
+    control.signal?.throwIfAborted();
     log.general.warn({ err }, 'Research: failed to decompose query');
   }
 
@@ -450,20 +469,29 @@ async function extractFindings(
   question: string,
   sources: Array<{ id: number; url: string; title: string; excerpt: string }>,
   _userId: string,
+  control: Pick<ResearchOptions, 'signal' | 'onInferenceAttempt'> = {},
 ): Promise<string> {
   if (sources.length === 0) return 'No sources found.';
 
   try {
     const resolved = await resolveUtilityModel();
-    const model = getAIModel(resolved, 'deep_research');
+    const model = getAIModel(
+      resolved,
+      'deep_research',
+      control.onInferenceAttempt ? _userId : undefined,
+      undefined,
+      { onInferenceAttempt: control.onInferenceAttempt },
+    );
 
     const sourcesText = sources
       .slice(-15) // Most recent sources
       .map((s) => `[${s.id}] ${s.title}\n${s.excerpt}`)
       .join('\n\n');
 
+    control.signal?.throwIfAborted();
     const { text } = await generateText({
       model,
+      abortSignal: control.signal,
       system:
         'You are a research analyst. Extract key findings from the provided search results relevant to the question. Use inline citations like [1], [2] referencing the source numbers. Be factual and concise.',
       prompt: `Question: ${question}\n\nSearch Results:\n${sourcesText}\n\nExtract the key findings with citations:`,
@@ -472,6 +500,7 @@ async function extractFindings(
 
     return text;
   } catch (err) {
+    control.signal?.throwIfAborted();
     log.general.warn({ err }, 'Research: failed to extract findings');
     return '';
   }
@@ -494,10 +523,17 @@ async function synthesize(
   sourceTracker: SourceTracker,
   userId: string,
   modelId?: string,
+  control: Pick<ResearchOptions, 'signal' | 'onInferenceAttempt'> = {},
 ): Promise<string | null> {
   try {
     const resolved = await resolveStoredModel(modelId);
-    const model = getAIModel(resolved, 'deep_research');
+    const model = getAIModel(
+      resolved,
+      'deep_research',
+      control.onInferenceAttempt ? userId : undefined,
+      undefined,
+      { onInferenceAttempt: control.onInferenceAttempt },
+    );
 
     const findingsText = findings
       .map((f, i) => ({ finding: f.trim(), angle: subQuestions[i] || 'Follow-up' }))
@@ -518,8 +554,10 @@ async function synthesize(
         ? 'Synthesize these findings into a comprehensive research report:'
         : 'Answer the original query from these findings, in exactly the requested shape:';
 
+    control.signal?.throwIfAborted();
     const { text } = await generateText({
       model,
+      abortSignal: control.signal,
       system: describeOutputContract(contract),
       prompt: `Original Query: ${originalQuery}\n\nResearch Findings:\n${findingsText || '(no findings were extracted)'}\n\nSources (cite by number):\n${sourceList || '(none)'}\n\nTotal sources found: ${sourceTracker.count()}\n\n${task}`,
       maxOutputTokens: 4000,
@@ -527,6 +565,7 @@ async function synthesize(
 
     return text;
   } catch (err) {
+    control.signal?.throwIfAborted();
     log.general.warn({ err }, 'Research: synthesis failed');
     return null;
   }
@@ -536,13 +575,22 @@ async function identifyGaps(
   originalQuery: string,
   currentReport: string,
   _userId: string,
+  control: Pick<ResearchOptions, 'signal' | 'onInferenceAttempt'> = {},
 ): Promise<string[]> {
   try {
     const resolved = await resolveUtilityModel();
-    const model = getAIModel(resolved, 'deep_research');
+    const model = getAIModel(
+      resolved,
+      'deep_research',
+      control.onInferenceAttempt ? _userId : undefined,
+      undefined,
+      { onInferenceAttempt: control.onInferenceAttempt },
+    );
 
+    control.signal?.throwIfAborted();
     const { text } = await generateText({
       model,
+      abortSignal: control.signal,
       system:
         'You identify gaps in research reports. Given a query and current report, identify 1-3 specific search queries that would fill important gaps. Return ONLY a JSON array of search query strings. Return an empty array [] if the report is sufficiently comprehensive.',
       prompt: `Original query: ${originalQuery}\n\nCurrent report (excerpt):\n${currentReport.slice(0, 2000)}\n\nWhat gaps remain? Return JSON array of follow-up search queries:`,
@@ -552,6 +600,7 @@ async function identifyGaps(
     const parsed = JSON.parse(text.replace(/```json?\n?|\n?```/g, '').trim());
     if (Array.isArray(parsed)) return parsed.slice(0, 3);
   } catch {
+    control.signal?.throwIfAborted();
     // No gaps found or parse error — that's fine
   }
 

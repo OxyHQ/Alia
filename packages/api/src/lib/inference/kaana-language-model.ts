@@ -61,6 +61,7 @@ import type {
 import { buildOxyInferenceClientForServiceToken, getOxyInferenceClient } from './oxy-inference.js';
 import type { AliaInferenceSurface } from './product-seam.js';
 import { fitControlledInput, type ModelInputLimits } from './request-budget.js';
+import { tokenUsageFromUnits } from './token-usage.js';
 import { assertToolCountWithinLimit } from './tool-limit.js';
 import { retryTransport, withTransportRetry } from './transport-retry.js';
 import type { OxyInferenceTarget } from '../models/power-levels.js';
@@ -101,6 +102,8 @@ export interface InferenceRequestCorrelation {
 }
 
 export interface KaanaModelOptions {
+  /** Durable intent before HTTP; a known pre-dispatch abort can discard that intent. */
+  readonly onInferenceAttempt?: (key: string, phase: 'prepared' | 'not_sent') => Promise<void>;
   /** Only ids returned by Oxy; awaited before releasing response bytes. */
   readonly onInferenceRequest?: (request: InferenceRequestCorrelation) => void | Promise<void>;
   /**
@@ -159,6 +162,18 @@ function requestOptions(
       ? {}
       : { delegatedUserId: options.oxyUserId }),
   };
+}
+
+async function prepareAttempt(
+  options: KaanaModelOptions,
+  request: { signal: AbortSignal; idempotencyKey: string },
+) {
+  request.signal.throwIfAborted();
+  await options.onInferenceAttempt?.(request.idempotencyKey, 'prepared');
+  if (request.signal.aborted) {
+    await options.onInferenceAttempt?.(request.idempotencyKey, 'not_sent');
+    request.signal.throwIfAborted();
+  }
 }
 
 /**
@@ -568,34 +583,6 @@ function withToolCalls(
   return reason.unified === 'tool-calls' ? reason : { unified: 'tool-calls', raw: reason.raw };
 }
 
-/**
- * Usage, in tokens.
- *
- * The contract reports UNITS — a list of `{unit, quantity}` — because not every
- * modality is billed in tokens. The AI SDK wants three numbers, so the units it
- * has no word for are left out rather than summed into one that means something
- * else.
- */
-function toUsage(
-  units: readonly { unit: string; quantity: number }[] | undefined,
-): LanguageModelV3Usage {
-  const of = (name: string): number | undefined => units?.find((u) => u.unit === name)?.quantity;
-  const inputTokens = of('input_tokens');
-  const outputTokens = of('output_tokens');
-  return {
-    // Only `total` is knowable from the contract's units. The cache breakdown
-    // and the text/reasoning split are questions it does not answer, and
-    // `undefined` says so — a zero would claim a measurement nobody took.
-    inputTokens: {
-      total: inputTokens,
-      noCache: undefined,
-      cacheRead: undefined,
-      cacheWrite: undefined,
-    },
-    outputTokens: { total: outputTokens, text: undefined, reasoning: undefined },
-  };
-}
-
 /** The target as one string, for logs: the model id or the level's slug. */
 function targetLabel(target: OxyInferenceTarget): string {
   return target.kind === 'model' ? target.model : target.routingProfile;
@@ -693,6 +680,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       try {
         // One key for every attempt: see transport-retry.ts.
         const generateOptions = requestOptions(options, generateSignal);
+        await prepareAttempt(options, generateOptions);
         completion = await retryTransport(
           () => client.respond(requestFor(options, call, translation), generateOptions),
           generateSignal,
@@ -721,7 +709,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       return {
         content: generated.content,
         finishReason: withToolCalls(toFinishReason(completion.finishReason), generated.toolCalls),
-        usage: toUsage(completion.usage),
+        usage: tokenUsageFromUnits(completion.usage),
         warnings: translation.warnings,
         ...(resolved === null ? {} : { response: { modelId: resolved } }),
         ...(providerMetadata === undefined ? {} : { providerMetadata }),
@@ -737,6 +725,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
       // One Idempotency-Key for every attempt (a retry must never open a second
       // reservation), and no attempt once output left. See transport-retry.ts.
       const streamOptions = requestOptions(options, signal);
+      await prepareAttempt(options, streamOptions);
       const events = withTransportRetry(
         () => client.stream(requestFor(options, call, translation), streamOptions),
         (event) => event.type === 'delta' || event.type === 'tool_call',
@@ -754,7 +743,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
        */
       let textOpen = false;
       let reasoningOpen = false;
-      let usage: LanguageModelV3Usage = toUsage(undefined);
+      let usage: LanguageModelV3Usage = tokenUsageFromUnits(undefined);
       let finishReason: LanguageModelV3FinishReason = { unified: 'other', raw: undefined };
       /** What Kaana said it served, from the `start` event; null until it says. */
       let resolvedModelReference: string | null = null;
@@ -907,7 +896,7 @@ export function kaanaLanguageModel(options: KaanaModelOptions): LanguageModelV3 
                   break;
                 }
                 case 'usage':
-                  usage = toUsage(event.units);
+                  usage = tokenUsageFromUnits(event.units);
                   break;
                 case 'done':
                   finishReason = toFinishReason(event.finishReason);

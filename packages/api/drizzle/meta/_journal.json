@@ -757,6 +757,13 @@
       "when": 1792746735434,
       "tag": "0107_first_party_task_authority",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1792998553889,
+      "tag": "0108_explicit_chat_cancellation",
+      "breakpoints": true
     }
   ]
 }

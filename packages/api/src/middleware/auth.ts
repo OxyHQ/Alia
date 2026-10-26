@@ -244,7 +244,11 @@ export function authenticateTokenOrApiKey(req: Request, res: Response, next: Nex
   const rawMachine = presented?.startsWith('Bearer oxy_sk_') === true;
   if (rawMachine) {
     const path = req.originalUrl.split('?')[0];
-    if (req.method !== 'POST' || !['/alia/chat', '/v1/chat/completions'].includes(path)) {
+    const turnCancellation = /^\/v1\/chat\/turns\/[0-9a-f-]{36}\/cancel$/i.test(path);
+    if (
+      req.method !== 'POST' ||
+      (!['/alia/chat', '/v1/chat/completions'].includes(path) && !turnCancellation)
+    ) {
       res.status(403).json({ error: 'MACHINE_PRODUCT_ROUTE_UNSUPPORTED' });
       return;
     }

@@ -174,3 +174,50 @@ describe('reasoning through the adapter', () => {
     expect(reasoningId).not.toBe(textId);
   });
 });
+
+describe('durable attempt before dispatch', () => {
+  it('awaits intent persistence and discards only a known pre-dispatch abort', async () => {
+    let release!: () => void;
+    const persisted = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const controller = new AbortController();
+    const phases: Array<{ key: string; phase: string }> = [];
+    const model = kaanaLanguageModel({
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
+      surface: 'chat',
+      onInferenceAttempt: async (key, phase) => {
+        phases.push({ key, phase });
+        if (phase === 'prepared') await persisted;
+      },
+    });
+    const pending = model.doStream({ prompt, abortSignal: controller.signal } as never);
+    const rejected = expect(pending).rejects.toBeDefined();
+    await vi.waitFor(() => expect(phases).toHaveLength(1));
+    expect(mocks.calls).toBe(0);
+    controller.abort(new Error('explicit Stop'));
+    release();
+    await rejected;
+    expect(phases.map((value) => value.phase)).toEqual(['prepared', 'not_sent']);
+    expect(phases[0].key).toBe(phases[1].key);
+    expect(mocks.calls).toBe(0);
+  });
+
+  it('retains a dispatched intent when the network result is unknown and reuses its key for transport retries', async () => {
+    const phases: Array<{ key: string; phase: string }> = [];
+    mocks.scripts.push([reset()], [delta('ok'), done]);
+    const model = kaanaLanguageModel({
+      target: { kind: 'model', model: 'acme/chat-1' },
+      modelId: 'acme/chat-1',
+      surface: 'chat',
+      onInferenceAttempt: async (key, phase) => {
+        phases.push({ key, phase });
+      },
+    });
+    const result = await model.doStream({ prompt } as never);
+    await result.stream.pipeTo(new WritableStream());
+    expect(phases.map((value) => value.phase)).toEqual(['prepared']);
+    expect(mocks.keys).toEqual([phases[0].key, phases[0].key]);
+  });
+});
