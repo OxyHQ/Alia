@@ -2,7 +2,7 @@
   "name": "alia-codea",
   "displayName": "Codea by Alia",
   "description": "AI coding assistant powered by Alia",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "private": true,
   "publisher": "oxy",
   "license": "MIT",
@@ -246,7 +246,8 @@
   "dependencies": {
     "@oxy.so/core": "7.1.0",
     "openai": "^6.46.0",
-    "pathe": "2.0.3"
+    "pathe": "2.0.3",
+    "@alia.onl/server": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

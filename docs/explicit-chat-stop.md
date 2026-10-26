@@ -112,3 +112,24 @@ it does not claim to exercise production sign-in or the full chat UI. Live
 provider cancellation and partial usage settlement require a bounded retest after
 the reviewed source is deployed. No new production generation is part of these
 local tests.
+
+### Desktop adoption
+
+Codea's webview Stop and native chat panel Stop, and Cowork's Stop, use the
+server SDK lifecycle helper over their existing Oxy linked transport. Each HTTP
+request in a local tool loop has a fresh cancellation ID; stopping between local
+tools prevents further rounds and does not undo an action that already ran.
+A failed acknowledgement is reported without claiming the generation stopped.
+The account lifetime signal is separate from the stream signal: a terminal
+`turn_cancelled` frame preserves delivered partial text and does not abort the
+control request while its acknowledgement is still pending.
+Account changes, opening saved history, clearing a conversation, view teardown
+and Codea inline-suggestion invalidation only detach. Late text and local tool
+results cannot enter a replacement conversation. Typing a character is not treated as an explicit chat Stop command.
+
+These consumers do not calculate or refund credits. The receiver's measured
+reconciliation remains authoritative, and their HTTP fixtures establish request
+identity, acknowledgement and account fencing rather than live financial
+settlement. Codea 1.0.9 and Cowork 1.0.2 require the receiver rollout and server
+SDK 1.3 release before distribution; see the separate desktop artifact steps in
+[deployment](./deployment.md#codea-and-cowork-desktop-artifacts).

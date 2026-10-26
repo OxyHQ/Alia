@@ -19,6 +19,7 @@
 
 import type { BrowserWindow } from 'electron';
 import type OpenAI from 'openai';
+import { AliaServerClient, createAliaTurnControl, type AliaTurnControl } from '@alia.onl/server';
 import Store from 'electron-store';
 import type { ToolExecutor } from './tools';
 import { errorMessage, errorName, errorStack } from './errors';
@@ -316,7 +317,11 @@ interface StreamOutcome {
 /** One user message's run: its id tells a turn that was stopped from the one that replaced it. */
 interface Turn {
   id: number;
+  historyGeneration: number;
   controller: AbortController;
+  lifetime: AbortController;
+  control?: AliaTurnControl;
+  stopping?: Promise<void>;
 }
 
 const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'AbortError' });
@@ -370,6 +375,7 @@ export class ChatProvider {
   /** The turn the renderer is showing, or `null`. `stop()` clears it before the turn has wound down. */
   private activeTurn: Turn | null = null;
   private turnSeq = 0;
+  private historyGeneration = 0;
   /** Settles when the latest turn has fully wound down (a stopped one may still be finishing a tool). */
   private settled: Promise<void> = Promise.resolve();
   private browserUsedInCurrentTurn = false;
@@ -383,7 +389,6 @@ export class ChatProvider {
     this.toolExecutor = toolExecutor;
     this.disposeSessionObserver = onSessionContextChange(() => {
       this.contextChanged = true;
-      this.stop();
       this.clear();
     });
   }
@@ -417,7 +422,12 @@ export class ChatProvider {
       return;
     }
 
-    const turn: Turn = { id: ++this.turnSeq, controller: new AbortController() };
+    const turn: Turn = {
+      id: ++this.turnSeq,
+      historyGeneration: this.historyGeneration,
+      controller: new AbortController(),
+      lifetime: new AbortController(),
+    };
     this.activeTurn = turn;
     const previous = this.settled;
     const run = this.runMessage(turn, previous, content, mode, model, context);
@@ -441,7 +451,8 @@ export class ChatProvider {
       // A cancelled local tool may have finished after the account changed.
       // Its late history is discarded before the next account starts a turn.
       if (this.contextChanged) {
-        this.clear();
+        this.resetHistory();
+        turn.historyGeneration = this.historyGeneration;
         this.contextChanged = false;
       }
 
@@ -484,7 +495,11 @@ export class ChatProvider {
         });
         this.emit(turn, 'chat:end', {});
       } catch (error: unknown) {
-        if (errorName(error) === 'AbortError') {
+        const stoppedByServer =
+          turn.stopping !== undefined &&
+          error instanceof AliaChatError &&
+          error.code === 'turn_cancelled';
+        if (errorName(error) === 'AbortError' || stoppedByServer) {
           logger.debug('Stream aborted by user');
           this.emit(turn, 'chat:end', {});
         } else {
@@ -513,6 +528,7 @@ export class ChatProvider {
       }
       logger.debug('===== SESSION END =====');
       logger.debug('Final message count:', this.messages.length);
+      turn.lifetime.abort();
       // Only the turn that still owns the provider hands it back: a stopped turn finishing late
       // must not end the one that replaced it.
       if (this.activeTurn === turn) {
@@ -537,6 +553,7 @@ export class ChatProvider {
         logger.warn(`Max tool rounds (${MAX_TOOL_ROUNDS}) reached, forcing final response`);
 
       const outcome = await this.streamOnce(turn, request, lastRound);
+      if (turn.historyGeneration !== this.historyGeneration) return;
 
       // A stand-in turn never runs its tools, so its `tool_calls` are not remembered either: an
       // assistant message that asks for tools nobody answers is a history the server refuses.
@@ -566,6 +583,7 @@ export class ChatProvider {
       logger.debug('===== EXECUTING TOOLS =====');
       logger.debug('Number of tools to execute:', outcome.toolCalls.length);
       for (const [index, toolCall] of outcome.toolCalls.entries()) {
+        if (turn.historyGeneration !== this.historyGeneration) return;
         if (turn.controller.signal.aborted) {
           // Stopped between tools: the ones not run are answered as cancelled, so the saved
           // history never holds a request without its result.
@@ -605,17 +623,24 @@ export class ChatProvider {
     };
 
     const linked = linkedAliaClient(request.baseUrl);
+    const control = createAliaTurnControl(
+      new AliaServerClient({ baseUrl: request.baseUrl, fetch: linked.fetch }),
+      { controller: turn.controller, lifetimeSignal: turn.lifetime.signal },
+    );
+    turn.control = control;
     try {
       return await this.consume(
         turn,
         streamAliaChat({
           baseUrl: request.baseUrl,
           fetch: linked.fetch,
-          body,
+          body: { ...body, turnId: control.id },
           signal: turn.controller.signal,
         }),
       );
     } finally {
+      await control.finish();
+      if (turn.control === control) turn.control = undefined;
       linked.dispose();
     }
   }
@@ -630,37 +655,51 @@ export class ChatProvider {
     let synthetic: StreamOutcome['synthetic'] = null;
     let chunkCount = 0;
 
-    for await (const event of stream) {
-      if (turn.controller.signal.aborted) throw abortError();
-      chunkCount++;
-      switch (event.type) {
-        case 'content':
-          text += event.text;
-          this.streamedTextThisTurn = true;
-          this.emit(turn, 'chat:stream', { content: event.text });
-          break;
-        case 'reasoning':
-          this.emit(turn, 'chat:thinking', { content: event.text });
-          break;
-        case 'tool_calls':
-          mergeToolCallDeltas(toolCalls, event.deltas);
-          break;
-        case 'synthetic':
-          logger.warn('Server sent a synthetic stand-in:', event.text);
-          synthetic = { retryable: event.retryable };
-          break;
-        case 'tool_result':
-          // For this process's own tools the output is the server's echo of the
-          // arguments; the real result is produced by `runToolCall`.
-          logger.debug(`Server tool result for ${event.name}`);
-          break;
-        case 'finish':
-          logger.debug('Stream finished:', event.reason);
-          break;
-        case 'event':
-          logger.debug('Product event:', event.name);
-          break;
+    try {
+      for await (const event of stream) {
+        if (turn.controller.signal.aborted) throw abortError();
+        chunkCount++;
+        switch (event.type) {
+          case 'content':
+            text += event.text;
+            this.streamedTextThisTurn = true;
+            this.emit(turn, 'chat:stream', { content: event.text });
+            break;
+          case 'reasoning':
+            this.emit(turn, 'chat:thinking', { content: event.text });
+            break;
+          case 'tool_calls':
+            mergeToolCallDeltas(toolCalls, event.deltas);
+            break;
+          case 'synthetic':
+            logger.warn('Server sent a synthetic stand-in:', event.text);
+            synthetic = { retryable: event.retryable };
+            break;
+          case 'tool_result':
+            // For this process's own tools the output is the server's echo of the
+            // arguments; the real result is produced by `runToolCall`.
+            logger.debug(`Server tool result for ${event.name}`);
+            break;
+          case 'finish':
+            logger.debug('Stream finished:', event.reason);
+            break;
+          case 'event':
+            logger.debug('Product event:', event.name);
+            break;
+        }
       }
+    } catch (error) {
+      // Only the still-owned turn may retain its delivered partial answer.
+      if (
+        error instanceof AliaChatError &&
+        error.code === 'turn_cancelled' &&
+        this.activeTurn === turn &&
+        !turn.lifetime.signal.aborted &&
+        text
+      ) {
+        this.messages.push({ role: 'assistant', content: text });
+      }
+      throw error;
     }
 
     logger.debug('Stream processing complete');
@@ -672,6 +711,7 @@ export class ChatProvider {
 
   /** Execute one tool call locally and append its result to the history. */
   private async runToolCall(turn: Turn, toolCall: StreamedToolCall): Promise<void> {
+    if (turn.historyGeneration !== this.historyGeneration) return;
     const toolName = toolCall.function.name;
     logger.debug(`Executing tool: ${toolName}`);
     logger.debug(`Tool call ID: ${toolCall.id}`);
@@ -708,6 +748,7 @@ export class ChatProvider {
 
     try {
       let result = await this.executeTool(toolName, args);
+      if (turn.historyGeneration !== this.historyGeneration) return;
       logger.debug(`Tool ${toolName} executed successfully`);
       logger.debug(`Result length: ${result.length}`);
 
@@ -725,6 +766,7 @@ export class ChatProvider {
         result: result.slice(0, 500),
       });
     } catch (error: unknown) {
+      if (turn.historyGeneration !== this.historyGeneration) return;
       const errorMsg = errorMessage(error);
       logger.error(`Tool ${toolName} execution failed:`, errorMsg);
       logger.error('Error stack:', errorStack(error));
@@ -806,20 +848,45 @@ export class ChatProvider {
 
   dispose(): void {
     this.disposeSessionObserver();
-    this.stop();
     this.clear();
   }
 
-  stop(): void {
+  stop(): Promise<void> {
+    const turn = this.activeTurn;
+    if (!turn) return Promise.resolve();
+    if (turn.stopping) return turn.stopping;
+    turn.stopping = (async () => {
+      // A completed local tool is never undone. Only its current HTTP generation
+      // has remote control; between rounds Stop simply prevents the next one.
+      if (turn.control) await turn.control.stop();
+      if (this.activeTurn === turn) this.detach();
+    })().catch(() => {
+      turn.stopping = undefined;
+      this.emit(turn, 'chat:error', {
+        message: 'Generation could not be stopped. Try again.',
+        generationContinues: true,
+      });
+    });
+    return turn.stopping;
+  }
+
+  private detach(): void {
     // Release the provider now (a new message may start at once) and cut the stopped turn's
     // stream; the turn winds down on its own, and the next one waits for it.
     const turn = this.activeTurn;
     this.activeTurn = null;
+    turn?.lifetime.abort();
     turn?.controller.abort();
     this.send('chat:end', {});
   }
 
   clear(): void {
+    this.detach();
+    this.resetHistory();
+  }
+
+  private resetHistory(): void {
+    this.historyGeneration++;
     this.messages = [];
     this.toolExecutor.reset();
     this.send('chat:cleared', {});

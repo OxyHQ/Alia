@@ -301,6 +301,13 @@ export function Chat() {
           break;
         }
         case 'error':
+          if (data.generationContinues) {
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: `Error: ${data.message}` },
+            ]);
+            break;
+          }
           setIsGenerating(false);
           setMessages((prev) => [
             ...prev,

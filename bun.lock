@@ -111,8 +111,9 @@
     },
     "packages/alia-codea": {
       "name": "alia-codea",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "dependencies": {
+        "@alia.onl/server": "workspace:*",
         "@oxy.so/core": "7.1.0",
         "openai": "^6.46.0",
         "pathe": "2.0.3",
@@ -219,9 +220,10 @@
     },
     "packages/alia-cowork": {
       "name": "alia-cowork",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "dependencies": {
         "@ai-sdk/openai-compatible": "1.0.39",
+        "@alia.onl/server": "workspace:*",
         "@browserbasehq/stagehand": "^3.7.0",
         "@hugeicons/core-free-icons": "^3.3.0",
         "@hugeicons/react": "^1.1.9",

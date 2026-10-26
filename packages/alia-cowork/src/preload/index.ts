@@ -88,7 +88,8 @@ const api = {
   onChatThinking: (callback: (data: { content: string }) => void) =>
     subscribe('chat:thinking', callback),
   onChatEnd: (callback: () => void) => subscribe<void>('chat:end', callback),
-  onChatError: (callback: (data: { message: string }) => void) => subscribe('chat:error', callback),
+  onChatError: (callback: (data: { message: string; generationContinues?: boolean }) => void) =>
+    subscribe('chat:error', callback),
   onChatTool: (
     callback: (data: { tool: string; args: Record<string, unknown>; status: string }) => void,
   ) => subscribe('chat:tool', callback),

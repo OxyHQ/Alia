@@ -99,6 +99,7 @@ function makeProvider() {
   const provider = new CodeaChatViewProvider({} as never, context as never, auth as never);
   provider.resolveWebviewView(
     {
+      onDidDispose: () => ({ dispose() {} }),
       webview: {
         options: {},
         html: '',

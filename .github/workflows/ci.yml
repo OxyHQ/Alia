@@ -457,6 +457,9 @@ jobs:
       # Enumerates the workspaces and requires each to be checked here, checked by
       # a named job elsewhere, explicitly excluded, or explicitly scriptless — so
       # a new package cannot join the repo unnoticed. See the script's header.
+      - name: Build shared server SDK for desktop consumers
+        run: bun run --filter @alia.onl/server build
+
       - name: Typecheck workspaces
         run: bun .github/scripts/typecheck-workspaces.ts
 
