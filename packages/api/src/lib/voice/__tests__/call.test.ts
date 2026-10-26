@@ -37,6 +37,58 @@ function voiceOf(model: typeof REALTIME, gender: 'female' | 'male'): string {
 }
 
 describe('opening', () => {
+  it('correlates each actual upstream once without logging identity, instructions or audio', async () => {
+    const { log } = await import('../../logger.js');
+    const info = vi.mocked(log.voice.info);
+    info.mockClear();
+    const h = await opened();
+    try {
+      const first = h.session();
+      const correlation = () =>
+        info.mock.calls.filter(([, message]) => message === 'Voice upstream session created');
+      expect(correlation()).toEqual([
+        [
+          { callId: h.call.callId, kaanaRequestId: first.requestId },
+          'Voice upstream session created',
+        ],
+      ]);
+      first.emit({
+        type: 'session.created',
+        model: `${first.model.modelId}@${first.model.currentRevision}`,
+        kind: first.open.kind,
+        config: first.open.config,
+        limits: {
+          maxDurationMs: 60_000,
+          idleTimeoutMs: 30_000,
+          maxResponses: 10,
+          maxInputAudioBytes: 1_000_000,
+          maxOutputAudioBytes: 1_000_000,
+        },
+        resumeWindowMs: 30_000,
+        startedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+      await until('duplicate created delivered', () => h.sink.find('session.ready').length === 2);
+      expect(correlation()).toHaveLength(1);
+      first.emit({
+        type: 'session.closed',
+        reason: 'server_shutdown',
+        units: [],
+        usageSource: 'provider_reported',
+        closedAt: new Date().toISOString(),
+      });
+      await until('replacement upstream correlated', () => correlation().length === 2);
+      expect(correlation()[1]).toEqual([
+        { callId: h.call.callId, kaanaRequestId: h.server.sessions[1]?.requestId },
+        'Voice upstream session created',
+      ]);
+      expect(h.server.sessions).toHaveLength(2);
+      expect(h.server.sessions[1]?.requestId).not.toBe(first.requestId);
+    } finally {
+      await h.call.end('hangup');
+    }
+  });
+
   it('opens a conversation with server VAD, barge-in, input transcription in the locale and the computed voice', async () => {
     const h = await opened();
     const session = h.session();
