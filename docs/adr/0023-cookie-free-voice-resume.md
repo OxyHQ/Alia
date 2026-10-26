@@ -22,6 +22,14 @@ leases are never recreated by renewal. Call completion removes only its own
 value. The hard deadline is 31 minutes; none of this extends the call's 30-minute
 maximum or its existing 30-second disconnected resume window.
 
+The directory is server-owned under the existing shared Redis trust boundary.
+No client endpoint can write a route, address or generation: a newly opened call
+registers its server-generated session id with the verified account and the
+current container's metadata. The opaque generation prevents accidental reuse
+of a task IP; it is **not cryptographic receiver authentication** and does not
+protect against a compromised Redis writer. This change does not expand that
+trust boundary into a new mutual-authentication or per-hop ECS lookup protocol.
+
 An entry is routing metadata, not authority. A reconnect first passes the existing
 shared Oxy session verification. A different account cannot resolve the entry.
 The public URL and all public auth/session frames stay unchanged. A task that
