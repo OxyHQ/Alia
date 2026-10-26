@@ -11,6 +11,9 @@ export function createChatTurnControl(
   conversationId: string | undefined,
   controller: AbortController,
 ) {
+  // A host can reject before Stop is pressed. Observe that rejection immediately;
+  // awaiting the original promise below still reports the failure to Stop.
+  void headers.catch(() => undefined);
   const id = createRandomUuid();
   let stopping: Promise<void> | undefined;
   let ended = false;

@@ -137,3 +137,25 @@ it('bounds Stop and finish even when surface preparation never resolves, with no
     timeoutFactory.mockRestore();
   }
 });
+
+it('observes an immediately rejected proof before a host presses Stop', async () => {
+  const oxy = new OxyServices({ baseURL: 'http://127.0.0.1:9' });
+  oxy.session.setAccessToken(token('A'));
+  const linked = oxy.createLinkedClient({ baseURL: 'http://127.0.0.1:9' });
+  const request = vi.spyOn(linked.client, 'requestAuthenticatedResponse');
+  const turn = createChatTurnControl(
+    linked,
+    Promise.reject(new Error('surface unavailable')),
+    undefined,
+    new AbortController(),
+  );
+  try {
+    // Cross an event-loop boundary: an unobserved rejection would fail this suite.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await expect(turn.stop()).rejects.toThrow('surface unavailable');
+    expect(request).not.toHaveBeenCalled();
+  } finally {
+    await turn.finish();
+    oxy.dispose();
+  }
+});
