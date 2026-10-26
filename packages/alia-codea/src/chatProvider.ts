@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type OpenAI from 'openai';
+import { AliaServerClient, createAliaTurnControl, type AliaTurnControl } from '@alia.onl/server';
 import { fileTools, ToolExecutor, type EditorContext } from './tools';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { errorMessage, errorName } from './errors';
@@ -91,6 +92,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private _messages: Array<OpenAI.Chat.ChatCompletionMessageParam> = [];
   private _currentConversationId: string | null = null;
   private _abortController?: AbortController;
+  private _control?: AliaTurnControl;
+  private _stopping?: { controller: AbortController; promise: Promise<void> };
   /** The turn that owns the provider: a stopped turn finishing late must not touch the next one. */
   private _turnSeq = 0;
   private _sessionEpoch = 0;
@@ -122,7 +125,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     );
     const stopContext = this._authProvider.onSessionContextChange(() => {
       this._sessionEpoch++;
-      this.stopGeneration();
+      this.detachGeneration();
       this._currentTurn = ++this._turnSeq;
       this._messages = [];
       this._currentConversationId = null;
@@ -132,7 +135,10 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
       this._view?.webview.postMessage({ type: 'userInfo', userName: null });
       void this.fetchAndSendModels();
     });
-    this._context.subscriptions.push({ dispose: stopContext });
+    this._context.subscriptions.push(
+      { dispose: stopContext },
+      { dispose: () => this.detachGeneration() },
+    );
   }
 
   private async fetchAndSendUserInfo(): Promise<void> {
@@ -203,14 +209,21 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   private async handleRetry(): Promise<void> {
     if (this._isProcessing || !this._lastRequestParams) return;
 
-    // Remove the last assistant message if it was an error (it won't be in _messages
-    // because synthetic errors are not pushed, but clear any leftover state)
+    const controller = new AbortController();
+    this._abortController = controller;
     this._isProcessing = true;
     const { baseUrl, model, clientContext } = this._lastRequestParams;
     const epoch = this._sessionEpoch;
-    await this._settled;
-    if (epoch !== this._sessionEpoch) return;
-    await this.processConversation(baseUrl, model, clientContext);
+    try {
+      await this._settled;
+      if (epoch !== this._sessionEpoch || controller.signal.aborted) return;
+      await this.processConversation(baseUrl, model, clientContext, controller);
+    } finally {
+      if (this._abortController === controller) {
+        this._abortController = undefined;
+        this._isProcessing = false;
+      }
+    }
   }
 
   public resolveWebviewView(
@@ -219,6 +232,13 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken,
   ) {
     this._view = webviewView;
+    this._context.subscriptions.push(
+      webviewView.onDidDispose(() => {
+        if (this._view !== webviewView) return;
+        this.detachGeneration();
+        this._view = undefined;
+      }),
+    );
 
     webviewView.webview.options = {
       enableScripts: true,
@@ -236,7 +256,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
           await this.handleUserMessage(data.message, data.mode, data.model, data.context);
           break;
         case 'stopGeneration':
-          this.stopGeneration();
+          await this.stopGeneration();
           break;
         case 'newConversation':
           this.newConversation();
@@ -663,6 +683,8 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public newConversation() {
+    this.detachGeneration();
+    this._currentTurn = ++this._turnSeq;
     this.saveCurrentConversation();
     this._currentConversationId = null;
     this._messages = [];
@@ -670,11 +692,36 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public clearConversation() {
-    this.stopGeneration();
     this.newConversation();
   }
 
-  private stopGeneration() {
+  private stopGeneration(): Promise<void> {
+    const controller = this._abortController;
+    if (!controller) return Promise.resolve();
+    if (this._stopping?.controller === controller) return this._stopping.promise;
+    const control = this._control;
+    const promise = (async () => {
+      if (control) await control.stop();
+      if (this._abortController === controller) this.detachGeneration();
+    })()
+      .catch(() => {
+        if (this._abortController === controller) {
+          this._view?.webview.postMessage({
+            type: 'error',
+            message: 'Generation could not be stopped. Try again.',
+            generationContinues: true,
+          });
+        }
+      })
+      .finally(() => {
+        if (this._stopping?.controller === controller) this._stopping = undefined;
+      });
+    this._stopping = { controller, promise };
+    return promise;
+  }
+
+  private detachGeneration() {
+    this._control = undefined;
     this._isProcessing = false;
     if (this._abortController) {
       this._abortController.abort();
@@ -690,88 +737,99 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     addedContext?: { path: string; content: string; language: string }[],
   ) {
     if (this._isProcessing) return;
-
-    if (mode) {
-      this._currentMode = mode;
-    }
-
-    const epoch = this._sessionEpoch;
-    const config = vscode.workspace.getConfiguration('codea');
-    const accessToken = await this._authProvider.getAccessToken();
-    if (epoch !== this._sessionEpoch) return;
-    const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
-    /**
-     * Resolved once here, then carried through the whole conversation —
-     * including `_lastRequestParams`, which replays it after a tool round. The
-     * alternative, resolving inside `streamChatCompletion`, would re-resolve on
-     * every continuation and could change model mid-conversation if the
-     * catalogue shifted underneath it.
-     */
-    // The picker's choice, else the `codea.model` setting; empty in both means
-    // `model` is omitted and the server uses its default model.
-    const requestedModel = selectedModel || config.get<string>('model') || '';
-    const linked = this._authProvider.createLinkedClient(baseUrl);
-    let model: string | undefined;
-    try {
-      model = await resolveModelId(baseUrl, requestedModel, linked.fetch);
-    } finally {
-      linked.dispose();
-    }
-    if (epoch !== this._sessionEpoch) return;
-
-    if (!accessToken) {
-      vscode.window.showErrorMessage('Please sign in to use Codea', 'Sign In').then((selection) => {
-        if (selection === 'Sign In') {
-          vscode.commands.executeCommand('codea.signIn');
-        }
-      });
-      return;
-    }
-
-    const context = await this._toolExecutor.getContext();
-    if (epoch !== this._sessionEpoch) return;
-
-    // Build client-specific context to send to backend
-    const clientContext = this.buildClientContext(this._currentMode, context);
-
-    let enhancedContent = content;
-
-    if (addedContext && addedContext.length > 0) {
-      for (const item of addedContext) {
-        const fileContent = item.content.slice(0, 4000);
-        const truncated = item.content.length > 4000 ? '\n... (truncated)' : '';
-        enhancedContent += `\n\n**File: ${item.path}**\n\`\`\`${item.language}\n${fileContent}${truncated}\n\`\`\``;
-      }
-    }
-
-    if (!addedContext || addedContext.length === 0) {
-      const referencesCode =
-        /\b(this|the|explain|review|fix|debug|code|file|function|error|codebase|project)\b/i.test(
-          content,
-        );
-
-      if (referencesCode && context.selection) {
-        enhancedContent = `${content}\n\n**Selected code (${context.openFile?.path || 'unknown'}, lines ${context.selection.startLine}-${context.selection.endLine}):**\n\`\`\`${context.openFile?.language || ''}\n${context.selection.text}\n\`\`\``;
-      } else if (referencesCode && context.openFile) {
-        const fileContent = context.openFile.content.slice(0, 4000);
-        const truncated = context.openFile.content.length > 4000 ? '\n... (truncated)' : '';
-        enhancedContent = `${content}\n\n**Currently open file (${context.openFile.path}):**\n\`\`\`${context.openFile.language}\n${fileContent}${truncated}\n\`\`\``;
-      }
-    }
-
-    // A stopped turn may still be finishing a tool: its result belongs in the history before
-    // this message does.
-    await this._settled;
-    if (this._isProcessing) return;
-    this._messages.push({ role: 'user', content: enhancedContent });
-    this._view?.webview.postMessage({
-      type: 'addMessage',
-      message: { role: 'user', content },
-    });
-
+    const controller = new AbortController();
+    this._abortController = controller;
     this._isProcessing = true;
-    this._lastRequestParams = { baseUrl, model, clientContext };
-    await this.processConversation(baseUrl, model, clientContext);
+    try {
+      if (mode) {
+        this._currentMode = mode;
+      }
+
+      const epoch = this._sessionEpoch;
+      const config = vscode.workspace.getConfiguration('codea');
+      const accessToken = await this._authProvider.getAccessToken();
+      if (epoch !== this._sessionEpoch || controller.signal.aborted) return;
+      const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
+      /**
+       * Resolved once here, then carried through the whole conversation —
+       * including `_lastRequestParams`, which replays it after a tool round. The
+       * alternative, resolving inside `streamChatCompletion`, would re-resolve on
+       * every continuation and could change model mid-conversation if the
+       * catalogue shifted underneath it.
+       */
+      // The picker's choice, else the `codea.model` setting; empty in both means
+      // `model` is omitted and the server uses its default model.
+      const requestedModel = selectedModel || config.get<string>('model') || '';
+      const linked = this._authProvider.createLinkedClient(baseUrl);
+      let model: string | undefined;
+      try {
+        model = await resolveModelId(baseUrl, requestedModel, linked.fetch);
+      } finally {
+        linked.dispose();
+      }
+      if (epoch !== this._sessionEpoch || controller.signal.aborted) return;
+
+      if (!accessToken) {
+        vscode.window
+          .showErrorMessage('Please sign in to use Codea', 'Sign In')
+          .then((selection) => {
+            if (selection === 'Sign In') {
+              vscode.commands.executeCommand('codea.signIn');
+            }
+          });
+        return;
+      }
+
+      const context = await this._toolExecutor.getContext();
+      if (epoch !== this._sessionEpoch || controller.signal.aborted) return;
+
+      // Build client-specific context to send to backend
+      const clientContext = this.buildClientContext(this._currentMode, context);
+
+      let enhancedContent = content;
+
+      if (addedContext && addedContext.length > 0) {
+        for (const item of addedContext) {
+          const fileContent = item.content.slice(0, 4000);
+          const truncated = item.content.length > 4000 ? '\n... (truncated)' : '';
+          enhancedContent += `\n\n**File: ${item.path}**\n\`\`\`${item.language}\n${fileContent}${truncated}\n\`\`\``;
+        }
+      }
+
+      if (!addedContext || addedContext.length === 0) {
+        const referencesCode =
+          /\b(this|the|explain|review|fix|debug|code|file|function|error|codebase|project)\b/i.test(
+            content,
+          );
+
+        if (referencesCode && context.selection) {
+          enhancedContent = `${content}\n\n**Selected code (${context.openFile?.path || 'unknown'}, lines ${context.selection.startLine}-${context.selection.endLine}):**\n\`\`\`${context.openFile?.language || ''}\n${context.selection.text}\n\`\`\``;
+        } else if (referencesCode && context.openFile) {
+          const fileContent = context.openFile.content.slice(0, 4000);
+          const truncated = context.openFile.content.length > 4000 ? '\n... (truncated)' : '';
+          enhancedContent = `${content}\n\n**Currently open file (${context.openFile.path}):**\n\`\`\`${context.openFile.language}\n${fileContent}${truncated}\n\`\`\``;
+        }
+      }
+
+      // A stopped turn may still be finishing a tool: its result belongs in the history before
+      // this message does.
+      await this._settled;
+      if (epoch !== this._sessionEpoch || controller.signal.aborted) return;
+      this._messages.push({ role: 'user', content: enhancedContent });
+      this._view?.webview.postMessage({
+        type: 'addMessage',
+        message: { role: 'user', content },
+      });
+
+      this._isProcessing = true;
+      this._lastRequestParams = { baseUrl, model, clientContext };
+      await this.processConversation(baseUrl, model, clientContext, controller);
+    } finally {
+      if (this._abortController === controller) {
+        this._abortController = undefined;
+        this._isProcessing = false;
+      }
+    }
   }
 
   private buildClientContext(mode: string, context: EditorContext): string {
@@ -840,11 +898,11 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
     baseUrl: string,
     model: string | undefined,
     clientContext: string,
+    controller = new AbortController(),
   ): Promise<void> {
     this._view?.webview.postMessage({ type: 'startAssistantMessage' });
     const turn = ++this._turnSeq;
     this._currentTurn = turn;
-    const controller = new AbortController();
     this._abortController = controller;
     let settle!: () => void;
     this._settled = new Promise<void>((resolve) => {
@@ -873,16 +931,27 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       max_tokens: 4096,
     });
 
-    const streamOnce = (finalRound: boolean): Promise<StreamOutcome> =>
-      this.consume(
-        streamAliaChat({
-          baseUrl,
-          fetch: linked.fetch,
-          body: request(finalRound),
-          signal: controller.signal,
-        }),
-        live,
+    const streamOnce = async (finalRound: boolean): Promise<StreamOutcome> => {
+      const control = createAliaTurnControl(
+        new AliaServerClient({ baseUrl, fetch: linked.fetch }),
+        { controller },
       );
+      this._control = control;
+      try {
+        return await this.consume(
+          streamAliaChat({
+            baseUrl,
+            fetch: linked.fetch,
+            body: { ...request(finalRound), turnId: control.id },
+            signal: controller.signal,
+          }),
+          live,
+        );
+      } finally {
+        await control.finish();
+        if (this._control === control) this._control = undefined;
+      }
+    };
 
     try {
       for (let round = 0; live(); round++) {
@@ -950,7 +1019,11 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
 
       this._view?.webview.postMessage({ type: 'endAssistantMessage' });
     } catch (error: unknown) {
-      if (live() && errorName(error) !== 'AbortError') {
+      const stoppedByServer =
+        this._stopping?.controller === controller &&
+        error instanceof AliaChatError &&
+        error.code === 'turn_cancelled';
+      if (live() && errorName(error) !== 'AbortError' && !stoppedByServer) {
         const errorMsg = this.formatErrorMessage(error);
         this._view?.webview.postMessage({
           type: 'error',

@@ -59,7 +59,9 @@ declare global {
       onChatStream: (callback: (data: { content: string }) => void) => () => void;
       onChatThinking: (callback: (data: { content: string }) => void) => () => void;
       onChatEnd: (callback: () => void) => () => void;
-      onChatError: (callback: (data: { message: string }) => void) => () => void;
+      onChatError: (
+        callback: (data: { message: string; generationContinues?: boolean }) => void,
+      ) => () => void;
       onChatTool: (
         callback: (data: { tool: string; args: Record<string, unknown>; status: string }) => void,
       ) => () => void;
@@ -101,5 +103,3 @@ declare global {
     };
   }
 }
-
-export {};

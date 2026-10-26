@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type OpenAI from 'openai';
+import { AliaServerClient, createAliaTurnControl } from '@alia.onl/server';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { log } from './logger';
 import { resolveModelId } from './catalogue';
@@ -184,29 +185,30 @@ export class AliaChatParticipant {
     const maxTokens = config.get('maxTokens', 4096);
     const temperature = config.get('temperature', 0.7);
 
-    /**
-     * Cancellation that actually cancels.
-     *
-     * `signal: token.isCancellationRequested ? AbortSignal.abort() : undefined`
-     * evaluates ONCE, when the request is built. In the normal case the token
-     * is not cancelled yet, so the signal was `undefined` and the stream could
-     * never be aborted: cancelling in the chat view stopped the UI and left the
-     * turn running — and billed — to completion. The linked transport shares
-     * this cancellation with its request-time refresh.
-     */
+    // The native chat panel's Stop is explicit remote cancellation. Context
+    // changes only detach; no request may migrate to a replacement account.
     const controller = new AbortController();
     if (token.isCancellationRequested) controller.abort();
-    const cancellation = token.onCancellationRequested(() => {
-      controller.abort();
-    });
-
     const linked = this.authProvider.createLinkedClient(this.apiBaseUrl);
+    const control = createAliaTurnControl(
+      new AliaServerClient({ baseUrl: this.apiBaseUrl, fetch: linked.fetch }),
+      { controller },
+    );
+    const cancellation = token.onCancellationRequested(() => {
+      void control.stop().catch(() => {
+        if (!controller.signal.aborted) {
+          void vscode.window.showErrorMessage(
+            'Generation could not be stopped. It may continue in the background.',
+          );
+        }
+      });
+    });
     const stopContext = this.authProvider.onSessionContextChange(() => controller.abort());
     const attempt = (model: string | undefined) =>
       streamAliaChat({
         baseUrl: this.apiBaseUrl,
         fetch: linked.fetch,
-        body: { model, messages, max_tokens: maxTokens, temperature },
+        body: { model, messages, max_tokens: maxTokens, temperature, turnId: control.id },
         signal: controller.signal,
       });
 
@@ -265,6 +267,7 @@ export class AliaChatParticipant {
       throw error;
     } finally {
       // The listener is on VS Code's token, which outlives this request.
+      await control.finish();
       cancellation.dispose();
       stopContext();
       linked.dispose();

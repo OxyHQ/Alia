@@ -91,16 +91,9 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     // Build the prompt
     const prompt = this.buildPrompt(document, prefix, suffix);
 
-    /**
-     * Cancellation that actually cancels.
-     *
-     * This was `signal: token.isCancellationRequested ? AbortSignal.abort() : undefined`,
-     * which evaluates ONCE, while the request is being built. In the normal
-     * case the token is not cancelled yet, so the signal was `undefined` and
-     * the request was never abortable at all — VS Code cancelled, and a
-     * 500-token completion ran to completion and was billed anyway. With the
-     * automatic-trigger guard commented out below, that is one per keystroke.
-     */
+    // Typing or moving the cursor invalidates this local suggestion. This is
+    // transport detachment, not the chat panel's explicit Stop action; do not
+    // manufacture cancellation commands for every editor lifecycle event.
     const controller = new AbortController();
     if (token.isCancellationRequested) controller.abort();
     const cancellation = token.onCancellationRequested(() => {

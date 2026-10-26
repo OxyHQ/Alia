@@ -5,6 +5,13 @@ All notable changes to the "Codea by Alia" extension will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] - 2026-10-26
+
+- Send acknowledged, authenticated Stop through the shared Alia server SDK before detaching a foreground generation.
+- Give each HTTP tool continuation its own cancellation ID; a failed Stop remains visible and retryable without starting another generation.
+- Keep account changes and view teardown as transport detachment. Already completed local tool actions are not undone.
+- Require the explicit Stop API receiver before distributing this desktop build. Artifact creation does not publish a desktop release.
+
 ## [1.0.8] - 2026-10-25
 
 ### Fixed

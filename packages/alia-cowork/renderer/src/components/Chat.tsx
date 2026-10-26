@@ -209,6 +209,10 @@ export function Chat() {
     });
 
     const unsubError = window.api.onChatError((data) => {
+      if (data.generationContinues) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.message}` }]);
+        return;
+      }
       setIsGenerating(false);
       setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.message}` }]);
       setStreamingContent('');
@@ -574,11 +578,12 @@ function ToolExecutionItem({ execution }: { execution: ToolExecution }) {
       case 'write_file':
       case 'edit_file':
         return String(execution.args.path || '');
-      case 'run_command':
+      case 'run_command': {
         const cmd = String(execution.args.command || '');
         if (cmd.includes('npm run build')) return 'Build the project';
         if (cmd.includes('npm test')) return 'Run tests';
         return '';
+      }
       case 'open_url':
         return String(execution.args.url || '');
       case 'open_application':

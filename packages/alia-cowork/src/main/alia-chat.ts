@@ -227,6 +227,8 @@ export function withFailureDetail(message: string, error: AliaChatError): string
 // ── Request ─────────────────────────────────────────────────────────────────
 
 export interface AliaChatRequestBody {
+  /** One explicit-control generation; fresh for every HTTP tool continuation. */
+  readonly turnId?: string;
   /** `publisher/model`; omitted for the server's default model. */
   readonly model?: string;
   readonly messages: readonly OpenAI.Chat.ChatCompletionMessageParam[];

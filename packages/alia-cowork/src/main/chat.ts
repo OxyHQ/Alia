@@ -19,6 +19,7 @@
 
 import type { BrowserWindow } from 'electron';
 import type OpenAI from 'openai';
+import { AliaServerClient, createAliaTurnControl, type AliaTurnControl } from '@alia.onl/server';
 import Store from 'electron-store';
 import type { ToolExecutor } from './tools';
 import { errorMessage, errorName, errorStack } from './errors';
@@ -317,6 +318,8 @@ interface StreamOutcome {
 interface Turn {
   id: number;
   controller: AbortController;
+  control?: AliaTurnControl;
+  stopping?: Promise<void>;
 }
 
 const abortError = (): Error => Object.assign(new Error('Aborted'), { name: 'AbortError' });
@@ -383,7 +386,7 @@ export class ChatProvider {
     this.toolExecutor = toolExecutor;
     this.disposeSessionObserver = onSessionContextChange(() => {
       this.contextChanged = true;
-      this.stop();
+      this.detach();
       this.clear();
     });
   }
@@ -484,7 +487,11 @@ export class ChatProvider {
         });
         this.emit(turn, 'chat:end', {});
       } catch (error: unknown) {
-        if (errorName(error) === 'AbortError') {
+        const stoppedByServer =
+          turn.stopping !== undefined &&
+          error instanceof AliaChatError &&
+          error.code === 'turn_cancelled';
+        if (errorName(error) === 'AbortError' || stoppedByServer) {
           logger.debug('Stream aborted by user');
           this.emit(turn, 'chat:end', {});
         } else {
@@ -605,17 +612,24 @@ export class ChatProvider {
     };
 
     const linked = linkedAliaClient(request.baseUrl);
+    const control = createAliaTurnControl(
+      new AliaServerClient({ baseUrl: request.baseUrl, fetch: linked.fetch }),
+      { controller: turn.controller },
+    );
+    turn.control = control;
     try {
       return await this.consume(
         turn,
         streamAliaChat({
           baseUrl: request.baseUrl,
           fetch: linked.fetch,
-          body,
+          body: { ...body, turnId: control.id },
           signal: turn.controller.signal,
         }),
       );
     } finally {
+      await control.finish();
+      if (turn.control === control) turn.control = undefined;
       linked.dispose();
     }
   }
@@ -806,11 +820,30 @@ export class ChatProvider {
 
   dispose(): void {
     this.disposeSessionObserver();
-    this.stop();
+    this.detach();
     this.clear();
   }
 
-  stop(): void {
+  stop(): Promise<void> {
+    const turn = this.activeTurn;
+    if (!turn) return Promise.resolve();
+    if (turn.stopping) return turn.stopping;
+    turn.stopping = (async () => {
+      // A completed local tool is never undone. Only its current HTTP generation
+      // has remote control; between rounds Stop simply prevents the next one.
+      if (turn.control) await turn.control.stop();
+      if (this.activeTurn === turn) this.detach();
+    })().catch(() => {
+      turn.stopping = undefined;
+      this.emit(turn, 'chat:error', {
+        message: 'Generation could not be stopped. Try again.',
+        generationContinues: true,
+      });
+    });
+    return turn.stopping;
+  }
+
+  private detach(): void {
     // Release the provider now (a new message may start at once) and cut the stopped turn's
     // stream; the turn winds down on its own, and the next one waits for it.
     const turn = this.activeTurn;
