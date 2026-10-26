@@ -130,6 +130,11 @@ results cannot enter a replacement conversation. Typing a character is not treat
 These consumers do not calculate or refund credits. The receiver's measured
 reconciliation remains authoritative, and their HTTP fixtures establish request
 identity, acknowledgement and account fencing rather than live financial
-settlement. Codea 1.0.9 and Cowork 1.0.2 require the receiver rollout and server
-SDK 1.3 release before distribution; see the separate desktop artifact steps in
+settlement. Codea 1.0.10 and Cowork 1.0.3 use server SDK 1.3.1’s exported
+SSE reader over the same Oxy linked fetch. Presentation, synthetic-message handling
+and local tool assembly stay in the desktop packages; byte framing, typed tool
+fragments, stream limits and terminal detection are shared. Invalid or truncated
+streams become visible failures rather than successful partial replies. Full
+multimodal/tool request messages remain unchanged. These versions require the
+receiver rollout and server SDK release before distribution; see the separate desktop artifact steps in
 [deployment](./deployment.md#codea-and-cowork-desktop-artifacts).

@@ -42,7 +42,7 @@ afterEach(async () => {
 function bearer(account: string) {
   return `e30.${Buffer.from(JSON.stringify({ userId: account, sessionId: account, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
 }
-async function fixture(lateAck = false, toolRound = false) {
+async function fixture(lateAck = false, toolRound = false, responseWire?: string) {
   tools.execute = async () => ({ success: true, result: 'owned fixture' });
   const requests: { path?: string; auth?: string; turnId?: string }[] = [];
   let arrived!: () => void;
@@ -66,6 +66,12 @@ async function fixture(lateAck = false, toolRound = false) {
     requests.push({ path: req.url, auth: req.headers.authorization, turnId: value.turnId });
     if (req.url === '/alia/chat') {
       chatResponse = res;
+      if (responseWire !== undefined) {
+        res.writeHead(200, { 'content-type': 'text/event-stream' });
+        res.end(responseWire);
+        arrived();
+        return;
+      }
       if (lateAck) {
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         res.write(
@@ -331,5 +337,20 @@ it.each(['stream', 'tool'] as const)(
         .some((message) => ['streamContent', 'toolResult', 'error'].includes(message.type)),
     ).toBe(false);
     expect(f.requests.map((request) => request.path)).toEqual(['/alia/chat']);
+  },
+);
+
+it.each(['malformed', 'truncated'] as const)(
+  'Codea displays a shared %s stream failure without storing a successful reply',
+  async (failure) => {
+    const wire =
+      failure === 'malformed'
+        ? 'data: not-json\n\ndata: [DONE]\n\n'
+        : `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' }, finish_reason: 'stop' }] })}\n\n`;
+    const f = await fixture(false, false, wire);
+    await f.control.handleUserMessage('owned fixture');
+    expect(f.posted.some((entry) => entry.type === 'error')).toBe(true);
+    expect(f.control._messages).not.toContainEqual(expect.objectContaining({ role: 'assistant' }));
+    expect(f.requests.map((entry) => entry.path)).toEqual(['/alia/chat']);
   },
 );
