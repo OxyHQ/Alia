@@ -16,6 +16,7 @@ import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './messa
 import { aliaQueryKeys } from './query-keys';
 import { createRandomUuid } from './random-uuid';
 import { createChatTurnControl } from './chat-turn-control';
+import { awaitTurnPreparation } from './turn-preparation';
 import { type AliaHostTools, HostOutcomeQueue, hostRequest } from './host-tools';
 import { API_ROUTES } from './routes';
 import { createSseFrameReader } from './sse-frame-reader';
@@ -634,8 +635,12 @@ export function useConversationStream({
         turnControl = createChatTurnControl(linked, assertion, conversationId, controller);
         turnControlRef.current = turnControl;
 
-        // Collect device info (will be available to AI via tool if needed)
-        const deviceInfo = host.deviceInfo ? await host.deviceInfo() : undefined;
+        // Attach both rejection handlers immediately; a slow host must not leave
+        // an already rejected surface assertion unobserved or defeat detachment.
+        const [appAssertion, deviceInfo] = await awaitTurnPreparation(
+          Promise.all([assertion, host.deviceInfo ? host.deviceInfo() : undefined]),
+          controller.signal,
+        );
         if (controller.signal.aborted) return 'aborted';
 
         /**
@@ -653,7 +658,6 @@ export function useConversationStream({
         // Authentication, the preflight refresh and the single 401 replay belong
         // to the linked Oxy client; this layer never reads or writes a bearer.
         // Which Oxy app this turn is in (ADR 0021): an agent Oxy confines to an app opens only there.
-        const appAssertion = await assertion;
         if (controller.signal.aborted) return 'aborted';
         const response = await linked.client.requestAuthenticatedResponse({
           method: 'POST',

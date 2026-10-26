@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { AliaServerClient, createAliaTurnControl } from '../src/index.js';
 
 const servers: Server[] = [];
@@ -106,4 +106,30 @@ it('detach/account change before dispatch never sends Stop under another identit
   await turn.stop();
   await turn.finish();
   expect(calls).toBe(0);
+});
+
+it('bounds credential preparation within Stop and never dispatches after late resolution', async () => {
+  const timeout = new AbortController();
+  const timeoutFactory = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
+  let release!: (value: Record<string, string>) => void;
+  const headers = new Promise<Record<string, string>>((resolve) => {
+    release = resolve;
+  });
+  const fetchClient = vi.fn<typeof fetch>();
+  const client = new AliaServerClient({ headers: () => headers, fetch: fetchClient });
+  const turn = createAliaTurnControl(client, { controller: new AbortController() });
+  try {
+    const stopped = turn.stop();
+    const rejected = expect(stopped).rejects.toThrow('deadline');
+    expect(timeoutFactory).toHaveBeenCalledWith(10_000);
+    timeout.abort(new Error('deadline'));
+    await rejected;
+    await turn.finish();
+    release({ 'X-Test': 'late' });
+    await Promise.resolve();
+    expect(fetchClient).not.toHaveBeenCalled();
+  } finally {
+    timeoutFactory.mockRestore();
+    await turn.finish();
+  }
 });

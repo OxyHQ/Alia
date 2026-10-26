@@ -7,6 +7,7 @@ import {
 } from './errors.js';
 import type { AliaStreamEvent } from './events.js';
 import { readAliaEventStream } from './stream.js';
+import { prepareWithSignal } from './prepare.js';
 
 /** Alia's public product API. */
 export const ALIA_API_URL = 'https://api.alia.onl';
@@ -217,10 +218,15 @@ export class AliaServerClient {
     init: AliaStreamInit,
     accept: string,
   ): Promise<Response> {
-    const [token, headers] = await Promise.all([
-      init.token === undefined ? resolve(this.#token) : init.token,
-      resolve(this.#headers),
-    ]);
+    init.signal?.throwIfAborted();
+    const [token, headers] = await prepareWithSignal(
+      Promise.all([
+        init.token === undefined ? resolve(this.#token) : init.token,
+        resolve(this.#headers),
+      ]),
+      init.signal,
+    );
+    init.signal?.throwIfAborted();
     const response = await this.#fetch(`${this.#baseUrl}${path}`, {
       method: 'POST',
       headers: {

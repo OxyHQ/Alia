@@ -1,5 +1,6 @@
 import type { OxyServices } from '@oxy.so/core';
 import { createRandomUuid } from './random-uuid';
+import { awaitTurnPreparation } from './turn-preparation';
 
 type LinkedClient = ReturnType<OxyServices['createLinkedClient']>;
 
@@ -25,7 +26,9 @@ export function createChatTurnControl(
       if (stopping) return stopping;
       if (ended || controller.signal.aborted) return Promise.resolve();
       stopping = (async () => {
-        const assertionHeaders = await headers;
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+        const assertionHeaders = await awaitTurnPreparation(headers, signal);
+        signal.throwIfAborted();
         controller.signal.throwIfAborted();
         if (!current()) throw new Error('The conversation account changed');
         const response = await linked.client.requestAuthenticatedResponse({
@@ -34,7 +37,7 @@ export function createChatTurnControl(
           headers: { ...assertionHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...(conversationId ? { conversationId } : {}) }),
           // The cancelled chat signal must NOT cancel its own control request.
-          signal: AbortSignal.timeout(10_000),
+          signal,
         });
         if (!response.ok) {
           await response.body?.cancel();

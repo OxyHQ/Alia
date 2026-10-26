@@ -168,7 +168,7 @@ try {
       "import { AliaServerClient, createAliaTurnControl, type AliaTurnControl, type AliaStreamEvent } from '@alia.onl/server';\n" +
         'export const probe = (client: AliaServerClient, event: AliaStreamEvent): string =>\n' +
         "  event.type === 'text' ? event.text : client.url;\n" +
-        "export const control = (client: AliaServerClient): AliaTurnControl => createAliaTurnControl(client, { controller: new AbortController() });\n" +
+        'export const control = (client: AliaServerClient): AliaTurnControl => createAliaTurnControl(client, { controller: new AbortController() });\n' +
         "export const stop = (client: AliaServerClient) => client.cancelTurn({ turnId: '00000000-0000-4000-8000-000000000001' });\n",
     );
 

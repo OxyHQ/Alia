@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { OxyServices } from '@oxy.so/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createChatTurnControl } from '../../src/runtime/chat-turn-control';
 
 function deferred<T>() {
@@ -110,4 +110,30 @@ describe('explicit Stop with the shared transport', () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+});
+
+it('bounds Stop and finish even when surface preparation never resolves, with no late dispatch', async () => {
+  const timeout = new AbortController();
+  const timeoutFactory = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
+  const oxy = new OxyServices({ baseURL: 'http://127.0.0.1:9' });
+  oxy.session.setAccessToken(token('A'));
+  const linked = oxy.createLinkedClient({ baseURL: 'http://127.0.0.1:9' });
+  const request = vi.spyOn(linked.client, 'requestAuthenticatedResponse');
+  const headers = deferred<Record<string, string>>();
+  const turn = createChatTurnControl(linked, headers.promise, undefined, new AbortController());
+  try {
+    const stopped = turn.stop();
+    const rejected = expect(stopped).rejects.toThrow('deadline');
+    expect(timeoutFactory).toHaveBeenCalledWith(10_000);
+    timeout.abort(new Error('deadline'));
+    await rejected;
+    await turn.finish();
+    headers.resolve({});
+    await Promise.resolve();
+    expect(request).not.toHaveBeenCalled();
+  } finally {
+    await turn.finish();
+    oxy.dispose();
+    timeoutFactory.mockRestore();
+  }
 });

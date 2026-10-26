@@ -151,7 +151,7 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     const conversationProgress = useSharedValue(0);
     const mainRef = useRef<BottomSheetRef>(null);
     const conversationRef = useRef<BottomSheetRef>(null);
-    // Each sheet's chat registers its own canceller; closing a sheet stops its own turn.
+    // Closing detaches this sheet's reader; only its explicit Stop cancels the generation.
     const mainDetachRef = useRef<(() => void) | null>(null);
     const conversationDetachRef = useRef<(() => void) | null>(null);
 
