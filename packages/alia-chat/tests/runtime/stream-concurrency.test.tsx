@@ -17,6 +17,7 @@ const harness = vi.hoisted(() => ({
     signal: AbortSignal | undefined;
   }[],
   conversationId: 'c1' as string | undefined,
+  assertion: () => Promise.resolve({} as Record<string, string>),
 }));
 
 const stream = vi.hoisted(() => ({
@@ -40,14 +41,21 @@ const stream = vi.hoisted(() => ({
 }));
 
 vi.mock('@oxy.so/services/ui/client', async () => ({
-  ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
+  useAppAssertion: () => ({
+    getAppAssertionHeaders: harness.assertion,
+    getAppAssertion: async () => null,
+  }),
   useOxy: () => ({
     user: null,
     oxyServices: {
       createLinkedClient: () => ({
         client: {
+          getSessionEpoch: () => 0,
+          addTokenChangeListener: () => () => {},
           requestAuthenticatedResponse: (config: { url: string }) =>
-            stream.fetch(config.url, config as never),
+            config.url.endsWith('/cancel')
+              ? Promise.resolve(Response.json({ state: 'cancelled' }))
+              : stream.fetch(config.url, config as never),
         },
         dispose: () => {},
       }),
@@ -110,6 +118,7 @@ beforeEach(() => {
   harness.streams.length = 0;
   harness.conversationId = 'c1';
   host.deviceInfo = undefined;
+  harness.assertion = () => Promise.resolve({});
 });
 
 afterEach(async () => {
@@ -208,4 +217,19 @@ describe('Stop while the device info is collected', () => {
     expect(api.isLoading).toBe(false);
     expect(api.messages.at(-1)).toMatchObject({ turnOutcome: 'cancelled' });
   });
+});
+
+it('handles an immediately rejected assertion while device preparation never resolves', async () => {
+  harness.assertion = () => Promise.reject(new Error('surface unavailable'));
+  host.deviceInfo = () => new Promise(() => {});
+  await mount();
+  const { outcome } = await begin('one');
+  // The existing assertion adapter normalizes an unavailable assertion to {}.
+  // Stop must still settle the pending device preparation without a dispatch.
+  await act(async () => {
+    api.stop();
+  });
+  expect(await outcome).toBe('aborted');
+  expect(harness.streams).toHaveLength(0);
+  expect(api.isLoading).toBe(false);
 });

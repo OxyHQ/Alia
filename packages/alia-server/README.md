@@ -130,3 +130,31 @@ bun run build
 ## Licence
 
 Apache-2.0. See `LICENSE` and `NOTICE`.
+
+
+## Explicit Stop (1.3)
+
+For a verified human session or exact app-only credential, choose a UUID v4 before
+`stream()` and supply `turnId`. `cancelTurn({ turnId, conversationId })` uses the
+same authentication and surface headers; `conversationId` must be the value
+known at admission, including absence for a new conversation. Its signal is
+independent of the stream's AbortSignal. Aborting the latter only detaches the
+reader and allows background completion.
+
+`createAliaTurnControl(client, { controller, lifetimeSignal, conversationId })` creates the UUID
+before any asynchronous preparation. Send its `id` as the request's `turnId`;
+call `stop()` only for deliberate Stop. It deduplicates concurrent Stop calls,
+waits up to ten seconds for acknowledgement, and only then aborts the controller.
+A refused Stop rejects and remains retryable. Abort the stream controller directly for view teardown. The separate
+`lifetimeSignal` fences account changes or disposal of its authenticated owner;
+it must not be the stream signal, because a cancellation SSE frame can close the
+stream before the control request is acknowledged. The helper never refreshes or
+chooses an account.
+Await `finish()` before disposing the caller's linked transport. Each HTTP tool
+continuation gets a new handle, and stopping a local tool prevents further rounds
+without undoing work that already ran.
+
+Deploy the API receiver before adopting this producer. Delegated service/channel
+callers without a verifiable original actor must omit `turnId`; their existing
+chat remains supported, but they cannot use this cancellation lane. Details and
+settlement/retry limits: [explicit Stop](../../docs/explicit-chat-stop.md).

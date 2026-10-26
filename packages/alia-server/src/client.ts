@@ -7,6 +7,7 @@ import {
 } from './errors.js';
 import type { AliaStreamEvent } from './events.js';
 import { readAliaEventStream } from './stream.js';
+import { prepareWithSignal } from './prepare.js';
 
 /** Alia's public product API. */
 export const ALIA_API_URL = 'https://api.alia.onl';
@@ -30,6 +31,8 @@ export interface AliaChatMessage {
  */
 export interface AliaChatCompletionRequest {
   readonly messages: readonly AliaChatMessage[];
+  /** Stable UUID v4 created before dispatch; enables explicit cancellation for supported principals. */
+  readonly turnId?: string;
   /** The Alia agent this turn runs as. */
   readonly agentId?: string;
   /** A routing-profile id. Omit it and Alia picks the product default. */
@@ -44,6 +47,16 @@ export interface AliaChatCompletionRequest {
    * a typed field always wins and `stream` can never be turned off.
    */
   readonly extra?: Readonly<Record<string, unknown>>;
+}
+
+/** The initial conversation binding must match the original chat request. */
+export interface AliaCancelTurnRequest {
+  readonly turnId: string;
+  readonly conversationId?: string;
+}
+export interface AliaTurnCancellation {
+  readonly turnId: string;
+  readonly state: 'running' | 'cancelled' | 'finishing' | 'completed' | 'failed';
 }
 
 export interface AliaServerClientOptions {
@@ -155,28 +168,7 @@ export class AliaServerClient {
     request: AliaChatCompletionRequest,
     init: AliaStreamInit = {},
   ): Promise<AsyncIterable<AliaStreamEvent>> {
-    const [token, headers] = await Promise.all([
-      init.token === undefined ? resolve(this.#token) : init.token,
-      resolve(this.#headers),
-    ]);
-
-    const response = await this.#fetch(this.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
-        ...headers,
-        ...init.headers,
-      },
-      body: JSON.stringify(buildBody(request)),
-      ...(init.signal === undefined ? {} : { signal: init.signal }),
-    });
-
-    if (!response.ok) {
-      const { code, detail } = await failureFromErrorBody(response);
-      throw new AliaRequestError(response.status, code, detail);
-    }
+    const response = await this.#post(this.#path, buildBody(request), init, 'text/event-stream');
 
     const mime = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
     if (mime !== 'text/event-stream') {
@@ -188,6 +180,70 @@ export class AliaServerClient {
     return readAliaEventStream(response.body, {
       ...(init.signal === undefined ? {} : { signal: init.signal }),
     });
+  }
+
+  /** Explicit Stop. Aborting stream() only detaches its reader; it does not cancel durable work. */
+  async cancelTurn(
+    request: AliaCancelTurnRequest,
+    init: AliaStreamInit = {},
+  ): Promise<AliaTurnCancellation> {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(request.turnId)
+    ) {
+      throw new TypeError('turnId must be a UUID v4');
+    }
+    const turnId = request.turnId.toLowerCase();
+    const response = await this.#post(
+      `/v1/chat/turns/${turnId}/cancel`,
+      {
+        ...(request.conversationId === undefined ? {} : { conversationId: request.conversationId }),
+      },
+      init,
+      'application/json',
+    );
+    const value: unknown = await response.json();
+    if (
+      !isRecord(value) ||
+      value.turnId !== turnId ||
+      !['running', 'cancelled', 'finishing', 'completed', 'failed'].includes(String(value.state))
+    ) {
+      throw new TypeError('Invalid turn cancellation response');
+    }
+    return { turnId, state: value.state as AliaTurnCancellation['state'] };
+  }
+
+  async #post(
+    path: string,
+    body: Record<string, unknown>,
+    init: AliaStreamInit,
+    accept: string,
+  ): Promise<Response> {
+    init.signal?.throwIfAborted();
+    const [token, headers] = await prepareWithSignal(
+      Promise.all([
+        init.token === undefined ? resolve(this.#token) : init.token,
+        resolve(this.#headers),
+      ]),
+      init.signal,
+    );
+    init.signal?.throwIfAborted();
+    const response = await this.#fetch(`${this.#baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: accept,
+        ...(token === undefined ? {} : { Authorization: `Bearer ${token}` }),
+        ...headers,
+        ...init.headers,
+      },
+      body: JSON.stringify(body),
+      ...(init.signal === undefined ? {} : { signal: init.signal }),
+    });
+    if (!response.ok) {
+      const { code, detail } = await failureFromErrorBody(response);
+      throw new AliaRequestError(response.status, code, detail);
+    }
+    return response;
   }
 }
 

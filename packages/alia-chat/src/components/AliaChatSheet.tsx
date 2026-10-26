@@ -151,9 +151,9 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     const conversationProgress = useSharedValue(0);
     const mainRef = useRef<BottomSheetRef>(null);
     const conversationRef = useRef<BottomSheetRef>(null);
-    // Each sheet's chat registers its own canceller; closing a sheet stops its own turn.
-    const mainStopRef = useRef<(() => void) | null>(null);
-    const conversationStopRef = useRef<(() => void) | null>(null);
+    // Closing detaches this sheet's reader; only its explicit Stop cancels the generation.
+    const mainDetachRef = useRef<(() => void) | null>(null);
+    const conversationDetachRef = useRef<(() => void) | null>(null);
 
     // The conversation sheet, stacked over the main one while a chat is open: begun by a first
     // turn, or a stored one picked up again. The key makes every opening a fresh chat.
@@ -163,11 +163,11 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       conversationId?: string;
     } | null>(null);
 
-    const registerMainStop = useCallback((stop: (() => void) | null) => {
-      mainStopRef.current = stop;
+    const registerMainDetach = useCallback((stop: (() => void) | null) => {
+      mainDetachRef.current = stop;
     }, []);
-    const registerConversationStop = useCallback((stop: (() => void) | null) => {
-      conversationStopRef.current = stop;
+    const registerConversationDetach = useCallback((stop: (() => void) | null) => {
+      conversationDetachRef.current = stop;
     }, []);
 
     const startConversation = useCallback((turn: AliaTurn) => {
@@ -186,11 +186,11 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
 
     // Back, and the menu's Clear: close the conversation, back to the main screen underneath.
     const closeConversation = useCallback(() => {
-      conversationStopRef.current?.();
+      conversationDetachRef.current?.();
       conversationRef.current?.dismiss();
     }, []);
     const onConversationDismissAttempt = useCallback(() => {
-      conversationStopRef.current?.();
+      conversationDetachRef.current?.();
       return true;
     }, []);
 
@@ -214,8 +214,8 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
     );
 
     const handleDismiss = useCallback(() => {
-      conversationStopRef.current?.();
-      mainStopRef.current?.();
+      conversationDetachRef.current?.();
+      mainDetachRef.current?.();
       conversationRef.current?.dismiss();
       mainRef.current?.dismiss();
       closeThought();
@@ -239,8 +239,8 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
 
     // Closing the main sheet (a drag, backdrop press, Back or Escape) closes what is stacked on it.
     const onMainDismissAttempt = useCallback(() => {
-      mainStopRef.current?.();
-      conversationStopRef.current?.();
+      mainDetachRef.current?.();
+      conversationDetachRef.current?.();
       conversationRef.current?.dismiss();
       closeThought();
       return true;
@@ -324,7 +324,7 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               ) : undefined
             }
             presentedProgress={mainProgress}
-            onStopReady={registerMainStop}
+            onDetachReady={registerMainDetach}
             onStart={startConversation}
           />
         </BottomSheet>
@@ -347,7 +347,7 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
               conversationId={conversation.conversationId}
               onConversationChange={followConversation}
               presentedProgress={conversationProgress}
-              onStopReady={registerConversationStop}
+              onDetachReady={registerConversationDetach}
               chrome={conversationChrome}
             />
           </BottomSheet>

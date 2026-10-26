@@ -265,6 +265,8 @@ export interface AliaChatContentProps {
   presentedProgress?: SharedValue<number>;
   /** Internal sheet lifecycle bridge: receives the live request canceller. */
   onStopReady?: (stop: (() => void) | null) => void;
+  /** Detach a closed view while its durable answer continues. Never invokes explicit Stop. */
+  onDetachReady?: (detach: (() => void) | null) => void;
 }
 
 /** No live conversation while the thread looks at a moment of its past, as ONE array. */
@@ -319,6 +321,7 @@ function AliaConversationView({
   initialTurn,
   presentedProgress,
   onStopReady,
+  onDetachReady,
 }: ConversationViewProps) {
   const ownFlights = useAvatarFlights();
   const flights = sharedFlights ?? ownFlights;
@@ -359,6 +362,7 @@ function AliaConversationView({
     error,
     clearError,
     stopGeneration: stop,
+    detachGeneration: detach,
     startOver,
     clearConversation,
     suggestedNewConversation,
@@ -384,6 +388,10 @@ function AliaConversationView({
     onStopReady?.(stop);
     return () => onStopReady?.(null);
   }, [onStopReady, stop]);
+  useEffect(() => {
+    onDetachReady?.(detach);
+    return () => onDetachReady?.(null);
+  }, [onDetachReady, detach]);
 
   // ── What the person does: write, send, rewrite, call ──
   // An agent's starters are its welcome suggestions, unless the host brought its own.

@@ -443,3 +443,50 @@ describe('AliaServerClient — aborting', () => {
     expect(cancelled).toBe(true);
   });
 });
+
+describe('explicit turn control', () => {
+  const turnId = 'fd51d353-d5ef-4c84-8a6a-b0909a53a5f6';
+  it('sends the stable id in chat and uses the same authenticated transport for a separate cancellation', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const wire = aliaStream();
+    wire.text('ok');
+    wire.stop();
+    wire.done();
+    const client = new AliaServerClient({
+      baseUrl: 'https://api.alia.onl',
+      token: 'verified-app-only',
+      headers: { 'X-Oxy-App-Assertion': 'surface' },
+      fetch: async (url, init) => {
+        requests.push({ url: String(url), init });
+        return String(url).endsWith('/cancel')
+          ? Response.json({ turnId, state: 'cancelled' })
+          : sseResponse(wire.wire());
+      },
+    });
+    await collect(await client.stream({ ...turn, turnId, conversationId: 'original' }));
+    const signal = AbortSignal.timeout(1000);
+    expect(await client.cancelTurn({ turnId, conversationId: 'original' }, { signal })).toEqual({
+      turnId,
+      state: 'cancelled',
+    });
+    expect(JSON.parse(String(requests[0].init?.body)).turnId).toBe(turnId);
+    expect(requests[1].url).toBe(`https://api.alia.onl/v1/chat/turns/${turnId}/cancel`);
+    expect(JSON.parse(String(requests[1].init?.body))).toEqual({ conversationId: 'original' });
+    expect(requests[1].init?.headers).toMatchObject({
+      Authorization: 'Bearer verified-app-only',
+      'X-Oxy-App-Assertion': 'surface',
+    });
+    expect(requests[1].init?.signal).toBe(signal);
+  });
+  it('does not send a malformed id and preserves unsupported-lane errors from the receiver', async () => {
+    const { client, fetchClient } = clientFor(
+      Response.json({ error: { code: 'turn_control_unsupported' } }, { status: 403 }),
+    );
+    await expect(client.cancelTurn({ turnId: '../other' })).rejects.toThrow('UUID');
+    expect(fetchClient).not.toHaveBeenCalled();
+    await expect(client.cancelTurn({ turnId })).rejects.toMatchObject({
+      status: 403,
+      code: 'turn_control_unsupported',
+    });
+  });
+});
