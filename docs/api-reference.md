@@ -142,7 +142,7 @@ The conversation routes an embedding app uses ([agent-embedding.md](./agent-embe
 | `GET /conversations?agentId=<id>&app=<slug>` | The person's conversations, narrowed to one agent, one app or both (`docs/agent-embedding.md` §6), newest first, with the usual `limit`/`cursor` |
 | `POST /conversations/:id/share` | `{ "ttlHours": 1..168 }` → `201 { token, expiresAt }`. One link per conversation: sharing again replaces it. Only the SHA-256 of the token is stored (`conversation_shares`) |
 | `DELETE /conversations/:id/share` | Revokes the link; `404` when there is none. Deleting the conversation revokes it too |
-| `GET /v1/shared/:token` | No auth, `X-Robots-Tag: noindex`, `Cache-Control: no-store`, 60 reads per minute per link. `{ title, agent?, messages: [{ role, content, agent? }], expiresAt }` — text, images and who spoke, never a tool's input or output, a document or the system prompt (`lib/shared-conversation.ts`). Unknown, expired and revoked are the same `404` |
+| `GET /v1/shared/:token` | No auth, `X-Robots-Tag: noindex`, `Cache-Control: no-store`, 60 reads per minute per link. `{ title, agent?, messages: [{ role, content, agent?, artifacts? }], expiresAt }` — text, images, who spoke and the canvas artifacts Alia drew (`artifacts: [{ id, type, title, data }]`, owner 2026-10-27); never another tool's input or output, a document or the system prompt (`lib/shared-conversation.ts`). Unknown, expired and revoked are the same `404` |
 | `POST /suggestions/welcome` | `{ count?, agentId?, clientContext? }`. With `agentId`, that agent's starters (`404` for one the caller may not use); without, Alia's pool with the suggestions `clientContext` names first |
 
 ### Agents and execution

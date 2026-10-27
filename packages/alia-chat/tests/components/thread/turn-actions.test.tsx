@@ -101,6 +101,7 @@ vi.mock('../../../src/hooks/useDictation', () => ({
   useDictationStore: (select: (s: { isRecording: boolean }) => unknown) =>
     useAudio(() => select({ isRecording: audio.isRecording })),
 }));
+vi.mock('../../../src/components/canvas/CanvasComponent', () => ({ CanvasComponent: () => null }));
 vi.mock('../../../src/components/PlanPreviewCard', () => ({ PlanPreviewCard: () => null }));
 vi.mock('../../../src/components/QuestionCard', () => ({ AskedQuestions: () => null }));
 

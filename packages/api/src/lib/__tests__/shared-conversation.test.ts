@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MessageRow } from '../../db/chat/messageRepository.js';
-import { sharedMessagesOf } from '../shared-conversation.js';
+import { sharedArtifactsOf, sharedMessagesOf } from '../shared-conversation.js';
 
 const row = (overrides: Partial<MessageRow>): MessageRow => ({
   id: 'r',
@@ -75,5 +75,138 @@ describe('what a share link shows', () => {
         }),
       ])[0].agent,
     ).toEqual({ id: 'a', name: 'Sindi', handle: 'sindibot', color: 'teal', character: null });
+  });
+});
+
+const report = {
+  toolCallId: 'call-report',
+  toolName: 'canvas',
+  state: 'result',
+  args: { type: 'markdown', title: 'Q3 report', data: { content: 'draft the model sent' } },
+  result: {
+    id: 'canvas-uuid',
+    type: 'markdown',
+    title: 'Q3 report',
+    data: { content: '# Q3\n\nRevenue grew.' },
+    message: 'Canvas component created',
+  },
+};
+
+describe('the canvas artifacts a share link shows', () => {
+  it('shows a canvas artifact with its type, title and data, and nothing else of the call', () => {
+    const [message] = sharedMessagesOf([
+      row({ role: 'assistant', content: 'Here is the report.', toolInvocations: [report] }),
+    ]);
+    expect(message).toEqual({
+      role: 'assistant',
+      content: 'Here is the report.',
+      artifacts: [
+        {
+          id: 'call-report',
+          type: 'markdown',
+          title: 'Q3 report',
+          data: { content: '# Q3\n\nRevenue grew.' },
+        },
+      ],
+    });
+    const wire = JSON.stringify(message);
+    expect(wire).not.toContain('draft the model sent');
+    expect(wire).not.toContain('canvas-uuid');
+    expect(wire).not.toContain('Canvas component created');
+  });
+
+  it('keeps a reply that is only an artifact', () => {
+    const deck = {
+      toolCallId: 'call-deck',
+      toolName: 'canvas',
+      state: 'result',
+      result: { type: 'deck', title: 'Pitch', data: { slides: [{ title: 'Hello' }] } },
+    };
+    expect(
+      sharedMessagesOf([row({ role: 'assistant', content: '', toolInvocations: [deck] })]),
+    ).toEqual([
+      {
+        role: 'assistant',
+        content: '',
+        artifacts: [
+          { id: 'call-deck', type: 'deck', title: 'Pitch', data: { slides: [{ title: 'Hello' }] } },
+        ],
+      },
+    ]);
+  });
+
+  it('leaves out every other tool result: email, files, connected apps, page text, host tools', () => {
+    const others = [
+      {
+        toolCallId: 'a',
+        toolName: 'oxy_inbox__searchMessages',
+        state: 'result',
+        result: { messages: ['private mail'] },
+      },
+      {
+        toolCallId: 'b',
+        toolName: 'generateFile',
+        state: 'result',
+        result: { filename: 'notes.md', content: 'private file' },
+      },
+      {
+        toolCallId: 'c',
+        toolName: 'notion_createPage',
+        state: 'result',
+        result: { type: 'markdown', title: 't', data: { content: 'connected app' } },
+      },
+      {
+        toolCallId: 'd',
+        toolName: 'host_astro__readTab',
+        state: 'result',
+        result: { status: 'applied', result: 'page text' },
+      },
+      {
+        toolCallId: 'e',
+        toolName: 'readUrl',
+        state: 'result',
+        result: { content: 'fetched page' },
+      },
+    ];
+    const shown = sharedMessagesOf([
+      row({ role: 'assistant', content: 'done', toolInvocations: [...others, report] }),
+    ]);
+    expect(shown[0]?.artifacts?.map((a) => a.id)).toEqual(['call-report']);
+    const wire = JSON.stringify(shown);
+    for (const leak of [
+      'private mail',
+      'private file',
+      'connected app',
+      'page text',
+      'fetched page',
+    ]) {
+      expect(wire).not.toContain(leak);
+    }
+  });
+
+  it('leaves out a canvas call that did not finish, was refused, or names no known type', () => {
+    expect(
+      sharedArtifactsOf([
+        { ...report, state: 'call', result: undefined },
+        { ...report, state: 'partial-call' },
+        { ...report, result: { error: 'The deck was not drawn: slides: Required.' } },
+        { ...report, result: { type: 'script', title: 'x', data: { code: 'alert(1)' } } },
+        { ...report, result: { type: 'markdown', title: 'x' } },
+        { ...report, result: 'Canvas component created' },
+        null,
+        'canvas',
+      ]),
+    ).toEqual([]);
+    expect(
+      sharedMessagesOf([
+        row({ role: 'assistant', content: '', toolInvocations: [{ ...report, state: 'call' }] }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("never takes an artifact from a person's own message", () => {
+    expect(
+      sharedMessagesOf([row({ role: 'user', content: 'hi', toolInvocations: [report] })]),
+    ).toEqual([{ role: 'user', content: 'hi' }]);
   });
 });

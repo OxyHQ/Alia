@@ -1,5 +1,17 @@
 # @alia.onl/sdk
 
+## 22.4.0
+
+- **A shared conversation shows its artifacts.** `readSharedConversation` keeps an assistant
+  message's `artifacts` (`AliaSharedArtifact`: `{ id, type, title, data }`, the canvas tool's
+  result) and `sharedMessages` hands each to the thread as the canvas call that drew it.
+  `AliaSharedConversation` draws them inline under their reply on the canvas renderers (reports,
+  decks, dashboards, charts, tables). An `AliaThread` that is not `readOnly` is unchanged: in the
+  app an artifact still opens in the canvas panel, not in the reply.
+- The server sends `artifacts` only from the API that ships with this release
+  (`docs/agent-embedding.md` §6); against an older API the shared page shows words and images,
+  as before.
+
 ## 22.3.0
 
 - **Decks and dashboards on the canvas.** `CanvasComponent` draws the canvas tool's two new

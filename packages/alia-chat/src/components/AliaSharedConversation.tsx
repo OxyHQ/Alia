@@ -1,8 +1,9 @@
 /**
  * A conversation somebody shared (`GET /v1/shared/:token`, `docs/agent-embedding.md` §6), read
  * by anybody with the link, signed in or not. It is the SDK's own thread (`AliaThread`), read-only:
- * words, pictures and who wrote them — the server never sends a tool's output, which can hold the
- * person's own data — and nothing to vote on, play, edit or regenerate.
+ * words, pictures, who wrote them and the canvas artifacts Alia drew (a report, deck or dashboard,
+ * drawn inline because there is no canvas panel here). The server sends no other tool's output,
+ * which can hold the person's own data, and there is nothing to vote on, play, edit or regenerate.
  */
 
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';

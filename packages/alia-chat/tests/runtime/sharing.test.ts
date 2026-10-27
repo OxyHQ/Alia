@@ -4,7 +4,7 @@ vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({}) }));
 
 const { readSharedConversation, sharedMessages } = await import('../../src/runtime/sharing');
 
-/** A shared conversation (`GET /v1/shared/:token`): words, pictures and who wrote them. */
+/** A shared conversation (`GET /v1/shared/:token`): words, pictures, who wrote them and its artifacts. */
 describe('readSharedConversation', () => {
   it('keeps the messages the contract names, with the agent that wrote each', () => {
     const shared = readSharedConversation({
@@ -32,6 +32,47 @@ describe('readSharedConversation', () => {
       role: 'assistant',
       agentInfo: { id: 'sindi', name: 'Sindi' },
     });
+  });
+
+  it('keeps the canvas artifacts of a reply and hands them to the thread as canvas calls', () => {
+    const dashboard = {
+      id: 'call-2',
+      type: 'dashboard',
+      title: 'Shortlist',
+      data: { widgets: [{ kind: 'stat', label: 'Rent', value: '1,250' }] },
+    };
+    const shared = readSharedConversation({
+      title: 't',
+      expiresAt: '2026-10-20T00:00:00Z',
+      messages: [
+        { role: 'user', content: 'hola', artifacts: [dashboard] },
+        {
+          role: 'assistant',
+          content: '',
+          artifacts: [
+            dashboard,
+            { id: 'x', type: 'markdown', title: 'no data' },
+            { type: 'markdown', title: 'no id', data: { content: 'a' } },
+            'canvas',
+          ],
+        },
+      ],
+    });
+    if (shared === null) throw new Error('the shared conversation was refused');
+    expect(shared.messages).toEqual([
+      { role: 'user', content: 'hola' },
+      { role: 'assistant', content: '', artifacts: [dashboard] },
+    ]);
+    const [question, reply] = sharedMessages(shared);
+    expect(question?.toolInvocations).toBeUndefined();
+    expect(reply?.toolInvocations).toEqual([
+      {
+        toolCallId: 'call-2',
+        toolName: 'canvas',
+        state: 'result',
+        result: { type: 'dashboard', title: 'Shortlist', data: dashboard.data },
+      },
+    ]);
   });
 
   it('refuses a body without messages or an expiry', () => {

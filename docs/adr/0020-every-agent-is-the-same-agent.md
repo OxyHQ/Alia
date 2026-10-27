@@ -2,6 +2,8 @@
 
 > Own-app levels, grants and ceilings are superseded by [ADR0022](./0022-first-party-platform-authority.md). Account separation and the other product rules remain.
 
+> Amended 2026-10-27 by the owner: a shared conversation shows its canvas artifacts (see "Amendment" below §8), and §3 is reaffirmed for tools acting in connected apps.
+
 
 *Todos los agentes son el mismo agente: Alia, los agentes de las personas y los de las apps comparten una sola base.*
 
@@ -76,6 +78,8 @@ No grant from the requester to the agent is created: using the agent is the pers
 
 This retires approval cards for tool effects everywhere, including the "payments and deletes still confirm" rule of ADR 0015 §2. A payment is bounded by an explicit `finance` grant or ceiling with limits, never by a prompt. Asking the person a *question* (`askUserQuestion`, missing information, a choice between options) is not an approval and stays.
 
+**Reaffirmed by the owner on 2026-10-27:** this holds for tools that act in a person's connected apps too. Sending an email, writing to Notion or creating a GitHub issue runs without asking for approval, within the connection's own authority and the R0–R3 runtime policy ([governance](../agents.md#governance)). This section stays as written.
+
 ### 4. The person present pays
 
 - A turn is paid by the person present: their Alia credits, inside the free tier when they have no plan.
@@ -134,6 +138,10 @@ The following are deleted, not deprecated:
 - the single `alia.agent` delegation frame, replaced by the streamed `alia.agent_start | agent_delta | agent_tool | agent_end` events.
 
 **There is no compatibility code.** No flag, no negotiated stream feature, no 410 handler and no "old lane kept working" window. Each repository makes its cut in one change, and what it replaces is deleted in that same change.
+
+### Amendment (owner, 2026-10-27): a shared conversation shows its artifacts
+
+Conversation sharing (`POST /v1/conversations/:id/share`, `GET /v1/shared/:token`) shipped with this ADR's §6 work under the rule that a link carries text, images and who spoke, and never any tool output. The owner changed that rule on 2026-10-27: when a person shares a chat, the shared page shows the canvas artifacts Alia drew in it (reports, decks, dashboards, charts, tables), because the artifact is usually what is being shared. Only the `canvas` tool's finished result leaves, as `type`, `title` and `data`, behind the same token, expiry and revocation as the words. Every other tool result (email, files, Oxy and connected apps, MCP servers, page text, host tools, `generateFile`) and every tool's arguments stay out. The contract is in [agent embedding §6](../agent-embedding.md#6-conversations-and-sharing).
 
 ## Consequences
 
