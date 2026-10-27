@@ -1,5 +1,11 @@
 # @alia.onl/sdk
 
+## 22.3.0
+
+- **Decks and dashboards on the canvas.** `CanvasComponent` draws the canvas tool's two new
+  types: a `deck` (one card per slide: title, subtitle, bullets, body) and a `dashboard` (its
+  stats in a row, then charts, tables and notes on the chart, table and Markdown renderers).
+
 ## 22.2.0
 
 - **Awaited host tools.** `AliaHostToolDefinition.awaitsResult: true` declares a tool whose
