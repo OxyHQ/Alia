@@ -30,7 +30,7 @@ export function ChartRenderer({ data, title }: ChartRendererProps) {
     labels.map((label, i) => ({ label, value: values[i] || 0 }));
 
   if (chartType === 'line' && datasets.length === 1) {
-    const series = datasets[0];
+    const series = datasets[0] as (typeof datasets)[number];
     return (
       <LineChartCard
         title={series.label || title}

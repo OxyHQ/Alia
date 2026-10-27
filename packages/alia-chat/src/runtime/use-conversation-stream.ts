@@ -897,7 +897,7 @@ export function useConversationStream({
                           const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
                           if (idx >= 0) {
                             invocations[idx] = {
-                              ...invocations[idx],
+                              ...(invocations[idx] as ToolInvocation),
                               state: 'result',
                               result: output,
                             };
@@ -1254,7 +1254,11 @@ export function useConversationStream({
                       const idx = invocations.findIndex((t) => t.toolCallId === tool_call_id);
 
                       if (idx >= 0) {
-                        invocations[idx] = { ...invocations[idx], state: 'result', result: output };
+                        invocations[idx] = {
+                          ...(invocations[idx] as ToolInvocation),
+                          state: 'result',
+                          result: output,
+                        };
                       } else {
                         invocations.push({
                           toolCallId: tool_call_id,

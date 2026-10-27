@@ -17,8 +17,9 @@
  * For each entry it writes a throwaway consumer outside the repo whose `node_modules/@alia.onl/sdk`
  * is a symlink to this package — so the `exports` map is resolved exactly as for an installed
  * package — and compiles one file that imports only that entry, with `types: []` (nothing loaded
- * globally: no NativeWind, no Node, no Vite) and the strict options of the strictest consumer we
- * have (the website: `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noUncheckedSideEffectImports`).
+ * globally: no NativeWind, no Node, no Vite) and the strict options of the strictest consumers we
+ * have (the website: `verbatimModuleSyntax`, `erasableSyntaxOnly`, `noUncheckedSideEffectImports`;
+ * Astro: `noUncheckedIndexedAccess`, under which an index read is `T | undefined`).
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -41,6 +42,7 @@ const COMPILER_OPTIONS = {
   types: [],
   skipLibCheck: true,
   strict: true,
+  noUncheckedIndexedAccess: true,
   verbatimModuleSyntax: true,
   erasableSyntaxOnly: true,
   noUncheckedSideEffectImports: true,

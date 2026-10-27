@@ -718,8 +718,9 @@ export function turnTiming(
   const index = messages.findIndex((m) => m.id === message.id);
   let sendStamp: number | null = null;
   for (let i = index - 1; i >= 0; i -= 1) {
-    if (messages[i].role === 'user') {
-      sendStamp = stampToMs(messages[i].createdAt);
+    const earlier = messages[i];
+    if (earlier?.role === 'user') {
+      sendStamp = stampToMs(earlier.createdAt);
       break;
     }
   }

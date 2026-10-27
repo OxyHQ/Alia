@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 22.1.2
+
+- **Every entry type-checks under `noUncheckedIndexedAccess`.** The SDK ships source, so a
+  consumer compiling with `"noUncheckedIndexedAccess": true` (Astro) type-checked the SDK under
+  it too and got errors from indexed reads in the runtime, thread, citation and catalogue-tool
+  modules (27 from `@alia.onl/sdk/runtime` alone). Each read is now narrowed where the index is
+  known to be in range, with a loop over the values where that is simpler. Behaviour is unchanged.
+- `check:entry-types` compiles every entry with `noUncheckedIndexedAccess` on, so CI keeps it so.
+
 ## 22.1.1
 
 - A delayed Stop acknowledgement cannot idle a newer turn, replace its sidebar

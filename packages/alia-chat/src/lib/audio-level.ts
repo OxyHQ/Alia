@@ -71,8 +71,8 @@ export function levelFromFrames(frames: readonly number[]): number {
   if (frames.length === 0) return 0;
 
   let sumSquares = 0;
-  for (let index = 0; index < frames.length; index += 1) {
-    sumSquares += frames[index] * frames[index];
+  for (const frame of frames) {
+    sumSquares += frame * frame;
   }
   const rms = Math.sqrt(sumSquares / frames.length);
 

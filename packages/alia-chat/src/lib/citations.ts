@@ -180,7 +180,7 @@ export function splitReferences(
     const m = REFERENCE_LINE_RE.exec(line);
     if (m) {
       flush();
-      current = { id: Number(m[1]), rest: m[2] };
+      current = { id: Number(m[1]), rest: m[2] ?? '' };
     } else if (current && line.trim().length > 0) {
       // A legacy entry's URL sits on the indented line after the title.
       current.rest += ` ${line.trim()}`;

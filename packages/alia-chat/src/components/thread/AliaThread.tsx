@@ -213,7 +213,7 @@ export const AliaThread = memo(function AliaThread({
     if (index !== lastReplyIndex || index !== rows.length - 1) return false;
     if (index < history.length || failedTurn?.anchorMessageId === message.id) return false;
     for (let i = index - 1; i >= history.length; i--) {
-      if (rows[i].role === 'user') return true;
+      if (rows[i]?.role === 'user') return true;
     }
     return false;
   };
@@ -223,7 +223,7 @@ export const AliaThread = memo(function AliaThread({
    * an old message belongs to the stretch that ended, not to the one on screen.
    */
   const conversationOf = (index: number): string | undefined =>
-    index < history.length ? history[index].conversationId : conversationId;
+    index < history.length ? history[index]?.conversationId : conversationId;
 
   // ── Which rows are mounted, and the scroll that goes with them ──
   /** The row a cursor jump was aimed at, as an index into what is shown, or -1. */

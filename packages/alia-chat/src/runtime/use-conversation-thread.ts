@@ -435,7 +435,8 @@ export function useConversationThread({
     (assistantMessageId: string): Message | undefined => {
       const idx = messages.findIndex((msg) => msg.id === assistantMessageId);
       for (let i = idx - 1; i >= 0; i--) {
-        if (messages[i].role === 'user') return messages[i];
+        const earlier = messages[i];
+        if (earlier?.role === 'user') return earlier;
       }
       return undefined;
     },

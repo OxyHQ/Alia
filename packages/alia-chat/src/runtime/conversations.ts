@@ -275,13 +275,14 @@ function upsertOnTop(
   if (moveExisting) {
     // Remove the conversation from its current position (if it is in any page)
     for (let i = 0; i < pages.length; i++) {
-      const existingIndex = pages[i].conversations.findIndex((c) => c.id === row.id);
+      const page = pages[i] as ConversationsPage;
+      const existingIndex = page.conversations.findIndex((c) => c.id === row.id);
       if (existingIndex >= 0) {
         pages[i] = {
-          ...pages[i],
+          ...page,
           conversations: [
-            ...pages[i].conversations.slice(0, existingIndex),
-            ...pages[i].conversations.slice(existingIndex + 1),
+            ...page.conversations.slice(0, existingIndex),
+            ...page.conversations.slice(existingIndex + 1),
           ],
         };
         break;
@@ -347,7 +348,10 @@ export function useSaveConversation() {
             id,
             title: offlineTitle,
             lastMessage,
-            createdAt: existingIndex >= 0 ? conversations[existingIndex].createdAt : new Date(),
+            createdAt:
+              existingIndex >= 0
+                ? (conversations[existingIndex] as Conversation).createdAt
+                : new Date(),
             updatedAt: new Date(),
             messages,
           };

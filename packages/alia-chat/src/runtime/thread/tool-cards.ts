@@ -125,8 +125,8 @@ function toPoints(series: readonly PricePoint[], intraday: boolean, locale: stri
 
 /** First-to-last change as a ratio, or none for a run that started at nothing. */
 function runDelta(series: readonly PricePoint[]): number | undefined {
-  const first = series[0][1];
-  const last = series[series.length - 1][1];
+  const first = (series[0] as PricePoint)[1];
+  const last = (series[series.length - 1] as PricePoint)[1];
   return first === 0 ? undefined : (last - first) / first;
 }
 
@@ -189,7 +189,7 @@ export function marketChart(data: MarketCardData, t: Translate, locale: string):
       id,
       label: t(`market.range.${id}`),
       data: toPoints(run, id === '1D', locale),
-      headline: quoted(data.price) ? data.price : run[run.length - 1][1],
+      headline: quoted(data.price) ? data.price : (run[run.length - 1] as PricePoint)[1],
       delta: id === '1D' && quoted(data.changePct) ? data.changePct / 100 : runDelta(run),
     });
   }
@@ -205,7 +205,7 @@ export function marketChart(data: MarketCardData, t: Translate, locale: string):
   if (intraday.length >= 2) {
     notes.push(
       [
-        `${t('market.open')} ${format(intraday[0])}`,
+        `${t('market.open')} ${format(intraday[0] as number)}`,
         `${t('market.dayHigh')} ${format(Math.max(...intraday))}`,
         `${t('market.dayLow')} ${format(Math.min(...intraday))}`,
       ].join(' · '),
@@ -220,7 +220,9 @@ export function marketChart(data: MarketCardData, t: Translate, locale: string):
   return {
     title: `${data.name} · ${data.symbol}`,
     ranges,
-    defaultRange: ranges.some((r) => r.id === '1D') ? '1D' : ranges[0].id,
+    defaultRange: ranges.some((r) => r.id === '1D')
+      ? '1D'
+      : (ranges[0] as (typeof ranges)[number]).id,
     format,
     formatAxisValue: (value) => formatAxis(value, locale),
     notes,
@@ -275,7 +277,7 @@ export function faircoinChart(
       id,
       label: t(`faircoin.range.${id}`),
       data: toPoints(run, id === '24h', locale),
-      headline: quoted(data.price) ? data.price : run[run.length - 1][1],
+      headline: quoted(data.price) ? data.price : (run[run.length - 1] as PricePoint)[1],
       delta: id === '24h' && quoted(data.changePct) ? data.changePct / 100 : runDelta(run),
     });
   }
@@ -331,7 +333,9 @@ export function faircoinChart(
     chart: {
       title: `${t('faircoin.name')} · ${t('faircoin.symbol')}`,
       ranges,
-      defaultRange: ranges.some((r) => r.id === '24h') ? '24h' : ranges[0].id,
+      defaultRange: ranges.some((r) => r.id === '24h')
+        ? '24h'
+        : (ranges[0] as (typeof ranges)[number]).id,
       format,
       formatAxisValue: (value) => formatAxis(value, locale),
       notes: [],

@@ -169,7 +169,7 @@ export function useTimelineWindow({
         anchor: kept,
         offset: lastOffset.current ?? 0,
         atBottom: atBottom.current,
-        probeId: rows[first],
+        probeId: rows[first] as string,
       });
     };
   }, [scrollKey]);
