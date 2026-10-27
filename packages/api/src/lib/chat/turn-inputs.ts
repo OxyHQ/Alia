@@ -36,6 +36,8 @@ export interface TurnIdentity {
   readonly requestedAgentId?: string;
   /** The app the turn comes from, by its verified app assertion (`lib/app-surface.ts`), or `null`. */
   readonly surfaceApplicationId: string | null;
+  /** `false` when the person turned personalization off for this turn: no memory profile is read. */
+  readonly loadUserMemory?: boolean;
 }
 
 /** What `loadTurnAgent` answered, plus the two failures this module adds. */
@@ -69,7 +71,7 @@ export const EMPTY_SKILL_RUNTIME: SkillRuntime = {
 export async function prefetchTurnInputs(identity: TurnIdentity): Promise<PrefetchedTurnInputs> {
   const { oxyUserId, isDirectUserSession, requestedAgentId } = identity;
   const [userMemory, oxyUser, entitlements, turnAgent] = await Promise.all([
-    oxyUserId !== undefined
+    oxyUserId !== undefined && identity.loadUserMemory !== false
       ? findUserMemory(getDb(), oxyUserId)
           .then((memory) => memory ?? null)
           .catch(() => null)

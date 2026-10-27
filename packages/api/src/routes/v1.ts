@@ -9,6 +9,7 @@ import conversationsRouter from './conversations.js';
 import sharedRouter from './shared.js';
 import agentsV1Router from './v1/agents.js';
 import { cancelChatTurn } from '../lib/chat/turn-control.js';
+import { submitHostResult } from '../lib/chat/host-results.js';
 import { authenticateToken, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
@@ -126,6 +127,7 @@ router.post('/report-usage', async (_req: Request, res: Response) => {
 
 router.use('/chat/completions', chatCompletionsRouter);
 router.post('/chat/turns/:turnId/cancel', cancelChatTurn);
+router.post('/chat/turns/:turnId/host-results', submitHostResult);
 
 // OpenAI Responses API support (for Vercel AI SDK compatibility)
 router.use('/responses', responsesRouter);

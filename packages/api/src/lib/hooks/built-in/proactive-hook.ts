@@ -79,7 +79,7 @@ registerHook({
     if (!ctx.userId) return;
     // Suggestions are Alia's, from Alia's answered turns: not an agent's, and
     // not a turn that failed (there is no answer to classify).
-    if (ctx.agentTurn || ctx.errorClass) return;
+    if (ctx.agentTurn || ctx.errorClass || ctx.personalization === false) return;
 
     // Only analyze substantive conversations (not one-liners)
     const userMessages = ctx.messages

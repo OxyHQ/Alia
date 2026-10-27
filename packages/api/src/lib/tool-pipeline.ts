@@ -93,7 +93,7 @@ import {
   type OxyToolAutonomy,
 } from './tools/oxy-services.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
-import { buildHostTools, type HostRequest } from './host-tools.js';
+import { buildHostTools, type AwaitedHostTurn, type HostRequest } from './host-tools.js';
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
 import type { HydratedAgent } from './agent-identity.js';
@@ -244,6 +244,16 @@ export interface ForUserOptions {
    * to dispatch them on, and never inside a consultation.
    */
   host?: HostRequest;
+  /**
+   * The explicit-Stop turn its awaited host tools answer within (`lib/chat/host-results.ts`).
+   * Without it, a host tool that awaits its result is not offered.
+   */
+  hostTurn?: AwaitedHostTurn;
+  /**
+   * `false`: the person turned personalization off for this turn. The `memory` family is denied
+   * whatever the agent was granted, so no tool reads or writes what is remembered about them.
+   */
+  personalization?: boolean;
   /** SSE emitter for tools that need to push events (planPreview, suggestNewConversation) */
   sseEmitter?: SSEEmitter;
   /**
@@ -421,6 +431,8 @@ export class ToolPipeline {
       onOxyStepStatus,
       editorToolDefinitions,
       host,
+      hostTurn,
+      personalization = true,
       sseEmitter,
       webSearch,
       mcpServerId,
@@ -442,10 +454,16 @@ export class ToolPipeline {
      * turn WITH one reaches only what its owner granted, and an agent whose
      * owner has granted nothing reaches nothing — see the file comment.
      */
-    const grants: CapabilityGrantSet =
+    const agentGrants: CapabilityGrantSet =
       agent === undefined || agent === null
         ? GRANTS_EVERYTHING
         : readCapabilityGrants(agent.capabilityGrants);
+    const grants: CapabilityGrantSet = personalization
+      ? agentGrants
+      : {
+          allows: (family) => family !== 'memory' && agentGrants.allows(family),
+          instances: (family) => agentGrants.instances(family),
+        };
 
     /**
      * A trigger whose author opted out of tools gets the date and nothing else.
@@ -811,7 +829,9 @@ export class ToolPipeline {
 
     // 5. Merge server tools with the caller's editor and host tools (never inside a consultation).
     const hostTools =
-      host && sseEmitter && isDirectSession && !nested ? buildHostTools(host, sseEmitter) : {};
+      host && sseEmitter && isDirectSession && !nested
+        ? buildHostTools(host, sseEmitter, hostTurn)
+        : {};
     const tools: ToolSet = { ...aliaTools, ...(nested ? {} : editorTools), ...hostTools };
 
     // 6. The catalogue of agents `consultAgent` can reach, for finding a specialist.

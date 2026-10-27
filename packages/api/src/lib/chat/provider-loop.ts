@@ -138,6 +138,8 @@ export interface ProviderLoopParams {
    * Alia's after-chat hooks (writing style, proactive suggestions) skip it.
    */
   agentTurn?: boolean;
+  /** The person turned personalization off: nothing is learned about them from this turn. */
+  personalization?: false;
 }
 
 export type ProviderLoopResult =
@@ -185,6 +187,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     beforeFinish,
     providerAbort,
     agentTurn,
+    personalization,
   } = params;
 
   // Track token usage (streaming path; the non-streaming path owns its own)
@@ -233,6 +236,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     skillNames: skills.activated().map((skill: { name: string }) => skill.name),
     autonomyRuntime,
     ...(agentTurn ? { agentTurn: true } : {}),
+    ...(personalization === false ? { personalization } : {}),
     ...(originApp === undefined ? {} : { originApp }),
   });
 
@@ -372,6 +376,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
             assertLive,
             beforeFinish,
             ...(agentTurn ? { agentTurn: true } : {}),
+            ...(personalization === false ? { personalization } : {}),
           });
           // Stable, metadata-free positive signal for the passive public status
           // alarm. It is emitted only after the hosted turn completed.

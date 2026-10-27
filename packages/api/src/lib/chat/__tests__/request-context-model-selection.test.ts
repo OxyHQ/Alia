@@ -35,6 +35,10 @@ const refundReservation = vi.fn();
  * `unreachable` branch wearing the `denies` label. See the tests below.
  */
 const oxy = vi.hoisted(() => ({ mode: 'denies' as 'grants' | 'denies' | 'unreachable' }));
+const memory = vi.hoisted(() => ({
+  findUserMemory: vi.fn(async (): Promise<unknown> => undefined),
+  runBeforeChatHooks: vi.fn(async (): Promise<unknown> => null),
+}));
 
 vi.mock('@oxy.so/core', async () => {
   const actual = await vi.importActual<typeof import('@oxy.so/core')>('@oxy.so/core');
@@ -69,7 +73,7 @@ vi.mock('../../chat-core.js', () => ({
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
-  findUserMemory: async () => undefined,
+  findUserMemory: () => memory.findUserMemory(),
 }));
 vi.mock('../../../db/chat/conversationRepository.js', () => ({}));
 vi.mock('../../../db/agents/skillRepository.js', () => ({
@@ -103,7 +107,7 @@ vi.mock('../../credits-manager.js', () => ({
 }));
 vi.mock('../../plan-access.js', () => ({ getUserEntitlements: async () => null }));
 vi.mock('../../../middleware/auth.js', () => ({ oxyClient: { users: { get: async () => null } } }));
-vi.mock('../../hooks/index.js', () => ({ runBeforeChatHooks: async () => null }));
+vi.mock('../../hooks/index.js', () => ({ runBeforeChatHooks: () => memory.runBeforeChatHooks() }));
 vi.mock('../../autonomy/runtime.js', () => ({ runAutonomyBeforeChat: async () => null }));
 vi.mock('../../logger.js', () => {
   const channel = () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() });
@@ -832,4 +836,91 @@ describe('the reply is stored under the id the client drew it with', () => {
       expect(reserveCredits).not.toHaveBeenCalled();
     },
   );
+});
+
+/**
+ * Dia-style "personalization off" for one turn: no memory profile, no recall. The tools and the
+ * prompt read `ctx.personalization` (`tool-pipeline.test.ts`, `system-prompt-builder` tests).
+ */
+describe('personalization', () => {
+  it('is on when absent, and reads the person’s memory and recall', async () => {
+    const { ctx } = await run(undefined, { directUserId: 'user-1' });
+    expect(ctx?.personalization).toBe(true);
+    expect(memory.findUserMemory).toHaveBeenCalled();
+    expect(memory.runBeforeChatHooks).toHaveBeenCalled();
+  });
+
+  it('`false` reads no memory profile and recalls nothing', async () => {
+    const { ctx } = await run(undefined, {
+      directUserId: 'user-1',
+      body: { personalization: false },
+    });
+    expect(ctx?.personalization).toBe(false);
+    expect(ctx?.userMemory).toBeNull();
+    expect(ctx?.recalledMemories).toBeUndefined();
+    expect(memory.findUserMemory).not.toHaveBeenCalled();
+    expect(memory.runBeforeChatHooks).not.toHaveBeenCalled();
+  });
+
+  it.each([['false'], [0], [null], [{}]])(
+    'refuses %j before anything is reserved',
+    async (value) => {
+      const { ctx, captured } = await run(undefined, {
+        directUserId: 'user-1',
+        body: { personalization: value },
+      });
+      expect(ctx).toBeNull();
+      expect(captured.status).toBe(400);
+      expect(captured.body?.error).toMatchObject({
+        param: 'personalization',
+        code: 'invalid_request',
+      });
+      expect(reserveCredits).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('host tools that await their result', () => {
+  const host = {
+    app: 'astro',
+    version: 1,
+    tools: [
+      {
+        name: 'read_tab',
+        description: 'The text of the open tab.',
+        inputSchema: { type: 'object' },
+        awaitsResult: true,
+      },
+    ],
+  };
+  const turnId = '6f1c2d3e-4b5a-4c6d-8e7f-001122334455';
+
+  it('are admitted on a streamed person’s turn with a turn id', async () => {
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1',
+      body: { host, turnId, stream: true },
+    });
+    expect(captured.status).toBeNull();
+    expect(ctx?.host?.tools[0]?.awaitsResult).toBe(true);
+  });
+
+  it.each([
+    ['without a turn id', { directUserId: 'user-1', body: { host, stream: true } }],
+    ['without a stream', { directUserId: 'user-1', body: { host, turnId } }],
+    [
+      'for a service acting for the person',
+      {
+        directUserId: 'user-1',
+        serviceApp: { appId: 'product', scopes: ['alia:chat'] },
+        delegatedScopes: ['alia:chat'],
+        body: { host, turnId, stream: true },
+      },
+    ],
+  ] as const)('are refused %s', async (_case, options) => {
+    const { ctx, captured } = await run(undefined, options as Parameters<typeof run>[1]);
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(400);
+    expect(captured.body?.error).toMatchObject({ param: 'host', code: 'invalid_host' });
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
 });

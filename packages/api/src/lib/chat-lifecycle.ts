@@ -41,6 +41,11 @@ export interface LifecycleContext {
    * Alia's turns, never from an agent's.
    */
   agentTurn?: boolean;
+  /**
+   * The person turned personalization off for this turn: the hooks that learn about them
+   * (writing style, proactive suggestions) skip it. The usage record does not.
+   */
+  personalization?: false;
   /** The embedding app (`host.app`), which labels a conversation this turn creates. */
   originApp?: string;
 }
@@ -318,6 +323,7 @@ export function runPostChatHooks(
     cancelled: observation.cancelled,
     resolvedModelReference: observation.resolvedModelReference,
     agentTurn: agentTurn === true,
+    ...(ctx.personalization === false ? { personalization: false as const } : {}),
   }).catch((err) => log.v1.error({ err }, 'Error in afterChat hooks'));
 
   // Alia's run scoring is about Alia's turns.

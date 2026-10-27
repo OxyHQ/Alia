@@ -306,6 +306,8 @@ const FROZEN_ROUTES: readonly string[] = [
   'POST /v1/chat/completions',
   // Explicit control, using the existing verified session/app-only auth chain.
   'POST /v1/chat/turns/:turnId/cancel',
+  // The answer to an awaited host action (agent-embedding §2), on the same auth chain as Stop.
+  'POST /v1/chat/turns/:turnId/host-results',
   'POST /v1/conversations',
   'POST /v1/conversations/:id/share',
   'POST /v1/conversations/new',
@@ -330,7 +332,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(28);
+    expect(FROZEN_ROUTES).toHaveLength(29);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -381,6 +383,7 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'POST /v1/report-usage': AUTHENTICATED,
   'POST /v1/chat/completions': AUTHENTICATED,
   'POST /v1/chat/turns/:turnId/cancel': AUTHENTICATED,
+  'POST /v1/chat/turns/:turnId/host-results': AUTHENTICATED,
   'GET /v1/chat/completions': AUTHENTICATED,
   'POST /v1/responses': AUTHENTICATED,
   'POST /v1/audio/speech': AUTHENTICATED,

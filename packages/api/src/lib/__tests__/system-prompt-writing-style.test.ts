@@ -62,12 +62,16 @@ async function build(opts: {
   userMemory?: UserMemoryData | null;
   isDirectUserSession?: boolean;
   linkedAgent?: HydratedAgent | null;
+  personalization?: boolean;
+  recalledMemories?: Array<{ title: string; summary: string }>;
 }): Promise<string> {
   return SystemPromptBuilder.build({
     surface: 'chat',
     isDirectUserSession: opts.isDirectUserSession ?? true,
     userMemory: opts.userMemory,
     linkedAgent: opts.linkedAgent ?? null,
+    ...(opts.personalization === undefined ? {} : { personalization: opts.personalization }),
+    ...(opts.recalledMemories ? { recalledMemories: opts.recalledMemories } : {}),
   });
 }
 
@@ -111,6 +115,22 @@ describe("the person's writing style in the system message", () => {
       userMemory: memory({ writingStyle: profile({ isReady: false }) }),
     });
     expect(prompt).not.toContain(HEADER);
+  });
+
+  it('is absent, with every other memory, when the person turned personalization off for the turn', async () => {
+    const userMemory = memory({
+      memories: [{ key: 'pet', value: 'a cat named Mochi', category: 'fact' }] as never,
+      preferences: { tone: 'sardonic-zq' } as never,
+    });
+    const recalledMemories = [{ title: 'pet', summary: 'a cat named Mochi' }];
+    const on = await build({ userMemory, recalledMemories });
+    const off = await build({ userMemory, recalledMemories, personalization: false });
+    expect(on).toContain('Mochi');
+    expect(on).toContain(HEADER);
+    expect(off).not.toContain('Mochi');
+    expect(on).toContain('sardonic-zq');
+    expect(off).not.toContain('sardonic-zq');
+    expect(off).not.toContain(HEADER);
   });
 
   it('is absent when the person turned off "Use in AI responses"', async () => {

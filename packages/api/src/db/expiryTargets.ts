@@ -48,6 +48,7 @@ import { emailOutreachDecisions } from './schema/proactive';
 import { apiKeyUsage } from './schema/telemetry';
 import { oxyFileEvents } from './schema/oxy-files';
 import { chatTurnControls } from './schema/chat-turn-controls';
+import { chatHostResults } from './schema/chat-host-results';
 
 const DAY = 24 * 60 * 60;
 
@@ -58,6 +59,13 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 0,
     reason:
       '24-hour turn admission and early-Stop tombstones; no financial or conversation history.',
+  },
+  {
+    table: chatHostResults,
+    column: chatHostResults.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      'Awaited host-action answers a crashed replica never read; a read answer is deleted at once.',
   },
   {
     table: apiKeyUsage,
