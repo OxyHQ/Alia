@@ -46,9 +46,9 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
-    "socket.io-client": "^4.8.3",
+    "socket.io-client": "^4.8.4",
     "tailwind-merge": "^3.7.0",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.16"
   },
   "peerDependencies": {
     "react": "^19.2.3",
@@ -86,11 +86,11 @@
     }
   },
   "devDependencies": {
-    "@types/react-test-renderer": "^19.1.0",
-    "react-test-renderer": "19.3.0",
+    "@types/react-test-renderer": "^19.3.0",
+    "react-test-renderer": "19.3.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",
     "react-native-audio-api": "0.13.6",
-    "playwright-core": "1.64.0"
+    "playwright-core": "1.64.1"
   }
 }
