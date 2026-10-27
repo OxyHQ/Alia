@@ -61,6 +61,9 @@ vi.mock('../../../src/hooks/useDictation', () => ({
   useDictationStore: (select: (s: { isRecording: boolean }) => unknown) =>
     select({ isRecording: false }),
 }));
+vi.mock('../../../src/components/canvas/CanvasComponent', async () => ({
+  CanvasComponent: await stub('Canvas')(),
+}));
 vi.mock('../../../src/components/PlanPreviewCard', () => ({ PlanPreviewCard: () => null }));
 vi.mock('../../../src/components/QuestionCard', () => ({ AskedQuestions: () => null }));
 vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
@@ -138,7 +141,7 @@ afterEach(async () => {
   drawn.length = 0;
 });
 
-async function mount(messages: Message[]) {
+async function mount(messages: Message[], readOnly = false) {
   const anchored: string[] = [];
   const flights = {
     anchor: (key: string) => {
@@ -154,7 +157,12 @@ async function mount(messages: Message[]) {
         <QueryClientProvider client={new QueryClient()}>
           <AliaFlightsProvider value={flights as never}>
             <AliaToolRenderersProvider value={renderers}>
-              <AliaThread messages={messages} isLoading={false} threadRef={{ current: null }} />
+              <AliaThread
+                messages={messages}
+                isLoading={false}
+                threadRef={{ current: null }}
+                readOnly={readOnly}
+              />
             </AliaToolRenderersProvider>
           </AliaFlightsProvider>
         </QueryClientProvider>
@@ -232,5 +240,32 @@ describe('a consulted agent’s reply', () => {
     expect(tree).toContain('"name":"Sindi"');
     expect(tree).toContain('"thinking":true');
     expect(anchored).toContain('reply:sindi');
+  });
+});
+
+describe('a canvas artifact in a shared conversation', () => {
+  const report = {
+    toolCallId: 't-report',
+    toolName: 'canvas',
+    state: 'result' as const,
+    result: { type: 'markdown', title: 'Q3 report', data: { content: '# Q3' } },
+  };
+  const thread: Message[] = [
+    { id: 'u', role: 'user', content: 'report' },
+    { id: 'r', role: 'assistant', content: '', toolInvocations: [report] },
+  ];
+
+  it('is drawn inline, on the canvas, when the thread is read-only', async () => {
+    const { tree } = await mount(thread, true);
+    expect(tree).toContain('"Canvas"');
+    expect(tree).toContain(
+      '"component":{"id":"t-report","type":"markdown","title":"Q3 report","data":{"content":"# Q3"}}',
+    );
+    expect(tree).not.toContain('"ToolCard"');
+  });
+
+  it('stays in the canvas panel, not the reply, in the app', async () => {
+    const { tree } = await mount(thread);
+    expect(tree).not.toContain('"Canvas"');
   });
 });

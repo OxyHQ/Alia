@@ -128,6 +128,7 @@ const stub = vi.hoisted(() => (name: string) => async () => {
   return ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     ReactModule.createElement(name, props, children);
 });
+vi.mock('../../../src/components/canvas/CanvasComponent', () => ({ CanvasComponent: () => null }));
 vi.mock('../../../src/components/AliaComposer', async () => ({
   AliaComposer: await stub('Composer')(),
 }));

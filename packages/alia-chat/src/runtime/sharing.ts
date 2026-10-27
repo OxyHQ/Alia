@@ -5,7 +5,7 @@ import { useAliaApi } from './api';
 import { useAliaRuntime } from './config';
 import { aliaQueryKeys } from './query-keys';
 import { API_ROUTES } from './routes';
-import type { Message } from './types';
+import type { Message, ToolInvocation } from './types';
 
 /** A conversation's read-only link (`POST /v1/conversations/:id/share`, `docs/agent-embedding.md` §6). */
 export interface AliaConversationShare {
@@ -65,11 +65,26 @@ export function useShareConversation() {
   );
 }
 
-/** A message of a shared conversation: words and pictures, and who wrote them. Never a tool's output. */
+/**
+ * A canvas artifact of a shared conversation: the report, deck, dashboard, chart or table Alia drew,
+ * as the canvas tool returned it. `id` is the tool call that drew it.
+ */
+export interface AliaSharedArtifact {
+  id: string;
+  type: string;
+  title: string;
+  data: unknown;
+}
+
+/**
+ * A message of a shared conversation: words and pictures, who wrote them, and the canvas artifacts
+ * it drew. Never any other tool's output.
+ */
 export interface AliaSharedMessage {
   role: 'user' | 'assistant';
   content: string | Array<{ type: string; [key: string]: unknown }>;
   agent?: AliaSharedAgent;
+  artifacts?: AliaSharedArtifact[];
 }
 
 export interface AliaSharedAgent {
@@ -100,6 +115,18 @@ function readSharedAgent(value: unknown): AliaSharedAgent | undefined {
   };
 }
 
+/** The artifacts the server sent, each kept only with an id, a type, a title and its data. */
+function readSharedArtifacts(value: unknown): AliaSharedArtifact[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((artifact): AliaSharedArtifact[] => {
+    if (artifact === null || typeof artifact !== 'object') return [];
+    const { id, type, title, data } = artifact as Record<string, unknown>;
+    if (typeof id !== 'string' || typeof type !== 'string' || type === '') return [];
+    if (data === undefined || data === null) return [];
+    return [{ id, type, title: typeof title === 'string' ? title : '', data }];
+  });
+}
+
 /** The shared conversation as the contract names it; any message of another shape is left out. */
 export function readSharedConversation(value: unknown): AliaSharedConversationData | null {
   if (value === null || typeof value !== 'object') return null;
@@ -107,15 +134,17 @@ export function readSharedConversation(value: unknown): AliaSharedConversationDa
   if (!Array.isArray(raw.messages) || typeof raw.expiresAt !== 'string') return null;
   const messages = raw.messages.flatMap((message): AliaSharedMessage[] => {
     if (message === null || typeof message !== 'object') return [];
-    const { role, content, agent } = message as Record<string, unknown>;
+    const { role, content, agent, artifacts } = message as Record<string, unknown>;
     if (role !== 'user' && role !== 'assistant') return [];
     if (typeof content !== 'string' && !Array.isArray(content)) return [];
     const author = readSharedAgent(agent);
+    const drawn = role === 'assistant' ? readSharedArtifacts(artifacts) : [];
     return [
       {
         role,
         content: content as AliaSharedMessage['content'],
         ...(author ? { agent: author } : {}),
+        ...(drawn.length > 0 ? { artifacts: drawn } : {}),
       },
     ];
   });
@@ -128,13 +157,28 @@ export function readSharedConversation(value: unknown): AliaSharedConversationDa
   };
 }
 
-/** The shared messages as the thread draws them: an agent's under its own identity. */
+/**
+ * The shared messages as the thread draws them: an agent's under its own identity, and each artifact
+ * as the canvas call that drew it, which the read-only thread draws inline.
+ */
 export function sharedMessages(shared: AliaSharedConversationData): Message[] {
   return shared.messages.map((message, index) => ({
     id: `shared-${index}`,
     role: message.role,
     content: message.content,
     ...(message.agent ? { agentInfo: { ...message.agent } } : {}),
+    ...(message.artifacts
+      ? {
+          toolInvocations: message.artifacts.map(
+            (artifact): ToolInvocation => ({
+              toolCallId: artifact.id,
+              toolName: 'canvas',
+              state: 'result',
+              result: { type: artifact.type, title: artifact.title, data: artifact.data },
+            }),
+          ),
+        }
+      : {}),
   }));
 }
 

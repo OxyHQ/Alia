@@ -13,7 +13,7 @@ import config from '@/shared/platform/config';
  * A shared conversation (`/shared/<token>`): the one public page every app's share link opens
  * (`aliaSharedConversationUrl`, `docs/agent-embedding.md` §6), whichever agent led it and
  * whichever app it was minted in. Anybody with the link reads it, signed in or not; the thread
- * is the SDK's, read-only, and never carries a tool's output. Not for search engines: a share is
+ * is the SDK's, read-only, with the canvas artifacts Alia drew and no other tool's output. Not for search engines: a share is
  * somebody's conversation, handed to the people they chose.
  */
 export default function SharedConversationScreen() {

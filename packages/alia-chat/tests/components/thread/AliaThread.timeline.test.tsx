@@ -71,6 +71,7 @@ vi.mock('@oxy.so/bloom/ai-chat', async () => {
       chrome.footer === null ? null : { top: 40, bottom: chrome.footer },
   };
 });
+vi.mock('../../../src/components/canvas/CanvasComponent', () => ({ CanvasComponent: () => null }));
 vi.mock('../../../src/components/ReplyMarkdown', async () => {
   const ReactModule = await import('react');
   return {

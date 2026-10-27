@@ -1250,7 +1250,7 @@
     "stopSharing": "Stop sharing",
     "shareText": "A conversation with Alia",
     "shareCopied": "Link copied",
-    "shareCopiedDescription": "Anyone with the link can read this conversation for 24 hours. Tool results are never included.",
+    "shareCopiedDescription": "Anyone with the link can read this conversation and the reports, decks and dashboards Alia made in it for 24 hours. Other tool results are never included.",
     "shareDeliverFailed": "Couldn't share the link.",
     "sharingStopped": "Sharing stopped",
     "sharingStoppedDescription": "The link no longer opens this conversation.",

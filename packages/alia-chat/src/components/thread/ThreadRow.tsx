@@ -24,6 +24,7 @@ import { readAgentCharacter } from '../../lib/agent-character';
 import { getImagesFromContent, messageText } from '../../lib/content-utils';
 import { ANCHORS, useAliaFlights } from '../../lib/flights';
 import { useLabels } from '../../lib/labels';
+import { canvasResultOf } from '../../lib/canvas-result';
 import { askedQuestions, isQuestionInvocation } from '../../lib/questions';
 import { parseCatalogueTool, useToolRenderers } from '../../lib/tool-renderers';
 import { isWebInvocation, taskListLog, webSearchLog } from '../../lib/work-log';
@@ -33,6 +34,7 @@ import type { OpenThought } from '../../hooks/useOpenThought';
 import { Image } from '../Image';
 import { PlanPreviewCard } from '../PlanPreviewCard';
 import { AskedQuestions } from '../QuestionCard';
+import { CanvasComponent } from '../canvas/CanvasComponent';
 import { ReplyMarkdown } from '../ReplyMarkdown';
 import { MessageBlockBoundary } from './MessageBlockBoundary';
 import { ToolResultCard } from './ToolResultCard';
@@ -240,7 +242,20 @@ function ReplyTurn({
       },
     ];
   });
-  const renderedCalls = new Set(rendered.map(({ call }) => call));
+
+  // A shared conversation has no canvas panel to open an artifact in, so it draws each one inline.
+  const inlineCanvases = readOnly
+    ? toolInvocations.flatMap((call, index) => {
+        const canvas = canvasResultOf(call);
+        return canvas === null
+          ? []
+          : [{ key: call.toolCallId || `canvas-${message.id}-${index}`, call, canvas }];
+      })
+    : [];
+  const renderedCalls = new Set([
+    ...rendered.map(({ call }) => call),
+    ...inlineCanvases.map(({ call }) => call),
+  ]);
 
   // The calls the work summary lists: every one that did not draw its own card. Read on each
   // render — the list changes per streamed tool event and the row is memoised on `message`.
@@ -320,6 +335,7 @@ function ReplyTurn({
     hasWorkLog ||
     toolCards.length > 0 ||
     rendered.length > 0 ||
+    inlineCanvases.length > 0 ||
     (message.isStreaming === true && message.source === 'voice');
   /** Its avatar is the source of the flight into the header while it is answering. */
   const agentLive = agent !== undefined && message.isStreaming === true;
@@ -419,6 +435,13 @@ function ReplyTurn({
               )}
               {rendered.map(({ key, node }) => (
                 <MessageBlockBoundary key={key}>{node}</MessageBlockBoundary>
+              ))}
+              {inlineCanvases.map(({ key, canvas }) => (
+                <MessageBlockBoundary key={key}>
+                  <View className="rounded-2xl border border-border p-4" testID="shared-canvas">
+                    <CanvasComponent component={{ id: key, ...canvas }} />
+                  </View>
+                </MessageBlockBoundary>
               ))}
               {/* Each card in its own boundary: `cardOf` checks the card's NAME, and its data is
                   cast unchecked. */}
