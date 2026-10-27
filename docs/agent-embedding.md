@@ -77,8 +77,59 @@ These are the rules for host tools:
   ```
 
 - **Outcomes.** The client executes the action and sends the result in the NEXT request's `host.outcomes`. An outcome is one of `applied | inline | rejected | stale | failed`. Alia stores the outcome as that tool call's result, so the model reads what actually happened.
+- **Awaited results.** A tool declared with `"awaitsResult": true` is answered within the SAME turn instead (below).
 - **Where they never appear.** Host tools never reach a nested `consultAgent` turn, a voice turn or a channel turn (Telegram, WhatsApp), and they are never authority over data.
 - **Editor lane.** `body.tools`, the editor lane, is unchanged and separate.
+
+### Host tools that answer within the turn (`awaitsResult`)
+
+Some host tools exist to READ what only the client has: a browser's "this tab's text" or "my open tabs". The model needs that answer in the turn that asked, not the next one. Such a tool is declared with `"awaitsResult": true` (any other value, `false` included, is refused with `invalid_host`; omit the field for a dispatched tool):
+
+```json
+{ "name": "read_tab", "description": "…", "inputSchema": { "type": "object" }, "awaitsResult": true }
+```
+
+- **When it is admitted.** Only on a streamed request (`"stream": true`) that carries a `turnId` ([explicit Stop](./explicit-chat-stop.md)) from a person's own session. Any other request declaring one — no `turnId`, not streamed, a delegated service, a channel or an app-only credential — is refused `400` with `code: "invalid_host"` and `param: "host"`, before anything is reserved.
+- **The action.** When the model calls it, Alia records the call in PostgreSQL first, then emits the usual frame with two more fields, and waits:
+
+  ```text
+  event: alia.host_action
+  data: {"eventVersion":1,"toolCallId":"call_1","app":"astro","name":"read_tab","input":{},"awaitsResult":true,"turnId":"<the request's turnId>"}
+  ```
+
+- **The answer.** The client performs it and answers at once:
+
+  ```text
+  POST /v1/chat/turns/:turnId/host-results
+  { "toolCallId": "call_1", "outcome": "applied", "detail": "optional, ≤ 500 chars", "result": "a string or any JSON value" }
+  ```
+
+  It is authenticated exactly as Stop is: the same session and verified `X-Oxy-App-Assertion`, bound to the same actor, account and app surface that started the turn, and rate-limited per that authority (60 a minute). `outcome` is one of `applied | inline | rejected | stale | failed`; `result` is optional and at most 100,000 characters as JSON (`HOST_RESULT_MAX_CHARS`). Answers:
+
+  | Status | `error.code` | When |
+  |---|---|---|
+  | `200` `{ "turnId", "toolCallId", "state": "answered" }` | — | recorded |
+  | `400` | `invalid_turn` | `:turnId` is not a UUID v4 |
+  | `400` | `invalid_host_result` (`param` names the field) | an unknown field, a missing `toolCallId`, an outcome outside the list, a `detail` over 500 characters |
+  | `400` | `host_result_too_large` (`param: "result"`) | `result` over the bound |
+  | `403` | `turn_control_unsupported` | a caller with no verifiable original actor |
+  | `404` | `host_result_not_found` | a call this turn never awaited, another authority's turn, or a call no longer awaited (already read, timed out or stopped) |
+  | `409` | `host_result_already_answered` | a second answer while the first is still unread |
+  | `429` | `RATE_LIMIT_EXCEEDED` | over the limit, with `Retry-After` |
+  | `503` | `turn_control_unavailable` | the control store could not be reached |
+
+- **What the model reads.** `{ "status": <outcome>, "detail"?, "result"? }` as that call's result, bounded like any tool result. The stored conversation keeps the same result for the call, so a reloaded conversation shows what the tool returned. Such a call never needs a later `host.outcomes` entry.
+- **The deadline.** The turn waits at most 45 seconds (`HOST_RESULT_WAIT_MS`), well inside its 80-second limit; the inactivity watchdog is held while it waits, as for any running tool. Unanswered, the model reads `{ "status": "stale", "detail": "The app did not answer in time." }`. Stop (or the turn's end) ends the wait at once.
+- **Across replicas.** The answer can land on any replica. PostgreSQL is the only store (`chat_host_results`, keyed by turn id and tool call id): the replica whose turn waits reads every answer its process waits for in one batch every 250 ms, as Stop's observer does, and deletes each row in the statement that reads it. A row whose wait ended unanswered is deleted then; one left by a crashed replica is removed by the expiry sweep after 24 hours.
+- **The person's content.** What the client sends (a page's text) is the person's own. It is held only until the waiting turn reads it, never logged (the route logs the outcome and the result's size, never its content), and goes to the model like any tool result.
+
+#### Rollout
+
+The API receiver ships first: migration `0109_chat_host_results` (pre-deploy, additive), the route and the waiter. Only after every API replica runs it may a host declare `awaitsResult`: an older API's strict schema refuses the unknown field with `invalid_host`, and an older replica would not know the route. `@alia.onl/sdk` 22.2.0 sends `awaitsResult` only for a tool that declares it, so existing hosts send the same bytes and are unaffected by the order. The SDK answers through the authenticated API layer with the app assertion, at most once per tool call, reports a failed answer to `AliaHostTools.onUndelivered` and never retries it; a result over the bound is answered as `failed` instead.
+
+### Personalization off for one turn
+
+`"personalization": false` on `POST /v1/chat/completions` (and `/alia/chat`, the same handler) turns personalization off for that turn: Alia reads no memory profile of the person and recalls no memories, an agent reads none of its own memory of them, the model is offered no memory tools (`saveUserMemory`, `updateUserMemory`, `forgetUserMemory`, `updateUserPreferences`, `updateUserContext`, an agent's `memory` and `searchThread`), and nothing is learned from the turn (writing style, proactive suggestions). The conversation is stored as usual. Absent or `true` changes nothing; any other value is refused `400` with `param: "personalization"`. The SDK sends it from `AliaTurnRequest.personalization` (`host.turnRequest()`), only when `false`.
 
 ## 3. Tool results and renderers
 
