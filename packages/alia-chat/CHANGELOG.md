@@ -1,5 +1,22 @@
 # @alia.onl/sdk
 
+## 22.2.0
+
+- **Awaited host tools.** `AliaHostToolDefinition.awaitsResult: true` declares a tool whose
+  result the model reads in the same turn ("this tab's text"). When the model calls it, the
+  runtime runs the host's `execute` once and POSTs `{ toolCallId, outcome, detail?, result? }` at
+  once to `/v1/chat/turns/:turnId/host-results` through the authenticated API (with the app
+  assertion), instead of queueing the outcome for the next request. `AliaHostOutcome.result`
+  carries a string or JSON value of at most `HOST_RESULT_MAX_CHARS` (100,000) characters as JSON;
+  a larger one is answered as `failed`. A failed POST is reported to `AliaHostTools.onUndelivered`
+  and never retried. `parseHostAction` keeps `awaitsResult` and `turnId`.
+- **Personalization off for one turn.** `AliaTurnRequest.personalization: false` (read at send
+  time from `host.turnRequest()`) sends `personalization: false`: Alia reads no memory and offers
+  no memory tools for that turn. Nothing is sent otherwise.
+- `awaitsResult` is sent only for a tool that declares it, so existing hosts send the same bytes.
+  A host that declares one needs the Alia API receiver for awaited host tools deployed first
+  (`docs/agent-embedding.md` §2); an older API refuses the field with `invalid_host`.
+
 ## 22.1.2
 
 - **Every entry type-checks under `noUncheckedIndexedAccess`.** The SDK ships source, so a

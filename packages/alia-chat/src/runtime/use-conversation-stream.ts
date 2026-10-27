@@ -3,6 +3,7 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLabels } from '../lib/labels';
+import { useAliaApi } from './api';
 import { useAppAssertionHeaders } from './app-assertion';
 import { type AliaArtifact, useAliaRuntime } from './config';
 import {
@@ -162,6 +163,8 @@ export function useConversationStream({
   hostTools,
 }: UseConversationStreamOptions = {}) {
   const { apiUrl, streamFetch, host, app } = useAliaRuntime();
+  /** Where an awaited host action's answer goes: the same account and app assertion as the turn. */
+  const api = useAliaApi();
   /** Read at send time and when an action arrives: the host's declaration may change between turns. */
   const hostToolsRef = useRef(hostTools);
   hostToolsRef.current = hostTools;
@@ -658,7 +661,11 @@ export function useConversationStream({
          * when the callback was built would send the state the composer had
          * before the person touched it.
          */
-        const { deepResearch: deepResearchMode, webSearch } = host.turnRequest?.() ?? {};
+        const {
+          deepResearch: deepResearchMode,
+          webSearch,
+          personalization,
+        } = host.turnRequest?.() ?? {};
 
         // The host's tools, and the outcomes of the actions it performed since the last request.
         const outcomes = hostOutcomesRef.current.pending();
@@ -688,6 +695,8 @@ export function useConversationStream({
             // Only sent when OFF. `true` is the server's default and every
             // request has behaved that way, so sending it would be noise.
             ...(webSearch === false && { webSearch: false }),
+            // Only sent when OFF, like web search: absent is the server's default.
+            ...(personalization === false && { personalization: false }),
             // The power level (or a device model). Oxy picks the model of that
             // level; the client never names a hosted model.
             ...(model && { model }),
@@ -939,13 +948,28 @@ export function useConversationStream({
                     // Performed here, by the client that declared it, once; its outcome rides
                     // the next request. The stream does not wait for it.
                     const action = parseHostAction(parsed);
-                    if (action !== null) {
-                      void hostOutcomesRef.current.dispatch(
+                    if (action === null) continue;
+                    if (action.awaitsResult && action.turnId !== undefined) {
+                      // The turn waits for this one: its answer goes back at once, through the
+                      // same authenticated API (and app assertion) the turn's account uses.
+                      const turnSignal = controller.signal;
+                      const route = API_ROUTES.hostResults(action.turnId);
+                      void hostOutcomesRef.current.answer(
                         action,
                         hostToolsRef.current,
                         appRef.current,
+                        async (answer) => {
+                          if (turnSignal.aborted) throw new Error('The turn ended');
+                          await api.post(route, answer, { signal: turnSignal });
+                        },
                       );
+                      continue;
                     }
+                    void hostOutcomesRef.current.dispatch(
+                      action,
+                      hostToolsRef.current,
+                      appRef.current,
+                    );
                     continue;
                   }
                   case 'alia.title': {
@@ -1417,6 +1441,7 @@ export function useConversationStream({
       }
     },
     [
+      api,
       apiUrl,
       streamFetch,
       host,

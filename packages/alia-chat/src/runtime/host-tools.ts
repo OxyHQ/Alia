@@ -7,10 +7,15 @@
  * the outcome with its NEXT request, where it becomes that call's result. A host tool is never
  * authority over data: it moves the host's own screen.
  *
- * Two rules hold here, in a queue that knows nothing of React:
+ * A tool declared with `awaitsResult: true` is read in the SAME turn instead ("this tab's text",
+ * "the open tabs"): the server waits, and this client answers it at once on the turn's
+ * `host-results` route with the outcome and the `result` its `execute` returned.
+ *
+ * Three rules hold here, in a queue that knows nothing of React:
  *  - an action is performed at most once, whatever the stream repeats;
  *  - an outcome stays queued until a request carrying it has been accepted, so a turn that ends
- *    before its outcomes are sent hands them to the next one.
+ *    before its outcomes are sent hands them to the next one;
+ *  - an awaited action's answer is sent once, never queued and never retried.
  */
 
 import type { HostAction } from './stream-events';
@@ -23,6 +28,11 @@ export interface AliaHostToolDefinition {
   description: string;
   /** A JSON Schema with an object root. */
   inputSchema: Record<string, unknown>;
+  /**
+   * The model reads this tool's result in the same turn: `execute`'s `result` goes back to it at
+   * once. Needs an Alia API with awaited host tools (`docs/agent-embedding.md` §2).
+   */
+  awaitsResult?: boolean;
 }
 
 export const HOST_OUTCOMES = ['applied', 'inline', 'rejected', 'stale', 'failed'] as const;
@@ -33,6 +43,11 @@ export interface AliaHostOutcome {
   outcome: AliaHostOutcomeKind;
   /** At most 500 characters; longer is cut. */
   detail?: string;
+  /**
+   * What an awaited tool read, for the model: a string or any JSON value, at most
+   * {@link HOST_RESULT_MAX_CHARS} characters as JSON. Ignored for a tool that does not await.
+   */
+  result?: unknown;
 }
 
 /**
@@ -48,6 +63,11 @@ export interface AliaHostTools {
   definitions: readonly AliaHostToolDefinition[];
   /** Perform `action` and say what came of it. Called once per action. */
   execute: (action: HostAction) => Promise<AliaHostOutcome>;
+  /**
+   * An awaited action's answer could not be delivered (the request failed). It is not retried:
+   * the model reads that the app did not answer in time.
+   */
+  onUndelivered?: (action: HostAction, error: unknown) => void;
 }
 
 /** An outcome as a request carries it. */
@@ -55,6 +75,11 @@ export interface HostOutcomeRecord {
   toolCallId: string;
   outcome: AliaHostOutcomeKind;
   detail?: string;
+}
+
+/** An awaited action's answer, as `POST /v1/chat/turns/:turnId/host-results` carries it. */
+export interface HostResultRecord extends HostOutcomeRecord {
+  result?: unknown;
 }
 
 /** The request's `host` member. */
@@ -67,6 +92,21 @@ export interface HostRequest {
 }
 
 const DETAIL_LIMIT = 500;
+
+/** The server's bound on an awaited action's `result`, as JSON. */
+export const HOST_RESULT_MAX_CHARS = 100_000;
+
+function resultOf(result: unknown): { result?: unknown } | 'too_large' {
+  if (result === undefined || result === null) return {};
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(result);
+  } catch {
+    return {};
+  }
+  if (text === undefined) return {};
+  return text.length > HOST_RESULT_MAX_CHARS ? 'too_large' : { result };
+}
 
 function record(toolCallId: string, outcome: AliaHostOutcome | undefined): HostOutcomeRecord {
   const kind = HOST_OUTCOMES.includes(outcome?.outcome as AliaHostOutcomeKind)
@@ -92,22 +132,38 @@ export class HostOutcomeQueue {
   ): Promise<boolean> {
     if (this.performed.has(action.toolCallId)) return false;
     this.performed.add(action.toolCallId);
-    let outcome: AliaHostOutcome;
-    if (tools === undefined || app === undefined || action.app !== app) {
-      outcome = { outcome: 'rejected', detail: 'This app did not declare that tool.' };
-    } else if (!tools.definitions.some((tool) => tool.name === action.name)) {
-      outcome = { outcome: 'rejected', detail: `Unknown tool "${action.name}".` };
-    } else {
-      try {
-        outcome = await tools.execute(action);
-      } catch (error) {
-        outcome = {
-          outcome: 'failed',
-          detail: error instanceof Error ? error.message : 'The app could not do it.',
-        };
-      }
-    }
+    const outcome = await perform(action, tools, app);
     this.ready.push(record(action.toolCallId, outcome));
+    return true;
+  }
+
+  /**
+   * Perform an awaited `action` once and `send` its answer at once, with its result. A failed send
+   * is reported to the host's `onUndelivered` and not retried. `false` when the action had already
+   * been performed.
+   */
+  async answer(
+    action: HostAction,
+    tools: AliaHostTools | undefined,
+    app: string | undefined,
+    send: (answer: HostResultRecord) => Promise<unknown>,
+  ): Promise<boolean> {
+    if (this.performed.has(action.toolCallId)) return false;
+    this.performed.add(action.toolCallId);
+    const outcome = await perform(action, tools, app);
+    const result = resultOf((outcome as AliaHostOutcome | undefined)?.result);
+    const answer: HostResultRecord =
+      result === 'too_large'
+        ? record(action.toolCallId, {
+            outcome: 'failed',
+            detail: 'The result was too large to send.',
+          })
+        : { ...record(action.toolCallId, outcome), ...result };
+    try {
+      await send(answer);
+    } catch (error) {
+      tools?.onUndelivered?.(action, error);
+    }
     return true;
   }
 
@@ -127,6 +183,27 @@ export class HostOutcomeQueue {
   }
 }
 
+async function perform(
+  action: HostAction,
+  tools: AliaHostTools | undefined,
+  app: string | undefined,
+): Promise<AliaHostOutcome> {
+  if (tools === undefined || app === undefined || action.app !== app) {
+    return { outcome: 'rejected', detail: 'This app did not declare that tool.' };
+  }
+  if (!tools.definitions.some((tool) => tool.name === action.name)) {
+    return { outcome: 'rejected', detail: `Unknown tool "${action.name}".` };
+  }
+  try {
+    return await tools.execute(action);
+  } catch (error) {
+    return {
+      outcome: 'failed',
+      detail: error instanceof Error ? error.message : 'The app could not do it.',
+    };
+  }
+}
+
 /**
  * The `host` member of a request: the chat's `app` and its host tools (none is an empty list),
  * or nothing for a chat that names no app — Alia's own.
@@ -143,10 +220,12 @@ export function hostRequest(
   return {
     app,
     version: 1,
-    tools: (tools?.definitions ?? []).map(({ name, description, inputSchema }) => ({
+    tools: (tools?.definitions ?? []).map(({ name, description, inputSchema, awaitsResult }) => ({
       name,
       description,
       inputSchema,
+      // Only when declared: an API before awaited host tools refuses the unknown field.
+      ...(awaitsResult === true ? { awaitsResult: true as const } : {}),
     })),
     ...(outcomes.length === 0 ? {} : { outcomes: [...outcomes] }),
   };

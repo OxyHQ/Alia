@@ -33,13 +33,14 @@ export {
   useAgentProfile,
 } from './agents';
 export type { AliaAgentFeature, AliaAgentProfile, AliaAgentStarter, FeatureOffer } from './agents';
-export { HOST_OUTCOMES, HostOutcomeQueue, hostRequest } from './host-tools';
+export { HOST_OUTCOMES, HOST_RESULT_MAX_CHARS, HostOutcomeQueue, hostRequest } from './host-tools';
 export type {
   AliaHostAction,
   AliaHostOutcome,
   AliaHostOutcomeKind,
   AliaHostToolDefinition,
   AliaHostTools,
+  HostResultRecord as AliaHostResultRecord,
 } from './host-tools';
 export { FEATURE_ENTITLEMENT_REQUIRED, parseConsultEvent, parseHostAction } from './stream-events';
 export type { ConsultAgent, ConsultEvent } from './stream-events';
