@@ -8,9 +8,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   applyHostOutcomes,
   buildHostTools,
+  HOST_RESULT_STALE,
   HOST_TOOL_DISPATCHED,
+  hostAwaitsResults,
+  hostOutcomeResult,
   hostToolName,
   parseHostRequest,
+  type AwaitedHostTurn,
 } from '../host-tools.js';
 
 const APPLY_SEARCH = {
@@ -26,7 +30,10 @@ const APPLY_SEARCH = {
 
 interface Executable {
   description?: string;
-  execute: (input: Record<string, unknown>, options: { toolCallId: string }) => Promise<unknown>;
+  execute: (
+    input: Record<string, unknown>,
+    options: { toolCallId: string; abortSignal?: AbortSignal },
+  ) => Promise<unknown>;
   inputSchema: { validate?: (value: unknown) => { success: boolean } };
 }
 
@@ -92,6 +99,140 @@ describe('buildHostTools', () => {
     expect(tool.inputSchema.validate?.({ location: 'Gràcia' }).success).toBe(true);
     expect(tool.inputSchema.validate?.({ priceMax: 1000 }).success).toBe(false);
     expect(tool.inputSchema.validate?.({ location: 'x', extra: true }).success).toBe(false);
+  });
+});
+
+const READ_TAB = {
+  name: 'read_tab',
+  description: 'The text of the tab the person is looking at.',
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  awaitsResult: true as const,
+};
+
+describe('awaited host tools', () => {
+  const TURN = {
+    id: '6f1c2d3e-4b5a-4c6d-8e7f-001122334455',
+    authorityKey: 'authority',
+    conversationId: null,
+  };
+  const KEY = { turnId: TURN.id, toolCallId: 'call-9', authorityKey: 'authority' };
+
+  function awaited(answer: Awaited<ReturnType<AwaitedHostTurn['results']['wait']>>) {
+    const order: string[] = [];
+    const results = {
+      open: vi.fn(async () => {
+        order.push('open');
+      }),
+      wait: vi.fn(async () => {
+        order.push('wait');
+        return answer;
+      }),
+    };
+    return { order, results, turn: { turn: TURN, results } };
+  }
+
+  it('accepts `awaitsResult: true` only, and says whether a host declares one', () => {
+    const parsed = parseHostRequest({ app: 'astro', version: 1, tools: [READ_TAB] });
+    expect(parsed).toMatchObject({ ok: true, host: { tools: [READ_TAB] } });
+    expect(parsed.ok && hostAwaitsResults(parsed.host)).toBe(true);
+    expect(
+      parseHostRequest({ app: 'astro', version: 1, tools: [{ ...READ_TAB, awaitsResult: false }] })
+        .ok,
+    ).toBe(false);
+    expect(
+      parseHostRequest({ app: 'astro', version: 1, tools: [{ ...READ_TAB, awaitsResult: 'yes' }] })
+        .ok,
+    ).toBe(false);
+    expect(hostAwaitsResults({ app: 'astro', version: 1, tools: [APPLY_SEARCH] })).toBe(false);
+    expect(hostAwaitsResults(undefined)).toBe(false);
+  });
+
+  it('is not offered without the turn it answers within', () => {
+    const tools = buildHostTools(
+      { app: 'astro', version: 1, tools: [APPLY_SEARCH, READ_TAB] },
+      { emit: vi.fn() },
+    );
+    expect(Object.keys(tools)).toEqual([hostToolName('astro', 'apply_search')]);
+  });
+
+  it('records the call before the client hears of it, then answers with what the client said', async () => {
+    const emit = vi.fn();
+    const { order, results, turn } = awaited({
+      outcome: 'applied',
+      detail: 'Read 2 KB',
+      result: { title: 'Docs', text: 'Hello' },
+    });
+    emit.mockImplementation(() => order.push('emit'));
+    const tools = buildHostTools({ app: 'astro', version: 1, tools: [READ_TAB] }, { emit }, turn);
+    const tool = tools[hostToolName('astro', 'read_tab')] as unknown as Executable;
+    const signal = new AbortController().signal;
+    expect(await tool.execute({}, { toolCallId: 'call-9', abortSignal: signal })).toEqual({
+      status: 'applied',
+      detail: 'Read 2 KB',
+      result: { title: 'Docs', text: 'Hello' },
+    });
+    expect(order).toEqual(['open', 'emit', 'wait']);
+    expect(results.open).toHaveBeenCalledWith(KEY);
+    expect(results.wait).toHaveBeenCalledWith(KEY, signal);
+    expect(emit).toHaveBeenCalledWith('alia.host_action', {
+      eventVersion: 1,
+      toolCallId: 'call-9',
+      app: 'astro',
+      name: 'read_tab',
+      input: {},
+      awaitsResult: true,
+      turnId: TURN.id,
+    });
+  });
+
+  it('tells the model the app did not answer when the wait ends without one', async () => {
+    const { turn } = awaited(null);
+    const tools = buildHostTools(
+      { app: 'astro', version: 1, tools: [READ_TAB] },
+      { emit: vi.fn() },
+      turn,
+    );
+    const tool = tools[hostToolName('astro', 'read_tab')] as unknown as Executable;
+    expect(await tool.execute({}, { toolCallId: 'call-9' })).toEqual(HOST_RESULT_STALE);
+    expect(HOST_RESULT_STALE).toEqual({
+      status: 'stale',
+      detail: 'The app did not answer in time.',
+    });
+  });
+
+  it('never dispatches an action it could not record', async () => {
+    const emit = vi.fn();
+    const { turn, results } = awaited(null);
+    results.open.mockRejectedValueOnce(new Error('db down'));
+    const tools = buildHostTools({ app: 'astro', version: 1, tools: [READ_TAB] }, { emit }, turn);
+    const tool = tools[hostToolName('astro', 'read_tab')] as unknown as Executable;
+    expect(await tool.execute({}, { toolCallId: 'call-9' })).toMatchObject({ status: 'failed' });
+    expect(emit).not.toHaveBeenCalled();
+    expect(results.wait).not.toHaveBeenCalled();
+  });
+
+  it('keeps a dispatched tool dispatched beside an awaited one', async () => {
+    const emit = vi.fn();
+    const { turn, results } = awaited(null);
+    const tools = buildHostTools(
+      { app: 'astro', version: 1, tools: [APPLY_SEARCH, READ_TAB] },
+      { emit },
+      turn,
+    );
+    const tool = tools[hostToolName('astro', 'apply_search')] as unknown as Executable;
+    expect(await tool.execute({ location: 'x' }, { toolCallId: 'c' })).toEqual(
+      HOST_TOOL_DISPATCHED,
+    );
+    expect(results.open).not.toHaveBeenCalled();
+    expect(emit.mock.calls[0]?.[1]).not.toHaveProperty('awaitsResult');
+  });
+
+  it('reads a result in the model’s answer only when there is one', () => {
+    expect(hostOutcomeResult({ outcome: 'applied' })).toEqual({ status: 'applied' });
+    expect(hostOutcomeResult({ outcome: 'applied', result: 'text' })).toEqual({
+      status: 'applied',
+      result: 'text',
+    });
   });
 });
 

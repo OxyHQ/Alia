@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { parseHostRequest, type HostRequest } from '../host-tools.js';
+import { hostAwaitsResults, parseHostRequest, type HostRequest } from '../host-tools.js';
 import { productCreditPlanId } from '../product-credit-contract';
 import { USAGE_WINDOW_CREDITS } from '../usage-window';
 import { readConfiguredProductCreditSnapshot } from '../product-credit-access';
@@ -127,6 +127,11 @@ export interface ChatRequestContext {
   responseMode: 'voice' | null;
   /** The embedding app's UI effects and the outcomes of earlier ones (`lib/host-tools.ts`). */
   host: HostRequest | undefined;
+  /**
+   * `false` when the person turned personalization off for this turn: no memory profile, no
+   * recalled memories and no memory tools. The conversation is stored as usual.
+   */
+  personalization: boolean;
   /**
    * What the model reads for each `file` part, by Oxy Files id: read as the
    * person before the turn was admitted (`lib/files/person-files.ts`). The
@@ -351,6 +356,21 @@ export async function buildChatRequestContext(
   }
   const host = parsedHost.host;
 
+  /** Absent means ON. Only `false` changes anything; anything but a boolean is refused. */
+  if (body.personalization !== undefined && typeof body.personalization !== 'boolean') {
+    clearTimeout(globalTimer);
+    res.status(400).json({
+      error: {
+        message: '"personalization" must be a boolean',
+        type: 'invalid_request_error',
+        param: 'personalization',
+        code: 'invalid_request',
+      },
+    });
+    return null;
+  }
+  const personalization = body.personalization !== false;
+
   /**
    * The `file` parts, by id, refused here when malformed: before the stream
    * opens and before anything is read, spent or reserved.
@@ -406,6 +426,32 @@ export async function buildChatRequestContext(
   const isDirectUserSession = !!req.user && !req.serviceApp;
   const isDelegatedServiceSession =
     !!req.user?.id && !!req.serviceApp && req.serviceActingAs?.userId === req.user.id;
+
+  /**
+   * A host tool that awaits its result is answered on the turn's control route, so it needs the
+   * explicit-Stop turn id, a person's own session and a stream to dispatch it on
+   * (`lib/chat/host-results.ts`). Refused rather than silently withheld: the host declared it.
+   */
+  if (
+    hostAwaitsResults(host) &&
+    (body.turnId === undefined ||
+      !isDirectUserSession ||
+      req.channelContext ||
+      req.machineCredential ||
+      body.stream !== true)
+  ) {
+    clearTimeout(globalTimer);
+    res.status(400).json({
+      error: {
+        message:
+          'Invalid host: a tool with awaitsResult needs a turnId, a streamed request and a person’s own session',
+        type: 'invalid_request_error',
+        param: 'host',
+        code: 'invalid_host',
+      },
+    });
+    return null;
+  }
 
   /**
    * An agent id is an exact identity selector, never a hint.
@@ -794,6 +840,7 @@ export async function buildChatRequestContext(
     isDirectUserSession,
     requestedAgentId,
     surfaceApplicationId,
+    loadUserMemory: personalization,
   });
 
   /**
@@ -1077,7 +1124,7 @@ export async function buildChatRequestContext(
     // An agent's memory is its own (`agent_memory_documents`): Alia's recall is
     // for Alia's turns only.
     const recalledMemories =
-      localAccountId && linkedAgent === null
+      localAccountId && linkedAgent === null && personalization
         ? await recallTurnMemories({
             oxyUserId: localAccountId,
             conversationId,
@@ -1095,6 +1142,7 @@ export async function buildChatRequestContext(
       reasoningEffort,
       responseMode: body.responseMode === 'voice' ? 'voice' : null,
       host,
+      personalization,
       files: admitted.files,
       featureUses,
       deepResearch,

@@ -11,6 +11,8 @@
  */
 export const API_ROUTES = {
   chat: '/v1/chat/completions',
+  /** The answer to an awaited host action, read by the turn that is waiting for it. */
+  hostResults: (turnId: string) => `/v1/chat/turns/${encodeURIComponent(turnId)}/host-results`,
   conversations: {
     list: '/v1/conversations',
     save: '/v1/conversations',

@@ -11,6 +11,13 @@
  * (`host.outcomes`), which becomes that call's result — in the model's context
  * and in the stored conversation — so the model knows what actually happened.
  *
+ * A host tool may instead await its result (`awaitsResult: true`): the model reads what the app
+ * answered in the SAME turn ("this tab's text", "the open tabs"). Its `alia.host_action` carries
+ * `awaitsResult` and the turn id, and the turn waits for the client's answer on
+ * `POST /v1/chat/turns/:turnId/host-results` (`lib/chat/host-results.ts`), bounded by
+ * `HOST_RESULT_WAIT_MS`. Such tools need the explicit-Stop turn id and a person's own streamed
+ * session; the request is refused otherwise (`lib/chat/request-context.ts`).
+ *
  * A host tool is never authority over data: the person's data is reached only
  * through their apps' catalogue tools, which Oxy authorizes per call. It is
  * also separate from the editor lane (`body.tools`), whose tools a developer
@@ -21,9 +28,11 @@ import { jsonSchema, tool, type ModelMessage, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { ORIGIN_APP_PATTERN } from '../domain/conversation.js';
 import type { SSEEmitter } from './sse-emitter.js';
+import { HOST_TOOL_OUTCOMES } from '../domain/chat-host-results.js';
+import type { HostResultAnswer, HostResultKey } from '../db/chat/hostResultRepository.js';
+import type { TurnIdentity } from '../db/chat/turnControlRepository.js';
 
-export const HOST_TOOL_OUTCOMES = ['applied', 'inline', 'rejected', 'stale', 'failed'] as const;
-export type HostToolOutcome = (typeof HOST_TOOL_OUTCOMES)[number];
+export { HOST_TOOL_OUTCOMES, type HostToolOutcome } from '../domain/chat-host-results.js';
 
 const MAX_HOST_TOOLS = 16;
 const MAX_OUTCOMES = 32;
@@ -35,6 +44,8 @@ const hostToolDefinitionSchema = z
     inputSchema: z
       .record(z.string(), z.unknown())
       .refine((schema) => schema.type === 'object', 'inputSchema must have an object root'),
+    /** The model reads the client's answer in this same turn (`lib/chat/host-results.ts`). */
+    awaitsResult: z.literal(true).optional(),
   })
   .strict();
 
@@ -106,10 +117,41 @@ export const HOST_TOOL_DISPATCHED = {
     "The app is carrying this out on the person's screen. Its outcome arrives with their next message; do not claim it succeeded and do not repeat it.",
 } as const;
 
-/** One tool per declared host action, emitting `alia.host_action` when called. */
-export function buildHostTools(host: HostRequest, emitter: SSEEmitter): ToolSet {
+/** Whether the request declares a host tool that awaits its result. */
+export function hostAwaitsResults(host: HostRequest | undefined): boolean {
+  return host?.tools.some((definition) => definition.awaitsResult === true) === true;
+}
+
+/** What the model reads when the app did not answer an awaited action in time. */
+export const HOST_RESULT_STALE = {
+  status: 'stale',
+  detail: 'The app did not answer in time.',
+} as const;
+
+/** Where an awaited host action is recorded and its answer awaited (`HostResultWaiter`). */
+export interface HostResultChannel {
+  open(key: HostResultKey): Promise<void>;
+  wait(key: HostResultKey, signal: AbortSignal | undefined): Promise<HostResultAnswer | null>;
+}
+
+/** The turn an awaited host action belongs to, and the channel its answer comes back on. */
+export interface AwaitedHostTurn {
+  turn: TurnIdentity;
+  results: HostResultChannel;
+}
+
+/**
+ * One tool per declared host action, emitting `alia.host_action` when called. A tool that awaits
+ * its result is built only with `awaited`, the turn its answer is bound to.
+ */
+export function buildHostTools(
+  host: HostRequest,
+  emitter: SSEEmitter,
+  awaited?: AwaitedHostTurn,
+): ToolSet {
   const tools: ToolSet = {};
   for (const definition of host.tools) {
+    if (definition.awaitsResult && !awaited) continue;
     const validator = jsonObjectSchemaToZod(definition.inputSchema);
     tools[hostToolName(host.app, definition.name)] = tool({
       description: `[In the app on the person's screen] ${definition.description}`,
@@ -121,15 +163,34 @@ export function buildHostTools(host: HostRequest, emitter: SSEEmitter): ToolSet 
             : { success: false, error: new Error('Input does not match the host tool schema') };
         },
       }),
-      execute: async (input: Record<string, unknown>, { toolCallId }: { toolCallId: string }) => {
-        emitter.emit('alia.host_action', {
+      execute: async (
+        input: Record<string, unknown>,
+        { toolCallId, abortSignal }: { toolCallId: string; abortSignal?: AbortSignal },
+      ) => {
+        const action = {
           eventVersion: 1,
           toolCallId,
           app: host.app,
           name: definition.name,
           input,
-        });
-        return HOST_TOOL_DISPATCHED;
+        };
+        if (!definition.awaitsResult || !awaited) {
+          emitter.emit('alia.host_action', action);
+          return HOST_TOOL_DISPATCHED;
+        }
+        const key = {
+          turnId: awaited.turn.id,
+          toolCallId,
+          authorityKey: awaited.turn.authorityKey,
+        };
+        try {
+          await awaited.results.open(key);
+        } catch {
+          return { status: 'failed', detail: 'The app could not be asked.' };
+        }
+        emitter.emit('alia.host_action', { ...action, awaitsResult: true, turnId: key.turnId });
+        const answer = await awaited.results.wait(key, abortSignal);
+        return answer ? hostOutcomeResult(answer) : HOST_RESULT_STALE;
       },
     });
   }
@@ -137,10 +198,13 @@ export function buildHostTools(host: HostRequest, emitter: SSEEmitter): ToolSet 
 }
 
 /** What the model reads as a host call's result once the client reported it. */
-export function hostOutcomeResult(outcome: HostOutcome): Record<string, unknown> {
+export function hostOutcomeResult(
+  outcome: Pick<HostOutcome, 'outcome' | 'detail'> & { result?: unknown },
+): Record<string, unknown> {
   return {
     status: outcome.outcome,
     ...(outcome.detail ? { detail: outcome.detail } : {}),
+    ...(outcome.result === undefined ? {} : { result: outcome.result }),
   };
 }
 

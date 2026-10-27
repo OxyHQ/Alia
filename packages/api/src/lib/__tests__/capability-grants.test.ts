@@ -610,6 +610,62 @@ describe("the embedding app's host tools", () => {
   });
 });
 
+describe('a host tool that awaits its result', () => {
+  const host = {
+    app: 'astro',
+    version: 1 as const,
+    tools: [
+      {
+        name: 'read_tab',
+        description: 'The open tab’s text.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+        awaitsResult: true as const,
+      },
+    ],
+  };
+  const hostTurn = {
+    turn: { id: 'turn-1', authorityKey: 'authority', conversationId: null },
+    results: { open: async () => undefined, wait: async () => null },
+  };
+
+  it('is offered only with the turn its answer is bound to', async () => {
+    expect(await namesFor(null, { host, hostTurn })).toContain('host_astro__read_tab');
+    expect(await namesFor(null, { host })).not.toContain('host_astro__read_tab');
+    expect(await namesFor(['agent'], { host, hostTurn, nested: true })).not.toContain(
+      'host_astro__read_tab',
+    );
+  });
+});
+
+describe('personalization off for one turn', () => {
+  const ALIA_MEMORY = [
+    'saveUserMemory',
+    'updateUserMemory',
+    'forgetUserMemory',
+    'updateUserPreferences',
+    'updateUserContext',
+  ];
+
+  it('offers Alia none of her memory tools', async () => {
+    const on = await namesFor(null);
+    const off = await namesFor(null, { personalization: false });
+    for (const name of ALIA_MEMORY) {
+      expect(on).toContain(name);
+      expect(off).not.toContain(name);
+    }
+    expect(off).toContain('webSearch');
+  });
+
+  it('offers an agent granted memory neither its memory nor its thread search', async () => {
+    const on = await namesFor(['memory', 'web']);
+    const off = await namesFor(['memory', 'web'], { personalization: false });
+    expect(on).toEqual(expect.arrayContaining(['memory', 'searchThread']));
+    expect(off).not.toContain('memory');
+    expect(off).not.toContain('searchThread');
+    expect(off).toContain('webSearch');
+  });
+});
+
 describe('a gated deep research', () => {
   it('is never a tool on an agent that gates it: the gate is admitted before credits, a tool call is not', async () => {
     expect(await namesFor(['web'])).toContain('deepResearch');

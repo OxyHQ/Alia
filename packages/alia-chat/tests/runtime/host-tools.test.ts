@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { type AliaHostTools, HostOutcomeQueue, hostRequest } from '../../src/runtime/host-tools';
+import {
+  type AliaHostTools,
+  HOST_RESULT_MAX_CHARS,
+  HostOutcomeQueue,
+  type HostResultRecord,
+  hostRequest,
+} from '../../src/runtime/host-tools';
 
 /** The host-tool queue on its own: once per action, held until delivered. */
 
@@ -74,6 +80,71 @@ describe('HostOutcomeQueue', () => {
   });
 });
 
+describe('an awaited action', () => {
+  const awaited = (toolCallId: string) => ({
+    ...action(toolCallId),
+    awaitsResult: true as const,
+    turnId: 't-1',
+  });
+
+  it('is performed once and its answer sent at once with its result, never queued', async () => {
+    const execute = vi.fn(async () => ({
+      outcome: 'applied' as const,
+      detail: 'ok',
+      result: { text: 'hi' },
+    }));
+    const send = vi.fn(async () => undefined);
+    const queue = new HostOutcomeQueue();
+    expect(await queue.answer(awaited('c1'), tools(execute), 'homiio', send)).toBe(true);
+    expect(await queue.answer(awaited('c1'), tools(execute), 'homiio', send)).toBe(false);
+    expect(await queue.dispatch(awaited('c1'), tools(execute), 'homiio')).toBe(false);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      toolCallId: 'c1',
+      outcome: 'applied',
+      detail: 'ok',
+      result: { text: 'hi' },
+    });
+    expect(queue.pending()).toEqual([]);
+  });
+
+  it('answers what it cannot perform, and reports a failed send to the host once', async () => {
+    const onUndelivered = vi.fn();
+    const send = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    const queue = new HostOutcomeQueue();
+    await queue.answer(awaited('c2'), { ...tools(vi.fn()), onUndelivered }, 'other-app', send);
+    expect(send).toHaveBeenCalledExactlyOnceWith({
+      toolCallId: 'c2',
+      outcome: 'rejected',
+      detail: 'This app did not declare that tool.',
+    });
+    expect(onUndelivered).toHaveBeenCalledExactlyOnceWith(awaited('c2'), new Error('offline'));
+  });
+
+  it('sends no result that is not JSON, and none over the bound', async () => {
+    const send = vi.fn(async (_answer: HostResultRecord) => undefined);
+    const queue = new HostOutcomeQueue();
+    await queue.answer(
+      awaited('c3'),
+      tools(async () => ({ outcome: 'applied', result: () => 1 })),
+      'homiio',
+      send,
+    );
+    await queue.answer(
+      awaited('c4'),
+      tools(async () => ({ outcome: 'applied', result: 'x'.repeat(HOST_RESULT_MAX_CHARS) })),
+      'homiio',
+      send,
+    );
+    expect(send.mock.calls.map(([answer]) => answer)).toEqual([
+      { toolCallId: 'c3', outcome: 'applied' },
+      { toolCallId: 'c4', outcome: 'failed', detail: 'The result was too large to send.' },
+    ]);
+  });
+});
+
 describe('hostRequest', () => {
   it("declares the chat's app and its tools, and the outcomes only when there are any", () => {
     const declared = tools(async () => ({ outcome: 'applied' }));
@@ -85,6 +156,25 @@ describe('hostRequest', () => {
     expect(
       hostRequest('homiio', declared, [{ toolCallId: 'c', outcome: 'stale' }])?.outcomes,
     ).toEqual([{ toolCallId: 'c', outcome: 'stale' }]);
+  });
+
+  it('declares `awaitsResult` only when a tool awaits, so an older API is never sent the field', () => {
+    const declared: AliaHostTools = {
+      definitions: [
+        { name: 'read_tab', description: 'r', inputSchema: { type: 'object' }, awaitsResult: true },
+        {
+          name: 'open_tab',
+          description: 'o',
+          inputSchema: { type: 'object' },
+          awaitsResult: false,
+        },
+      ],
+      execute: async () => ({ outcome: 'applied' }),
+    };
+    expect(hostRequest('astro', declared, [])?.tools).toEqual([
+      { name: 'read_tab', description: 'r', inputSchema: { type: 'object' }, awaitsResult: true },
+      { name: 'open_tab', description: 'o', inputSchema: { type: 'object' } },
+    ]);
   });
 
   it('names an app without tools, and is nothing without an app', () => {

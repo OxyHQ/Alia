@@ -45,6 +45,8 @@ export interface AfterChatContext extends ChatHookContext {
    * record does not.
    */
   agentTurn?: boolean;
+  /** The person turned personalization off for this turn: learn nothing about them from it. */
+  personalization?: false;
   /** Whether the caller withdrew before the turn finished. */
   cancelled: boolean;
   /**

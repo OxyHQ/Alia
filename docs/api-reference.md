@@ -89,8 +89,15 @@ with any power level, and with a model only when the model lists that level in `
 `invalid_reasoning_effort`; forwarded to Oxy as `reasoning: { effort }`), `surface`
 (`chat` | `codea` | `cowork`, default `chat` — selects the system prompt, never the
 model), `responseMode: "voice"`, `deepResearch`, `tools`, `host` (the embedding app's UI
-effects, [Embedding an agent](./agent-embedding.md) §2),
+effects, [Embedding an agent](./agent-embedding.md) §2, including tools that `awaitsResult`),
+`turnId` ([explicit Stop](./explicit-chat-stop.md)), `personalization: false` (no memory read,
+recalled or written for this turn; [Embedding an agent](./agent-embedding.md) §2),
 `stream_options.include_usage`.
+
+**`POST /v1/chat/turns/:turnId/cancel`** stops a turn ([explicit Stop](./explicit-chat-stop.md)).
+**`POST /v1/chat/turns/:turnId/host-results`** answers an awaited host action of that turn,
+`{ toolCallId, outcome, detail?, result? }`, under the same authentication and authority
+binding ([Embedding an agent](./agent-embedding.md) §2).
 
 **`GET /alia/chat`** returns a service status object, not a completion.
 
@@ -263,6 +270,7 @@ Routes mounted in `packages/api/src/routes/v1.ts`:
 | `GET /v1/models`, `GET /v1/models/:modelId` | `:28` | none — mounted ahead of the auth middleware |
 | `GET /v1/me` | `:68` | Oxy session or service token |
 | `POST /v1/chat/completions` | `:127` | Oxy session or service token |
+| `POST /v1/chat/turns/:turnId/cancel`, `POST /v1/chat/turns/:turnId/host-results` | `routes/v1.ts` | a person's session (or app-only credential for cancel), bound to the turn's authority |
 | `/v1/responses` | `:130` | Oxy session or service token |
 | `/v1/audio` | `:136` | Oxy session or service token |
 | `/v1/images` | `:139` | Oxy session or service token |

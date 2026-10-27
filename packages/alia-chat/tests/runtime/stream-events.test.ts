@@ -89,6 +89,26 @@ describe('parseHostAction', () => {
     ).toEqual({ toolCallId: 'c', app: 'homiio', name: 'apply_search', input: {} });
   });
 
+  it('keeps an awaited action’s turn, and refuses one that cannot be answered', () => {
+    const awaited = { eventVersion: 1, toolCallId: 'c', app: 'astro', name: 'read_tab' };
+    expect(parseHostAction({ ...awaited, awaitsResult: true, turnId: 't-1' })).toEqual({
+      toolCallId: 'c',
+      app: 'astro',
+      name: 'read_tab',
+      input: {},
+      awaitsResult: true,
+      turnId: 't-1',
+    });
+    expect(parseHostAction({ ...awaited, awaitsResult: true })).toBeNull();
+    expect(parseHostAction({ ...awaited, awaitsResult: 'yes', turnId: 't-1' })).toBeNull();
+    expect(parseHostAction({ ...awaited, turnId: 't-1' })).toEqual({
+      toolCallId: 'c',
+      app: 'astro',
+      name: 'read_tab',
+      input: {},
+    });
+  });
+
   it('refuses one without its call, app or name, or another version', () => {
     expect(parseHostAction({ eventVersion: 1, app: 'homiio', name: 'x' })).toBeNull();
     expect(parseHostAction({ eventVersion: 1, toolCallId: 'c', name: 'x' })).toBeNull();

@@ -29,6 +29,7 @@ import {
   TurnControlError,
 } from '../../lib/chat/turn-control.js';
 import type { TurnIdentity } from '../../db/chat/turnControlRepository.js';
+import { hostResultWaiter } from '../../lib/chat/host-results.js';
 import {
   recordChatInferenceAttempt,
   requestCreditReconciliation,
@@ -196,6 +197,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       reasoningEffort,
       responseMode,
       host,
+      personalization,
       deepResearch,
       webSearch,
       mcpServerId,
@@ -323,6 +325,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             inputLimits: ctx.resolved.catalogue,
             editorToolDefinitions: body.tools,
             ...(host ? { host } : {}),
+            ...(controlIdentity
+              ? { hostTurn: { turn: controlIdentity, results: hostResultWaiter() } }
+              : {}),
+            personalization,
             attachments: consultAttachments,
             sseEmitter,
             webSearch,
@@ -384,6 +390,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       oxyUser,
       userMemory,
       recalledMemories,
+      personalization,
       skills,
       linkedAgent,
       autonomyRuntime,
@@ -485,6 +492,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       providerAbort,
       beforeFinish: observation?.beginFinish,
       agentTurn: linkedAgent != null,
+      ...(personalization ? {} : { personalization: false }),
       state,
       body,
       messages,

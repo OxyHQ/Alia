@@ -542,6 +542,19 @@ describe('Alia only learns from Alia’s answered turns', () => {
     vi.restoreAllMocks();
   });
 
+  it('learns nothing about the person on a turn with personalization off, but still records usage', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    H.state.classification = suggestion;
+
+    runPostChatHooks(lifecycleContext({ personalization: false }), 'answer', OBSERVED, null);
+    await settle();
+
+    expect(H.timeline).toContain('learn:analytics(acme/chat-1,60)');
+    expect(H.timeline).not.toContain('learn:writingStyle(mem-ws13)');
+    expect(H.timeline).not.toContain('proactive:classify');
+    vi.restoreAllMocks();
+  });
+
   it('skips writing style and suggestions on a failed turn, but still records the failure', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     H.state.classification = suggestion;

@@ -22,7 +22,7 @@ registerHook({
     if (!ctx.userId) return;
     // Alia's profile of the person comes from Alia's turns; a failed turn has
     // nothing to learn from either.
-    if (ctx.agentTurn || ctx.errorClass) return;
+    if (ctx.agentTurn || ctx.errorClass || ctx.personalization === false) return;
 
     // Only the message this turn added. The history is the same text the
     // earlier turns already analysed, and counting it again would weight every

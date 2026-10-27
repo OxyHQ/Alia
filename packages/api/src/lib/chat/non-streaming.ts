@@ -77,6 +77,8 @@ export interface NonStreamingParams {
   beforeFinish?: () => Promise<void>;
   /** The turn runs as an agent: Alia's after-chat learning skips it. */
   agentTurn?: boolean;
+  /** The person turned personalization off: nothing is learned about them from this turn. */
+  personalization?: false;
 }
 
 /** Handle one non-streaming provider attempt end to end; writes the JSON response. */
@@ -106,6 +108,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     assertLive,
     beforeFinish,
     agentTurn,
+    personalization,
   } = params;
 
   log.v1.info('Non-streaming request, using generateText');
@@ -171,6 +174,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     skillNames: skills.activated().map((skill) => skill.name),
     autonomyRuntime,
     ...(agentTurn ? { agentTurn: true } : {}),
+    ...(personalization === false ? { personalization } : {}),
     ...(originApp === undefined ? {} : { originApp }),
   };
 

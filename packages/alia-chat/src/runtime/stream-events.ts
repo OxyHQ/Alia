@@ -125,15 +125,29 @@ export interface HostAction {
   app: string;
   name: string;
   input: Record<string, unknown>;
+  /**
+   * The model is waiting for this action's result within the same turn: its outcome is answered
+   * at once on the turn's `host-results` route, never with the next request.
+   */
+  awaitsResult?: true;
+  /** The turn that waits, present exactly when `awaitsResult` is. */
+  turnId?: string;
 }
 
 /** The host action an `alia.host_action` frame carries, or `null` when it is not well-formed. */
 export function parseHostAction(data: unknown): HostAction | null {
   if (!isObject(data) || data.eventVersion !== 1) return null;
-  const { toolCallId, app, name, input } = data;
+  const { toolCallId, app, name, input, awaitsResult, turnId } = data;
   if (!isText(toolCallId) || !isText(app) || !isText(name)) return null;
   if (input !== undefined && !isObject(input)) return null;
-  return { toolCallId, app, name, input: (input as Record<string, unknown> | undefined) ?? {} };
+  if (awaitsResult !== undefined && (awaitsResult !== true || !isText(turnId))) return null;
+  return {
+    toolCallId,
+    app,
+    name,
+    input: (input as Record<string, unknown> | undefined) ?? {},
+    ...(awaitsResult === true ? { awaitsResult: true as const, turnId: turnId as string } : {}),
+  };
 }
 
 /** The error code that ends a turn an agent's feature gate refused (§5). */

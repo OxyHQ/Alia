@@ -62,9 +62,17 @@ region or permissive fallback may be invented in Alia.
   "reasoningEffort": "medium",
   "deepResearch": true,
   "tools": ["webSearch", "webScraper"],
+  "turnId": "6f1c2d3e-4b5a-4c6d-8e7f-001122334455",
+  "personalization": false,
   "stream_options": { "include_usage": true }
 }
 ```
+
+`personalization: false` turns personalization off for the turn: no memory profile, no recall,
+no memory tools and nothing learned from it; the conversation is still stored. A host tool may
+declare `awaitsResult: true` to be answered within the same turn on
+`POST /v1/chat/turns/:turnId/host-results` (needs `turnId` and a stream). Both are specified in
+[Embedding an agent](./agent-embedding.md) §2.
 
 `reasoningEffort` (`low` | `medium` | `high`) is accepted only when the model
 lists that level in its `reasoningEfforts`. Oxy and Kaana own route authorization and

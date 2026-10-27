@@ -107,6 +107,8 @@ export interface SystemPromptOptions {
   userMemory?: UserMemoryData | null;
   /** Recalled memories from before-chat hooks */
   recalledMemories?: Array<{ title: string; summary: string }>;
+  /** `false`: the person turned personalization off for this turn, so no memory of any actor is read. */
+  personalization?: boolean;
   /**
    * The two halves of Agent Skills that reach the system prompt.
    *
@@ -198,6 +200,7 @@ export class SystemPromptBuilder {
       oxyUser,
       userMemory,
       recalledMemories,
+      personalization = true,
       skills,
       linkedAgent,
       toolNames,
@@ -229,8 +232,9 @@ export class SystemPromptBuilder {
      * the `memory` grant reads its OWN memory of the person
      * (`agentMemoryPromptSection`) and nothing of hers.
      */
-    const mayReadAliaMemory = agentGrants === null;
-    const mayReadAgentMemory = agentGrants !== null && agentGrants.allows('memory');
+    const mayReadAliaMemory = agentGrants === null && personalization;
+    const mayReadAgentMemory =
+      agentGrants !== null && agentGrants.allows('memory') && personalization;
     const mayReadSkills = agentGrants === null || skills?.agentScoped === true;
 
     // 1. Base prompt: the surface's prompt over `base.md`.

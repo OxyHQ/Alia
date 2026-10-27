@@ -39,6 +39,11 @@ export interface AliaTurnRequest {
   /** Only `false` is sent: `true` is the server's default. */
   webSearch?: boolean;
   deepResearch?: boolean;
+  /**
+   * `false` turns personalization off for this turn: Alia reads no memory of the person, recalls
+   * nothing and offers no memory tools. The conversation is stored as usual. Only `false` is sent.
+   */
+  personalization?: false;
 }
 
 /** Why the thread asks its host to show the thought panel. */
