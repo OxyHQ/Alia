@@ -76,7 +76,7 @@ function tailStart(count: number): number {
 /** The anchor that keeps exactly the rows mounted now, from the row at `start`. */
 export function pinAnchor(ids: readonly string[], start: number): TimelineAnchor {
   if (start <= 0 || ids.length === 0) return TOP;
-  return { kind: 'row', id: ids[start] };
+  return { kind: 'row', id: ids[start] as string };
 }
 
 /**
@@ -124,7 +124,7 @@ export function sameTimelineShape(previous: readonly Shape[], next: readonly Sha
   if (previous === next) return true;
   if (previous.length !== next.length) return false;
   for (let i = 0; i < next.length; i += 1) {
-    if (!sameShape(previous[i], next[i])) return false;
+    if (!sameShape(previous[i] as Shape, next[i] as Shape)) return false;
   }
   return true;
 }

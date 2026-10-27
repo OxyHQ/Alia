@@ -129,7 +129,7 @@ function StepsTab({ steps, lifecycle }: { steps: ThoughtStep[]; lifecycle: TurnL
     return <EmptyState variant="compact" description={t('thought.noSteps')} />;
   }
 
-  const last = steps[steps.length - 1];
+  const last = steps[steps.length - 1] as (typeof steps)[number];
   const tail = live && (last.type === 'thinking' || last.type === 'writing') ? last : null;
   const rows = tail === null ? steps : steps.slice(0, -1);
 

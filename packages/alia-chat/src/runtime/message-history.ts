@@ -102,7 +102,7 @@ export function normalizeConversationMessages(messages: readonly Message[]): Mes
   messages = messages.filter((message) => message.role !== 'system');
 
   for (let index = 0; index < messages.length; index += 1) {
-    const current = messages[index];
+    const current = messages[index] as Message;
     const placeholder = messages[index + 1];
     const duplicate = messages[index + 2];
 

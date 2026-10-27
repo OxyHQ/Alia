@@ -12,7 +12,7 @@ const CANONICAL_TOOL = /^(?:oxy|self)_([a-z][a-z0-9-]{0,63})__([A-Za-z0-9_-]+)$/
 /** The app and tool of a canonical catalogue tool name, or `null` for any other name. */
 export function parseCatalogueTool(toolName: string): { app: string; tool: string } | null {
   const match = CANONICAL_TOOL.exec(toolName);
-  return match ? { app: match[1], tool: match[2] } : null;
+  return match ? { app: match[1] ?? '', tool: match[2] ?? '' } : null;
 }
 
 /** The renderer key of a tool name (`<app>:<tool>`), or `null` when it is not a catalogue tool. */

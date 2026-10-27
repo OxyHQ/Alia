@@ -95,7 +95,7 @@ export function threadHistory(
 ): ThreadMessage[] {
   const history: ThreadMessage[] = [];
   for (let page = pages.length - 1; page >= 0; page -= 1) {
-    for (const message of pages[page].messages) {
+    for (const message of pages[page]?.messages ?? []) {
       if (message.conversationId === activeConversationId) continue;
       history.push({ ...message, id: message.id ?? message.cursor });
     }

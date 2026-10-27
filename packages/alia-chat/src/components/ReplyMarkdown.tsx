@@ -121,7 +121,7 @@ function parseBlockData(type: string, match: RegExpExecArray): any {
     switch (type) {
       case 'COMPACTLIST': {
         const title = match[1];
-        const itemsText = match[2];
+        const itemsText = match[2] ?? '';
         const items = itemsText
           .split('\n')
           .filter((line) => line.trim().startsWith('-'))
@@ -140,26 +140,26 @@ function parseBlockData(type: string, match: RegExpExecArray): any {
         return {
           type: match[1],
           title: match[2],
-          content: match[3].trim(),
+          content: (match[3] ?? '').trim(),
         };
       }
       case 'COMPARISON': {
         const title = match[1];
-        const content = match[2];
+        const content = match[2] ?? '';
         const leftMatch = content.match(/LEFT:\s*({.*?})/s);
         const rightMatch = content.match(/RIGHT:\s*({.*?})/s);
         const conclusionMatch = content.match(/CONCLUSION:\s*(.*?)$/s);
 
         return {
           title,
-          left: leftMatch ? JSON.parse(leftMatch[1]) : {},
-          right: rightMatch ? JSON.parse(rightMatch[1]) : {},
-          conclusion: conclusionMatch ? conclusionMatch[1].trim() : undefined,
+          left: leftMatch ? JSON.parse(leftMatch[1] ?? '') : {},
+          right: rightMatch ? JSON.parse(rightMatch[1] ?? '') : {},
+          conclusion: conclusionMatch ? (conclusionMatch[1] ?? '').trim() : undefined,
         };
       }
       case 'TIMELINE': {
         const title = match[1];
-        const itemsText = match[2];
+        const itemsText = match[2] ?? '';
         const items = itemsText
           .split('\n')
           .filter((line) => line.trim().startsWith('-'))
@@ -183,7 +183,7 @@ function parseBlockData(type: string, match: RegExpExecArray): any {
       }
       case 'CREDIBILITY': {
         return {
-          level: parseInt(match[1], 10),
+          level: parseInt(match[1] ?? '', 10),
           source: match[2],
         };
       }
