@@ -3,6 +3,8 @@ import { Muted, Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
 import { ChartRenderer } from './ChartRenderer';
 import { CodeRenderer } from './CodeRenderer';
+import { DashboardRenderer } from './DashboardRenderer';
+import { DeckRenderer } from './DeckRenderer';
 import { FormRenderer } from './FormRenderer';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { TableRenderer } from './TableRenderer';
@@ -45,6 +47,10 @@ export function CanvasComponent({ component, onFormSubmit }: CanvasComponentProp
         return <MarkdownRenderer data={component.data} />;
       case 'artifact':
         return <MarkdownRenderer data={{ content: component.data.content }} />;
+      case 'deck':
+        return <DeckRenderer data={component.data} />;
+      case 'dashboard':
+        return <DashboardRenderer data={component.data} />;
       default:
         return <Muted>{t('panels.canvas.unsupported', { type: component.type })}</Muted>;
     }

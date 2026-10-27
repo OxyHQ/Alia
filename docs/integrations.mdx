@@ -37,6 +37,18 @@ by a grant. The families and the tools each contributes:
 | `mcp:<id>`, `agent[:<id>]`, … | instanced families: one connector or agent per grant (`consultAgent` for `agent`) |
 | no grant (`UNGRANTED_TOOLS`) | `getCurrentDate`, `getDeviceInfo`, `planPreview`, `plan`, `suggestNewConversation` |
 
+### The canvas
+
+`canvas` (`lib/tools/canvas.ts`) draws content for the person instead of writing it in the
+reply: `markdown` (a report or document), `deck`, `dashboard`, `chart`, `table`, `code`,
+`form`, `image` and `artifact`. A deck is `{ slides: [{ title, subtitle?, bullets?, body?, notes? }] }`
+and a dashboard `{ widgets: [stat | chart | table | text] }`; both are validated when the tool
+runs, and a malformed one comes back to the model as an `error` naming the field, so a surface
+never receives one it cannot draw. Surfaces open them on their own: the SDK's
+`CanvasComponent` draws every type in the app's panel, and Astro opens reports, decks and
+dashboards in a tab with comments, versions (a later call with the same title and type) and
+exports.
+
 Alia's memory tools (`saveUserMemory`, `updateUserMemory`, `forgetUserMemory`,
 `updateUserPreferences`, `updateUserContext`) are hers alone and are never built
 for an agent ([memory](./memory-system.md)). The 128-tool request limit and the
