@@ -77,14 +77,14 @@ const SHAPES: Partial<Record<(typeof CANVAS_TYPES)[number], z.ZodType>> = {
 
 export const canvasTool = tool({
   description:
-    'Display rich content as a visual canvas component the person can open, comment on and export: a report (markdown), a slide deck (deck), a dashboard, a chart, a table, code, a form or an image. Not for a simple text answer. To revise one, call it again with the same title and type.',
+    'Show rich content the person can open and export: a report (markdown), slide deck, dashboard, chart, table, code, form or image. Not for a simple text answer. To revise one, call again with the same title and type.',
   inputSchema: z.object({
-    type: z.enum(CANVAS_TYPES).describe('The type of canvas component to create'),
-    title: z.string().describe('Title for the canvas component'),
+    type: z.enum(CANVAS_TYPES),
+    title: z.string(),
     data: z
       .any()
       .describe(
-        'Component data. For chart: { chartType: "bar"|"line"|"pie", labels, datasets: [{ label, values }] }. For table: { headers, rows }. For code: { language, code }. For form: { fields }. For image: { url, alt? }. For markdown (a report or document): { content }. For artifact: { content, language? }. For deck: { slides: [{ title, subtitle?, bullets?: string[], body?: markdown, notes? }] }. For dashboard: { widgets: [ { kind: "stat", label, value, delta? } | { kind: "chart", title?, chartType, labels, datasets } | { kind: "table", title?, headers, rows } | { kind: "text", title?, content: markdown } ] }',
+        'chart: { chartType: "bar"|"line"|"pie", labels, datasets: [{ label, values }] }. table: { headers, rows }. code: { language, code }. form: { fields }. image: { url, alt? }. markdown: { content }. artifact: { content, language? }. deck: { slides: [{ title, subtitle?, bullets?, body?, notes? }] }. dashboard: { widgets: [{ kind: "stat", label, value, delta? } | { kind: "chart", title?, chartType, labels, datasets } | { kind: "table", title?, headers, rows } | { kind: "text", title?, content }] }',
       ),
   }),
   execute: async ({ type, title, data }) => {
