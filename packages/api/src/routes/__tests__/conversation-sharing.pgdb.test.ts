@@ -1,8 +1,9 @@
 /**
  * Sharing a conversation (`docs/agent-embedding.md` §6), through the REAL
  * handlers against a REAL Postgres: the owner mints a link, anybody holding it
- * reads the words, images and who said them — never a tool's input or output —
- * until it expires or the owner revokes it. And the conversation list narrows
+ * reads the words, images, who said them and the canvas artifacts Alia drew —
+ * never any other tool's input or output — until it expires or the owner
+ * revokes it. And the conversation list narrows
  * to one agent.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -155,6 +156,25 @@ beforeEach(async () => {
           args: { q: 'my saved homes' },
           result: { listings: ['Private address, 3rd floor'] },
         },
+        {
+          toolCallId: 'call-2',
+          toolName: 'canvas',
+          state: 'result',
+          args: { type: 'dashboard', title: 'Your shortlist', data: { widgets: [] } },
+          result: {
+            id: 'canvas-1',
+            type: 'dashboard',
+            title: 'Your shortlist',
+            data: { widgets: [{ kind: 'stat', label: 'Average rent', value: '1,250 EUR' }] },
+            message: 'Canvas component created',
+          },
+        },
+        {
+          toolCallId: 'call-3',
+          toolName: 'host_astro__readTab',
+          state: 'result',
+          result: { status: 'applied', result: 'Tab text: my bank statement' },
+        },
       ],
       agentInfo: {
         id: AGENT_ID,
@@ -214,13 +234,28 @@ describe('a share link', () => {
             color: 'teal',
             character: null,
           },
+          artifacts: [
+            {
+              id: 'call-2',
+              type: 'dashboard',
+              title: 'Your shortlist',
+              data: { widgets: [{ kind: 'stat', label: 'Average rent', value: '1,250 EUR' }] },
+            },
+          ],
         },
       ],
       expiresAt: stored.expiresAt,
     });
-    // Never a tool's input or output, a document or the system prompt.
+    // The canvas artifact, and never another tool's input or output, a document or the system prompt.
     const text = JSON.stringify(shown.body);
-    for (const leak of ['my saved homes', 'Private address', 'lease.pdf', 'You are Sindi']) {
+    for (const leak of [
+      'my saved homes',
+      'Private address',
+      'my bank statement',
+      'lease.pdf',
+      'You are Sindi',
+      'canvas-1',
+    ]) {
       expect(text).not.toContain(leak);
     }
   });
@@ -233,12 +268,16 @@ describe('a share link', () => {
     expect((await read(second)).status).toBe(200);
   });
 
-  it('stops working when revoked; revoking twice is a 404', async () => {
+  it('stops working when revoked, artifacts included; revoking twice is a 404', async () => {
     const token = String((await share(ALICE, 'c-sindi')).body.token);
     const revoke = () =>
       call(conversationsRouter, 'delete', '/:id/share', { user: ALICE, params: { id: 'c-sindi' } });
+    expect((await read(token)).body).toMatchObject({ messages: [{}, { artifacts: [{}] }] });
     expect((await revoke()).status).toBe(200);
-    expect((await read(token)).status).toBe(404);
+    const gone = await read(token);
+    expect(gone.status).toBe(404);
+    expect(gone.body).toEqual({ error: 'Shared conversation not found' });
+    expect(JSON.stringify(gone.body)).not.toContain('Average rent');
     expect((await revoke()).status).toBe(404);
   });
 
