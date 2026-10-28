@@ -44,6 +44,8 @@ export interface AliaApi {
   get<T>(path: string, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
   post<T>(path: string, body?: unknown, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
   patch<T>(path: string, body?: unknown, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
+  /** Replaces a resource whole, for the routes that take PUT (the memory profile's sections). */
+  put<T>(path: string, body?: unknown, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
   delete<T>(path: string, request?: AliaApiRequest): Promise<AliaApiResult<T>>;
 }
 
@@ -95,7 +97,7 @@ export function createAliaApi(
   appAssertionHeaders: AppAssertionHeaders = NO_APP_ASSERTION,
 ): AliaApi {
   async function send<T>(
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     path: string,
     request: AliaApiRequest = {},
   ): Promise<AliaApiResult<T>> {
@@ -125,6 +127,7 @@ export function createAliaApi(
     get: (path, request) => send('GET', path, request),
     post: (path, body, request) => send('POST', path, { ...request, body: body ?? {} }),
     patch: (path, body, request) => send('PATCH', path, { ...request, body: body ?? {} }),
+    put: (path, body, request) => send('PUT', path, { ...request, body: body ?? {} }),
     delete: (path, request) => send('DELETE', path, request),
   };
 }
