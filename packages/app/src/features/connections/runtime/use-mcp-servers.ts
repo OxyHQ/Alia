@@ -13,6 +13,8 @@ export interface McpRegistryEntry {
   requiresOAuth?: boolean;
   featured?: boolean;
   category: string;
+  /** False while the deployment lacks the client the vendor issues Alia. */
+  configured?: boolean;
 }
 
 export interface McpServerTool {
@@ -63,7 +65,11 @@ export function useMcpServers() {
         apiClient.get('/mcp/registry'),
         apiClient.get('/mcp/installed'),
       ]);
-      setRegistry(registryRes.data.servers || []);
+      setRegistry(
+        ((registryRes.data.servers || []) as McpRegistryEntry[]).filter(
+          (entry) => entry.configured !== false,
+        ),
+      );
       setInstalled(installedRes.data.servers || []);
       setError(null);
     } catch (err: unknown) {
