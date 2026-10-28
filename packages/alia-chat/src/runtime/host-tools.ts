@@ -9,7 +9,8 @@
  *
  * A tool declared with `awaitsResult: true` is read in the SAME turn instead ("this tab's text",
  * "the open tabs"): the server waits, and this client answers it at once on the turn's
- * `host-results` route with the outcome and the `result` its `execute` returned.
+ * `host-results` route with the outcome and the `result` its `execute` returned — text, JSON or
+ * an image ({@link AliaHostImageResult}) the model sees as one.
  *
  * Three rules hold here, in a queue that knows nothing of React:
  *  - an action is performed at most once, whatever the stream repeats;
@@ -45,9 +46,59 @@ export interface AliaHostOutcome {
   detail?: string;
   /**
    * What an awaited tool read, for the model: a string or any JSON value, at most
-   * {@link HOST_RESULT_MAX_CHARS} characters as JSON. Ignored for a tool that does not await.
+   * {@link HOST_RESULT_MAX_CHARS} characters as JSON, or an {@link AliaHostImageResult} the model
+   * sees as an image. Ignored for a tool that does not await.
    */
   result?: unknown;
+}
+
+export const HOST_IMAGE_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type AliaHostImageMediaType = (typeof HOST_IMAGE_MEDIA_TYPES)[number];
+
+/** The longest caption an image result may carry. */
+export const HOST_IMAGE_TEXT_MAX_CHARS = 4_000;
+
+/**
+ * An awaited tool's image (a tab's screenshot): the model sees the image itself in that turn, and
+ * the stored conversation keeps `{ type, mediaType, text?, omitted: true }` in its place.
+ * `data` is the image's bytes in standard base64, with no `data:` prefix; the whole result counts
+ * toward {@link HOST_RESULT_MAX_CHARS}, so size the image to fit (a JPEG of the viewport).
+ */
+export interface AliaHostImageResult {
+  type: 'image';
+  mediaType: AliaHostImageMediaType;
+  data: string;
+  /** A caption for the model (the tab's URL and title), at most {@link HOST_IMAGE_TEXT_MAX_CHARS}. */
+  text?: string;
+}
+
+const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const IMAGE_KEYS = ['type', 'mediaType', 'data', 'text'];
+
+/**
+ * Why a result that claims to be an image (`type: "image"`) is not a valid one, or `null`. The
+ * server refuses such an answer, which would leave the model waiting until the action goes stale;
+ * the runtime answers `failed` with this reason instead.
+ */
+export function hostImageResultProblem(result: unknown): string | null {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return null;
+  const image = result as Record<string, unknown>;
+  if (image.type !== 'image') return null;
+  const extra = Object.keys(image).find((key) => !IMAGE_KEYS.includes(key));
+  if (extra !== undefined) return `An image result has no "${extra}".`;
+  if (!HOST_IMAGE_MEDIA_TYPES.includes(image.mediaType as AliaHostImageMediaType)) {
+    return `An image result's mediaType is one of ${HOST_IMAGE_MEDIA_TYPES.join(', ')}.`;
+  }
+  if (typeof image.data !== 'string' || image.data === '' || !BASE64.test(image.data)) {
+    return "An image result's data is standard base64 with no data: prefix.";
+  }
+  if (
+    image.text !== undefined &&
+    (typeof image.text !== 'string' || image.text.length > HOST_IMAGE_TEXT_MAX_CHARS)
+  ) {
+    return `An image result's text is a string of at most ${HOST_IMAGE_TEXT_MAX_CHARS} characters.`;
+  }
+  return null;
 }
 
 /**
@@ -96,8 +147,10 @@ const DETAIL_LIMIT = 500;
 /** The server's bound on an awaited action's `result`, as JSON. */
 export const HOST_RESULT_MAX_CHARS = 100_000;
 
-function resultOf(result: unknown): { result?: unknown } | 'too_large' {
+function resultOf(result: unknown): { result?: unknown } | 'too_large' | { invalid: string } {
   if (result === undefined || result === null) return {};
+  const problem = hostImageResultProblem(result);
+  if (problem !== null) return { invalid: problem };
   let text: string | undefined;
   try {
     text = JSON.stringify(result);
@@ -158,7 +211,9 @@ export class HostOutcomeQueue {
             outcome: 'failed',
             detail: 'The result was too large to send.',
           })
-        : { ...record(action.toolCallId, outcome), ...result };
+        : 'invalid' in result
+          ? record(action.toolCallId, { outcome: 'failed', detail: result.invalid })
+          : { ...record(action.toolCallId, outcome), ...result };
     try {
       await send(answer);
     } catch (error) {
