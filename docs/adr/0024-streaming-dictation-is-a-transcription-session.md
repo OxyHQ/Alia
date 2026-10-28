@@ -1,7 +1,7 @@
 # 24. Streaming dictation is a transcription session through Kaana
 
-Status: Proposed (2026-10-28). It depends on Kaana ADR 0006 (proposed). Nothing here is
-implemented.
+Status: Accepted (2026-10-28, the owner's decision: word-by-word dictation through xAI's streaming
+speech-to-text at $0.20 an hour). Deployment follows Kaana ADR 0006's rollout and its canary.
 Date: 2026-10-28.
 
 ## Context
