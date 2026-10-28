@@ -185,13 +185,28 @@ async function prepareAttempt(
  */
 export interface Translation {
   readonly messages: InferenceMessage[];
+  /** The user messages that carry tool-result images, which the fit treats as tool results. */
+  readonly toolImageMessages: ReadonlySet<InferenceMessage>;
   readonly tools: ToolDefinition[];
   readonly toolChoice?: ToolChoice;
   readonly warnings: SharedV3Warning[];
 }
 
+/** An image a tool returned (`image-data`, or `file-data` of an image type), base64. */
+interface ToolResultImage {
+  readonly mediaType: string;
+  readonly data: string;
+}
+
+/** What a tool result's text says when its image is sent in the message after it. */
+export const TOOL_IMAGE_FOLLOWS_NOTE = '[The image this call returned is in the next message.]';
+
+/** What a tool result's text says once the step that returned its image is over. */
+export const PAST_TOOL_IMAGE_NOTE =
+  '[The image this call returned was shown in its own step and is not repeated; call the tool again to look again.]';
+
 /**
- * A tool's output as the one thing the contract can carry: text.
+ * A tool's output as the contract's tool message carries it: text, and the images it returned.
  *
  * The contract's message content is text, image, audio or file — it has no
  * `json` part, because a tool result is not a modality. Every provider dialect
@@ -200,6 +215,11 @@ export interface Translation {
  * will actually read, so a result that stringifies to `{}` is a result the model
  * cannot use, and that is worth being able to see in one place.
  *
+ * Images (an awaited host tool's screenshot, `lib/chat/host-image-result.ts`) are returned apart
+ * from the text, because they cannot ride the tool message itself on every dialect: OpenAI-style
+ * chat completions refuse an image outside a user message, and Kaana forwards a tool message's
+ * parts as they are. {@link translatePrompt} decides where they go.
+ *
  * `execution-denied` is rendered as a sentence rather than dropped. The model
  * asked for something and the answer is that it was refused; an empty result
  * would read as a tool that ran and returned nothing, which invites it to try
@@ -207,27 +227,40 @@ export interface Translation {
  */
 function toolResultText(output: LanguageModelV3ToolResultOutput): {
   readonly text: string;
+  readonly images: readonly ToolResultImage[];
   readonly unsupported?: string;
 } {
   switch (output.type) {
     case 'text':
     case 'error-text':
-      return { text: output.value };
+      return { text: output.value, images: [] };
     case 'json':
     case 'error-json':
-      return { text: JSON.stringify(output.value) };
+      return { text: JSON.stringify(output.value), images: [] };
     case 'execution-denied':
       return {
         text:
           output.reason === undefined
             ? 'The tool call was denied and did not run.'
             : `The tool call was denied and did not run: ${output.reason}`,
+        images: [],
       };
     case 'content': {
-      const texts = output.value.filter((part) => part.type === 'text').map((part) => part.text);
-      const others = output.value.length - texts.length;
+      const texts: string[] = [];
+      const images: ToolResultImage[] = [];
+      let others = 0;
+      for (const part of output.value) {
+        if (part.type === 'text') texts.push(part.text);
+        else if (
+          part.type === 'image-data' ||
+          (part.type === 'file-data' && part.mediaType.startsWith('image/'))
+        ) {
+          images.push({ mediaType: part.mediaType, data: part.data });
+        } else others += 1;
+      }
       return {
         text: texts.join('\n'),
+        images,
         ...(others > 0 ? { unsupported: `${others} non-text part(s) of a tool result` } : {}),
       };
     }
@@ -292,12 +325,28 @@ function documentPart(part: LanguageModelV3FilePart): InferenceContentPart {
  *    into a single message would need one `toolCallId` for several answers, and
  *    the schema rejects the message that omits it — correctly, since the model
  *    would have no way to tell which answer belongs to which call.
+ *
+ * A third is a choice. Images a tool returned (a host's screenshot) go in ONE
+ * user message right after the step's tool messages, each labelled with its
+ * call, while each tool message says the image follows: an image in a tool
+ * message is refused by OpenAI-style chat completions, and a user message
+ * carries one on every dialect that sees. Only the step the prompt ends with
+ * sends its images. An earlier step's result keeps its text and says its image
+ * is not repeated, so a sixteen-step browsing turn sends one screenshot per
+ * request rather than all of them, and the model, having already looked, takes
+ * a new one when it needs to. The image message is returned in
+ * `toolImageMessages`, so the request fit (`request-budget.ts`) shrinks it as
+ * a tool result rather than protecting it as the person's latest message.
  */
 function translatePrompt(
   prompt: LanguageModelV3Prompt,
   warn: (message: string) => void,
-): InferenceMessage[] {
+): { messages: InferenceMessage[]; toolImageMessages: Set<InferenceMessage> } {
   const messages: InferenceMessage[] = [];
+  const toolImageMessages = new Set<InferenceMessage>();
+  /** The images of the step the prompt ends with, sent after its tool messages. */
+  const latestImages: Array<{ toolCallId: string; toolName: string; image: ToolResultImage }> = [];
+  const latestStep = prompt.length - 1;
 
   const textOf = (
     parts: readonly { readonly type: string; readonly text?: string }[],
@@ -312,24 +361,37 @@ function translatePrompt(
       return [];
     });
 
-  const pushToolResult = (part: {
-    readonly toolCallId: string;
-    readonly output: LanguageModelV3ToolResultOutput;
-  }): void => {
+  const pushToolResult = (
+    part: {
+      readonly toolCallId: string;
+      readonly toolName: string;
+      readonly output: LanguageModelV3ToolResultOutput;
+    },
+    inLatestStep: boolean,
+  ): void => {
     const rendered = toolResultText(part.output);
     if (rendered.unsupported !== undefined) {
       warn(
         `Kaana serves text today; ${rendered.unsupported} was not sent rather than silently dropped.`,
       );
     }
+    let text = rendered.text;
+    if (rendered.images.length > 0) {
+      text = `${text}\n${inLatestStep ? TOOL_IMAGE_FOLLOWS_NOTE : PAST_TOOL_IMAGE_NOTE}`;
+      if (inLatestStep) {
+        for (const image of rendered.images) {
+          latestImages.push({ toolCallId: part.toolCallId, toolName: part.toolName, image });
+        }
+      }
+    }
     messages.push({
       role: 'tool',
-      content: [{ type: 'text', text: rendered.text }],
+      content: [{ type: 'text', text }],
       toolCallId: part.toolCallId,
     });
   };
 
-  for (const message of prompt) {
+  for (const [index, message] of prompt.entries()) {
     switch (message.role) {
       case 'system':
         // The one role whose content is a bare string in this interface.
@@ -350,7 +412,11 @@ function translatePrompt(
       case 'assistant': {
         const content: InferenceContentPart[] = [];
         const toolCalls: { id: string; name: string; arguments: string }[] = [];
-        const nested: { toolCallId: string; output: LanguageModelV3ToolResultOutput }[] = [];
+        const nested: {
+          toolCallId: string;
+          toolName: string;
+          output: LanguageModelV3ToolResultOutput;
+        }[] = [];
         for (const part of message.content) {
           if (part.type === 'text') {
             content.push({ type: 'text', text: part.text });
@@ -387,14 +453,14 @@ function translatePrompt(
           content,
           ...(toolCalls.length > 0 ? { toolCalls } : {}),
         });
-        for (const result of nested) pushToolResult(result);
+        for (const result of nested) pushToolResult(result, false);
         break;
       }
 
       case 'tool':
         for (const part of message.content) {
           if (part.type === 'tool-result') {
-            pushToolResult(part);
+            pushToolResult(part, index === latestStep);
           } else {
             // A tool-approval response. Kaana has no approval protocol, so
             // pretending it was delivered would be worse than saying it was not.
@@ -405,7 +471,22 @@ function translatePrompt(
     }
   }
 
-  return messages;
+  if (latestImages.length > 0) {
+    const imageMessage: InferenceMessage = {
+      role: 'user',
+      content: latestImages.flatMap(({ toolCallId, toolName, image }) => [
+        { type: 'text' as const, text: `The image ${toolName} returned (call ${toolCallId}):` },
+        {
+          type: 'image' as const,
+          source: { kind: 'inline' as const, mediaType: image.mediaType, data: image.data },
+        },
+      ]),
+    };
+    messages.push(imageMessage);
+    toolImageMessages.add(imageMessage);
+  }
+
+  return { messages, toolImageMessages };
 }
 
 /**
@@ -498,9 +579,15 @@ function translate(call: LanguageModelV3CallOptions): Translation {
   const warn = (message: string): void => {
     warnings.push({ type: 'other', message });
   };
-  const messages = translatePrompt(call.prompt, warn);
+  const { messages, toolImageMessages } = translatePrompt(call.prompt, warn);
   const { tools, toolChoice } = translateTools(call, warn);
-  return { messages, tools, ...(toolChoice === undefined ? {} : { toolChoice }), warnings };
+  return {
+    messages,
+    toolImageMessages,
+    tools,
+    ...(toolChoice === undefined ? {} : { toolChoice }),
+    warnings,
+  };
 }
 
 /**
@@ -535,7 +622,12 @@ function translateWithinLimit(
       ...(translation.toolChoice === undefined ? {} : { toolChoice: translation.toolChoice }),
       ...(responseFormat === undefined ? {} : { responseFormat }),
     },
-    { surface: options.surface, model, limits: options.inputLimits },
+    {
+      surface: options.surface,
+      model,
+      limits: options.inputLimits,
+      toolImageMessages: translation.toolImageMessages,
+    },
   );
   return { ...translation, messages: fitted.messages };
 }

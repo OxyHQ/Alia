@@ -44,6 +44,7 @@ export async function runChunks(
   chunks: readonly object[],
   baseConfig: RunStreamParams['baseConfig'] = { messages: [] },
   onFirstChunk: () => void = () => undefined,
+  extra: Partial<RunStreamParams> = {},
 ) {
   const { res, written } = responseDouble();
   const agentMessages: RunStreamParams['agentMessages'] = [];
@@ -60,6 +61,7 @@ export async function runChunks(
     toolCallCount: 0,
     state: { hasStreamedContent: false },
     onFirstChunk,
+    ...extra,
   });
   return { ...outcome, written, agentMessages };
 }

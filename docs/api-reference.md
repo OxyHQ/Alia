@@ -96,7 +96,8 @@ recalled or written for this turn; [Embedding an agent](./agent-embedding.md) §
 
 **`POST /v1/chat/turns/:turnId/cancel`** stops a turn ([explicit Stop](./explicit-chat-stop.md)).
 **`POST /v1/chat/turns/:turnId/host-results`** answers an awaited host action of that turn,
-`{ toolCallId, outcome, detail?, result? }`, under the same authentication and authority
+`{ toolCallId, outcome, detail?, result? }` (`result` may be an image,
+`{ type: "image", mediaType, data, text? }`), under the same authentication and authority
 binding ([Embedding an agent](./agent-embedding.md) §2).
 
 **`GET /alia/chat`** returns a service status object, not a completion.

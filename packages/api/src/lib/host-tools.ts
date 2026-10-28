@@ -16,7 +16,10 @@
  * `awaitsResult` and the turn id, and the turn waits for the client's answer on
  * `POST /v1/chat/turns/:turnId/host-results` (`lib/chat/host-results.ts`), bounded by
  * `HOST_RESULT_WAIT_MS`. Such tools need the explicit-Stop turn id and a person's own streamed
- * session; the request is refused otherwise (`lib/chat/request-context.ts`).
+ * session; the request is refused otherwise (`lib/chat/request-context.ts`). Its result may be an
+ * image (a tab's screenshot), which the model sees as one in that turn and the stored
+ * conversation keeps only as a placeholder (`lib/chat/host-image-result.ts`). A turn that declares
+ * one is an agent acting in the app, and gets more steps (`lib/chat/model-config.ts`).
  *
  * A host tool is never authority over data: the person's data is reached only
  * through their apps' catalogue tools, which Oxy authorizes per call. It is
@@ -31,6 +34,7 @@ import type { SSEEmitter } from './sse-emitter.js';
 import { HOST_TOOL_OUTCOMES } from '../domain/chat-host-results.js';
 import type { HostResultAnswer, HostResultKey } from '../db/chat/hostResultRepository.js';
 import type { TurnIdentity } from '../db/chat/turnControlRepository.js';
+import { hostToolModelOutput } from './chat/host-image-result.js';
 
 export { HOST_TOOL_OUTCOMES, type HostToolOutcome } from '../domain/chat-host-results.js';
 
@@ -192,6 +196,8 @@ export function buildHostTools(
         const answer = await awaited.results.wait(key, abortSignal);
         return answer ? hostOutcomeResult(answer) : HOST_RESULT_STALE;
       },
+      // An image result (a screenshot) reaches the model as the image itself, in this turn only.
+      toModelOutput: ({ output }) => hostToolModelOutput(output),
     });
   }
   return tools;

@@ -110,7 +110,7 @@ Some host tools exist to READ what only the client has: a browser's "this tab's 
   |---|---|---|
   | `200` `{ "turnId", "toolCallId", "state": "answered" }` | — | recorded |
   | `400` | `invalid_turn` | `:turnId` is not a UUID v4 |
-  | `400` | `invalid_host_result` (`param` names the field) | an unknown field, a missing `toolCallId`, an outcome outside the list, a `detail` over 500 characters |
+  | `400` | `invalid_host_result` (`param` names the field) | an unknown field, a missing `toolCallId`, an outcome outside the list, a `detail` over 500 characters, a malformed image result (`result.mediaType`, `result.data`, `result.text`, `result.<unknown key>`) |
   | `400` | `host_result_too_large` (`param: "result"`) | `result` over the bound |
   | `403` | `turn_control_unsupported` | a caller with no verifiable original actor |
   | `404` | `host_result_not_found` | a call this turn never awaited, another authority's turn, or a call no longer awaited (already read, timed out or stopped) |
@@ -119,9 +119,20 @@ Some host tools exist to READ what only the client has: a browser's "this tab's 
   | `503` | `turn_control_unavailable` | the control store could not be reached |
 
 - **What the model reads.** `{ "status": <outcome>, "detail"?, "result"? }` as that call's result, bounded like any tool result. The stored conversation keeps the same result for the call, so a reloaded conversation shows what the tool returned. Such a call never needs a later `host.outcomes` entry.
+- **Image results.** A `result` that is an object with `"type": "image"` is an image the model SEES (a tab's screenshot), and must be exactly:
+
+  ```json
+  { "type": "image", "mediaType": "image/jpeg", "data": "<standard base64, no data: prefix>", "text": "optional caption, ≤ 4,000 chars" }
+  ```
+
+  `mediaType` is `image/jpeg`, `image/png` or `image/webp`, and `data`'s first bytes must be that format's signature. Anything else claiming `"type": "image"` is refused `400 invalid_host_result` with `param` naming the field (the SDK answers such a result `failed` with the reason instead of sending it). The whole result counts toward the same 100,000 characters of JSON, but the binding limit is the model request: Alia's input budget is 122,880 bytes for the whole request today (Oxy's pilot ceiling, `lib/inference/request-budget.ts`), shared with the system prompt, the tool definitions and the conversation. A host should size a screenshot to about 40,000 base64 characters (a JPEG of ≈ 30 kB, e.g. the viewport about 1,024 px wide at quality 50–60); a larger one is accepted but is more often left out of the request (below).
+  - *In the turn,* the model receives the rest of the answer as text (`{ "status", "detail"?, "result": { "type": "image", "mediaType", "text"? } }`) and the image itself, in one user message after the step's tool results (`The image <tool> returned (call <id>):`), because OpenAI-style chat completions refuse an image inside a tool result. Only the step the request ends with sends its images: at a later step of the same turn an earlier screenshot's result says it is not repeated, so a long browsing turn sends one screenshot per request, and the agent takes a new one to look again. If the request is over Alia's input budget, the image is the first thing of its step left out, with a note to call the tool again; the result's text stays.
+  - *After the turn,* the bytes are gone: the `alia.tool_result` frame to the client and the stored conversation keep `{ "type": "image", "mediaType", "text"?, "omitted": true }`, and a later turn (or the synthesis pass) replays that placeholder, even if a client resends the bytes in `toolInvocations`.
+  - *Dependency on Oxy.* The image goes to Oxy as the contract's `image` part, as an image attachment does. While Oxy's inference edge does not serve image input it answers `unsupported_modality`; the step that carried the screenshot then fails typed. A turn that has streamed no text yet recovers with the tools-disabled synthesis pass, which reads the placeholder; one that has is a failed turn (`docs/chat-runtime.mdx`). A host should declare a screenshot tool only once Oxy serves images.
+- **More steps for an agent.** A turn whose host declares at least one tool that awaits its result gets 16 model steps and 32 tool calls instead of 5 and 15 (`HOST_AGENT_TURN_STEP_BOUNDS`, `lib/chat/model-config.ts`): acting in a page is one action per step (snapshot, click, wait, look again). The 80-second global limit is unchanged and is what bounds the turn; a host continues a longer task in its next turn.
 - **The deadline.** The turn waits at most 45 seconds (`HOST_RESULT_WAIT_MS`), well inside its 80-second limit; the inactivity watchdog is held while it waits, as for any running tool. Unanswered, the model reads `{ "status": "stale", "detail": "The app did not answer in time." }`. Stop (or the turn's end) ends the wait at once.
 - **Across replicas.** The answer can land on any replica. PostgreSQL is the only store (`chat_host_results`, keyed by turn id and tool call id): the replica whose turn waits reads every answer its process waits for in one batch every 250 ms, as Stop's observer does, and deletes each row in the statement that reads it. A row whose wait ended unanswered is deleted then; one left by a crashed replica is removed by the expiry sweep after 24 hours.
-- **The person's content.** What the client sends (a page's text) is the person's own. It is held only until the waiting turn reads it, never logged (the route logs the outcome and the result's size, never its content), and goes to the model like any tool result.
+- **The person's content.** What the client sends (a page's text, a screenshot) is the person's own. It is held only until the waiting turn reads it, never logged (the route logs the outcome and the result's size, never its content), and goes to the model like any tool result.
 
 #### Rollout
 

@@ -46,8 +46,13 @@
  *     and everything after it up to the next one, so a tool call never loses
  *     its result. The system prompt, the latest user message and the current
  *     step chain after it are never dropped.
- *  3. **The latest step's results**, oldest first, except the newest one, which
- *     always reaches the model.
+ *  3. **The latest step's results**: first the images its tools returned
+ *     (`toolImageMessages`), then its results oldest first, except the newest
+ *     one, which always reaches the model.
+ *
+ * The user message that carries a step's images (`kaana-language-model.ts`)
+ * is a tool result here in all but role: it shrinks like one and is never the
+ * latest user message.
  *
  * Only what is SENT shrinks: the AI SDK's own messages, and what the turn
  * persists, are untouched, and the next step is fitted again from scratch.
@@ -318,6 +323,11 @@ export interface FitContext {
   readonly limits?: ModelInputLimits | null;
   /** Overrides the derived budget; tests and callers that already computed it. */
   readonly budgetBytes?: number;
+  /**
+   * User messages that carry the images tools returned (`kaana-language-model.ts`). They are
+   * tool results in all but role: shrunk like one, and never the person's latest message.
+   */
+  readonly toolImageMessages?: ReadonlySet<InferenceMessage>;
 }
 
 /**
@@ -342,6 +352,9 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
 
   const messages = [...input.messages];
   const n = messages.length;
+  const toolResult = messages.map(
+    (message) => message.role === 'tool' || context.toolImageMessages?.has(message) === true,
+  );
   const sizes = messages.map(utf8Bytes);
   const kept = messages.map(() => true);
 
@@ -383,11 +396,11 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
 
   // The latest step's results: the run of tool messages the prompt ends with.
   let latestStepStart = n;
-  while (latestStepStart > 0 && messages[latestStepStart - 1].role === 'tool') latestStepStart -= 1;
+  while (latestStepStart > 0 && toolResult[latestStepStart - 1]) latestStepStart -= 1;
 
   // 1. Older tool results, oldest first.
   for (let i = 0; i < latestStepStart && total() > budgetBytes; i += 1) {
-    if (messages[i].role === 'tool') omit(i);
+    if (toolResult[i]) omit(i);
   }
 
   // 2. The oldest history turns, whole. History is everything before the
@@ -395,7 +408,7 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
   //    each user message, so a call and its results always go together.
   let latestUser = -1;
   for (let i = n - 1; i >= 0; i -= 1) {
-    if (messages[i].role === 'user') {
+    if (messages[i].role === 'user' && !toolResult[i]) {
       latestUser = i;
       break;
     }
@@ -403,7 +416,7 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
   const turns: number[][] = [];
   for (let i = 0; i < latestUser; i += 1) {
     if (messages[i].role === 'system') continue;
-    if (messages[i].role === 'user' || turns.length === 0) turns.push([]);
+    if ((messages[i].role === 'user' && !toolResult[i]) || turns.length === 0) turns.push([]);
     turns[turns.length - 1].push(i);
   }
   for (const turn of turns) {
@@ -411,8 +424,16 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
     for (const index of turn) drop(index);
   }
 
-  // 3. The latest step's results, oldest first, never the newest one.
-  for (let i = latestStepStart; i < n - 1 && total() > budgetBytes; i += 1) omit(i);
+  // 3. The latest step's results, oldest first, never the newest tool message.
+  //    Its images go before that one: the results' text still says what came back.
+  let newest = n - 1;
+  while (newest >= latestStepStart && messages[newest].role !== 'tool') newest -= 1;
+  for (let i = latestStepStart; i < n && total() > budgetBytes; i += 1) {
+    if (i !== newest && messages[i].role !== 'tool') omit(i);
+  }
+  for (let i = latestStepStart; i < n && total() > budgetBytes; i += 1) {
+    if (i !== newest && messages[i].role === 'tool') omit(i);
+  }
 
   const fitted = messages.filter((_, index) => kept[index]);
   const fittedBytes = controlledInputBytes({ ...input, messages: fitted });
