@@ -27,6 +27,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0020](./0020-every-agent-is-the-same-agent.md) | Every agent is the same agent: one base for Alia, people's agents and app agents | Accepted | 2026-10-16 |
 | [0021](./0021-app-confined-agents.md) | An app's agent may be confined to that app, by Oxy | Accepted | 2026-10-16 |
 | [0023](./0023-cookie-free-voice-resume.md) | Voice reconnects through its owner without browser cookies | Accepted; receiver-first deployment required | 2026-10-26 |
+| [0024](./0024-streaming-dictation-is-a-transcription-session.md) | Streaming dictation is a transcription session through Kaana | Proposed; depends on Kaana ADR 0006 | 2026-10-28 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
