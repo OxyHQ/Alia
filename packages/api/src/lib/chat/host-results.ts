@@ -6,8 +6,10 @@
  * any replica, so it is written to PostgreSQL; the replica whose turn waits reads every answer its
  * process is waiting for in one batch every 250 ms, as `ChatTurnObserver` does for Stop.
  *
- * What the client sends is the person's own content (a page's text). It is held only until the
- * waiting turn reads it, never logged (sizes only), and goes to the model like any tool result.
+ * What the client sends is the person's own content (a page's text, a screenshot). It is held only
+ * until the waiting turn reads it, never logged (sizes only), and goes to the model like any tool
+ * result; an image result (`host-image-result.ts`) is validated here and reaches the model as an
+ * image.
  */
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -28,6 +30,7 @@ import {
 import { CHAT_TURN_CHECK_TIMEOUT_MS, CHAT_TURN_POLL_MS } from '../../domain/chat-turn-control';
 import { log } from '../logger';
 import { checkWindowLimit } from '../sliding-window-limiter';
+import { hostImageResultProblem } from './host-image-result';
 import { answerTurnControlError, turnIdentity } from './turn-control';
 
 const hostResultBodySchema = z
@@ -85,6 +88,14 @@ export function parseHostResultBody(body: unknown): {
         'host_result_too_large',
         'result',
         `result is ${length} characters as JSON; at most ${HOST_RESULT_MAX_CHARS} are accepted`,
+      );
+    }
+    const problem = hostImageResultProblem(result);
+    if (problem) {
+      throw new HostResultBodyError(
+        'invalid_host_result',
+        problem.param,
+        `Invalid host result: ${problem.param}: ${problem.message}`,
       );
     }
   }

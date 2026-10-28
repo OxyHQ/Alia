@@ -7,7 +7,8 @@ import { isAttachmentFeature } from '../../domain/agent-features.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
 import { convertToAISDKMessages, priorToolCallsOf } from '../../lib/message-converter.js';
-import { applyHostOutcomes, hostOutcomeResult } from '../../lib/host-tools.js';
+import { applyHostOutcomes, hostAwaitsResults, hostOutcomeResult } from '../../lib/host-tools.js';
+import { turnStepBounds } from '../../lib/chat/model-config.js';
 import { recordToolResults } from '../../db/chat/messageRepository.js';
 import { getDb } from '../../db/index.js';
 import { ToolLimitExceededError } from '../../lib/inference/tool-limit.js';
@@ -499,6 +500,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       conversationId,
       assistantMessageId,
       ...(host === undefined ? {} : { originApp: host.app }),
+      stepBounds: turnStepBounds(hostAwaitsResults(host)),
       reasoningEffort,
       convertedMessages,
       truncatedTools,
