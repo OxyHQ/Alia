@@ -24,9 +24,11 @@
  * ## The parts that are deliberately absent
  *
  * Audio in the PROMPT is refused with a warning rather than dropped. IMAGES
- * are sent as the contract's `image` part: a model that cannot see answers
- * `unsupported_modality`, a typed error, instead of an answer about a question
- * the user did not ask because the picture was silently discarded.
+ * are sent as the contract's inline `image` part: a model that cannot see
+ * answers `unsupported_modality`, a typed error, instead of an answer about a
+ * question the user did not ask because the picture was silently discarded. An
+ * image by URL is not sent, with a warning: Oxy and Kaana take images inline
+ * only and fetch no URL (Kaana ADR 0007).
  *
  * A DOCUMENT in a user message is the one exception, and it is sent: a turn
  * only carries one when its model's catalogue entry takes `file` input
@@ -275,18 +277,16 @@ function toolResultText(output: LanguageModelV3ToolResultOutput): {
  * reaches the person as an error they can act on (pick a model that sees)
  * rather than as an answer about a picture the model never received.
  */
-function imagePart(part: LanguageModelV3FilePart): InferenceContentPart {
+function imagePart(
+  part: LanguageModelV3FilePart & { data: string | Uint8Array },
+): InferenceContentPart {
   return {
     type: 'image',
-    source:
-      part.data instanceof URL
-        ? { kind: 'url', url: part.data.href }
-        : {
-            kind: 'inline',
-            mediaType: part.mediaType,
-            data:
-              typeof part.data === 'string' ? part.data : Buffer.from(part.data).toString('base64'),
-          },
+    source: {
+      kind: 'inline',
+      mediaType: part.mediaType,
+      data: typeof part.data === 'string' ? part.data : Buffer.from(part.data).toString('base64'),
+    },
   };
 }
 
@@ -401,11 +401,15 @@ function translatePrompt(
       case 'user':
         messages.push({
           role: 'user',
-          content: message.content.flatMap((part) =>
-            part.type === 'file'
-              ? [part.mediaType.startsWith('image/') ? imagePart(part) : documentPart(part)]
-              : textOf([part]),
-          ),
+          content: message.content.flatMap((part) => {
+            if (part.type !== 'file') return textOf([part]);
+            if (!part.mediaType.startsWith('image/')) return [documentPart(part)];
+            if (part.data instanceof URL) {
+              warn('An image by URL was not sent: Oxy and Kaana take images inline only.');
+              return [];
+            }
+            return [imagePart({ ...part, data: part.data })];
+          }),
         });
         break;
 

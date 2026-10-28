@@ -13,6 +13,11 @@
  *     bytes(JSON.stringify({ input, tools, toolChoice, responseFormat }))
  *       + 256 + 32 × messages + 32 × tools
  *
+ * with every image part's `source.data` counted as `""` (Oxy ADR 0051): an
+ * image is bounded apart, by the image terms of the same relationship (at most
+ * {@link OXY_MAX_INPUT_IMAGES} a request) and per image by the tokens the
+ * serving line declares it costs, never by its base64.
+ *
  * UTF-8 bytes are a worst-case bound on tokens, so a request under it can never
  * exceed the 128Ki-token route context it is metered against. That is
  * deliberate and it is Oxy's to own; Alia fits inside it.
@@ -27,6 +32,15 @@
  * schema — and nothing in Alia added those up. The edge refused with
  * `context_length_exceeded` before any output, and the person saw a failed
  * turn.
+ *
+ * ## Images
+ *
+ * Images are fitted first, and separately: a request carries at most
+ * {@link OXY_MAX_INPUT_IMAGES} image parts, and their base64 at most
+ * {@link REQUEST_IMAGE_DATA_BUDGET_CHARS} characters, so the whole body stays
+ * under the edge's `MAX_REQUEST_BYTES` (786,432). Over either, the OLDEST
+ * images are replaced, one by one, with {@link OMITTED_IMAGE_NOTE}; the newest
+ * image (the one the model is about to read) is always sent.
  *
  * ## The mechanism
  *
@@ -221,6 +235,22 @@ export const CONTROLLED_INPUT_MESSAGE_OVERHEAD = 32;
 /** Oxy's `TOOL_OVERHEAD`, per tool definition. */
 export const CONTROLLED_INPUT_TOOL_OVERHEAD = 32;
 
+/**
+ * The most image parts one request may carry: the `imageInput.maxImages` of the
+ * `alia-kaana` relationship in OxyHQServices `inferenceEconomicPolicy.ts`.
+ */
+export const OXY_MAX_INPUT_IMAGES = 16;
+
+/**
+ * The most base64 characters of image data one request carries: what leaves
+ * the rest of the request (the controlled input, at most 126,976 bytes, and its
+ * framing) room under the Oxy edge's `MAX_REQUEST_BYTES` of 786,432.
+ */
+export const REQUEST_IMAGE_DATA_BUDGET_CHARS = 600_000;
+
+/** What an image left out of a request reads as, in its place. */
+export const OMITTED_IMAGE_NOTE = '[an earlier image was left out to fit the request]';
+
 /** The fields Oxy counts, in the contract's shape — what the adapter POSTs. */
 export interface ControlledInput {
   readonly messages: readonly InferenceMessage[];
@@ -233,6 +263,23 @@ function utf8Bytes(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8');
 }
 
+/** A message as Oxy measures it: each image's data counted as `""`. */
+function controlledMessage(message: InferenceMessage): InferenceMessage {
+  if (!message.content.some((part) => part.type === 'image')) return message;
+  return {
+    ...message,
+    content: message.content.map((part) =>
+      part.type === 'image' && part.source.kind === 'inline'
+        ? { ...part, source: { ...part.source, data: '' } }
+        : part,
+    ),
+  };
+}
+
+function controlledMessageBytes(message: InferenceMessage): number {
+  return utf8Bytes(controlledMessage(message));
+}
+
 /**
  * The request's size exactly as Oxy's `controlledInputBudget` computes it for a
  * text completion: Oxy normalizes the Responses `input` array to
@@ -241,7 +288,7 @@ function utf8Bytes(value: unknown): number {
 export function controlledInputBytes(input: ControlledInput): number {
   return (
     utf8Bytes({
-      input: { format: 'messages', messages: input.messages },
+      input: { format: 'messages', messages: input.messages.map(controlledMessage) },
       tools: input.tools,
       toolChoice: input.toolChoice,
       responseFormat: input.responseFormat,
@@ -311,6 +358,57 @@ export interface FittedInput {
   readonly budgetBytes: number;
   readonly omittedToolResults: number;
   readonly droppedMessages: number;
+  /** Images replaced by {@link OMITTED_IMAGE_NOTE} to keep the count and the body in bounds. */
+  readonly omittedImages: number;
+}
+
+/**
+ * The messages with the oldest images replaced by {@link OMITTED_IMAGE_NOTE}
+ * until at most {@link OXY_MAX_INPUT_IMAGES} remain and their base64 is within
+ * {@link REQUEST_IMAGE_DATA_BUDGET_CHARS}. The newest image is never replaced.
+ * The input's own array, untouched, when nothing had to change; otherwise the
+ * same messages at the same indices.
+ */
+export function fitImages(messages: readonly InferenceMessage[]): {
+  readonly messages: readonly InferenceMessage[];
+  readonly omittedImages: number;
+} {
+  const images: { message: number; part: number; chars: number }[] = [];
+  for (const [messageIndex, message] of messages.entries()) {
+    for (const [partIndex, part] of message.content.entries()) {
+      if (part.type !== 'image') continue;
+      images.push({
+        message: messageIndex,
+        part: partIndex,
+        chars: part.source.kind === 'inline' ? part.source.data.length : 0,
+      });
+    }
+  }
+  let count = images.length;
+  let chars = images.reduce((sum, image) => sum + image.chars, 0);
+  const omitted = new Set<string>();
+  for (let i = 0; i < images.length - 1; i += 1) {
+    if (count <= OXY_MAX_INPUT_IMAGES && chars <= REQUEST_IMAGE_DATA_BUDGET_CHARS) break;
+    omitted.add(`${images[i].message}:${images[i].part}`);
+    count -= 1;
+    chars -= images[i].chars;
+  }
+  if (omitted.size === 0) return { messages, omittedImages: 0 };
+  return {
+    messages: messages.map((message, messageIndex) =>
+      message.content.some((_, partIndex) => omitted.has(`${messageIndex}:${partIndex}`))
+        ? {
+            ...message,
+            content: message.content.map((part, partIndex) =>
+              omitted.has(`${messageIndex}:${partIndex}`)
+                ? { type: 'text' as const, text: OMITTED_IMAGE_NOTE }
+                : part,
+            ),
+          }
+        : message,
+    ),
+    omittedImages: omitted.size,
+  };
 }
 
 export interface FitContext {
@@ -339,23 +437,37 @@ export interface FitContext {
 export function fitControlledInput(input: ControlledInput, context: FitContext = {}): FittedInput {
   const budgetBytes = context.budgetBytes ?? requestInputBudgetBytes(context.limits);
   const measuredBytes = controlledInputBytes(input);
-  if (measuredBytes <= budgetBytes) {
+  const imageFit = fitImages(input.messages);
+  const { omittedImages } = imageFit;
+  if (omittedImages > 0) {
+    log.providers.warn(
+      { surface: context.surface, model: context.model, omittedImages },
+      'Inference request images left out to fit the image bounds',
+    );
+  }
+  const imageFitBytes =
+    omittedImages === 0
+      ? measuredBytes
+      : controlledInputBytes({ ...input, messages: imageFit.messages });
+  if (imageFitBytes <= budgetBytes) {
     return {
-      messages: [...input.messages],
+      messages: [...imageFit.messages],
       measuredBytes,
-      fittedBytes: measuredBytes,
+      fittedBytes: imageFitBytes,
       budgetBytes,
       omittedToolResults: 0,
       droppedMessages: 0,
+      omittedImages,
     };
   }
 
-  const messages = [...input.messages];
+  const messages = [...imageFit.messages];
   const n = messages.length;
-  const toolResult = messages.map(
+  // Read from the input: the image fit keeps every message at its index but may replace it.
+  const toolResult = input.messages.map(
     (message) => message.role === 'tool' || context.toolImageMessages?.has(message) === true,
   );
-  const sizes = messages.map(utf8Bytes);
+  const sizes = messages.map(controlledMessageBytes);
   const kept = messages.map(() => true);
 
   /*
@@ -379,7 +491,7 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
       ...message,
       content: [{ type: 'text', text: OMITTED_TOOL_RESULT_NOTE }],
     };
-    const size = utf8Bytes(replaced);
+    const size = controlledMessageBytes(replaced);
     // A result already as short as the note gains nothing from being replaced.
     if (size >= sizes[index]) return;
     messages[index] = replaced;
@@ -448,9 +560,10 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
     toolDefinitionBytes: input.tools.reduce((sum, tool) => sum + toolDefinitionBytes(tool), 0),
     systemBytes: input.messages
       .filter((message) => message.role === 'system')
-      .reduce((sum, message) => sum + utf8Bytes(message), 0),
+      .reduce((sum, message) => sum + controlledMessageBytes(message), 0),
     omittedToolResults,
     droppedMessages,
+    omittedImages,
   };
 
   if (fittedBytes > budgetBytes) {
@@ -465,5 +578,6 @@ export function fitControlledInput(input: ControlledInput, context: FitContext =
     budgetBytes,
     omittedToolResults,
     droppedMessages,
+    omittedImages,
   };
 }
