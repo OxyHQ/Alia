@@ -12,6 +12,7 @@
 
 import type { ModelMessage } from 'ai';
 import type { ResolvedFiles } from './files/person-files.js';
+import { withoutHostImageData } from './chat/host-image-result.js';
 
 /** An Oxy Files document attached to a user message (`docs/agent-embedding.md` §5). */
 export interface FilePartRef {
@@ -159,8 +160,11 @@ export function convertToAISDKMessages(
         if (msg.toolInvocations && Array.isArray(msg.toolInvocations)) {
           for (const inv of msg.toolInvocations) {
             if (inv.state === 'result' && inv.result !== undefined) {
+              // A replayed host screenshot is its placeholder: an image is shown only in the turn
+              // that took it (`chat/host-image-result.ts`), even when a client resends the bytes.
+              const replayed = withoutHostImageData(inv.result);
               const resultValue =
-                typeof inv.result === 'string' ? inv.result : JSON.stringify(inv.result);
+                typeof replayed === 'string' ? replayed : JSON.stringify(replayed);
               result.push({
                 role: 'tool',
                 content: [

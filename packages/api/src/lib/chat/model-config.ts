@@ -95,9 +95,37 @@ export function createStreamWatchdog(
  */
 export const NON_STREAMING_TIMEOUT_MS = 70_000;
 
+/**
+ * How far one chat turn's tool loop may go: model steps (`stopWhen`) and tool calls
+ * (`stream-runner.ts`).
+ *
+ * An ordinary turn searches, reads and answers: five steps and fifteen calls are a safety bound it
+ * never meets. A turn whose host declares an awaited host tool (`hostAwaitsResults`) is an agent
+ * acting in the person's app — snapshot the tab, click, wait for it, look again — one action per
+ * step, so five steps end it half-way through the first form. It gets sixteen: a step is one
+ * model response plus a host round trip, typically 3–5 s, so sixteen fit the turn's unchanged
+ * 80-second global limit with room for the answer, and a host that needs more continues the task
+ * in its next turn. Its tool calls are bounded at two per step, since an agent often reads the page
+ * beside its action. The global limit, not these, is what bounds the turn's time.
+ */
+export interface TurnStepBounds {
+  readonly maxSteps: number;
+  readonly maxToolCalls: number;
+}
+
+export const CHAT_TURN_STEP_BOUNDS: TurnStepBounds = { maxSteps: 5, maxToolCalls: 15 };
+export const HOST_AGENT_TURN_STEP_BOUNDS: TurnStepBounds = { maxSteps: 16, maxToolCalls: 32 };
+
+/** The bounds for a turn, by whether its host declares a tool that awaits its result. */
+export function turnStepBounds(hostAgentTurn: boolean): TurnStepBounds {
+  return hostAgentTurn ? HOST_AGENT_TURN_STEP_BOUNDS : CHAT_TURN_STEP_BOUNDS;
+}
+
 export interface BuildBaseConfigParams {
   /** The resolved provider/model for this attempt. */
   resolved: ResolvedModel;
+  /** The turn's tool-loop bounds ({@link turnStepBounds}); an ordinary chat turn's when absent. */
+  stepBounds?: TurnStepBounds;
   /** Request body — read for `temperature`, `max_tokens`, and `stream`. */
   body: Record<string, unknown> & { stream?: boolean };
   convertedMessages: ModelMessage[];
@@ -225,7 +253,10 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     // AI SDK v6: stopWhen replaces maxSteps. Without this, the SDK defaults to
     // stepCountIs(1) which stops after tool calls without generating a text response.
     // `askUserQuestion` ends the turn: its answers are the next message.
-    stopWhen: [stepCountIs(5), hasToolCall(ASK_USER_QUESTION_TOOL)],
+    stopWhen: [
+      stepCountIs((params.stepBounds ?? CHAT_TURN_STEP_BOUNDS).maxSteps),
+      hasToolCall(ASK_USER_QUESTION_TOOL),
+    ],
     onFinish: async (result: {
       /**
        * Every step of the call, which is what was spent. `usage` is the LAST

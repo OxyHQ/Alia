@@ -35,7 +35,12 @@ vi.mock('../oxy-inference.js', () => ({
   }),
 }));
 
-import { DEFAULT_MAX_OUTPUT_TOKENS, kaanaLanguageModel } from '../kaana-language-model.js';
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  kaanaLanguageModel,
+  PAST_TOOL_IMAGE_NOTE,
+  TOOL_IMAGE_FOLLOWS_NOTE,
+} from '../kaana-language-model.js';
 import { OxyInferenceError } from '@oxy.so/core/inference';
 import { toAliaError } from '../../errors/failover-error.js';
 
@@ -439,4 +444,94 @@ describe('canonical disjoint token accounting', () => {
       });
     },
   );
+});
+
+describe('images a tool returned', () => {
+  beforeEach(() => {
+    mocks.requests.length = 0;
+    mocks.events.length = 0;
+    mocks.streamFailure = null;
+  });
+
+  const call = (id: string) => ({
+    role: 'assistant' as const,
+    content: [{ type: 'tool-call' as const, toolCallId: id, toolName: 'shot', input: {} }],
+  });
+  const shot = (id: string, data: string) => ({
+    role: 'tool' as const,
+    content: [
+      {
+        type: 'tool-result' as const,
+        toolCallId: id,
+        toolName: 'shot',
+        output: {
+          type: 'content' as const,
+          value: [
+            { type: 'text' as const, text: '{"status":"inline"}' },
+            { type: 'image-data' as const, data, mediaType: 'image/png' },
+          ],
+        },
+      },
+    ],
+  });
+  const model = () =>
+    kaanaLanguageModel({
+      target: { kind: 'routingProfile', routingProfile: 'auto' },
+      modelId: 'auto',
+      surface: 'chat',
+    });
+
+  it('sends the latest step’s images in one user message after its tool messages', async () => {
+    const result = await model().doGenerate({
+      prompt: [...prompt, call('call-1'), shot('call-1', 'AAAA')],
+    } as never);
+
+    expect(mocks.requests[0].input).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'hola' }] },
+      {
+        role: 'assistant',
+        content: [],
+        toolCalls: [{ id: 'call-1', name: 'shot', arguments: '{}' }],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: [{ type: 'text', text: `{"status":"inline"}\n${TOOL_IMAGE_FOLLOWS_NOTE}` }],
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'The image shot returned (call call-1):' },
+          { type: 'image', source: { kind: 'inline', mediaType: 'image/png', data: 'AAAA' } },
+        ],
+      },
+    ]);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('does not repeat an earlier step’s image', async () => {
+    await model().doGenerate({
+      prompt: [
+        ...prompt,
+        call('call-1'),
+        shot('call-1', 'AAAA'),
+        call('call-2'),
+        shot('call-2', 'BBBB'),
+      ],
+    } as never);
+
+    const input = mocks.requests[0].input as Array<{ role: string; content: unknown[] }>;
+    expect(input[2]).toEqual({
+      role: 'tool',
+      toolCallId: 'call-1',
+      content: [{ type: 'text', text: `{"status":"inline"}\n${PAST_TOOL_IMAGE_NOTE}` }],
+    });
+    const images = input.flatMap((message) =>
+      message.content.filter((part) => (part as { type: string }).type === 'image'),
+    );
+    expect(images).toEqual([
+      { type: 'image', source: { kind: 'inline', mediaType: 'image/png', data: 'BBBB' } },
+    ]);
+    expect(input.at(-1)?.role).toBe('user');
+  });
 });
