@@ -342,3 +342,47 @@ describe('what cannot fit is refused, typed, before sending', () => {
     expect(() => fitTo(messages, 122_880)).toThrow(RequestInputBudgetExceededError);
   });
 });
+
+describe('the images tools returned', () => {
+  const text = (value: string) => [{ type: 'text' as const, text: value }];
+  const imageMessage: InferenceMessage = {
+    role: 'user',
+    content: [
+      { type: 'text', text: 'The image shot returned (call call-1):' },
+      {
+        type: 'image',
+        source: { kind: 'inline', mediaType: 'image/png', data: 'A'.repeat(4_000) },
+      },
+    ],
+  };
+  const messages: InferenceMessage[] = [
+    { role: 'system', content: text('You are Alia.') },
+    { role: 'user', content: text('Open the pricing page') },
+    {
+      role: 'assistant',
+      content: [],
+      toolCalls: [{ id: 'call-1', name: 'shot', arguments: '{}' }],
+    },
+    { role: 'tool', toolCallId: 'call-1', content: text('{"status":"inline"}') },
+    imageMessage,
+  ];
+  const input: ControlledInput = { messages, tools: [] };
+
+  it('shrinks the step’s image before its newest result, and never takes it for the person’s message', () => {
+    const budgetBytes = controlledInputBytes(input) - 1_000;
+    const fitted = fitControlledInput(input, {
+      budgetBytes,
+      toolImageMessages: new Set([imageMessage]),
+    });
+    expect(fitted.messages).toHaveLength(5);
+    expect(fitted.messages[4]).toEqual({ role: 'user', content: text(OMITTED_TOOL_RESULT_NOTE) });
+    expect(fitted.messages.slice(0, 4)).toEqual(messages.slice(0, 4));
+    expect(fitted.omittedToolResults).toBe(1);
+  });
+
+  it('would otherwise keep it as the latest user message and refuse the request', () => {
+    expect(() =>
+      fitControlledInput(input, { budgetBytes: controlledInputBytes(input) - 1_000 }),
+    ).toThrow(RequestInputBudgetExceededError);
+  });
+});

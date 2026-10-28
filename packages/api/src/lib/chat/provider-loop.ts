@@ -52,7 +52,7 @@ import { AliaError, AliaErrorCode, type FailoverReason } from '../errors/error-c
 import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { SSEWriter } from './sse-writer.js';
-import { buildBaseConfig } from './model-config.js';
+import { buildBaseConfig, type TurnStepBounds } from './model-config.js';
 import { runNonStreaming } from './non-streaming.js';
 import { runStream, type AgentMessage, type StreamRunnerState } from './stream-runner.js';
 import { runTextToolFallback } from './text-tool-fallback.js';
@@ -106,6 +106,8 @@ export interface ProviderLoopParams {
   assistantMessageId: string | undefined;
   /** The embedding app (`host.app`), which labels a conversation this turn creates. */
   originApp?: string;
+  /** The turn's tool-loop bounds (`turnStepBounds`); an ordinary chat turn's when absent. */
+  stepBounds?: TurnStepBounds;
   /** The level, resolved once at the request boundary. */
   reasoningEffort: ReasoningEffort | null;
   convertedMessages: ModelMessage[];
@@ -314,6 +316,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         watchdog,
       } = buildBaseConfig({
         ...(providerAbort === undefined ? {} : { providerAbort }),
+        ...(params.stepBounds === undefined ? {} : { stepBounds: params.stepBounds }),
         resolved,
         body,
         convertedMessages,
@@ -429,6 +432,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           toolCallCount,
           state: streamState,
           idle: watchdog,
+          ...(params.stepBounds === undefined ? {} : { stepBounds: params.stepBounds }),
           onFirstChunk: () => {
             // Called on EVERY chunk, so the first one wins: time to FIRST token,
             // not time to the most recent one.

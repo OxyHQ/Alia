@@ -145,3 +145,19 @@ describe('the stream watchdog', () => {
     expect(abort).not.toHaveBeenCalled();
   });
 });
+
+describe('the step bound', () => {
+  const stopsAt = (config: { stopWhen: Array<(state: { steps: unknown[] }) => boolean> }) =>
+    [1, 2, 3, 4, 5, 15, 16].find((count) =>
+      config.stopWhen[0]({ steps: Array.from({ length: count }, () => ({})) }),
+    );
+
+  it('ends an ordinary turn after five steps', () => {
+    expect(stopsAt(build(true).config)).toBe(5);
+  });
+
+  it('gives a turn whose host awaits results sixteen', async () => {
+    const { HOST_AGENT_TURN_STEP_BOUNDS } = await import('../model-config.js');
+    expect(stopsAt(build(true, { stepBounds: HOST_AGENT_TURN_STEP_BOUNDS }).config)).toBe(16);
+  });
+});

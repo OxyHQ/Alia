@@ -43,7 +43,8 @@ import type { SSEWriter } from './sse-writer.js';
 import { isInvalidToolCall, toolRoundTrip } from './tool-calls.js';
 import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
-import type { StreamWatchdog } from './model-config.js';
+import { CHAT_TURN_STEP_BOUNDS, type StreamWatchdog, type TurnStepBounds } from './model-config.js';
+import { withoutHostImageData } from './host-image-result.js';
 
 /**
  * The consultation's result: another agent's whole answer, with its identity.
@@ -88,8 +89,6 @@ function sizeForLog(value: unknown): number {
     return -1;
   }
 }
-
-const MAX_TOOL_CALLS = 15;
 
 /** Whether a chunk carries something the model produced, as opposed to stream bookkeeping. */
 function isContentChunk(chunk: { type: string; text?: string }): boolean {
@@ -168,6 +167,8 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   onFirstChunk: () => void;
   /** Resets the stream's inactivity timer on every chunk; see {@link StreamWatchdog}. */
   idle?: StreamWatchdog;
+  /** The turn's tool-loop bounds (`turnStepBounds`); an ordinary chat turn's when absent. */
+  stepBounds?: TurnStepBounds;
 }
 
 /** Token usage summed over the `finish-step` chunks this attempt delivered. */
@@ -222,6 +223,7 @@ export async function runStream<TOOLS extends ToolSet>(
   // Tool tracking for observability
   const toolTimers = new Map<string, number>();
   let toolCallCount = params.toolCallCount;
+  const maxToolCalls = (params.stepBounds ?? CHAT_TURN_STEP_BOUNDS).maxToolCalls;
 
   // Stream OpenAI-compatible chunks
   log.v1.info('Starting to process AI SDK stream');
@@ -271,8 +273,8 @@ export async function runStream<TOOLS extends ToolSet>(
    * Turn completed tool results into the user-facing answer the original
    * request was for.
    *
-   * `stopWhen: stepCountIs(5)` is a hard safety bound. A model can spend all
-   * five steps calling tools and then reach the ordinary `finish` event with
+   * `stopWhen: stepCountIs(n)` is a hard safety bound (`turnStepBounds`). A model can spend all
+   * its steps calling tools and then reach the ordinary `finish` event with
    * no text at all. That is not a successful answer: the tool cards are
    * progress, not the requested response. The same tools-disabled follow-up is
    * also the safe recovery for a provider error after tools ran.
@@ -438,13 +440,13 @@ export async function runStream<TOOLS extends ToolSet>(
       toolCallCount++;
 
       // Tool iteration guard
-      if (toolCallCount > MAX_TOOL_CALLS) {
-        log.v1.warn({ toolCallCount, MAX_TOOL_CALLS }, 'Tool call limit exceeded, breaking stream');
+      if (toolCallCount > maxToolCalls) {
+        log.v1.warn({ toolCallCount, maxToolCalls }, 'Tool call limit exceeded, breaking stream');
         recordEvent({
           type: 'error',
           timestamp: Date.now(),
           code: 'TOOL_LIMIT_EXCEEDED',
-          message: `Exceeded ${MAX_TOOL_CALLS} tool calls`,
+          message: `Exceeded ${maxToolCalls} tool calls`,
         });
         toolLimitHit = true;
         break;
@@ -473,13 +475,17 @@ export async function runStream<TOOLS extends ToolSet>(
         toolTimers.delete(chunk.toolCallId);
       }
 
+      // What outlives the turn — the client's frame and the stored result — never carries an
+      // image's bytes; the model already saw the image (`host-image-result.ts`).
+      const keptOutput = withoutHostImageData(chunk.output);
+
       // Stream tool result as named SSE event (non-standard, Alia extension)
       res.write(
         `event: alia.tool_result\ndata: ${JSON.stringify({
           eventVersion: 1,
           tool_call_id: chunk.toolCallId,
           name: originalToolName,
-          output: chunk.output,
+          output: keptOutput,
         })}\n\n`,
       );
 
@@ -487,13 +493,13 @@ export async function runStream<TOOLS extends ToolSet>(
       const existingIdx = toolInvocations.findIndex((t) => t.toolCallId === chunk.toolCallId);
       if (existingIdx >= 0) {
         toolInvocations[existingIdx].state = 'result';
-        toolInvocations[existingIdx].result = chunk.output;
+        toolInvocations[existingIdx].result = keptOutput;
       } else {
         toolInvocations.push({
           toolCallId: chunk.toolCallId,
           toolName: originalToolName,
           state: 'result',
-          result: chunk.output,
+          result: keptOutput,
         });
       }
 
