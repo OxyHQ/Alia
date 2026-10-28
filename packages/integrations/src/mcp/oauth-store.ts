@@ -128,3 +128,42 @@ export async function updateConnectorAuth(
 
   await db.update(mcpConnectorAuths).set(changes).where(eq(mcpConnectorAuths.id, id));
 }
+
+/**
+ * Forget a connector's authorization: the tokens, the registered client and any
+ * half-finished verifier. Run when the person disconnects, after the vendor was
+ * asked to revoke, and whether or not it agreed — a row kept "in case" is a
+ * live credential for a connector the person removed.
+ */
+export async function deleteConnectorAuth(
+  db: IntegrationsDatabase,
+  oxyUserId: string,
+  serverId: string,
+): Promise<boolean> {
+  const rows = await db
+    .delete(mcpConnectorAuths)
+    .where(
+      and(eq(mcpConnectorAuths.oxyUserId, oxyUserId), eq(mcpConnectorAuths.serverId, serverId)),
+    )
+    .returning({ id: mcpConnectorAuths.id });
+  return rows.length > 0;
+}
+
+/**
+ * Whether a (user, server) pair has an authorization record at all, read without
+ * creating one — revocation must not insert the row it is about to delete.
+ */
+export async function findConnectorAuth(
+  db: IntegrationsDatabase,
+  oxyUserId: string,
+  serverId: string,
+): Promise<McpConnectorAuthRow | null> {
+  const [row] = await db
+    .select(AUTH_COLUMNS)
+    .from(mcpConnectorAuths)
+    .where(
+      and(eq(mcpConnectorAuths.oxyUserId, oxyUserId), eq(mcpConnectorAuths.serverId, serverId)),
+    )
+    .limit(1);
+  return row ?? null;
+}

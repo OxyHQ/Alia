@@ -2,8 +2,8 @@
  * Integration Tools — Dynamic tools from user's connected OAuth integrations
  *
  * Queries the user's active Integration documents and creates AI SDK tool()
- * wrappers so the AI can interact with Google Calendar and Google Drive on the
- * user's behalf. GitHub, Notion, and Linear are now hosted MCP connectors and
+ * wrappers so the AI can interact with Google Calendar, Google Drive and
+ * Microsoft 365 (Outlook, Teams, SharePoint) on the user's behalf. GitHub, Notion, and Linear are now hosted MCP connectors and
  * are no longer served by the legacy Integrations system.
  */
 
@@ -14,6 +14,7 @@ import { log } from '../../logger.js';
 import { TTLCache } from '../../ttl-cache.js';
 import { buildGoogleCalendarTools } from './google-calendar.js';
 import { buildGoogleDriveTools } from './google-drive.js';
+import { buildOutlookTools, buildSharePointTools, buildTeamsTools } from './microsoft-365.js';
 
 // Short-lived cache (same pattern as MCP tools). Tool closures capture only
 // oxyUserId, so caching by user stays correct across callers — and the
@@ -59,6 +60,15 @@ export async function buildIntegrationTools(
     if (usable.has('google-drive')) {
       Object.assign(tools, buildGoogleDriveTools(oxyUserId));
     }
+    if (usable.has('microsoft-outlook')) {
+      Object.assign(tools, buildOutlookTools(oxyUserId));
+    }
+    if (usable.has('microsoft-teams')) {
+      Object.assign(tools, buildTeamsTools(oxyUserId));
+    }
+    if (usable.has('microsoft-sharepoint')) {
+      Object.assign(tools, buildSharePointTools(oxyUserId));
+    }
 
     cache.set(cacheKey, tools);
 
@@ -77,3 +87,4 @@ export async function buildIntegrationTools(
 // Re-export service builders for direct use
 export { buildGoogleCalendarTools } from './google-calendar.js';
 export { buildGoogleDriveTools } from './google-drive.js';
+export { buildOutlookTools, buildSharePointTools, buildTeamsTools } from './microsoft-365.js';

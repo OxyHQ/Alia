@@ -25,9 +25,54 @@ export interface IntegrationRegistryEntry {
     envClientSecret: string;
     /** How to send credentials during token exchange. 'body' = POST body (default), 'basic' = Authorization header */
     authMethod?: 'body' | 'basic';
+    /**
+     * PKCE (RFC 7636, S256) on top of the client secret. On unless a provider
+     * refuses it to web clients.
+     */
+    pkce?: boolean;
+    /** Provider-specific authorization parameters, such as Google's offline access. */
+    authParams?: Record<string, string>;
+    /** Send `scope` with a refresh, for a provider that documents it as required there. */
+    refreshWithScope?: boolean;
   };
+  /**
+   * Where the person removes Alia's grant at the provider, for a provider with no
+   * revocation endpoint: disconnecting deletes the tokens Alia holds, and this is
+   * the rest of it.
+   */
+  revokeAt?: string;
   /** Optional profile fetching config to populate accountId/accountName/avatarUrl */
   profile?: IntegrationProfileConfig;
+}
+
+/**
+ * Microsoft 365 is one Entra app registration (multi-tenant, a Web redirect URI
+ * per service) with three connections, so each asks only for its own delegated
+ * scopes and none needs an administrator's consent. Outlook signs in on the
+ * `common` authority (work, school and personal accounts); Teams and SharePoint
+ * exist only for work and school accounts, so they use `organizations`.
+ */
+const MICROSOFT_PROFILE: IntegrationProfileConfig = {
+  url: 'https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName',
+  mapResponse: (data: any) => ({
+    accountId: data.id,
+    accountName: data.mail || data.userPrincipalName || data.displayName,
+  }),
+};
+
+const MICROSOFT_REVOKE_AT =
+  'https://myapps.microsoft.com (work or school account) or https://account.live.com/consent/Manage (personal account)';
+
+function microsoftOAuth(authority: 'common' | 'organizations', scopes: string[]) {
+  return {
+    authUrl: `https://login.microsoftonline.com/${authority}/oauth2/v2.0/authorize`,
+    tokenUrl: `https://login.microsoftonline.com/${authority}/oauth2/v2.0/token`,
+    scopes: ['offline_access', 'User.Read', ...scopes],
+    envClientId: 'MICROSOFT_OAUTH_CLIENT_ID',
+    envClientSecret: 'MICROSOFT_OAUTH_CLIENT_SECRET',
+    authParams: { response_mode: 'query', prompt: 'select_account' },
+    refreshWithScope: true,
+  };
 }
 
 export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
@@ -46,6 +91,7 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
       ],
       envClientId: 'GOOGLE_OAUTH_CLIENT_ID',
       envClientSecret: 'GOOGLE_OAUTH_CLIENT_SECRET',
+      authParams: { access_type: 'offline' },
     },
     profile: {
       url: 'https://www.googleapis.com/oauth2/v2/userinfo',
@@ -68,6 +114,7 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
       scopes: ['https://www.googleapis.com/auth/drive.readonly'],
       envClientId: 'GOOGLE_OAUTH_CLIENT_ID',
       envClientSecret: 'GOOGLE_OAUTH_CLIENT_SECRET',
+      authParams: { access_type: 'offline' },
     },
     profile: {
       url: 'https://www.googleapis.com/oauth2/v2/userinfo',
@@ -77,5 +124,41 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
         avatarUrl: data.picture,
       }),
     },
+  },
+  {
+    service: 'microsoft-outlook',
+    name: 'Outlook',
+    icon: 'mail',
+    description: 'Read, search and send Outlook mail, and manage your Outlook calendar',
+    category: 'communication',
+    oauthConfig: microsoftOAuth('common', ['Mail.Read', 'Mail.Send', 'Calendars.ReadWrite']),
+    profile: MICROSOFT_PROFILE,
+    revokeAt: MICROSOFT_REVOKE_AT,
+  },
+  {
+    service: 'microsoft-teams',
+    name: 'Microsoft Teams',
+    icon: 'message-square',
+    description: 'Read and send Teams chat messages, and post in your teams’ channels',
+    category: 'communication',
+    oauthConfig: microsoftOAuth('organizations', [
+      'Chat.Read',
+      'ChatMessage.Send',
+      'Team.ReadBasic.All',
+      'Channel.ReadBasic.All',
+      'ChannelMessage.Send',
+    ]),
+    profile: MICROSOFT_PROFILE,
+    revokeAt: MICROSOFT_REVOKE_AT,
+  },
+  {
+    service: 'microsoft-sharepoint',
+    name: 'SharePoint and OneDrive',
+    icon: 'hard-drive',
+    description: 'Search and read files in SharePoint, OneDrive and Teams',
+    category: 'storage',
+    oauthConfig: microsoftOAuth('organizations', ['Files.Read.All', 'Sites.Read.All']),
+    profile: MICROSOFT_PROFILE,
+    revokeAt: MICROSOFT_REVOKE_AT,
   },
 ];

@@ -71,6 +71,25 @@ vi.mock('../../lib/mcp-registry.js', () => ({
       requiresOAuth: true,
       category: 'development',
     },
+    {
+      id: 'vendor',
+      name: 'Vendor',
+      description: 'A connector whose vendor issues Alia a client',
+      icon: 'vendor',
+      transport: 'streamable-http',
+      url: 'https://mcp.vendor.test/mcp',
+      requiredEnv: [],
+      requiresOAuth: true,
+      oauth: {
+        client: {
+          envClientId: 'VENDOR_MCP_CLIENT_ID',
+          envClientSecret: 'VENDOR_MCP_CLIENT_SECRET',
+        },
+        scope: 'read write',
+        revocation: { url: 'https://vendor.test/oauth/revoke', clientAuth: 'basic' },
+      },
+      category: 'productivity',
+    },
   ],
 }));
 
@@ -433,6 +452,7 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
        * Loud to quiet, in the direction the caller deserved — and stated here so
        * it cannot be mistaken for an accident later.
        */
+      mockFindServer.mockResolvedValue(null);
       mockDeleteServer.mockResolvedValue(null);
 
       const handler = getRouteHandler('delete', '/:id');
@@ -443,6 +463,135 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
       expect(res.statusCode).toBe(404);
       expect(res.body).toEqual({ error: 'Server not found' });
+    });
+  });
+
+  describe('a registry connector with a client Alia holds', () => {
+    const vendorRow = (overrides: Partial<McpServerRow> = {}) =>
+      serverRow({
+        name: 'vendor',
+        displayName: 'Vendor',
+        registryId: 'vendor',
+        configUrl: 'https://mcp.vendor.test/mcp',
+        ...overrides,
+      });
+
+    beforeEach(() => {
+      delete process.env.VENDOR_MCP_CLIENT_ID;
+      delete process.env.VENDOR_MCP_CLIENT_SECRET;
+    });
+
+    it('lists it as not available, without the names of its configuration', async () => {
+      const handler = getRouteHandler('get', '/registry');
+      const res = makeMockRes();
+      await handler({ userId: USER_A }, res);
+
+      const vendor = res.body.servers.find((entry: { id: string }) => entry.id === 'vendor');
+      expect(vendor.configured).toBe(false);
+      expect(vendor).not.toHaveProperty('oauth');
+      expect(JSON.stringify(res.body)).not.toContain('VENDOR_MCP_CLIENT');
+      expect(
+        res.body.servers.find((entry: { id: string }) => entry.id === 'github').configured,
+      ).toBe(true);
+    });
+
+    it('is not installed while its client is not configured', async () => {
+      const handler = getRouteHandler('post', '/install');
+      const res = makeMockRes();
+      await handler({ userId: USER_A, body: { registryId: 'vendor' } }, res);
+
+      expect(res.statusCode).toBe(503);
+      expect(res.body.code).toBe('not_configured');
+      expect(mockInstall).not.toHaveBeenCalled();
+    });
+
+    it('does not start OAuth while its client is not configured', async () => {
+      mockFindServer.mockResolvedValue(vendorRow());
+      const handler = getRouteHandler('post', '/:id/oauth/start');
+      const res = makeMockRes();
+      await handler({ userId: USER_A, params: { id: 'srv-1' } }, res);
+
+      expect(res.statusCode).toBe(503);
+      expect(mockCreateState).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("sends the client, scope and revocation endpoint, to the registry's address only", async () => {
+      process.env.VENDOR_MCP_CLIENT_ID = 'vendor-client';
+      process.env.VENDOR_MCP_CLIENT_SECRET = 'vendor-secret';
+      mockFindServer.mockResolvedValue(vendorRow({ configUrl: 'https://attacker.test/mcp' }));
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ authorizationUrl: 'https://vendor.test/authorize' }),
+      });
+
+      const handler = getRouteHandler('post', '/:id/oauth/start');
+      const res = makeMockRes();
+      await handler({ userId: USER_A, params: { id: 'srv-1' } }, res);
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(mockFetch.mock.calls[0]?.[1]?.body as string);
+      expect(body.config).toEqual({
+        url: 'https://mcp.vendor.test/mcp',
+        requiresOAuth: true,
+        oauthClient: { clientId: 'vendor-client', clientSecret: 'vendor-secret' },
+        oauthScope: 'read write',
+        oauthRevocation: { url: 'https://vendor.test/oauth/revoke', clientAuth: 'basic' },
+      });
+    });
+  });
+
+  describe('DELETE /:id — revokes before it forgets', () => {
+    it('asks integrations to revoke, then deletes the row', async () => {
+      mockFindServer.mockResolvedValue(serverRow({ status: 'running' }));
+      mockDeleteServer.mockResolvedValue(serverRow());
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, forgotten: true, revocation: { revoked: true } }),
+      });
+
+      const handler = getRouteHandler('delete', '/:id');
+      const res = makeMockRes();
+      await handler({ userId: USER_A, params: { id: 'srv-1' } }, res);
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(
+        'http://integrations.test/mcp/servers/srv-1/revoke',
+      );
+      const body = JSON.parse(mockFetch.mock.calls[0]?.[1]?.body as string);
+      expect(body.config.url).toBe('https://mcp.github.test');
+      expect(mockDeleteServer).toHaveBeenCalledWith(expect.anything(), 'srv-1', USER_A);
+      expect(res.body).toEqual({ success: true });
+    });
+
+    it('keeps the row and answers 502 when revocation could not run, so it is retried', async () => {
+      mockFindServer.mockResolvedValue(serverRow({ status: 'running' }));
+      mockFetch.mockRejectedValue(new Error('integrations down'));
+
+      const handler = getRouteHandler('delete', '/:id');
+      const res = makeMockRes();
+      await handler({ userId: USER_A, params: { id: 'srv-1' } }, res);
+
+      expect(res.statusCode).toBe(502);
+      expect(res.body.code).toBe('revoke_failed');
+      expect(mockDeleteServer).not.toHaveBeenCalled();
+    });
+
+    it('stops a local-process connector without revoking anything', async () => {
+      mockFindServer.mockResolvedValue(
+        serverRow({ transport: 'stdio', configUrl: null, configCommand: 'npx', status: 'running' }),
+      );
+      mockDeleteServer.mockResolvedValue(serverRow());
+      mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+
+      const handler = getRouteHandler('delete', '/:id');
+      const res = makeMockRes();
+      await handler({ userId: USER_A, params: { id: 'srv-1' } }, res);
+
+      expect(mockFetch.mock.calls[0]?.[0]).toBe('http://integrations.test/mcp/servers/srv-1/stop');
+      expect(res.body).toEqual({ success: true });
     });
   });
 });

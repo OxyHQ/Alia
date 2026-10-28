@@ -106,6 +106,7 @@ describe('integrations-oauth.ts — POST /:service/complete CSRF binding', () =>
       service: SERVICE,
       userId: USER_B, // issued to someone else
       expiresAt: new Date(Date.now() + 60_000),
+      codeVerifier: null,
     });
 
     const handler = getRouteHandler('post', '/:service/complete');
@@ -132,6 +133,7 @@ describe('integrations-oauth.ts — POST /:service/complete CSRF binding', () =>
       service: SERVICE,
       userId: USER_A, // belongs to the caller
       expiresAt: new Date(Date.now() + 60_000),
+      codeVerifier: null,
     });
     mockConsumeState.mockResolvedValue(true);
 
@@ -229,6 +231,7 @@ describe('integrations-oauth.ts — POST /:service/complete CSRF binding', () =>
       service: SERVICE,
       userId: USER_A,
       expiresAt: new Date(Date.now() + 60_000),
+      codeVerifier: null,
     });
     mockConsumeState.mockResolvedValue(false);
 
