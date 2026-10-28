@@ -16,7 +16,7 @@ describe('a file part on its way to the model', () => {
         },
       ],
       new Map(),
-      new Map([['lease', { type: 'text', text: '[Attached document: lease.pdf]\n\nRent: 900' }]]),
+      new Map([['lease', [{ type: 'text', text: '[Attached document: lease.pdf]\n\nRent: 900' }]]]),
     );
     expect(user).toEqual({
       role: 'user',
@@ -24,6 +24,30 @@ describe('a file part on its way to the model', () => {
         { type: 'text', text: 'What does it say?' },
         { type: 'text', text: '[Attached document: lease.pdf]\n\nRent: 900' },
         { type: 'image', image: 'data:image/png;base64,AAAA' },
+      ],
+    });
+  });
+
+  it('becomes every part a scanned document was read into, in order', () => {
+    const page = new Uint8Array([1, 2, 3]);
+    const [user] = convertToAISDKMessages(
+      [{ role: 'user', content: [{ type: 'file', file: { file_id: 'scan' } }] }],
+      new Map(),
+      new Map([
+        [
+          'scan',
+          [
+            { type: 'text', text: '[Attached document: scan.pdf. pages 1 of 1]' },
+            { type: 'image', image: page, mediaType: 'image/png' },
+          ],
+        ],
+      ]),
+    );
+    expect(user).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: '[Attached document: scan.pdf. pages 1 of 1]' },
+        { type: 'image', image: page, mediaType: 'image/png' },
       ],
     });
   });
