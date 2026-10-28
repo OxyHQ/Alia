@@ -32,18 +32,27 @@ export interface OAuthStateRow {
   readonly service: string;
   readonly userId: string;
   readonly expiresAt: Date;
+  /** The PKCE verifier in the clear (the column decrypts it); null without PKCE. */
+  readonly codeVerifier: string | null;
 }
 
 /** Mint a state for an authorize that is about to start. */
 export async function createOAuthState(
   db: ApiDatabase,
-  input: { state: string; service: string; userId: string; expiresAt: Date },
+  input: {
+    state: string;
+    service: string;
+    userId: string;
+    expiresAt: Date;
+    codeVerifier?: string;
+  },
 ): Promise<void> {
   await db.insert(oauthStates).values({
     id: input.state,
     service: input.service,
     userId: input.userId,
     expiresAt: input.expiresAt,
+    codeVerifier: input.codeVerifier ?? null,
   });
 }
 
@@ -66,6 +75,7 @@ export async function findLiveOAuthState(
       service: oauthStates.service,
       userId: oauthStates.userId,
       expiresAt: oauthStates.expiresAt,
+      codeVerifier: oauthStates.codeVerifier,
     })
     .from(oauthStates)
     .where(

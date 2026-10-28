@@ -30,7 +30,7 @@ import { oxyServiceClient } from '../oxy-service-client.js';
 
 import { OxyApiError, type OxyServices } from '@oxy.so/core';
 import type { FilePart, ImagePart, TextPart } from 'ai';
-import { extractText, getDocumentProxy } from 'unpdf';
+import { pdfText } from './pdf-text.js';
 import type { ChatMessage, FilePartRef } from '../message-converter.js';
 import { log } from '../logger.js';
 import { TTLCache } from '../ttl-cache.js';
@@ -128,16 +128,6 @@ function documentText(name: string, text: string): TextPart {
         ? `\n\n[The document continues; only its first ${MAX_DOCUMENT_CHARS} characters are included.]`
         : ''),
   };
-}
-
-async function pdfText(bytes: Uint8Array): Promise<string> {
-  const document = await getDocumentProxy(bytes, { verbosity: 0 });
-  try {
-    const { text } = await extractText(document, { mergePages: true });
-    return text;
-  } finally {
-    await document.loadingTask.destroy();
-  }
 }
 
 function unavailable(fileId: string): FilePartError {

@@ -135,6 +135,7 @@ async function refreshAndPersist(integration: IntegrationTokenRow): Promise<stri
   const bodyParams: Record<string, string> = {
     grant_type: 'refresh_token',
     refresh_token: integration.refreshToken,
+    ...(entry.oauthConfig.refreshWithScope ? { scope: entry.oauthConfig.scopes.join(' ') } : {}),
   };
 
   if (authMethod === 'basic') {

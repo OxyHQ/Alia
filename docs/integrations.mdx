@@ -75,6 +75,103 @@ MCP integration lives in `packages/api/src/lib/tools/mcp.ts` and `packages/integ
 
 MCP capabilities are visible to the model with the same calling convention as native tools, so the LLM does not need to distinguish them.
 
+## Connected apps
+
+The apps a person connects from Alia's settings or from Astro (`astro://apps`). Each one is
+the vendor's **official** remote MCP server where the vendor has one, reached through the MCP
+SDK's OAuth flow (RFC 9728 resource metadata, RFC 8414 discovery, Dynamic Client Registration
+or a client the vendor issued to Alia, PKCE S256, refresh). Microsoft 365 has no MCP server a
+third-party app can use without Copilot billing, so it is Microsoft Graph behind Alia's own
+OAuth integration.
+
+| App | Registry id | Reached at | Client | Scopes Alia asks for | Revocation on disconnect |
+| --- | --- | --- | --- | --- | --- |
+| Notion, GitHub, Linear | `notion`, `github-remote`, `linear` | the vendors' hosted MCP | DCR | the server's | vendor endpoint when advertised |
+| Jira, Confluence, Loom | `atlassian` | `https://mcp.atlassian.com/v2/mcp` (Rovo MCP) | DCR | Jira, Confluence and Loom `read`/`write`/`search` `:agent-interface`, `search:rovo`, `read:me`, `read:account`, `offline_access` — never `delete:` or `manage:` | `https://auth.atlassian.com/oauth/revoke` |
+| Trello | `trello` | `https://mcp.trello.com/v1` | DCR (Atlassian's server) | boards read/write, workspace and member read, `offline_access` | Atlassian's endpoint |
+| Figma | `figma` | `https://mcp.figma.com/mcp` | DCR, admitted by name (`Alia`) only once Figma approves it | `mcp:connect` | none (Figma has no endpoint): tokens deleted |
+| Canva | `canva` | `https://api.canva.com/connect/v1/mcp` | issued (`CANVA_MCP_CLIENT_ID` / `_SECRET`) | designs, folders, comments, assets read/write; brand kit, brand templates, help read | `https://api.canva.com/rest/v1/oauth/revoke` |
+| Zoom | `zoom` | `https://mcp.zoom.us/mcp/zoom/streamable` | issued (`ZOOM_MCP_CLIENT_ID` / `_SECRET`) | meeting search/assets, schedule and update meetings, recordings, notes, Zoom search, Docs, Hub — no deletes, collaborators or workflows | `https://zoom.us/oauth/revoke` |
+| Granola | `granola` | `https://mcp.granola.ai/mcp` | DCR | `mcp offline_access` | none: tokens deleted |
+| Amplitude | `amplitude`, `amplitude-eu` | `https://mcp.amplitude.com/mcp`, `https://mcp.eu.amplitude.com/mcp` | DCR | `all:read all:write offline_access` | vendor endpoint |
+| Salesforce | `salesforce` | `https://api.salesforce.com/platform/mcp/v1/platform/sobject-all` | issued: an External Client App (`SALESFORCE_MCP_CLIENT_ID` / `_SECRET`) | `mcp_api refresh_token` | `login.salesforce.com` endpoint |
+| Outlook | `microsoft-outlook` (integration) | Microsoft Graph, `common` authority | Entra app (`MICROSOFT_OAUTH_CLIENT_ID` / `_SECRET`) | `Mail.Read Mail.Send Calendars.ReadWrite User.Read offline_access` | none: tokens deleted; consent removed at myapps.microsoft.com / account.live.com/consent/Manage |
+| Microsoft Teams | `microsoft-teams` (integration) | Graph, `organizations` | same app | `Chat.Read ChatMessage.Send Team.ReadBasic.All Channel.ReadBasic.All ChannelMessage.Send User.Read offline_access` | same |
+| SharePoint and OneDrive | `microsoft-sharepoint` (integration) | Graph, `organizations` | same app | `Files.Read.All Sites.Read.All User.Read offline_access` | same |
+
+None of these scopes needs a Microsoft tenant administrator's consent (reading **channel** messages
+would, `ChannelMessage.Read.All`, so Teams reads chats and posts to channels but does not read them).
+LinkedIn is not offered: its API terms forbid automated posting (§3.1(26)) and reading a member's
+posts is restricted to approved partners, so no tool an assistant runs on its own is allowed.
+
+**Tools.** An MCP connector's tools are the vendor's, named `mcp_<registry id>__<tool>`; read and
+write tools are both offered, and no tool asks for approval ([ADR 0020 §3](./adr/0020-every-agent-is-the-same-agent.md#3-no-agent-asks-for-approval)):
+an MCP tool runs flagged (`R2`). Microsoft 365's tools are native
+(`lib/tools/integrations/microsoft-365.ts`): `searchOutlookMail`, `readOutlookMail`,
+`listOutlookEvents`, `listTeamsChats`, `readTeamsChat`, `listTeams`, `listTeamsChannels`,
+`searchSharePointFiles` and `readSharePointFile` are reads (`R0`); `sendOutlookMail`,
+`replyToOutlookMail`, `createOutlookEvent`, `sendTeamsChatMessage` and `postTeamsChannelMessage`
+run flagged (`R2`). `readSharePointFile` reads Word, Excel and PowerPoint through Graph's PDF
+conversion.
+
+**Tokens.** MCP tokens and a DCR client are stored encrypted in integrations'
+`mcp_connector_auths` (`mcp/oauth-provider.ts`); a client the vendor issued is read from the API's
+environment on every call and sent over the internal transport, never stored with a connector.
+A registry connector is always reached at the registry's address, whatever its row says, so an
+edited URL never receives Alia's client. Integration tokens are `encryptedText` in `integrations`,
+and the PKCE verifier of a handshake in `oauth_states.code_verifier`. A connector that lost its
+session in a deploy reconnects from its stored authorization on the next call.
+
+**Disconnecting** (`DELETE /mcp/:id`) asks integrations to revoke first
+(`POST /mcp/servers/:id/revoke`): the vendor's RFC 7009 endpoint (advertised, or the one the
+registry documents) gets the refresh and the access token, and the stored row is deleted whatever
+the vendor answered. The connector row goes only after that answered; if integrations cannot be
+reached the API answers `502 revoke_failed` and the person retries. `DELETE /integrations/:id`
+deletes the tokens; Microsoft has no revocation endpoint, so `GET /integrations/available` names
+where the person removes the consent (`revokeAt`).
+
+**Not configured.** An entry whose issued client is unset, or whose `enabledBy` variable is not
+`true`, is listed with `configured: false`; `/mcp/install` and `/mcp/:id/oauth/start` answer
+`503 not_configured`, and Astro shows "Not available yet".
+
+### What the owner registers
+
+The redirect URIs are fixed by `API_BASE_URL` (production `https://api.alia.onl`). Secrets go to
+SSM `/oxy/alia/<NAME>` first and are then bound in the API task definition
+([deployment](./deployment.md#secrets)); only the API reads them.
+
+- **Microsoft 365** — an Entra app registration: *Accounts in any organizational directory and
+  personal Microsoft accounts*; platform **Web** (not SPA) with redirect URIs
+  `https://api.alia.onl/integrations/microsoft-outlook/callback`,
+  `…/microsoft-teams/callback` and `…/microsoft-sharepoint/callback`; a client secret; delegated
+  Graph permissions `User.Read`, `offline_access`, `Mail.Read`, `Mail.Send`, `Calendars.ReadWrite`,
+  `Chat.Read`, `ChatMessage.Send`, `Team.ReadBasic.All`, `Channel.ReadBasic.All`,
+  `ChannelMessage.Send`, `Files.Read.All`, `Sites.Read.All`. Publisher verification (an MPN id),
+  or tenants with risk-based consent refuse it. → `MICROSOFT_OAUTH_CLIENT_ID`,
+  `MICROSOFT_OAUTH_CLIENT_SECRET`.
+- **Zoom** — a General app (user-managed, OAuth) in the Zoom App Marketplace with redirect URL
+  `https://api.alia.onl/mcp/oauth/callback`, the scopes in the table above, and Marketplace
+  publication (review and domain validation) before anyone outside Oxy's Zoom account can
+  authorize. → `ZOOM_MCP_CLIENT_ID`, `ZOOM_MCP_CLIENT_SECRET`.
+- **Canva** — an integration in Canva's Developer Portal with Canva MCP turned on, redirect URL
+  `https://api.alia.onl/mcp/oauth/callback` and the scopes above; public use needs Canva's review.
+  Canva's MCP usage policy applies (no prefetching without the person's action; background reads
+  only in automations the person set up). → `CANVA_MCP_CLIENT_ID`, `CANVA_MCP_CLIENT_SECRET`.
+- **Salesforce** — an External Client App with OAuth (authorization code, PKCE required, "Issue
+  JWT-based access tokens for named users", secret required for the web server and refresh flows),
+  callback `https://api.alia.onl/mcp/oauth/callback`, scopes `mcp_api` and `refresh_token`.
+  Salesforce documents one app per org; for other orgs it has to be packaged (2GP) and installed
+  there, and each org's admin enables the `sobject-all` server in Setup › API Catalog › MCP
+  Servers. → `SALESFORCE_MCP_CLIENT_ID`, `SALESFORCE_MCP_CLIENT_SECRET`.
+- **Figma** — join Figma's MCP client waitlist for the client name `Alia`; once Figma lists it, set
+  `FIGMA_MCP_APPROVED=true`.
+- **Atlassian (Jira, Confluence, Loom, Trello)** — nothing to create (DCR), but Atlassian admits a
+  redirect only from an allowed domain: ask Atlassian to add `api.alia.onl` to the Rovo MCP
+  default domains, or each organization's admin adds `https://api.alia.onl/**` under Rovo MCP
+  server › custom domains. Every call spends the site's Rovo credits.
+- **Granola, Amplitude** — nothing (DCR). A Granola Enterprise or Amplitude admin can switch MCP
+  off for their members.
+
 ## Oxy apps
 
 Oxy apps are **first party**. Alia and Oxy are the same ecosystem, so there is no
