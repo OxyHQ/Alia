@@ -1,5 +1,15 @@
 # @alia.onl/sdk
 
+## 22.6.0
+
+- **`@alia.onl/sdk/dictation`: dictation's request on its own.** `requestTranscription`,
+  `DictationError`, `dictationFailureCode`, `normalizeAudioMediaType` and `MAX_DICTATION_MS`, the
+  same functions `useDictation` and `AliaComposer` use, from an entry that reaches no React, no
+  native module, no recorder and no Oxy client (`check:entries` holds it). An app that records
+  its own audio (Astro's browser shell) sends its clips from here instead of keeping a copy of
+  the request. Nothing changes for the root entry, which still exports `requestTranscription`
+  and `DictationError`.
+
 ## 22.5.0
 
 - **`AliaApi.put`.** The REST API (`useAliaApi`, `createAliaApi`) sends PUT like PATCH: the
