@@ -3,6 +3,7 @@ import {
   type AliaHostTools,
   HOST_RESULT_MAX_CHARS,
   HostOutcomeQueue,
+  hostImageResultProblem,
   type HostResultRecord,
   hostRequest,
 } from '../../src/runtime/host-tools';
@@ -142,6 +143,50 @@ describe('an awaited action', () => {
       { toolCallId: 'c3', outcome: 'applied' },
       { toolCallId: 'c4', outcome: 'failed', detail: 'The result was too large to send.' },
     ]);
+  });
+
+  it('sends an image result as it is, and answers a malformed one as failed', async () => {
+    const send = vi.fn(async (_answer: HostResultRecord) => undefined);
+    const queue = new HostOutcomeQueue();
+    const screenshot = { type: 'image', mediaType: 'image/jpeg', data: '/9j/4AAQ', text: 'Docs' };
+    await queue.answer(
+      awaited('c5'),
+      tools(async () => ({ outcome: 'inline', result: screenshot })),
+      'homiio',
+      send,
+    );
+    await queue.answer(
+      awaited('c6'),
+      tools(async () => ({
+        outcome: 'inline',
+        result: { ...screenshot, data: 'data:image/jpeg;base64,/9j/4AAQ' },
+      })),
+      'homiio',
+      send,
+    );
+    await queue.answer(
+      awaited('c7'),
+      tools(async () => ({ outcome: 'inline', result: { ...screenshot, mediaType: 'image/gif' } })),
+      'homiio',
+      send,
+    );
+    expect(send.mock.calls.map(([answer]) => answer)).toEqual([
+      { toolCallId: 'c5', outcome: 'inline', result: screenshot },
+      {
+        toolCallId: 'c6',
+        outcome: 'failed',
+        detail: "An image result's data is standard base64 with no data: prefix.",
+      },
+      {
+        toolCallId: 'c7',
+        outcome: 'failed',
+        detail: "An image result's mediaType is one of image/jpeg, image/png, image/webp.",
+      },
+    ]);
+    expect(hostImageResultProblem({ type: 'snapshot' })).toBeNull();
+    expect(hostImageResultProblem({ ...screenshot, url: 'x' })).toBe(
+      'An image result has no "url".',
+    );
   });
 });
 

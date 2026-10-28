@@ -1,5 +1,19 @@
 # @alia.onl/sdk
 
+## 22.5.0
+
+- **Image results for awaited host tools.** An awaited tool's `execute` may answer
+  `result: { type: "image", mediaType, data, text? }` (`AliaHostImageResult`: `image/jpeg`,
+  `image/png` or `image/webp`, `data` in standard base64 with no `data:` prefix, an optional
+  caption of at most `HOST_IMAGE_TEXT_MAX_CHARS`, 4,000). The model sees the image itself in that
+  turn; the stored conversation and the `alia.tool_result` frame keep
+  `{ type, mediaType, text?, omitted: true }` instead. The whole result still counts toward
+  `HOST_RESULT_MAX_CHARS` (100,000 characters as JSON), so size a screenshot to fit.
+- A result that claims `type: "image"` but is malformed is answered `failed` with the reason
+  (`hostImageResultProblem`), instead of being sent for the API to refuse while the model waits.
+- Needs the Alia API that ships with this release (`docs/agent-embedding.md` §2); an older API
+  passes an image result to the model as JSON text.
+
 ## 22.4.0
 
 - **A shared conversation shows its artifacts.** `readSharedConversation` keeps an assistant
