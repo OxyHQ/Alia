@@ -20,7 +20,16 @@ import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { errorMessage } from '../shared/utils';
 import { createLogger } from '../shared/logger';
+import type {
+  OAuthClientInformationMixed,
+  OAuthTokens,
+} from '@modelcontextprotocol/sdk/shared/auth.js';
+import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { getDb } from '../db';
+import { decrypt } from '../shared/crypto';
 import { AliaOAuthProvider } from './oauth-provider';
+import { deleteConnectorAuth, findConnectorAuth } from './oauth-store';
+import { revokeConnectorTokens, type RevocationOutcome } from './revoke';
 import type {
   McpServerSession,
   McpServerConfig,
@@ -32,6 +41,9 @@ const logger = createLogger('MCP');
 
 /** Active server sessions keyed by server document ID */
 const sessions = new Map<string, McpServerSession>();
+
+/** Reconnects in flight, so concurrent calls after a restart share one. */
+const reconnecting = new Map<string, Promise<void>>();
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -57,6 +69,8 @@ export async function startServer(
         serverId,
         stateToken: randomUUID(),
         callbackUrl: defaultCallbackUrl(),
+        scope: config.oauthScope,
+        client: config.oauthClient,
       })
     : undefined;
 
@@ -125,8 +139,15 @@ export async function startOAuth(
     throw new Error(`${transport} transport requires a url for OAuth`);
   }
 
-  const provider = new AliaOAuthProvider({ oxyUserId, serverId, stateToken, callbackUrl });
-  const result = await auth(provider, { serverUrl: config.url });
+  const provider = new AliaOAuthProvider({
+    oxyUserId,
+    serverId,
+    stateToken,
+    callbackUrl,
+    scope: config.oauthScope,
+    client: config.oauthClient,
+  });
+  const result = await auth(provider, { serverUrl: config.url, scope: config.oauthScope });
 
   if (result !== 'REDIRECT') {
     throw new Error(`Expected an OAuth redirect but the flow returned '${result}'`);
@@ -165,9 +186,15 @@ export async function finishOAuth(
     serverId,
     stateToken: randomUUID(),
     callbackUrl,
+    scope: config.oauthScope,
+    client: config.oauthClient,
   });
 
-  const result = await auth(provider, { serverUrl: config.url, authorizationCode: code });
+  const result = await auth(provider, {
+    serverUrl: config.url,
+    authorizationCode: code,
+    scope: config.oauthScope,
+  });
   if (result !== 'AUTHORIZED') {
     throw new Error(`Expected OAuth authorization to complete but the flow returned '${result}'`);
   }
@@ -229,12 +256,95 @@ export async function stopServer(serverId: string): Promise<void> {
   session.status = 'stopped';
 }
 
+/**
+ * The person's request to disconnect a connector: close its session, ask the
+ * vendor to revoke the grant (RFC 7009) when it advertises how, and delete the
+ * stored tokens and client whatever the vendor answered.
+ */
+export async function revokeAuthorization(
+  serverId: string,
+  oxyUserId: string,
+  config: McpServerConfig,
+  fetchFn?: FetchLike,
+): Promise<{ forgotten: boolean; revocation: RevocationOutcome }> {
+  await stopServer(serverId);
+  const db = getDb();
+  const row = await findConnectorAuth(db, oxyUserId, serverId);
+  if (!row) return { forgotten: false, revocation: { revoked: false, reason: 'no_tokens' } };
+
+  let revocation: RevocationOutcome = { revoked: false, reason: 'no_tokens' };
+  try {
+    const tokens = row.tokens ? (JSON.parse(decrypt(row.tokens)) as OAuthTokens) : undefined;
+    const client: OAuthClientInformationMixed | undefined = config.oauthClient
+      ? {
+          client_id: config.oauthClient.clientId,
+          ...(config.oauthClient.clientSecret
+            ? { client_secret: config.oauthClient.clientSecret }
+            : {}),
+        }
+      : row.clientInformation
+        ? (JSON.parse(decrypt(row.clientInformation)) as OAuthClientInformationMixed)
+        : undefined;
+    if (config.url) {
+      revocation = await revokeConnectorTokens({
+        serverUrl: config.url,
+        tokens,
+        client,
+        documented: config.oauthRevocation,
+        fetchFn,
+      });
+    }
+  } catch (err: unknown) {
+    logger.warn(`[${serverId}] Revocation skipped: ${errorMessage(err)}`);
+    revocation = { revoked: false, reason: 'unreachable' };
+  }
+
+  const forgotten = await deleteConnectorAuth(db, oxyUserId, serverId);
+  logger.info(
+    `[${serverId}] Authorization forgotten (vendor revocation: ${
+      revocation.revoked ? 'done' : revocation.reason
+    })`,
+  );
+  return { forgotten, revocation };
+}
+
+/**
+ * The session for a connector, reconnected from its stored authorization when
+ * this process lost it (a deploy or a crash): the row says the connector is
+ * running, so a call must not fail only because the socket is new.
+ */
+async function ensureSession(
+  serverId: string,
+  reconnect?: {
+    oxyUserId: string;
+    transport: 'stdio' | 'sse' | 'streamable-http';
+    config: McpServerConfig;
+  },
+): Promise<McpServerSession | undefined> {
+  const existing = sessions.get(serverId);
+  if (existing || !reconnect) return existing;
+  let pending = reconnecting.get(serverId);
+  if (!pending) {
+    pending = startServer(serverId, reconnect.oxyUserId, reconnect.transport, reconnect.config)
+      .then(() => undefined)
+      .finally(() => reconnecting.delete(serverId));
+    reconnecting.set(serverId, pending);
+  }
+  await pending;
+  return sessions.get(serverId);
+}
+
 export async function callTool(
   serverId: string,
   toolName: string,
   args: Record<string, unknown>,
+  reconnect?: {
+    oxyUserId: string;
+    transport: 'stdio' | 'sse' | 'streamable-http';
+    config: McpServerConfig;
+  },
 ): Promise<unknown> {
-  const session = sessions.get(serverId);
+  const session = await ensureSession(serverId, reconnect);
   if (!session) throw new Error('MCP server not running');
   if (session.status !== 'running') throw new Error(`MCP server is ${session.status}`);
 

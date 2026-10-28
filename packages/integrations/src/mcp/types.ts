@@ -36,6 +36,17 @@ export interface McpServerSession {
   clientTransport: Transport;
 }
 
+/**
+ * A client the vendor registered for Alia ahead of time, for authorization servers
+ * that offer no Dynamic Client Registration (or refuse unknown clients). The API
+ * reads it from its own configuration on every call and it is never stored with
+ * the connector, so rotating the secret needs no migration of user rows.
+ */
+export interface McpOAuthClient {
+  clientId: string;
+  clientSecret?: string;
+}
+
 export interface McpServerConfig {
   command?: string;
   args?: string[];
@@ -44,4 +55,16 @@ export interface McpServerConfig {
   env?: Record<string, string>;
   /** When true, remote (sse/streamable-http) transports authenticate via the MCP OAuth flow. */
   requiresOAuth?: boolean;
+  /** Pre-registered OAuth client; absent means Dynamic Client Registration. */
+  oauthClient?: McpOAuthClient;
+  /**
+   * The scopes to request, space separated. Absent means the SDK's choice (the
+   * WWW-Authenticate challenge, then the resource's `scopes_supported`).
+   */
+  oauthScope?: string;
+  /**
+   * A revocation endpoint the vendor documents but does not advertise in its
+   * metadata, and how it takes the client's credentials.
+   */
+  oauthRevocation?: { url: string; clientAuth: 'basic' | 'body' };
 }

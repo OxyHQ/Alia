@@ -11,7 +11,6 @@ import {
   listMcpServersForUser,
   serializeMcpServer,
   setMcpServerStatus,
-  toMcpServerConfig,
   updateMcpServer,
   type McpServerConfig,
 } from '../db/integrations/mcpServerRepository.js';
@@ -27,7 +26,12 @@ import type {
   McpServerTool,
   McpServerTransport,
 } from '../db/schema/integrations.js';
-import { MCP_REGISTRY } from '../lib/mcp-registry.js';
+import { MCP_REGISTRY, type McpRegistryEntry } from '../lib/mcp-registry.js';
+import {
+  integrationsConfigFor,
+  isRegistryEntryConfigured,
+  registryEntryOf,
+} from '../lib/mcp-connector-config.js';
 import { log } from '../lib/logger.js';
 
 /**
@@ -48,9 +52,18 @@ const router = express.Router();
 
 const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
 
+/**
+ * A registry entry as clients see it: whether this deployment can connect it,
+ * and none of the configuration names behind that answer.
+ */
+function publicRegistryEntry(entry: McpRegistryEntry) {
+  const { oauth: _oauth, ...rest } = entry;
+  return { ...rest, configured: isRegistryEntryConfigured(entry) };
+}
+
 // Browse MCP registry
 router.get('/registry', authenticateToken, (_req, res) => {
-  res.json({ servers: MCP_REGISTRY });
+  res.json({ servers: MCP_REGISTRY.map(publicRegistryEntry) });
 });
 
 // Get MCP server details from registry
@@ -59,7 +72,7 @@ router.get('/registry/:id', authenticateToken, (req, res) => {
   if (!server) {
     return res.status(404).json({ error: 'Server not found in registry' });
   }
-  res.json({ server });
+  res.json({ server: publicRegistryEntry(server) });
 });
 
 // ---------------------------------------------------------------------------
@@ -96,6 +109,13 @@ router.post(
         return res.status(503).json({ error: 'Integrations service not configured' });
       }
 
+      const entry = registryEntryOf(server);
+      if (entry && !isRegistryEntryConfigured(entry)) {
+        return res
+          .status(503)
+          .json({ error: `${entry.name} is not available yet`, code: 'not_configured' });
+      }
+
       const state = crypto.randomBytes(32).toString('hex');
       await createMcpOAuthState(db, {
         state,
@@ -116,7 +136,7 @@ router.post(
           },
           body: JSON.stringify({
             oxyUserId: req.userId,
-            config: toMcpServerConfig(server),
+            config: integrationsConfigFor(server),
             transport: server.transport,
             stateToken: state,
             callbackUrl,
@@ -227,7 +247,7 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
         },
         body: JSON.stringify({
           oxyUserId: req.userId,
-          config: toMcpServerConfig(server),
+          config: integrationsConfigFor(server),
           transport: server.transport,
           code,
           callbackUrl,
@@ -302,6 +322,11 @@ router.post('/install', authenticateToken, async (req, res) => {
       if (!registryEntry) {
         return res.status(404).json({ error: 'Server not found in registry' });
       }
+      if (!isRegistryEntryConfigured(registryEntry)) {
+        return res
+          .status(503)
+          .json({ error: `${registryEntry.name} is not available yet`, code: 'not_configured' });
+      }
 
       serverConfig = {
         name: registryEntry.id,
@@ -365,31 +390,58 @@ router.post('/install', authenticateToken, async (req, res) => {
   }
 });
 
-// Uninstall MCP server
+// Uninstall MCP server. A remote connector's authorization is revoked first —
+// the vendor is asked to forget the grant and integrations deletes the stored
+// tokens — and the row goes only once that answered, so a failed disconnect is
+// retried rather than leaving a credential behind for a connector that is gone.
 router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await deleteMcpServerForUser(getDb(), req.params.id, req.userId!);
-
-    if (!server) {
+    const db = getDb();
+    const existing = await findMcpServerForUser(db, req.params.id, req.userId!);
+    if (!existing) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    // Stop in integrations if running
-    if (
-      server.status === 'running' &&
-      server.runtime === 'server' &&
-      INTEGRATIONS_URL &&
-      INTEGRATIONS_URL
-    ) {
-      try {
-        await integrationsFetch(req.userId!, `/mcp/servers/${server.id}/stop`, {
-          method: 'POST',
-          headers: {},
-          signal: AbortSignal.timeout(5_000),
-        });
-      } catch {
-        // Best effort
+    const remote = existing.transport === 'sse' || existing.transport === 'streamable-http';
+    if (existing.runtime === 'server' && INTEGRATIONS_URL) {
+      if (remote) {
+        try {
+          const response = await integrationsFetch(
+            req.userId!,
+            `/mcp/servers/${existing.id}/revoke`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                oxyUserId: req.userId,
+                config: integrationsConfigFor(existing),
+              }),
+              signal: AbortSignal.timeout(20_000),
+            },
+          );
+          if (!response.ok) throw new Error(`revoke answered ${response.status}`);
+        } catch (err: unknown) {
+          log.general.warn({ err, serverId: existing.id }, 'MCP revoke failed');
+          return res
+            .status(502)
+            .json({ error: 'Could not disconnect right now. Try again.', code: 'revoke_failed' });
+        }
+      } else if (existing.status === 'running') {
+        try {
+          await integrationsFetch(req.userId!, `/mcp/servers/${existing.id}/stop`, {
+            method: 'POST',
+            headers: {},
+            signal: AbortSignal.timeout(5_000),
+          });
+        } catch {
+          // Best effort
+        }
       }
+    }
+
+    const server = await deleteMcpServerForUser(db, existing.id, req.userId!);
+    if (!server) {
+      return res.status(404).json({ error: 'Server not found' });
     }
 
     res.json({ success: true });
@@ -445,7 +497,7 @@ router.post('/:id/start', authenticateToken, async (req: express.Request<{ id: s
       },
       body: JSON.stringify({
         oxyUserId: req.userId,
-        config: toMcpServerConfig(server),
+        config: integrationsConfigFor(server),
         transport: server.transport,
       }),
       signal: AbortSignal.timeout(30_000),

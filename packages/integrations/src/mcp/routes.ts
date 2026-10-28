@@ -15,6 +15,41 @@ const logger = createLogger('MCP');
 
 const VALID_TRANSPORTS = new Set(['stdio', 'sse', 'streamable-http']);
 
+/**
+ * The OAuth fields of a config, checked here because they reach the vendor: a
+ * pre-registered client is an object with a string id (and maybe a secret), and
+ * a scope is a string. Anything else is refused rather than half-used.
+ */
+function oauthConfigError(config: Record<string, unknown>): string | null {
+  const client = config.oauthClient;
+  if (client !== undefined) {
+    if (!client || typeof client !== 'object' || Array.isArray(client)) {
+      return 'config.oauthClient must be an object';
+    }
+    const { clientId, clientSecret } = client as Record<string, unknown>;
+    if (typeof clientId !== 'string' || !clientId) {
+      return 'config.oauthClient.clientId must be a non-empty string';
+    }
+    if (clientSecret !== undefined && typeof clientSecret !== 'string') {
+      return 'config.oauthClient.clientSecret must be a string';
+    }
+  }
+  if (config.oauthScope !== undefined && typeof config.oauthScope !== 'string') {
+    return 'config.oauthScope must be a string';
+  }
+  const revocation = config.oauthRevocation;
+  if (revocation !== undefined) {
+    const { url, clientAuth } = (revocation ?? {}) as Record<string, unknown>;
+    if (typeof url !== 'string' || !url.startsWith('https://')) {
+      return 'config.oauthRevocation.url must be an https URL';
+    }
+    if (clientAuth !== 'basic' && clientAuth !== 'body') {
+      return 'config.oauthRevocation.clientAuth must be basic or body';
+    }
+  }
+  return null;
+}
+
 const router: RouterType = Router();
 router.use((req, res, next) => {
   const accountId = internalAccount(req);
@@ -61,6 +96,8 @@ router.post('/servers/:id/start', async (req, res) => {
       .status(400)
       .json({ error: `${transport} transport requires config.url as a string` });
   }
+  const startOAuthError = oauthConfigError(config);
+  if (startOAuthError) return res.status(400).json({ error: startOAuthError });
 
   try {
     const result = await manager.startServer(serverId, oxyUserId, transport, config);
@@ -90,6 +127,8 @@ router.post('/servers/:id/oauth/start', async (req, res) => {
   ) {
     return res.status(400).json({ error: 'config must be an object with a url string' });
   }
+  const configError = oauthConfigError(config);
+  if (configError) return res.status(400).json({ error: configError });
   if (!stateToken || typeof stateToken !== 'string') {
     return res.status(400).json({ error: 'stateToken must be a non-empty string' });
   }
@@ -132,6 +171,8 @@ router.post('/servers/:id/oauth/finish', async (req, res) => {
   ) {
     return res.status(400).json({ error: 'config must be an object with a url string' });
   }
+  const configError = oauthConfigError(config);
+  if (configError) return res.status(400).json({ error: configError });
   if (!code || typeof code !== 'string') {
     return res.status(400).json({ error: 'code must be a non-empty string' });
   }
@@ -155,6 +196,32 @@ router.post('/servers/:id/oauth/finish', async (req, res) => {
   }
 });
 
+/**
+ * POST /mcp/servers/:id/revoke — the person disconnected the connector: close
+ * the session, ask the vendor to revoke the grant, delete the stored tokens.
+ */
+router.post('/servers/:id/revoke', async (req, res) => {
+  const serverId = req.params.id;
+  const { oxyUserId, config } = req.body;
+
+  if (!oxyUserId || typeof oxyUserId !== 'string') {
+    return res.status(400).json({ error: 'oxyUserId must be a non-empty string' });
+  }
+  if (!config || typeof config !== 'object' || Array.isArray(config)) {
+    return res.status(400).json({ error: 'config must be an object' });
+  }
+  const configError = oauthConfigError(config);
+  if (configError) return res.status(400).json({ error: configError });
+
+  try {
+    const result = await manager.revokeAuthorization(serverId, oxyUserId, config);
+    res.json({ success: true, ...result });
+  } catch (err: unknown) {
+    logger.error(`Failed to revoke server ${serverId}:`, errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 /** POST /mcp/servers/:id/stop */
 router.post('/servers/:id/stop', async (req, res) => {
   try {
@@ -169,14 +236,29 @@ router.post('/servers/:id/stop', async (req, res) => {
 /** POST /mcp/servers/:id/tools/:toolName/call */
 router.post('/servers/:id/tools/:toolName/call', async (req, res) => {
   const { id: serverId, toolName } = req.params;
-  const args = req.body.arguments;
+  const { arguments: args, transport, config, oxyUserId } = req.body;
 
   if (args !== undefined && (typeof args !== 'object' || Array.isArray(args) || args === null)) {
     return res.status(400).json({ error: 'arguments must be an object' });
   }
+  const canReconnect =
+    typeof oxyUserId === 'string' &&
+    VALID_TRANSPORTS.has(transport) &&
+    !!config &&
+    typeof config === 'object' &&
+    !Array.isArray(config);
+  if (canReconnect) {
+    const configError = oauthConfigError(config);
+    if (configError) return res.status(400).json({ error: configError });
+  }
 
   try {
-    const result = await manager.callTool(serverId, toolName, args ?? {});
+    const result = await manager.callTool(
+      serverId,
+      toolName,
+      args ?? {},
+      canReconnect ? { oxyUserId, transport, config } : undefined,
+    );
     res.json({ result });
   } catch (err: unknown) {
     logger.error(`Tool call failed (${serverId}/${toolName}):`, errorMessage(err));
