@@ -23,7 +23,11 @@ import {
   SERVER_REQUEST_INPUT_LIMIT_BYTES,
   modelInputBudgetBytes,
   fitControlledInput,
+  fitImages,
+  OMITTED_IMAGE_NOTE,
   OMITTED_TOOL_RESULT_NOTE,
+  OXY_MAX_INPUT_IMAGES,
+  REQUEST_IMAGE_DATA_BUDGET_CHARS,
   OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES,
   REQUEST_INPUT_BUDGET_ENV,
   RequestInputBudgetExceededError,
@@ -348,7 +352,7 @@ describe('the images tools returned', () => {
   const imageMessage: InferenceMessage = {
     role: 'user',
     content: [
-      { type: 'text', text: 'The image shot returned (call call-1):' },
+      { type: 'text', text: `The image shot returned (call call-1): ${'x'.repeat(2_000)}` },
       {
         type: 'image',
         source: { kind: 'inline', mediaType: 'image/png', data: 'A'.repeat(4_000) },
@@ -384,5 +388,109 @@ describe('the images tools returned', () => {
     expect(() =>
       fitControlledInput(input, { budgetBytes: controlledInputBytes(input) - 1_000 }),
     ).toThrow(RequestInputBudgetExceededError);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Images, as Oxy bounds them                                                */
+/* -------------------------------------------------------------------------- */
+
+describe('images are bounded apart from the controlled input', () => {
+  const image = (data: string) => ({
+    type: 'image' as const,
+    source: { kind: 'inline' as const, mediaType: 'image/png', data },
+  });
+  const user = (...content: InferenceMessage['content']): InferenceMessage => ({
+    role: 'user',
+    content,
+  });
+  const imagesOf = (messages: readonly InferenceMessage[]) =>
+    messages.flatMap((message) => message.content).filter((part) => part.type === 'image');
+
+  it('counts an image’s data as "" — as Oxy’s controlledInputBudget does', () => {
+    const blank = controlledInputBytes({ messages: [user(image(''))], tools: [] });
+    expect(controlledInputBytes({ messages: [user(image('A'.repeat(400_000)))], tools: [] })).toBe(
+      blank,
+    );
+  });
+
+  it('sends a 400 KB scan and a screenshot that fit untouched, under a budget their bytes would break', () => {
+    const messages = [user(image('A'.repeat(400_000))), user(image('B'.repeat(150_000)))];
+    const fitted = fitControlledInput({ messages, tools: [] }, { budgetBytes: 16_384 });
+    expect(fitted.omittedImages).toBe(0);
+    expect(fitted.omittedToolResults).toBe(0);
+    expect(fitted.messages).toEqual(messages);
+  });
+
+  it('leaves out the oldest images past the count, never the newest', () => {
+    const messages = Array.from({ length: OXY_MAX_INPUT_IMAGES + 3 }, (_, index) =>
+      user({ type: 'text', text: `page ${index}` }, image(String(index).padStart(4, '0'))),
+    );
+    const fitted = fitControlledInput({ messages, tools: [] }, { budgetBytes: 16_384 });
+    expect(fitted.omittedImages).toBe(3);
+    expect(imagesOf(fitted.messages)).toHaveLength(OXY_MAX_INPUT_IMAGES);
+    expect(fitted.messages.slice(0, 3).map((message) => message.content[1])).toEqual(
+      Array(3).fill({ type: 'text', text: OMITTED_IMAGE_NOTE }),
+    );
+    expect(fitted.messages.at(-1)).toEqual(messages.at(-1));
+    expect(fitted.messages).toHaveLength(messages.length);
+  });
+
+  it('leaves out the oldest images past the body budget, never the newest', () => {
+    const third = 'A'.repeat(REQUEST_IMAGE_DATA_BUDGET_CHARS / 3 + 4);
+    const messages = [user(image(third)), user(image(third)), user(image(third))];
+    const fitted = fitControlledInput({ messages, tools: [] }, { budgetBytes: 16_384 });
+    expect(fitted.omittedImages).toBe(1);
+    expect(fitted.messages[0].content).toEqual([{ type: 'text', text: OMITTED_IMAGE_NOTE }]);
+    expect(fitted.messages.slice(1)).toEqual(messages.slice(1));
+
+    const huge = 'A'.repeat(REQUEST_IMAGE_DATA_BUDGET_CHARS * 2);
+    const alone = fitControlledInput(
+      { messages: [user(image(huge))], tools: [] },
+      { budgetBytes: 16_384 },
+    );
+    expect(alone.omittedImages).toBe(0);
+    expect(imagesOf(alone.messages)).toHaveLength(1);
+  });
+
+  it('keeps a step’s image message a tool result when one of its own images was left out', () => {
+    const toolImage = user(
+      ...Array.from({ length: OXY_MAX_INPUT_IMAGES + 1 }, (_, index) => [
+        { type: 'text' as const, text: `The image shot returned (call c${index}):` },
+        image('AQ=='),
+      ]).flat(),
+    );
+    const messages: InferenceMessage[] = [
+      user({ type: 'text', text: 'Look at the pricing page' }),
+      { role: 'assistant', content: [], toolCalls: [{ id: 'c0', name: 'shot', arguments: '{}' }] },
+      { role: 'tool', toolCallId: 'c0', content: [{ type: 'text', text: '{"status":"inline"}' }] },
+      toolImage,
+    ];
+    const input: ControlledInput = { messages, tools: [] };
+    const budgetBytes = controlledInputBytes(input) - 300;
+    const fitted = fitControlledInput(input, {
+      budgetBytes,
+      toolImageMessages: new Set([toolImage]),
+    });
+    expect(fitImages(messages).messages[3]).not.toBe(toolImage);
+    expect(fitted.omittedImages).toBe(1);
+    expect(fitted.messages.at(-1)).toEqual({
+      role: 'user',
+      content: [{ type: 'text', text: OMITTED_TOOL_RESULT_NOTE }],
+    });
+    expect(fitted.messages.slice(0, 3)).toEqual(messages.slice(0, 3));
+    expect(fitted.droppedMessages).toBe(0);
+    const unmarked = fitControlledInput(input, { budgetBytes });
+    expect(unmarked.droppedMessages).toBeGreaterThan(0);
+    expect(unmarked.messages).not.toContainEqual(messages[0]);
+  });
+
+  it('is deterministic and changes only what is sent', () => {
+    const messages = Array.from({ length: OXY_MAX_INPUT_IMAGES + 1 }, () => user(image('AQ==')));
+    const before = structuredClone(messages);
+    const first = fitImages(messages);
+    expect(fitImages(messages)).toEqual(first);
+    expect(messages).toEqual(before);
+    expect(fitImages(before.slice(0, 2)).messages).toEqual(before.slice(0, 2));
   });
 });

@@ -160,6 +160,32 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     expect(result.warnings).toHaveLength(0);
   });
 
+  it('sends no image by URL: Oxy and Kaana take images inline only', async () => {
+    const model = kaanaLanguageModel({
+      target: { kind: 'model', model: 'acme/reader-1' },
+      modelId: 'acme/reader-1',
+      surface: 'chat',
+    });
+    const result = await model.doGenerate({
+      prompt: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'What is this?' },
+            { type: 'file', data: new URL('https://example.com/a.png'), mediaType: 'image/png' },
+            { type: 'file', data: new Uint8Array([1]), mediaType: 'image/png' },
+          ],
+        },
+      ],
+    } as never);
+    expect((mocks.requests[0].input as Array<{ content: unknown }>)[0].content).toEqual([
+      { type: 'text', text: 'What is this?' },
+      { type: 'image', source: { kind: 'inline', mediaType: 'image/png', data: 'AQ==' } },
+    ]);
+    expect(JSON.stringify(mocks.requests[0])).not.toContain('example.com');
+    expect(result.warnings).toHaveLength(1);
+  });
+
   it('sends the exact catalogue model and delegated user to Oxy', async () => {
     const model = kaanaLanguageModel({
       target: { kind: 'model', model: 'acme/chat-1' },
