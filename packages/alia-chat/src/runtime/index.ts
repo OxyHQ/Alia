@@ -33,9 +33,19 @@ export {
   useAgentProfile,
 } from './agents';
 export type { AliaAgentFeature, AliaAgentProfile, AliaAgentStarter, FeatureOffer } from './agents';
-export { HOST_OUTCOMES, HOST_RESULT_MAX_CHARS, HostOutcomeQueue, hostRequest } from './host-tools';
+export {
+  HOST_IMAGE_MEDIA_TYPES,
+  HOST_IMAGE_TEXT_MAX_CHARS,
+  HOST_OUTCOMES,
+  HOST_RESULT_MAX_CHARS,
+  HostOutcomeQueue,
+  hostImageResultProblem,
+  hostRequest,
+} from './host-tools';
 export type {
   AliaHostAction,
+  AliaHostImageMediaType,
+  AliaHostImageResult,
   AliaHostOutcome,
   AliaHostOutcomeKind,
   AliaHostToolDefinition,
