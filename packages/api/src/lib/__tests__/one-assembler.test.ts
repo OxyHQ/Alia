@@ -127,9 +127,11 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'packages/api/src/lib/tool-pipeline.ts': 'THE ASSEMBLER. The only thing that gathers.',
   'packages/api/src/lib/tools/mcp.ts': 'SOURCE: one origin (MCP connectors), merges nothing.',
   'packages/api/src/lib/tools/integrations/index.ts':
-    'SOURCE: the OAuth integrations, merging only its own two per-service modules below.',
+    'SOURCE: the OAuth integrations, merging only its own per-service modules below.',
   'packages/api/src/lib/tools/integrations/google-calendar.ts': 'SOURCE: one service.',
   'packages/api/src/lib/tools/integrations/google-drive.ts': 'SOURCE: one service.',
+  'packages/api/src/lib/tools/integrations/microsoft-365.ts':
+    'SOURCE: one provider (Microsoft Graph); each builder is one connected service.',
   'packages/api/src/lib/tools/oxy-services.ts': 'SOURCE: one origin (the oxy_services manifests).',
   'packages/api/src/lib/skills/runtime.ts':
     "SOURCE: one origin (the skills this account installed). Its three tools read that one candidate set — which is also the turn's authorization, resolved before any tool exists — and it merges nothing from anywhere else.",
