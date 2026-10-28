@@ -90,7 +90,7 @@ vi.mock('../../files/person-files.js', async (importOriginal) => {
       if (refs.size === 0) return new Map();
       sequence.push('read-files');
       resolvedWith.push(options);
-      return new Map([...refs.keys()].map((id) => [id, { type: 'text', text: `doc ${id}` }]));
+      return new Map([...refs.keys()].map((id) => [id, [{ type: 'text', text: `doc ${id}` }]]));
     },
   };
 });
@@ -209,7 +209,7 @@ describe('a gated attachment', () => {
     const { ctx, captured } = await run({ agentId: 'sindi', messages: [withLease()] });
     expect(captured.status).toBeNull();
     expect(sequence).toEqual(['check', 'read-files', 'consume', 'reserve']);
-    expect(ctx?.files.get('lease')).toEqual({ type: 'text', text: 'doc lease' });
+    expect(ctx?.files.get('lease')).toEqual([{ type: 'text', text: 'doc lease' }]);
     expect(resolvedWith[0]).toMatchObject({
       personAccountId: 'person-1',
       accessToken: 'PERSON-TOKEN',
