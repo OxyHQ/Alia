@@ -9,7 +9,11 @@ import { integrationsFetch } from '../integrations-client.js';
 
 import { tool, type ToolSet } from 'ai';
 import { getDb } from '../../db/index.js';
-import { listRunnableMcpServersForUser } from '../../db/integrations/mcpServerRepository.js';
+import {
+  listRunnableMcpServersForUser,
+  type McpServerRow,
+} from '../../db/integrations/mcpServerRepository.js';
+import { integrationsConfigFor } from '../mcp-connector-config.js';
 import type { McpServerTool } from '../../db/schema/integrations.js';
 import { log } from '../logger.js';
 import { TTLCache } from '../ttl-cache.js';
@@ -79,7 +83,7 @@ export async function buildMcpTools(
             continue;
           }
 
-          tools[toolName] = createServerTool(server.displayName, mcpTool, serverId, oxyUserId);
+          tools[toolName] = createServerTool(server.displayName, mcpTool, server, oxyUserId);
         }
       }
     }
@@ -126,7 +130,7 @@ function sanitizeName(name: string): string {
 function createServerTool(
   displayName: string,
   mcpTool: McpServerTool,
-  serverId: string,
+  server: McpServerRow,
   oxyUserId: string,
 ) {
   let inputSchema;
@@ -140,7 +144,7 @@ function createServerTool(
     description: `[${displayName}] ${mcpTool.description || mcpTool.name}`,
     inputSchema,
     execute: async (args: Record<string, unknown>) => {
-      return callServerTool(oxyUserId, serverId, mcpTool.name, args as Record<string, any>);
+      return callServerTool(oxyUserId, server, mcpTool.name, args as Record<string, any>);
     },
   });
 }
@@ -167,21 +171,32 @@ function createLocalTool(
   });
 }
 
+/**
+ * One call, carrying what integrations needs to reconnect the connector when
+ * its process lost the session (a deploy or a crash) — the row says it is
+ * running, so the call reconnects from the stored authorization instead of
+ * failing.
+ */
 async function callServerTool(
   oxyUserId: string,
-  serverId: string,
+  server: McpServerRow,
   toolName: string,
   args: Record<string, any>,
 ): Promise<string> {
   const response = await integrationsFetch(
     oxyUserId,
-    `/mcp/servers/${serverId}/tools/${encodeURIComponent(toolName)}/call`,
+    `/mcp/servers/${server.id}/tools/${encodeURIComponent(toolName)}/call`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ arguments: args }),
+      body: JSON.stringify({
+        arguments: args,
+        oxyUserId,
+        transport: server.transport,
+        config: integrationsConfigFor(server),
+      }),
       signal: AbortSignal.timeout(TOOL_CALL_TIMEOUT_MS),
     },
   );

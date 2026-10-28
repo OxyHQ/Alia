@@ -41,6 +41,7 @@ import {
   type ConnectorAuthUpdate,
   type McpConnectorAuthRow,
 } from './oauth-store';
+import type { McpOAuthClient } from './types';
 
 export interface AliaOAuthProviderOptions {
   oxyUserId: string;
@@ -51,6 +52,12 @@ export interface AliaOAuthProviderOptions {
   callbackUrl: string;
   /** Optional OAuth scope to request. */
   scope?: string;
+  /**
+   * A client registered with the vendor ahead of time. When present it is the
+   * client, always: nothing is registered dynamically and nothing about the
+   * client is written to the row.
+   */
+  client?: McpOAuthClient;
 }
 
 export class AliaOAuthProvider implements OAuthClientProvider {
@@ -59,6 +66,7 @@ export class AliaOAuthProvider implements OAuthClientProvider {
   private readonly stateToken: string;
   private readonly callbackUrl: string;
   private readonly scope?: string;
+  private readonly client?: McpOAuthClient;
 
   /**
    * Transient authorization URL produced by the SDK during `auth()`; read back
@@ -74,6 +82,7 @@ export class AliaOAuthProvider implements OAuthClientProvider {
     this.stateToken = options.stateToken;
     this.callbackUrl = options.callbackUrl;
     this.scope = options.scope;
+    this.client = options.client;
   }
 
   private row(): Promise<McpConnectorAuthRow> {
@@ -100,7 +109,7 @@ export class AliaOAuthProvider implements OAuthClientProvider {
       redirect_uris: [this.callbackUrl],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      token_endpoint_auth_method: 'none',
+      token_endpoint_auth_method: this.client?.clientSecret ? 'client_secret_post' : 'none',
       ...(this.scope ? { scope: this.scope } : {}),
     };
   }
@@ -110,12 +119,19 @@ export class AliaOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
+    if (this.client) {
+      return {
+        client_id: this.client.clientId,
+        ...(this.client.clientSecret ? { client_secret: this.client.clientSecret } : {}),
+      };
+    }
     const row = await this.row();
     if (!row.clientInformation) return undefined;
     return JSON.parse(decrypt(row.clientInformation)) as OAuthClientInformationMixed;
   }
 
   async saveClientInformation(info: OAuthClientInformationMixed): Promise<void> {
+    if (this.client) return;
     await this.write({ clientInformation: encrypt(JSON.stringify(info)) });
   }
 
