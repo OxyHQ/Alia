@@ -71,6 +71,8 @@ import {
   voiceSessionRoute,
   voiceResumePeerRoute,
 } from './lib/voice/voice-socket.js';
+// Streaming dictation: `GET /v1/audio/transcriptions/stream` (ADR 0024)
+import { dictationStreamRoute, shutdownDictations } from './lib/dictation/socket.js';
 import { routeWebSocketUpgrades } from './lib/websocket-upgrades.js';
 
 // Bun loads `.env` from the working directory before any module runs; the
@@ -133,6 +135,7 @@ routeWebSocketUpgrades(server, {
     mcpRelayRoute(observeAiSocket),
     voiceSessionRoute(observeAiSocket),
     voiceResumePeerRoute(),
+    dictationStreamRoute(observeAiSocket),
   ],
 });
 
@@ -505,6 +508,7 @@ const shutdown = async (signal: string) => {
     // Calls still open after the deploy's drain window end `server-shutdown`:
     // first, while Postgres and Redis can still store and announce their end.
     await shutdownVoiceSessions();
+    await shutdownDictations();
 
     // Close Socket.IO connections
     const { getIO } = await import('./socket.js');

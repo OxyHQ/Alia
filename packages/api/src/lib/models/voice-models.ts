@@ -110,3 +110,33 @@ export function rankTranscriptionCandidates(
   }
   return candidates.sort(byPriceThenId);
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Streaming transcription (dictation sessions)                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Every model that can hold a streaming dictation (ADR 0024): active, a
+ * `transcription` session over `websocket` that takes 24 kHz PCM16. Cheapest
+ * minute first. No model is excluded for its language: Kaana gives every model
+ * the language, or none for it to detect (Kaana ADR 0003).
+ */
+export function rankTranscriptionSessionCandidates(
+  models: readonly Model[],
+): TranscriptionCandidate[] {
+  const candidates: TranscriptionCandidate[] = [];
+  for (const model of models) {
+    if (model.deprecation.status !== 'active') continue;
+    const realtime = model.capabilities.realtime;
+    if (
+      realtime === undefined ||
+      !realtime.sessionKinds.includes('transcription') ||
+      !realtime.transports.includes('websocket')
+    )
+      continue;
+    const formats = realtime.audioFormats?.input ?? [];
+    if (formats.length > 0 && !formats.includes('pcm16_24khz')) continue;
+    candidates.push({ model, usdPerMinute: usdPerMinute(model) });
+  }
+  return candidates.sort(byPriceThenId);
+}

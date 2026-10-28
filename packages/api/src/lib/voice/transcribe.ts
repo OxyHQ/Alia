@@ -96,27 +96,32 @@ export function dictationMediaType(contentType: string | undefined): AudioInputM
   return MEDIA_TYPES.get(bare) ?? null;
 }
 
-function failureOf(error: unknown): TranscriptionError {
-  if (!(error instanceof KaanaError))
-    return new TranscriptionError('TRANSCRIPTION_FAILED', { retryable: true, cause: error });
-  const kaana = error;
-  switch (kaana.code) {
+/**
+ * The dictation failure for one of Kaana's public error codes: the same table
+ * for a refused request and for a streaming session's fatal `error` event.
+ */
+export function transcriptionFailureForCode(
+  code: string,
+  options: { retryable?: boolean; retryAfterMs?: number; cause?: unknown } = {},
+): TranscriptionError {
+  const { retryable, retryAfterMs, cause } = options;
+  switch (code) {
     case 'rate_limited':
     case 'insufficient_balance':
     case 'spending_limit_exceeded':
     case 'quota_exceeded':
       return new TranscriptionError('TRANSCRIPTION_LIMITED', {
-        retryable: kaana.retryable,
-        ...(kaana.retryAfterMs === undefined ? {} : { retryAfterMs: kaana.retryAfterMs }),
-        cause: error,
+        ...(retryable === undefined ? {} : { retryable }),
+        ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+        cause,
       });
     case 'no_route_available':
     case 'service_unavailable':
     case 'model_not_found':
     case 'authentication_failed':
       return new TranscriptionError('TRANSCRIPTION_UNAVAILABLE', {
-        retryable: kaana.retryable,
-        cause: error,
+        ...(retryable === undefined ? {} : { retryable }),
+        cause,
       });
     case 'provider_error':
     case 'provider_timeout':
@@ -124,14 +129,26 @@ function failureOf(error: unknown): TranscriptionError {
     case 'internal_error':
     case 'cancelled':
       return new TranscriptionError('TRANSCRIPTION_FAILED', {
-        retryable: kaana.retryable,
-        cause: error,
+        ...(retryable === undefined ? {} : { retryable }),
+        cause,
       });
     case 'request_too_large':
-      return new TranscriptionError('CLIP_TOO_LONG', { cause: error });
+      return new TranscriptionError('CLIP_TOO_LONG', { cause });
     default:
-      return new TranscriptionError('TRANSCRIPTION_REJECTED', { cause: error });
+      return new TranscriptionError('TRANSCRIPTION_REJECTED', { cause });
   }
+}
+
+/** The dictation failure for anything a Kaana call threw. */
+export function transcriptionFailureOf(error: unknown): TranscriptionError {
+  if (error instanceof TranscriptionError) return error;
+  if (!(error instanceof KaanaError))
+    return new TranscriptionError('TRANSCRIPTION_FAILED', { retryable: true, cause: error });
+  return transcriptionFailureForCode(error.code, {
+    retryable: error.retryable,
+    ...(error.retryAfterMs === undefined ? {} : { retryAfterMs: error.retryAfterMs }),
+    cause: error,
+  });
 }
 
 function upstreamCodeOf(error: unknown): string | null {
@@ -170,7 +187,7 @@ export async function transcribeDictation(
   let models = catalogueCache.get('models');
   if (!models) {
     models = await kaana.models.list({ onBehalfOfUserId: oxyUserId }).catch((error: unknown) => {
-      throw failureOf(error);
+      throw transcriptionFailureOf(error);
     });
     catalogueCache.set('models', models);
   }
@@ -199,7 +216,7 @@ export async function transcribeDictation(
         ...(result.durationMs === undefined ? {} : { durationMs: result.durationMs }),
       };
     } catch (error) {
-      const failure = failureOf(error);
+      const failure = transcriptionFailureOf(error);
       log.voice.warn(
         {
           code: failure.code,
