@@ -334,6 +334,52 @@ verification run that day transcribed a spoken clip on
 `x-ai/grok-voice-transcribe-2.0@observed-2026-10-16`. What is still open is the device gate
 in [Native validation](./native-validation.mdx#9-voice-through-kaana-to-validate).
 
+### Streaming dictation (ADR 0024)
+
+`GET /v1/audio/transcriptions/stream` (`lib/dictation/socket.ts`, `lib/dictation/stream.ts`,
+protocol `lib/dictation/protocol.ts`): word-by-word dictation as a Kaana `transcription`
+session. A `WebSocketRoute` of the one upgrade router.
+
+```text
+client: auth { token }                                     a person's Oxy session
+client: dictation.start { protocol: 1, language?, sampleRate: 24000 }
+client: <binary PCM16 LE mono 24 kHz>                      held while the session opens
+alia:   dictation.ready { maxDurationMs }
+alia:   transcript.interim { segment, text }               the segment's provisional text, whole
+alia:   transcript.delta { segment, text }                 locked text, appended
+alia:   transcript.final { segment, text }                 the segment's text; the only text kept
+client: dictation.commit                                   end the segment now (push-to-talk)
+client: dictation.end                                      no more audio
+alia:   error { code, message, retryable }, dictation.closed { reason }
+```
+
+- **Who and what it costs.** A person's session only; an `oxy_sk_` is refused
+  (`CREDENTIAL_NOT_SUPPORTED`). Free on every plan, like batch: no plan feature, no
+  credits. One dictation is one `/v1` rate-limit request at open
+  (`TRANSCRIPTION_LIMITED`, retryable, over it) and one Kaana grant.
+- **The Kaana session.** `kind: transcription`, `pcm16_24khz`,
+  `inputAudioTranscription { language, interimResults: true }`, `server_vad` with
+  `createResponse` and `interruptResponse` false (Kaana's silence default), 5 minutes,
+  30 s idle, the bytes of 5 minutes. The model is computed
+  (`rankTranscriptionSessionCandidates`): an active line whose
+  `capabilities.realtime.sessionKinds` includes `transcription`, over `websocket`, taking
+  24 kHz PCM16, cheapest minute first; no line is excluded for its language. At most two
+  candidates, the second only on a model refusal.
+- **Segments.** Kaana's items become Alia's segments, numbered from 0 in order; the device
+  never sees an item id. A segment's `transcript.final` is Kaana's `transcript.done`, trimmed,
+  and replaces what the segment showed; nothing of a segment is sent after it.
+- **Ending.** Kaana ends a session at once on `session.close`, so `dictation.end` first
+  commits the open segment and waits, at most 3 s, for its final, then closes the session.
+  Kaana's `max_duration` and `idle_timeout` end the dictation with that reason; its fatal
+  errors map to the batch route's codes (`transcriptionFailureForCode`). A device that goes
+  away closes the Kaana session.
+- **Privacy.** Audio and text pass through; logs carry the dictation id, the model, codes,
+  segment count and audio milliseconds.
+- **The SDK.** `openDictationStream` on `@alia.onl/sdk/dictation` (22.7.0) speaks it; the
+  API's `protocol.test.ts` holds the SDK's copy of the protocol equal to the server's.
+  `useDictation` still records a clip for batch; adopting the stream there is the follow-up.
+  Batch `POST /v1/audio/transcriptions` stays the fallback.
+
 ## Read aloud
 
 Unchanged by ADR 0017: `POST /v1/audio/speech` in the product voice, `male` or

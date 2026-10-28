@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   rankRealtimeCandidates,
   rankTranscriptionCandidates,
+  rankTranscriptionSessionCandidates,
   usdPerMinute,
 } from '../voice-models.js';
 
@@ -103,5 +104,50 @@ describe('rankTranscriptionCandidates', () => {
     const ranked = rankTranscriptionCandidates(voiceCatalogue, { mediaType: 'audio/pcm' });
     for (const candidate of ranked)
       expect(candidate.model.audio!.audioFormats.input).toContain('audio/pcm');
+  });
+});
+
+describe('rankTranscriptionSessionCandidates', () => {
+  const sessionLine = (modelId: string, amount: string, input: string[] = ['pcm16_24khz']): Model =>
+    priced(
+      {
+        ...transcription[0]!,
+        capabilities: {
+          ...transcription[0]!.capabilities,
+          realtime: {
+            transports: ['websocket'],
+            sessionKinds: ['transcription'],
+            inputAudioTranscription: false,
+            audioFormats: { input, output: [] },
+          },
+        },
+      } as Model,
+      modelId,
+      amount,
+    );
+
+  it('holds only lines that hold a transcription session, cheapest minute first', () => {
+    const ranked = rankTranscriptionSessionCandidates([
+      realtime,
+      ...transcription,
+      sessionLine('x/dear', '0.01'),
+      sessionLine('x/cheap', '0.003'),
+    ]);
+    expect(ranked.map((candidate) => candidate.model.modelId)).toEqual(['x/cheap', 'x/dear']);
+  });
+
+  it('never a line that does not take 24 kHz PCM16, and none from a batch-only catalogue', () => {
+    expect(
+      rankTranscriptionSessionCandidates([sessionLine('x/ulaw', '0.001', ['g711_ulaw'])]),
+    ).toEqual([]);
+    expect(rankTranscriptionSessionCandidates(voiceCatalogue)).toEqual([]);
+  });
+
+  it('never a deprecated line', () => {
+    const retired = {
+      ...sessionLine('x/old', '0.001'),
+      deprecation: { status: 'retired' },
+    } as unknown as Model;
+    expect(rankTranscriptionSessionCandidates([retired])).toEqual([]);
   });
 });

@@ -1,5 +1,22 @@
 # @alia.onl/sdk
 
+## 22.7.0
+
+- **Streaming dictation (ADR 0024).** `@alia.onl/sdk/dictation` gains
+  `openDictationStream({ apiUrl, getToken | token, language?, onEvent, signal?, openSocket?,
+  endTimeoutMs? })`: the caller's PCM16 LE mono 24 kHz frames go to
+  `GET /v1/audio/transcriptions/stream`, and Alia's events come back while the person speaks:
+  `dictation.ready`, `transcript.interim` / `transcript.delta` / `transcript.final` per numbered
+  `segment`, `error { code, retryable }` and one `dictation.closed { reason }`. A segment's
+  `transcript.final` is the only text to keep. It returns `{ append, commit, end, close, closed }`;
+  `end()` resolves once the finals have arrived. The protocol module (`DICTATION_PROTOCOL_VERSION`
+  1, `parseDictationServerEvent`, `dictationStreamUrl`) is exported beside it. It reaches no React
+  or native module (`check:entries`). `useDictation` still records a clip for batch
+  transcription; adopting the stream there is a follow-up.
+- The API that serves the stream ships with this release; against an older API the socket's
+  path answers 404 and the stream reports `TRANSCRIPTION_FAILED`, so batch
+  `requestTranscription` stays the fallback.
+
 ## 22.6.0
 
 - **`@alia.onl/sdk/dictation`: dictation's request on its own.** `requestTranscription`,
