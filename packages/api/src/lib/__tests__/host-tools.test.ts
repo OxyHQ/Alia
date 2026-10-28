@@ -7,11 +7,16 @@ import type { ModelMessage } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 import {
   applyHostOutcomes,
+  base64DecodedLength,
   buildHostTools,
+  HOST_IMAGE_INVALID_DETAIL,
+  HOST_IMAGE_MAX_BYTES,
   HOST_RESULT_STALE,
   HOST_TOOL_DISPATCHED,
   hostAwaitsResults,
+  hostImageOf,
   hostOutcomeResult,
+  hostResultModelOutput,
   hostToolName,
   parseHostRequest,
   type AwaitedHostTurn,
@@ -268,5 +273,106 @@ describe('applyHostOutcomes', () => {
       ],
     });
     expect(applyHostOutcomes(history, undefined)).toBe(history);
+  });
+});
+
+describe('an awaited host result that is an image', () => {
+  const screenshot = Buffer.from('a jpeg the model should see').toString('base64');
+
+  it('reaches the model as the outcome’s text and the image, never as base64 in JSON', () => {
+    const output = hostResultModelOutput(
+      hostOutcomeResult({
+        outcome: 'applied',
+        detail: 'Took a screenshot.',
+        result: {
+          type: 'image',
+          mediaType: 'image/jpeg',
+          data: screenshot,
+          text: 'The tab, 1024×640.',
+        },
+      }),
+    );
+    expect(output).toEqual({
+      type: 'content',
+      value: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            status: 'applied',
+            detail: 'Took a screenshot.',
+            text: 'The tab, 1024×640.',
+          }),
+        },
+        { type: 'image-data', data: screenshot, mediaType: 'image/jpeg' },
+      ],
+    });
+  });
+
+  it('is reported in text, without its data, when it breaks the rules', () => {
+    const marker = Buffer.from('MARKER-BYTES-0123456789').toString('base64');
+    for (const result of [
+      { type: 'image', mediaType: 'image/tiff', data: marker },
+      { type: 'image', mediaType: 'image/png', data: `${marker}!` },
+      { type: 'image', mediaType: 'image/png', data: 'A'.repeat(5_000_004) },
+      { type: 'image', mediaType: 'image/png' },
+    ]) {
+      const output = hostResultModelOutput(hostOutcomeResult({ outcome: 'applied', result }));
+      expect(output).toEqual({
+        type: 'text',
+        value: JSON.stringify({ status: 'applied', detail: HOST_IMAGE_INVALID_DETAIL }),
+      });
+      expect(JSON.stringify(output)).not.toContain(marker);
+    }
+  });
+
+  it('leaves every other result as the AI SDK sends it', () => {
+    expect(hostResultModelOutput(HOST_RESULT_STALE)).toEqual({
+      type: 'json',
+      value: HOST_RESULT_STALE,
+    });
+    expect(hostResultModelOutput({ status: 'applied', result: 'the tab text' })).toEqual({
+      type: 'json',
+      value: { status: 'applied', result: 'the tab text' },
+    });
+    expect(hostResultModelOutput('plain')).toEqual({ type: 'text', value: 'plain' });
+  });
+
+  it('is what the awaited tool hands the model', async () => {
+    const turn: AwaitedHostTurn = {
+      turn: {
+        id: '6f1c2d3e-4b5a-4c6d-8e7f-001122334455',
+        authorityKey: 'authority',
+        conversationId: null,
+      },
+      results: {
+        open: vi.fn(async () => undefined),
+        wait: vi.fn(async () => ({
+          outcome: 'applied' as const,
+          result: { type: 'image', mediaType: 'image/png', data: screenshot },
+        })),
+      },
+    };
+    const tools = buildHostTools(
+      { app: 'astro', version: 1, tools: [READ_TAB] },
+      { emit: vi.fn() },
+      turn,
+    );
+    const tool = tools[hostToolName('astro', 'read_tab')] as unknown as Executable & {
+      toModelOutput: (options: { output: unknown }) => unknown;
+    };
+    const output = await tool.execute({}, { toolCallId: 'call-1' });
+    expect(tool.toModelOutput({ output })).toMatchObject({
+      type: 'content',
+      value: [{ type: 'text' }, { type: 'image-data', mediaType: 'image/png', data: screenshot }],
+    });
+  });
+
+  it('checks base64 by counting, exactly at the byte bound', () => {
+    expect(base64DecodedLength('AQ==')).toBe(1);
+    expect(base64DecodedLength('A'.repeat(5_000_000))).toBe(HOST_IMAGE_MAX_BYTES);
+    expect(
+      hostImageOf({ type: 'image', mediaType: 'image/png', data: 'A'.repeat(5_000_000) }),
+    ).not.toBe('invalid');
+    expect(hostImageOf({ type: 'text' })).toBeUndefined();
   });
 });

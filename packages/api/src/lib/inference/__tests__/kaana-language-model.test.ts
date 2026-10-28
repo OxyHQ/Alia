@@ -155,6 +155,67 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     expect(result.warnings).toHaveLength(0);
   });
 
+  it('carries a tool result’s image as an inline image part after its text, and drops a URL image with a warning', async () => {
+    const model = kaanaLanguageModel({
+      target: { kind: 'model', model: 'acme/reader-1' },
+      modelId: 'acme/reader-1',
+      surface: 'chat',
+    });
+    const result = await model.doGenerate({
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: 'What does my tab show?' }] },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'call-1',
+              toolName: 'host_astro__screenshot',
+              input: {},
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'host_astro__screenshot',
+              output: {
+                type: 'content',
+                value: [
+                  { type: 'text', text: '{"status":"applied"}' },
+                  { type: 'image-data', data: 'AQ==', mediaType: 'image/jpeg' },
+                  { type: 'image-url', url: 'https://example.com/a.png' },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'file', data: new URL('https://example.com/b.png'), mediaType: 'image/png' },
+          ],
+        },
+      ],
+    } as never);
+
+    const input = mocks.requests[0].input as Array<{ role: string; content: unknown }>;
+    expect(input[2]).toEqual({
+      role: 'tool',
+      toolCallId: 'call-1',
+      content: [
+        { type: 'text', text: '{"status":"applied"}' },
+        { type: 'image', source: { kind: 'inline', mediaType: 'image/jpeg', data: 'AQ==' } },
+      ],
+    });
+    expect(input[3].content).toEqual([]);
+    expect(JSON.stringify(input)).not.toContain('example.com');
+    expect(result.warnings).toHaveLength(2);
+  });
+
   it('sends the exact catalogue model and delegated user to Oxy', async () => {
     const model = kaanaLanguageModel({
       target: { kind: 'model', model: 'acme/chat-1' },

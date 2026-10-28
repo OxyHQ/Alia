@@ -10,7 +10,8 @@
  *   - Tool name mapping (sanitized names for Google Gemini compatibility)
  */
 
-import type { ModelMessage } from 'ai';
+import type { ModelMessage, ToolResultPart } from 'ai';
+import { hostImageOf, hostResultModelOutput } from './host-tools.js';
 import type { ResolvedFiles } from './files/person-files.js';
 
 /** An Oxy Files document attached to a user message (`docs/agent-embedding.md` §5). */
@@ -159,8 +160,20 @@ export function convertToAISDKMessages(
         if (msg.toolInvocations && Array.isArray(msg.toolInvocations)) {
           for (const inv of msg.toolInvocations) {
             if (inv.state === 'result' && inv.result !== undefined) {
-              const resultValue =
-                typeof inv.result === 'string' ? inv.result : JSON.stringify(inv.result);
+              // A host tool's image result is replayed as the image the model read, never as its
+              // base64 inside JSON (`hostResultModelOutput`).
+              const hostImage =
+                typeof inv.result === 'object' && inv.result !== null && 'result' in inv.result
+                  ? hostImageOf((inv.result as { result?: unknown }).result)
+                  : undefined;
+              const output: ToolResultPart['output'] =
+                hostImage === undefined
+                  ? {
+                      type: 'text',
+                      value:
+                        typeof inv.result === 'string' ? inv.result : JSON.stringify(inv.result),
+                    }
+                  : hostResultModelOutput(inv.result);
               result.push({
                 role: 'tool',
                 content: [
@@ -168,10 +181,7 @@ export function convertToAISDKMessages(
                     type: 'tool-result',
                     toolCallId: inv.toolCallId,
                     toolName: sanitizedToolName(inv.toolName),
-                    output: {
-                      type: 'text',
-                      value: resultValue,
-                    },
+                    output,
                   },
                 ],
               });

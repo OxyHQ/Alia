@@ -18,13 +18,18 @@
  * `HOST_RESULT_WAIT_MS`. Such tools need the explicit-Stop turn id and a person's own streamed
  * session; the request is refused otherwise (`lib/chat/request-context.ts`).
  *
+ * An awaited result may be an image (`{ type: 'image', mediaType, data, text? }`, a screenshot):
+ * the model reads it as an image beside the outcome's text ({@link hostResultModelOutput}), never as
+ * base64 inside JSON. It reaches a model only on a level or model that sees; Oxy refuses any other
+ * with `unsupported_modality`.
+ *
  * A host tool is never authority over data: the person's data is reached only
  * through their apps' catalogue tools, which Oxy authorizes per call. It is
  * also separate from the editor lane (`body.tools`), whose tools a developer
  * client executes and whose contract is unchanged.
  */
 import { jsonObjectSchemaToZod } from '@oxy.so/mcp';
-import { jsonSchema, tool, type ModelMessage, type ToolSet } from 'ai';
+import { jsonSchema, tool, type ModelMessage, type ToolResultPart, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { ORIGIN_APP_PATTERN } from '../domain/conversation.js';
 import type { SSEEmitter } from './sse-emitter.js';
@@ -192,6 +197,7 @@ export function buildHostTools(
         const answer = await awaited.results.wait(key, abortSignal);
         return answer ? hostOutcomeResult(answer) : HOST_RESULT_STALE;
       },
+      toModelOutput: ({ output }: { output: unknown }) => hostResultModelOutput(output),
     });
   }
   return tools;
@@ -234,4 +240,108 @@ export function applyHostOutcomes(
     });
     return changed ? { ...message, content } : message;
   });
+}
+
+/** The image formats an awaited host result may carry: the four every route that sees reads. */
+export const HOST_IMAGE_MEDIA_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+] as const;
+
+/**
+ * The most decoded bytes one host image may carry: Oxy's and Kaana's per-image bound
+ * (`MAX_INPUT_IMAGE_BYTES`, `@kaana.ai/contracts` 8.1.0). The host-results bound of
+ * `HOST_RESULT_MAX_CHARS` already keeps a screenshot far below it.
+ */
+export const HOST_IMAGE_MAX_BYTES = 3_750_000;
+
+export interface HostImage {
+  readonly mediaType: (typeof HOST_IMAGE_MEDIA_TYPES)[number];
+  readonly data: string;
+  readonly text?: string;
+}
+
+const BASE64_BODY = /^[A-Za-z0-9+/]*$/;
+
+/** The decoded length of canonical, padded base64, or `undefined` when it is not that. */
+export function base64DecodedLength(data: string): number | undefined {
+  if (data.length === 0 || data.length % 4 !== 0) return undefined;
+  const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0;
+  if (!BASE64_BODY.test(data.slice(0, data.length - padding))) return undefined;
+  return (data.length / 4) * 3 - padding;
+}
+
+/**
+ * The image an awaited host result carries: the image, `'invalid'` when the result says it is an
+ * image and breaks the rules (format, canonical base64, byte bound), or `undefined` when it is not
+ * an image at all.
+ */
+export function hostImageOf(result: unknown): HostImage | 'invalid' | undefined {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return undefined;
+  const candidate = result as Record<string, unknown>;
+  if (candidate.type !== 'image') return undefined;
+  const { mediaType, data, text } = candidate;
+  if (
+    typeof mediaType !== 'string' ||
+    !(HOST_IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType) ||
+    typeof data !== 'string' ||
+    (text !== undefined && typeof text !== 'string')
+  ) {
+    return 'invalid';
+  }
+  const bytes = base64DecodedLength(data);
+  if (bytes === undefined || bytes > HOST_IMAGE_MAX_BYTES) return 'invalid';
+  return {
+    mediaType: mediaType as HostImage['mediaType'],
+    data,
+    ...(text === undefined ? {} : { text }),
+  };
+}
+
+/** What the model reads when the app's image could not be shown to it. */
+export const HOST_IMAGE_INVALID_DETAIL =
+  'The app returned an image the model cannot be shown (it must be PNG, JPEG, WebP or GIF, canonical base64, at most 3,750,000 bytes).';
+
+/**
+ * What the model reads for a host call's result (its `toModelOutput`, and the replay of a stored
+ * one). An image result becomes the outcome's text (status, detail and the image's own text, never
+ * its data) followed by the image itself; an image that breaks the rules becomes text saying so,
+ * without the data. Anything else is what the AI SDK sends by default: text for a string, JSON
+ * otherwise.
+ */
+export function hostResultModelOutput(output: unknown): ToolResultPart['output'] {
+  if (typeof output === 'string') return { type: 'text', value: output };
+  if (
+    typeof output === 'object' &&
+    output !== null &&
+    !Array.isArray(output) &&
+    'result' in output
+  ) {
+    const { result, ...rest } = output as Record<string, unknown>;
+    const image = hostImageOf(result);
+    if (image === 'invalid') {
+      return {
+        type: 'text',
+        value: JSON.stringify({ ...rest, detail: HOST_IMAGE_INVALID_DETAIL }),
+      };
+    }
+    if (image !== undefined) {
+      return {
+        type: 'content',
+        value: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ...rest,
+              ...(image.text === undefined ? {} : { text: image.text }),
+            }),
+          },
+          { type: 'image-data', data: image.data, mediaType: image.mediaType },
+        ],
+      };
+    }
+  }
+  return { type: 'json', value: (output ?? null) as never };
 }

@@ -81,3 +81,45 @@ describe('tool history on a later chat turn', () => {
     });
   });
 });
+
+describe('a host tool’s image result on a later turn', () => {
+  it('is replayed as the image the model read, not as base64 inside JSON', () => {
+    const data = Buffer.from('a screenshot').toString('base64');
+    const converted = convertToAISDKMessages(
+      [
+        { role: 'user', content: 'What is on my tab?' },
+        {
+          role: 'assistant',
+          content: '',
+          toolInvocations: [
+            {
+              toolCallId: 'call-1',
+              toolName: 'host_astro__screenshot',
+              state: 'result',
+              args: {},
+              result: {
+                status: 'applied',
+                result: { type: 'image', mediaType: 'image/jpeg', data },
+              },
+            },
+          ],
+        },
+      ],
+      new Map(),
+    );
+    expect(converted[2]).toEqual({
+      role: 'tool',
+      content: [
+        expect.objectContaining({
+          output: {
+            type: 'content',
+            value: [
+              { type: 'text', text: '{"status":"applied"}' },
+              { type: 'image-data', data, mediaType: 'image/jpeg' },
+            ],
+          },
+        }),
+      ],
+    });
+  });
+});

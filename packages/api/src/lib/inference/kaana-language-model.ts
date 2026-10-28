@@ -24,9 +24,11 @@
  * ## The parts that are deliberately absent
  *
  * Audio in the PROMPT is refused with a warning rather than dropped. IMAGES
- * are sent as the contract's `image` part: a model that cannot see answers
+ * are sent as the contract's inline `image` part, in a user message or in a
+ * tool's result (a host tool's screenshot): a model that cannot see answers
  * `unsupported_modality`, a typed error, instead of an answer about a question
- * the user did not ask because the picture was silently discarded.
+ * the user did not ask because the picture was silently discarded. An image by
+ * URL is not sent, with a warning: Oxy takes images inline only.
  *
  * A DOCUMENT in a user message is the one exception, and it is sent: a turn
  * only carries one when its model's catalogue entry takes `file` input
@@ -191,43 +193,68 @@ export interface Translation {
 }
 
 /**
- * A tool's output as the one thing the contract can carry: text.
+ * A tool's output as the contract carries it: text, and the images it returned.
  *
- * The contract's message content is text, image, audio or file — it has no
- * `json` part, because a tool result is not a modality. Every provider dialect
- * resolves this the same way, by serialising, and doing it here rather than
- * further down keeps the choice visible: `JSON.stringify` is what the model
- * will actually read, so a result that stringifies to `{}` is a result the model
- * cannot use, and that is worth being able to see in one place.
+ * The contract has no `json` part, because a tool result is not a modality.
+ * Every provider dialect resolves this the same way, by serialising, and doing
+ * it here rather than further down keeps the choice visible: `JSON.stringify` is
+ * what the model will actually read, so a result that stringifies to `{}` is a
+ * result the model cannot use, and that is worth being able to see in one place.
+ *
+ * An image a tool returned (a host tool's screenshot, `lib/host-tools.ts`) is
+ * carried as the contract's inline `image` part after the text, on the tool
+ * message itself: Kaana sends it natively on the Messages API and, on chat
+ * completions, in a user message right after the tool results (Kaana ADR 0006).
+ * An image by URL is not sent (Oxy refuses URL sources; nothing fetches one),
+ * nor is any other media.
  *
  * `execution-denied` is rendered as a sentence rather than dropped. The model
  * asked for something and the answer is that it was refused; an empty result
  * would read as a tool that ran and returned nothing, which invites it to try
  * again.
  */
-function toolResultText(output: LanguageModelV3ToolResultOutput): {
+export function toolResultContent(output: LanguageModelV3ToolResultOutput): {
   readonly text: string;
+  readonly images: readonly InferenceContentPart[];
   readonly unsupported?: string;
 } {
   switch (output.type) {
     case 'text':
     case 'error-text':
-      return { text: output.value };
+      return { text: output.value, images: [] };
     case 'json':
     case 'error-json':
-      return { text: JSON.stringify(output.value) };
+      return { text: JSON.stringify(output.value), images: [] };
     case 'execution-denied':
       return {
         text:
           output.reason === undefined
             ? 'The tool call was denied and did not run.'
             : `The tool call was denied and did not run: ${output.reason}`,
+        images: [],
       };
     case 'content': {
-      const texts = output.value.filter((part) => part.type === 'text').map((part) => part.text);
-      const others = output.value.length - texts.length;
+      const texts: string[] = [];
+      const images: InferenceContentPart[] = [];
+      let others = 0;
+      for (const part of output.value) {
+        if (part.type === 'text') {
+          texts.push(part.text);
+        } else if (
+          (part.type === 'image-data' || part.type === 'file-data') &&
+          part.mediaType.startsWith('image/')
+        ) {
+          images.push({
+            type: 'image',
+            source: { kind: 'inline', mediaType: part.mediaType, data: part.data },
+          });
+        } else {
+          others += 1;
+        }
+      }
       return {
         text: texts.join('\n'),
+        images,
         ...(others > 0 ? { unsupported: `${others} non-text part(s) of a tool result` } : {}),
       };
     }
@@ -316,15 +343,15 @@ function translatePrompt(
     readonly toolCallId: string;
     readonly output: LanguageModelV3ToolResultOutput;
   }): void => {
-    const rendered = toolResultText(part.output);
+    const rendered = toolResultContent(part.output);
     if (rendered.unsupported !== undefined) {
       warn(
-        `Kaana serves text today; ${rendered.unsupported} was not sent rather than silently dropped.`,
+        `Kaana takes text and inline images; ${rendered.unsupported} was not sent rather than silently dropped.`,
       );
     }
     messages.push({
       role: 'tool',
-      content: [{ type: 'text', text: rendered.text }],
+      content: [{ type: 'text', text: rendered.text }, ...rendered.images],
       toolCallId: part.toolCallId,
     });
   };
@@ -339,11 +366,15 @@ function translatePrompt(
       case 'user':
         messages.push({
           role: 'user',
-          content: message.content.flatMap((part) =>
-            part.type === 'file'
-              ? [part.mediaType.startsWith('image/') ? imagePart(part) : documentPart(part)]
-              : textOf([part]),
-          ),
+          content: message.content.flatMap((part) => {
+            if (part.type !== 'file') return textOf([part]);
+            if (!part.mediaType.startsWith('image/')) return [documentPart(part)];
+            if (part.data instanceof URL) {
+              warn('An image by URL was not sent: Oxy takes images inline only.');
+              return [];
+            }
+            return [imagePart(part)];
+          }),
         });
         break;
 
