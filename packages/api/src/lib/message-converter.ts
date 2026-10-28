@@ -53,7 +53,8 @@ export interface ChatMessage {
  * Convert OpenAI-format messages to AI SDK ModelMessage format.
  * Handles tool result messages which have role "tool" in OpenAI format.
  *
- * `files` holds every `file` part's model content, read before the turn was
+ * `files` holds every `file` part's model content (a scanned PDF is several
+ * parts: a line naming its pages, then the pages), read before the turn was
  * admitted (`lib/chat/request-context.ts`). A part missing from it is a bug in
  * that admission, so it throws rather than sending the model a turn without it.
  */
@@ -83,9 +84,9 @@ export function convertToAISDKMessages(
         // Oxy Files `file` part the content it was read into.
         result.push({
           role: 'user',
-          content: msg.content.map((part) => {
+          content: msg.content.flatMap((part): readonly unknown[] => {
             if (part.type === 'image_url' && part.image_url?.url) {
-              return { type: 'image', image: part.image_url.url };
+              return [{ type: 'image', image: part.image_url.url }];
             }
             if (part.type === 'file') {
               const resolved = part.file ? files.get(part.file.file_id) : undefined;
@@ -93,7 +94,7 @@ export function convertToAISDKMessages(
                 throw new Error('A file part was not read before the turn');
               return resolved;
             }
-            return part;
+            return [part];
           }),
         });
       } else {
