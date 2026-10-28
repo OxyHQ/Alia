@@ -317,6 +317,23 @@ States `idle` → `requesting-permission` → `recording` (only once the recorde
 one retry. Dictation and a call never record together: the call bar replaces the
 composer.
 
+**An app with its own recorder** sends its clips with `@alia.onl/sdk/dictation` (SDK
+22.6.0): `requestTranscription` and `DictationError`, the same request `useDictation`
+makes, from an entry that reaches no React, native module, recorder or Oxy client. Astro
+records in its browser shell and cuts the recording at pauses, so each phrase is one
+request; a person's dictation is therefore several requests against the `/v1` rate limit
+and the `alia-kaana` capacity (5 000 requests a UTC day for all of Alia's inference,
+`~/Oxy/oxy/docs/inference/kaana-grants.md`).
+
+**Live in production since 2026-10-16.** The chain Alia → `kaana.ai/v1/audio/transcriptions`
+→ Oxy's `alia-kaana` `audio_transcriptions` terms (300 000 ms, USD 0.05 a request) → xAI
+`grok-voice-transcribe-2.0` or Groq Whisper is deployed: Oxy has admitted
+`audio_transcriptions` grants since 2026-10-16 03:22 UTC (the ones before were
+`no_route_available` until Kaana's transcription lines were sold), and Alia's own
+verification run that day transcribed a spoken clip on
+`x-ai/grok-voice-transcribe-2.0@observed-2026-10-16`. What is still open is the device gate
+in [Native validation](./native-validation.mdx#9-voice-through-kaana-to-validate).
+
 ## Read aloud
 
 Unchanged by ADR 0017: `POST /v1/audio/speech` in the product voice, `male` or
@@ -429,19 +446,19 @@ dictation to Google's recognizer.
 Outside Alia, before calls and dictation can be switched on in production
 (ADR 0017 §6):
 
+- **Dictation's server chain is done** (above): Kaana measures an upload's duration
+  before the grant, Oxy's `alia-kaana` `audio_transcriptions` terms are in policy
+  `oxy-inference-economics/2026-10-15.2`, and `kaana.ai/v1/audio/transcriptions` is public.
 - **Kaana phase 1:** enable and meter `inputAudioTranscription` inside realtime
   sessions (today refused) and publish the catalogue flag that says a realtime model
   does it (Alia reads `capabilities.realtime.inputAudioTranscription`; rename here if
   Kaana chooses another name); publish `audio` (voices with `gender`, languages) for
-  realtime models; `capabilities.realtime` from Kaana's inventory; measure an upload's
-  duration before the grant.
-- **Oxy phase 2:** grant terms for `alia-kaana` `realtime_session` and
-  `audio_transcriptions`; session concurrency and spend as Console policy; the
-  transcription hold from the measured duration; service tokens with `aud: kaana.ai`.
-- **Kaana phase 3 / oxy-infra:** `/v1/realtime` and `/v1/audio/transcriptions`
-  public and `@kaana.ai/sdk` 1.0.0 published; ALB cookie stickiness and a
-  deregistration delay of at least 31 min on Alia's target group; WebSocket idle
-  timeouts that cover a 30-minute call.
+  realtime models; `capabilities.realtime` from Kaana's inventory.
+- **Oxy phase 2:** grant terms for `alia-kaana` `realtime_session`; session
+  concurrency and spend as Console policy; service tokens with `aud: kaana.ai`.
+- **Kaana phase 3 / oxy-infra:** `/v1/realtime` public and `@kaana.ai/sdk` 1.0.0
+  published; ALB cookie stickiness and a deregistration delay of at least 31 min on
+  Alia's target group; WebSocket idle timeouts that cover a 30-minute call.
 - **Alia phase 4:** the switch in `lib/kaana/transport.ts` is done (usage units now come
   from `@kaana.ai/contracts`); left are the release gates: Chrome echo cancellation with Web
   Audio playback (fallback: an `RTCPeerConnection` loopback), Android echo

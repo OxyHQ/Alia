@@ -250,6 +250,33 @@ for (const forbidden of MODEL_FORBIDDEN) {
   }
 }
 
+// `@alia.onl/sdk/dictation` is dictation's request alone: an app with its own recorder (Astro)
+// imports it, so nothing it reaches may need React, a native module, a recorder or the Oxy client.
+const DICTATION_FORBIDDEN = [...MODEL_FORBIDDEN, 'expo-audio', AUDIO_ENGINE];
+const dictation = walk('dictation.ts', DICTATION_FORBIDDEN[0], { exact: true });
+if (!dictation.visited.has(path.join(SRC, 'lib', 'dictation.ts'))) {
+  failures.push('src/dictation.ts no longer reaches lib/dictation.ts — the walker is broken.');
+}
+// Positive control: the hook that records does reach React and the request.
+const dictationHook = walk('hooks/useDictation.ts', 'react', { exact: true });
+if (
+  dictationHook.hits.length === 0 ||
+  !dictationHook.visited.has(path.join(SRC, 'lib', 'dictation.ts'))
+) {
+  failures.push(
+    'src/hooks/useDictation.ts no longer reaches React and lib/dictation.ts — the dictation check proves nothing.',
+  );
+}
+for (const forbidden of DICTATION_FORBIDDEN) {
+  const { hits, importedBy } = walk('dictation.ts', forbidden);
+  if (hits.length > 0) {
+    failures.push(
+      `src/dictation.ts reaches ${forbidden}. Dictation's request is a pure leaf entry (@alia.onl/sdk/dictation).\n` +
+        hits.map((file) => `    ${chainTo(file, importedBy)}`).join('\n'),
+    );
+  }
+}
+
 if (!root.visited.has(VOICE_LOOP)) {
   failures.push(
     `src/index.ts no longer reaches the voice call (hooks/useVoiceRoom.ts). The conversation ` +
