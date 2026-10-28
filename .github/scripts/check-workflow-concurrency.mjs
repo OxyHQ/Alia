@@ -53,6 +53,8 @@ const MAIN_REF = "'refs/heads/main'";
 const EXPECTED = {
   'ci.yml': 'per-commit',
   'production-chat-canary.yml': 'serialised',
+  // One live Kaana transcription session at a time, billed to the QA account.
+  'production-dictation-canary.yml': 'serialised',
   // One instance restarted over SSM: two overlapping restarts could leave the
   // unit on the older digest pair.
   'deploy-computer-host.yml': 'serialised',
