@@ -1,5 +1,12 @@
 # @alia.onl/sdk
 
+## 22.5.0
+
+- **`AliaApi.put`.** The REST API (`useAliaApi`, `createAliaApi`) sends PUT like PATCH: the
+  linked Oxy client's authentication and 401 replay, the app assertion and a JSON body. Alia's
+  memory profile takes its sections by PUT (`/memory/context`, `/memory/preferences`,
+  `/memory/settings`), so a host's personalization settings can save them without its own client.
+
 ## 22.4.0
 
 - **A shared conversation shows its artifacts.** `readSharedConversation` keeps an assistant

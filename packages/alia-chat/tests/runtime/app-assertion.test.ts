@@ -53,9 +53,15 @@ describe('the REST API sends X-Oxy-App-Assertion', () => {
     await api.get('/v1/agents/agent-1/profile');
     await api.delete('/v1/conversations/c-1');
     await api.patch('/v1/conversations/c-1', { title: 'x' });
+    await api.put('/memory/preferences', { tone: 'friendly' });
 
     expect(sent[0]?.headers).toBeUndefined();
     expect(sent[1]?.headers).toBeUndefined();
     expect(sent[2]?.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(sent[3]).toEqual({
+      method: 'PUT',
+      url: '/memory/preferences',
+      headers: { 'Content-Type': 'application/json' },
+    });
   });
 });
