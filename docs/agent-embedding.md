@@ -221,10 +221,16 @@ Documents are a content part:
 These are the rules for documents:
 
 - **Where the file lives.** The client uploads it to the person's own Oxy account (`oxy.assets.upload`) and sends its id. Alia reads it with the person's own session, so a file the person cannot read is refused. `filename` and `mime` are hints: Oxy's record of the file decides.
-- **What the model receives.** An image file is an image. A text file (`text/*`, JSON, XML) is its text. A PDF is the file itself for a model whose catalogue entry takes `file` input, and its text, extracted by Alia, for any other model, a power level included. Any other type is the file itself for a model that takes files, and refused otherwise.
-- **Limits.** At most 10 distinct files in a request, history included, 20 MiB each, and 100,000 characters of text per document.
+- **What the model receives.** An image file is an image. A text file (`text/*`, JSON, XML) is its text. A Word, PowerPoint or Excel file (`.docx`, `.pptx`, `.xlsx`, their templates and macro-enabled siblings; not the legacy binary `.doc`, `.ppt`, `.xls`) is its text, for every model:
+  - Word: the body's paragraphs and tables in order, a table row per line with its cells separated by ` | `.
+  - PowerPoint: `Slide N` and the slide's text in presentation order, then its speaker notes under `Notes:`.
+  - Excel: `Sheet: <name>` and the sheet's rows as CSV, with the values the file stores (a formula's last result, numbers as stored, so a date is its serial number).
+
+  A PDF is the file itself for a model whose catalogue entry takes `file` input, and its text, extracted by Alia, for any other model, a power level included. A PDF with no text (a scan) gives that other model its first pages as PNG images instead, after a line naming them (`pages 1-3 of 12`), so the model reads the scan with its own vision. Any other type is the file itself for a model that takes files, and refused otherwise.
+- **Scanned pages need Oxy to serve images.** Oxy's inference edge does not serve image input yet (`unsupported_modality`), and Alia fits every request to Oxy's 126,976-byte controlled-input budget, which counts an image's base64 like text (`lib/inference/request-budget.ts`). Until Oxy serves and meters images, a turn carrying scanned pages fails with one of those typed errors (`context_length_exceeded` for any page larger than the room left), exactly as a turn with an image attachment does; it is never answered as if the scan had been read.
+- **Limits.** At most 10 distinct files in a request, history included, 20 MiB each, and 100,000 characters of text per document. An Office file may inflate at most 64 MiB of XML. A scan contributes at most its first 8 pages, each at most 1,280 px on its long side, grey when the scan is grey, and at most 480 KiB of PNG in all, so that it fits Oxy's 768 KiB request; the pages past that are left out and the line says which pages the model has.
 - **Refusals.** The turn is refused, before anything is reserved, with `invalid_file_part`, `too_many_files`, `file_unavailable`, `file_too_large`, `file_type_unsupported` or `file_session_required` (HTTP 400). A turn about a document Alia could not read is never answered.
-- **What is stored.** The conversation keeps the part as the client sent it. The file's bytes and text are never stored.
+- **What is stored.** The conversation keeps the part as the client sent it. The file's bytes, text and page images are never stored; what was read is kept in memory for ten minutes, per person and file, because the client resends the history every turn.
 
 ## 6. Conversations and sharing
 

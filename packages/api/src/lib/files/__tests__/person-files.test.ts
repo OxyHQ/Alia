@@ -70,6 +70,7 @@ import {
   resolveFileParts,
 } from '../person-files.js';
 import type { ChatMessage } from '../../message-converter.js';
+import { decodePng, docx, greyPage, pptx, scannedPdf, xlsx } from './document-fixtures.js';
 
 /** A one-page PDF whose only text is "Rent is 900 EUR". */
 function pdf(text: string): Uint8Array<ArrayBuffer> {
@@ -143,12 +144,14 @@ describe('resolveFileParts', () => {
       ...person,
       modelAcceptsFiles: true,
     });
-    expect(resolved.get('lease')).toEqual({
-      type: 'file',
-      data: bytes,
-      mediaType: 'application/pdf',
-      filename: 'lease.pdf',
-    });
+    expect(resolved.get('lease')).toEqual([
+      {
+        type: 'file',
+        data: bytes,
+        mediaType: 'application/pdf',
+        filename: 'lease.pdf',
+      },
+    ]);
   });
 
   it('gives any other model the text of the PDF, extracted here', async () => {
@@ -163,7 +166,7 @@ describe('resolveFileParts', () => {
       personAccountId: 'person-text',
       modelAcceptsFiles: false,
     });
-    const part = resolved.get('lease');
+    const [part] = resolved.get('lease') ?? [];
     expect(part?.type).toBe('text');
     expect(part?.type === 'text' ? part.text : '').toContain('[Attached document: lease.pdf]');
     expect(part?.type === 'text' ? part.text : '').toContain('Rent is 900 EUR');
@@ -184,7 +187,7 @@ describe('resolveFileParts', () => {
       ]),
       { ...person, modelAcceptsFiles: true },
     );
-    expect(resolved.get('notes')).toMatchObject({ type: 'text' });
+    expect(resolved.get('notes')).toMatchObject([{ type: 'text' }]);
   });
 
   it('refuses a type the model cannot read instead of answering without it', async () => {
@@ -234,5 +237,94 @@ describe('resolveFileParts', () => {
       modelAcceptsFiles: false,
     });
     expect(seen.downloads).toEqual(['cached']);
+  });
+  it('reads Word, PowerPoint and Excel as text, even for a model that takes files', async () => {
+    const office = 'application/vnd.openxmlformats-officedocument';
+    files.set('letter', {
+      mime: `${office}.wordprocessingml.document`,
+      size: 900,
+      originalName: 'letter.docx',
+      bytes: docx(),
+    });
+    files.set('deck', {
+      mime: `${office}.presentationml.presentation`,
+      size: 900,
+      originalName: 'deck.pptx',
+      bytes: pptx(),
+    });
+    files.set('rent', {
+      mime: 'application/vnd.ms-excel.sheet.macroEnabled.12',
+      size: 900,
+      originalName: 'rent.xlsm',
+      bytes: xlsx(),
+    });
+    const resolved = await resolveFileParts(filePartsOf([message('letter', 'deck', 'rent')]), {
+      ...person,
+      personAccountId: 'person-office',
+      modelAcceptsFiles: true,
+    });
+    const text = (id: string) => {
+      const [part] = resolved.get(id) ?? [];
+      return part?.type === 'text' ? part.text : '';
+    };
+    expect(text('letter')).toMatch(
+      /^\[Attached document: letter\.docx\]\n\nLease & terms\nRent:\t900 EUR/,
+    );
+    expect(text('deck')).toContain('Slide 1\nQuarterly results');
+    expect(text('deck')).toContain('Notes:\nMention the hiring freeze');
+    expect(text('rent')).toContain('Sheet: Rent\nTenant,"Amount ""EUR"""');
+  });
+
+  it('refuses an Office file it cannot read rather than answer without it', async () => {
+    files.set('broken', {
+      mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      size: 9,
+      bytes: new TextEncoder().encode('not a zip'),
+    });
+    await expect(
+      resolveFileParts(filePartsOf([message('broken')]), { ...person, modelAcceptsFiles: false }),
+    ).rejects.toMatchObject({ code: 'file_unavailable' });
+  });
+
+  const scannedPage = {
+    width: 600,
+    height: 800,
+    colorSpace: 'DeviceGray' as const,
+    bitsPerComponent: 8 as const,
+    pixels: greyPage(600, 800),
+  };
+
+  it('gives a scanned PDF to a model that reads no files as its pages, named, and reads it once', async () => {
+    files.set('scan', {
+      mime: 'application/pdf',
+      size: 9_000,
+      originalName: 'scan.pdf',
+      bytes: scannedPdf([scannedPage, scannedPage]),
+    });
+    const refs = filePartsOf([message('scan')]);
+    const options = { ...person, personAccountId: 'person-scan', modelAcceptsFiles: false };
+    const parts = (await resolveFileParts(refs, options)).get('scan') ?? [];
+    expect(parts.map((part) => part.type)).toEqual(['text', 'image', 'image']);
+    expect(parts[0]).toEqual({
+      type: 'text',
+      text: '[Attached document: scan.pdf. It is scanned and has no text, so its pages follow as images: pages 1-2 of 2. Read the text from them.]',
+    });
+    const image = parts[1];
+    expect(image).toMatchObject({ type: 'image', mediaType: 'image/png' });
+    expect(image.type === 'image' && decodePng(image.image as Uint8Array)).toMatchObject({
+      width: 600,
+      height: 800,
+    });
+    await resolveFileParts(refs, options);
+    expect(seen.downloads).toEqual(['scan']);
+  });
+
+  it('still hands a scanned PDF itself to a model that takes files', async () => {
+    files.set('scan', { mime: 'application/pdf', size: 9_000, bytes: scannedPdf([scannedPage]) });
+    const resolved = await resolveFileParts(filePartsOf([message('scan')]), {
+      ...person,
+      modelAcceptsFiles: true,
+    });
+    expect(resolved.get('scan')).toMatchObject([{ type: 'file', mediaType: 'application/pdf' }]);
   });
 });
