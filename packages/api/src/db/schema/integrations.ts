@@ -319,6 +319,13 @@ export const oauthStates = pgTable(
     /** An Oxy account. No foreign key. */
     userId: text().notNull(),
     expiresAt: timestamptz().notNull(),
+    /**
+     * The PKCE verifier (RFC 7636) for this authorization, encrypted at rest. It
+     * never leaves the API: the provider sees only its S256 challenge, and the
+     * code is redeemed with it in `POST /:service/complete`. Null for a provider
+     * that offers no PKCE to web clients.
+     */
+    codeVerifier: encryptedText(),
   },
   (t) => [
     // The expiry sweep's predicate column. Indexed because the sweep scans it.

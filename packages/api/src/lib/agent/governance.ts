@@ -29,6 +29,15 @@ const READ_ONLY_TOOLS = new Set([
   'search_files',
   'getWhatsAppChats',
   'getWhatsAppMessages',
+  'searchOutlookMail',
+  'readOutlookMail',
+  'listOutlookEvents',
+  'listTeamsChats',
+  'readTeamsChat',
+  'listTeams',
+  'listTeamsChannels',
+  'searchSharePointFiles',
+  'readSharePointFile',
 ]);
 
 const REVERSIBLE_WRITE_TOOLS = new Set([
@@ -52,6 +61,11 @@ const EXTERNAL_IMPACT_TOOLS = new Set([
   'sendWhatsAppMessage',
   'sendEmail',
   'createCalendarEvent',
+  'sendOutlookMail',
+  'replyToOutlookMail',
+  'createOutlookEvent',
+  'sendTeamsChatMessage',
+  'postTeamsChannelMessage',
 ]);
 
 /**

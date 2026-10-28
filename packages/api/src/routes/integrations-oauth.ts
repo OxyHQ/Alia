@@ -61,6 +61,7 @@ router.get('/available', authenticateToken, (_req, res) => {
       icon: entry.icon,
       description: entry.description,
       configured: !!creds,
+      ...(entry.revokeAt ? { revokeAt: entry.revokeAt } : {}),
     };
   });
   res.json({ integrations: available });
@@ -94,11 +95,14 @@ router.get(
     }
 
     const state = crypto.randomBytes(32).toString('hex');
+    const codeVerifier =
+      entry.oauthConfig.pkce === false ? undefined : crypto.randomBytes(32).toString('base64url');
     await createOAuthState(getDb(), {
       state,
       service,
       userId: req.userId!,
       expiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
+      codeVerifier,
     });
 
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
@@ -110,7 +114,13 @@ router.get(
       scope: entry.oauthConfig.scopes.join(' '),
       state,
       response_type: 'code',
-      access_type: 'offline',
+      ...entry.oauthConfig.authParams,
+      ...(codeVerifier
+        ? {
+            code_challenge: crypto.createHash('sha256').update(codeVerifier).digest('base64url'),
+            code_challenge_method: 'S256',
+          }
+        : {}),
     });
 
     const authUrl = `${entry.oauthConfig.authUrl}?${params.toString()}`;
@@ -223,6 +233,7 @@ router.post(
         code,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
+        ...(stateRow.codeVerifier ? { code_verifier: stateRow.codeVerifier } : {}),
       };
 
       if (authMethod === 'basic') {

@@ -125,7 +125,43 @@ export async function authedFetch(
     log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'),
   );
 
-  return response.json();
+  // An action the provider accepted with no body (Graph's 202 for sendMail, a
+  // 204) is a success with nothing to read, not a JSON error.
+  const body = await response.text();
+  return body ? JSON.parse(body) : {};
+}
+
+/**
+ * Authenticated download, for a file read as bytes and turned into text here.
+ * Refuses a body over `maxBytes` before reading it whole when the provider says
+ * its length, and after otherwise.
+ */
+export async function authedFetchBytes(
+  userId: string,
+  service: string,
+  url: string,
+  maxBytes: number,
+): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const token = await getValidToken(userId, service);
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(TOOL_TIMEOUT_MS * 2),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`${service} API error (${response.status}): ${body.slice(0, 200)}`);
+  }
+  const declared = Number(response.headers.get('content-length') ?? '0');
+  if (declared > maxBytes) throw new Error('The file is too large to read here');
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > maxBytes) throw new Error('The file is too large to read here');
+
+  touchIntegrationLastUsed(getDb(), userId, service).catch((err) =>
+    log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'),
+  );
+
+  return { bytes, contentType: response.headers.get('content-type') ?? '' };
 }
 
 /** Authenticated fetch that returns raw text instead of JSON */

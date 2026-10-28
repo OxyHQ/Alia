@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { constraintNameOf, isCheckViolation } from '@oxy.so/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { connectedAccounts, integrations, oauthStates } from '../schema/integrations';
+import { createOAuthState, findLiveOAuthState } from '../integrations/oauthStateRepository';
 
 /**
  * The encrypted OAuth columns, against a REAL server.
@@ -189,5 +190,38 @@ describe('the integrations OAuth state is keyed by the token itself', () => {
       .from(oauthStates)
       .where(eq(oauthStates.id, 'random-state-token'));
     expect(row?.id).toBe('random-state-token');
+  });
+});
+
+describe('the PKCE verifier of an OAuth handshake', () => {
+  it('is encrypted at rest and read back in the clear by the repository', async () => {
+    await createOAuthState(db, {
+      state: 'state-pkce',
+      service: 'microsoft-outlook',
+      userId: 'oxy-user-1',
+      expiresAt: new Date(Date.now() + 60_000),
+      codeVerifier: 'plaintext-verifier',
+    });
+
+    const raw = await db.execute<{ verifier: string }>(
+      sql`select code_verifier as verifier from ${oauthStates} where id = 'state-pkce'`,
+    );
+    expect(raw[0]?.verifier).not.toContain('plaintext');
+    expect(raw[0]?.verifier).toMatch(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/);
+
+    const live = await findLiveOAuthState(db, 'state-pkce', 'microsoft-outlook');
+    expect(live?.codeVerifier).toBe('plaintext-verifier');
+  });
+
+  it('stays null for a handshake without one', async () => {
+    await createOAuthState(db, {
+      state: 'state-no-pkce',
+      service: 'google-drive',
+      userId: 'oxy-user-1',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    expect(
+      (await findLiveOAuthState(db, 'state-no-pkce', 'google-drive'))?.codeVerifier,
+    ).toBeNull();
   });
 });
