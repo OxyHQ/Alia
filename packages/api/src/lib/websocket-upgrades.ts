@@ -1,8 +1,9 @@
 /**
  * Every WebSocket upgrade on Alia's HTTP server is routed HERE, once.
  *
- * Three surfaces share the server: socket.io (chat events, `/socket.io/`), the
- * MCP relay (`/ws/mcp`) and voice calls (`/v1/voice/session`). Before this
+ * Four surfaces share the server: socket.io (chat events, `/socket.io/`), the
+ * MCP relay (`/ws/mcp`), voice calls (`/v1/voice/session`) and streaming
+ * dictation (`/v1/audio/transcriptions/stream`). Before this
  * module each one installed its own `server.on('upgrade')`, and socket.io's
  * engine kept its default `destroyUpgrade`: one second after any upgrade that
  * was not its own, it ended the socket unless `socket.bytesWritten > 0`. Under
