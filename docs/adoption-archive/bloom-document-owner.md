@@ -9,8 +9,11 @@ Archive base: `09d13ace5bb882976f594c1e27f8bb05fe04fc36` (main fetched while
 archiving). Original patch SHA256:
 `84e89991cab9a437b946f403783fdf84f962971bec3f7eaf4d6c6875f29a087b`.
 The three touched files match the original patch's preimages; the patch applies
-without adaptation. The original removed worktree's base SHA was not preserved
-in the runtime logs, so this archive base is not claimed as that runtime's head.
+without adaptation. The original runtime baseline, confirmed from the task record, was
+`a09dd1587c6bddc785e4ccd6e3c4e9b0dbdc77c4` with published Bloom 15.78.0.
+No runtime or avatar validation is claimed for the newer archive base. The
+companion branch `archive/bloom-document-owner-baseline-a09dd1587` preserves
+the original base as well.
 
 The experiment used an uncommitted Bloom boundary snapshot on top of
 `b21e86ec73d08dd0c1ca090c48ab6617e413e847`, package version 15.79.1, with
