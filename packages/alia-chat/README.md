@@ -159,9 +159,12 @@ one is the same conversation in the others.
 | The chat with the call (`AliaChatSheet`, `AliaChatScreen`, `AliaChatContent`) | `@alia.onl/sdk` | yes |
 | The same chat, text only | `@alia.onl/sdk/text` | no |
 | One "Ask" sheet at the app's root, loaded with the first `ask` | `@alia.onl/sdk/ask` | yes, in the sheet's chunk |
+| The root's eager Ask provider and hook | `@alia.onl/sdk/ask/eager` | yes, loaded eagerly |
 | The same, text only | `@alia.onl/sdk/ask/text` | no |
 | Data only: conversations, the stream, the model | `@alia.onl/sdk/runtime`, `@alia.onl/sdk/model` | no |
 | Her face on a button | `@alia.onl/sdk/avatar` | no |
+| Character parser and runtime URL | `@alia.onl/sdk/character` | no |
+| Voice error messages without the call | `@alia.onl/sdk/voice/messages` | no |
 
 `voice={false}` hides the call, but the code still ships: the root entry and `@alia.onl/sdk/ask`
 bundle the call (its socket, protocol and audio engine) because their chat can open one. A
@@ -205,6 +208,9 @@ Mount it from `@alia.onl/sdk/ask`: that entry is the provider and its hook alone
 loads with the first `ask` (fetched in the background once the person is signed in), so the chat
 stays out of the app's entry bundle. The root entry exports the same two, with the whole chat
 (its provider imports the sheet statically).
+For hosts that need that exact eager behavior without the root barrel, import the provider and
+hook from `@alia.onl/sdk/ask/eager`. The character entry exports `readAgentCharacter`,
+`DEFAULT_AGENT_CHARACTER` and `ALIA_CHARACTER_RUNTIME_URL` without the chat.
 
 **On web, load the chat through ONE async boundary.** Expo's Metro serializer hoists every module
 two async chunks share into `__common.js`, which loads at first paint. The SDK draws no async chunk

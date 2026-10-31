@@ -46,6 +46,15 @@ import {
 } from '../../src/components/AliaAskProvider';
 import { AliaAskProvider as LazyAskProvider } from '../../src/components/AliaAskProviderLazy';
 import { AliaAskProvider as TextAskProvider } from '../../src/components/AliaAskProviderText';
+import {
+  AliaAskProvider as EagerEntryProvider,
+  useAskAgent as useEagerAskAgent,
+} from '../../src/ask-eager';
+
+it('exports the root provider and hook from the eager entry', () => {
+  expect(EagerEntryProvider).toBe(RootAskProvider);
+  expect(useEagerAskAgent).toBe(useAskAgent);
+});
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -66,6 +75,7 @@ function Button() {
 
 describe.each([
   ['root entry (static sheet)', RootAskProvider],
+  ['ask/eager entry (static sheet)', EagerEntryProvider],
   ['ask entry (lazy sheet)', LazyAskProvider],
   ['ask/text entry (lazy sheet, no call)', TextAskProvider],
 ])('AliaAskProvider of the %s', (_entry, AliaAskProvider) => {
