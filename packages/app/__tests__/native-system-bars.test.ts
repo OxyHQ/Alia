@@ -10,8 +10,9 @@ import { APP_ROOT } from '@/shared/testing/app-root';
  * nothing but a device notices when they go — found on the emulator
  * (`docs/native-validation.mdx`):
  *
- * - The bar's icons: with no `<StatusBar>` they stayed light over Alia's light
- *   surface, and the clock and battery vanished into it.
+ * - The bar's icons: without an owner they stayed light over Alia's light
+ *   surface, and the clock and battery vanished into it. BloomProvider now
+ *   owns the theme-aware bar; a second app bar would override Screen claims.
  * - The top inset: Bloom's `AiChatShell` takes no safe area, and the chat
  *   routes took none either, so the frame, the header's menu button and the
  *   drawer started under the bar. The system takes a touch there: the menu
@@ -27,10 +28,11 @@ const read = (path: string) =>
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 describe('the system bars on a device', () => {
-  it('draws the status bar icons for the theme Alia resolved, not for the OS', () => {
+  it('keeps BloomProvider as the sole owner of the theme-aware status bar', () => {
     const root = read('app/_layout.tsx');
-    expect(root).toMatch(/import \{ StatusBar \} from 'expo-status-bar'/);
-    expect(root).toMatch(/<StatusBar style=\{isDarkColorScheme \? 'light' : 'dark'\} \/>/);
+    expect(root).toMatch(/import \{ BloomProvider \} from '@oxy.so\/bloom\/provider'/);
+    expect(root).toMatch(/<BloomProvider\b/);
+    expect(root).not.toMatch(/\bStatusBar\b|expo-status-bar/);
   });
 
   it('puts the whole shell below the status bar once, and no page adds it again', () => {

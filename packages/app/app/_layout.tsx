@@ -4,11 +4,11 @@ import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { BloomProvider } from '@oxy.so/bloom/provider';
+import { expoRouterScrollAdapter } from '@oxy.so/bloom/scroll/expo-router';
 import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
 import { OxyProvider, useAccountColor, useOxy } from '@oxy.so/services/ui/client';
 import * as Linking from 'expo-linking';
 import { Slot, Stack, ThemeProvider } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 
@@ -69,7 +69,7 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const navigationTheme = useNavigationTheme();
-  const { colors, isDarkColorScheme } = useColorScheme();
+  const { colors } = useColorScheme();
 
   // Mounted only after BloomProvider's FontLoader resolves the default
   // Bloom fonts, so hiding the OS splash here leaves no unstyled-text flash.
@@ -108,10 +108,6 @@ function AppContent() {
           panels over two backdrops, whose enter/exit animations then run
           independently and visibly desync. */}
         <ConnectionStatusToasts />
-        {/* The bar's icons follow Alia's resolved theme, not the OS's: with a
-          theme picked in the app they can differ, and Android draws the app
-          edge to edge, so light icons would vanish on a light surface. */}
-        <StatusBar style={isDarkColorScheme ? 'light' : 'dark'} />
       </AuthSetup>
     </ThemeProvider>
   );
@@ -124,6 +120,7 @@ function RootLayout() {
     // fallback screen reads useTheme(), so with the provider inside it any
     // caught error would crash the boundary itself.
     <BloomProvider
+      scrollAdapter={expoRouterScrollAdapter}
       defaultMode="system"
       defaultColorPreset="purple"
       persistKey={BLOOM_THEME_PERSIST_KEY}
