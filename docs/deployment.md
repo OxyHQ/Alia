@@ -467,11 +467,16 @@ not reveal the failure. Run
 
 **CDN representation hazard:** the first public gzip canary returned the original
 2,663,968-byte binary with no `Content-Encoding`, while its weakened ETag still
-identified the1,476,356-byte gzip sidecar. The CDN had decompressed the Worker's
-response, even though workerd's miss/hit tests passed. Binary responses therefore
+identified the1,476,356-byte gzip sidecar. Fresh misses served gzip; subsequent
+hits served identity in both URL families, despite workerd's miss/hit tests passing. Binary responses therefore
 also carry `Cache-Control: no-transform`, including old cache hits and raw/q=0
 responses. This is scoped to negotiated `.bin` assets: JavaScript, CSS, runtime
 entries and manifests retain normal CDN compression. Cloudflare documents that
 [compression rules respect no-transform](https://developers.cloudflare.com/rules/compression-rules/).
+The synthetic binary cache Request also explicitly selects gzip or identity and
+uses a new internal key version to avoid older transformed entries. The previous
+Request omitted Accept-Encoding; negotiation inside the production Cache API is
+a possible cause, rather than a claim established by the local emulator. Public
+URLs and stored assets remain unchanged.
 The public canary requires gzip as well as exact decoded hashes, so a raw response
 cannot silently count as the expected transfer saving.
