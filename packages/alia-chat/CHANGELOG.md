@@ -4,8 +4,8 @@
 
 - The eager Ask provider and hook are available from `@alia.onl/sdk/ask/eager`, preserving
   the root entry's eager sheet and voice behavior. `@alia.onl/sdk/voice/messages` exposes
-  voice error messages without importing the voice call. The avatar entry also exposes the
-  character parser and default runtime URL, without importing the chat.
+  voice error messages without importing the voice call. `@alia.onl/sdk/character` exposes
+  the character parser and default runtime URL, without importing the chat.
 
 ## 22.9.0
 

@@ -177,6 +177,7 @@ const SERVICES_ENTRY_ENTRIES = [
   'voice.ts',
   'runtime/index.ts',
   'avatar.ts',
+  'character.ts',
   'ask.ts',
   'ask-eager.ts',
   'voice-messages.ts',
@@ -298,6 +299,9 @@ if (!voice.visited.has(VOICE_LOOP)) {
  * the entry bundle of every app that only wants her face on a button.
  */
 const avatar = walk('avatar.ts', RETIRED_MODULES[0]);
+if (avatar.visited.has(path.join(SRC, 'lib', 'agent-character.ts'))) {
+  failures.push('src/avatar.ts must not load the character parser; use the character entry.');
+}
 if (avatar.visited.size < 5) {
   failures.push(
     `Only ${avatar.visited.size} modules reachable from src/avatar.ts — the walker is broken or the entry was gutted.`,
@@ -447,6 +451,7 @@ for (const entry of [
   'runtime/index.ts',
   'runtime/model.ts',
   'avatar.ts',
+  'character.ts',
   'ask-eager.ts',
   'voice-messages.ts',
   'tools.ts',

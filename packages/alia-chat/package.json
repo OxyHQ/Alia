@@ -12,6 +12,7 @@
     "./ask/eager": "./src/ask-eager.ts",
     "./ask/text": "./src/ask-text.ts",
     "./avatar": "./src/avatar.ts",
+    "./character": "./src/character.ts",
     "./content": "./src/lib/content-utils.ts",
     "./csp": "./src/csp.ts",
     "./dictation": "./src/dictation.ts",
