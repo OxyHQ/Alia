@@ -492,3 +492,15 @@ encoding. The binary-v3 key bypasses the preceding entries; bytes, public URLs,
 ETags, raw fallback, and nonbinary caching are unchanged. An adversarial cache
 unit test reproduces body decoding with retained headers; workerd and public
 miss/hit checks remain required independently.
+
+**Conditional request correction:** the observed weak-ETag conditional200 was
+not attributable solely to edge behavior. Both owned R2 and cache-hit paths had
+compared `If-None-Match` with strict string equality.
+[RFC9110§13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2) requires weak
+comparison for GET/HEAD, including entity-tag lists and `*` for an existing
+resource. The Worker now parses quoted tags (commas inside tags are not list
+separators), ignores weakness when comparing the same opaque value, and leaves
+different representations' tags distinct. Missing resources still return404;
+malformed conditions do not produce a false304. Node routing tests and actual
+workerd HTTP cover strong/weak/list/wildcard requests on both R2 misses and cache
+hits. Gzip bytes, cache keys, stored objects and public URLs are unchanged.

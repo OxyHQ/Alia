@@ -28,6 +28,29 @@ test('real workerd gzip misses and Cache API hits decode exactly, including HEAD
     });
     child.once('exit', (code) => reject(Error(`Fixture exited${code}: ${stderr}`)));
   });
+  const conditions = [info.gzipEtag, `W/${info.gzipEtag}`, `"other", W/${info.gzipEtag}`, '*'];
+  const checkConditionals = async () => {
+    for (const path of info.paths) {
+      for (const method of ['GET', 'HEAD']) {
+        for (const condition of conditions) {
+          const response = await fetch(info.origin + path, {
+            method,
+            headers: {
+              'Accept-Encoding': 'gzip',
+              'If-None-Match': condition,
+            },
+          });
+          assert.equal(response.status, 304, `${method} ${condition} ${path}`);
+          assert.equal((await response.arrayBuffer()).byteLength, 0);
+          assert.equal(response.headers.get('etag'), info.gzipEtag);
+          assert.equal(response.headers.get('x-avatar-stored-encoding'), null);
+        }
+      }
+    }
+  };
+  await checkConditionals();
+  const missReads = (await (await fetch(`${info.origin}/__test_reads`)).json()).reads;
+  assert.equal(missReads, 16, 'conditional misses inspect R2 without populating body cache');
   for (const path of info.paths) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await fetch(info.origin + path, { headers: { 'Accept-Encoding': 'gzip' } });
@@ -49,8 +72,14 @@ test('real workerd gzip misses and Cache API hits decode exactly, including HEAD
   }
   assert.equal(
     (await (await fetch(`${info.origin}/__test_reads`)).json()).reads,
-    2,
+    missReads + 2,
     'second requests must hit edge cache',
+  );
+  await checkConditionals();
+  assert.equal(
+    (await (await fetch(`${info.origin}/__test_reads`)).json()).reads,
+    missReads + 2,
+    'conditional cache hits must not reread R2',
   );
   for (const path of info.paths) {
     const response = await fetch(info.origin + path, {

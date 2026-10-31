@@ -456,3 +456,124 @@ test('opaque cache bytes survive a cache which decodes encoded bodies while pres
     ),
   );
 });
+
+test('If-None-Match weak comparison parses quoted lists without splitting opaque tag commas', async () => {
+  const { matchesIfNoneMatch } = await import('../packages/app/worker/avatar-releases.js');
+  for (const current of ['"same"', 'W/"same"']) {
+    for (const condition of [
+      '"same"',
+      'W/"same"',
+      '"other", W/"same"',
+      '*',
+      ', "other", , W/"same", ',
+    ])
+      assert(matchesIfNoneMatch(condition, current), `${condition} matches ${current}`);
+    for (const condition of [
+      null,
+      '',
+      '"other"',
+      'W/"different"',
+      '"same"junk',
+      '"same", junk',
+      '*, "same"',
+      'w/"same"',
+      '"same',
+    ])
+      assert(!matchesIfNoneMatch(condition, current), `${condition} must not match ${current}`);
+  }
+  assert(matchesIfNoneMatch('"other", W/"part,one"', '"part,one"'));
+  assert(!matchesIfNoneMatch('"part", "one"', '"part,one"'));
+  assert(!matchesIfNoneMatch(null, null), 'missing validators must not produce304');
+  assert(matchesIfNoneMatch('*', null), 'wildcard checks the already established existence');
+});
+
+test('GET and HEAD conditionals honor strong/weak/list/star on R2 misses and cache hits', async (t) => {
+  const original = globalThis.caches;
+  t.after(() => {
+    globalThis.caches = original;
+  });
+  const revision = 'a'.repeat(64);
+  for (const prefix of [`releases/${revision}/`, '']) {
+    for (const cached of [false, true]) {
+      for (const method of ['GET', 'HEAD']) {
+        for (const condition of [
+          '"same,tag"',
+          'W/"same,tag"',
+          '"other", W/"same,tag"',
+          '*',
+          '"different"',
+          null,
+        ]) {
+          const objects = new Map(),
+            pending = [];
+          let reads = 0;
+          globalThis.caches = cached
+            ? {
+                default: {
+                  async match(key) {
+                    return objects.get(key.url)?.clone();
+                  },
+                  async put(key, response) {
+                    objects.set(key.url, response);
+                  },
+                },
+              }
+            : undefined;
+          const object = { body: 'payload', size: 7, httpEtag: '"same,tag"' };
+          const read = async () => {
+            reads++;
+            return object;
+          };
+          const env = { AVATAR_RUNTIME_RELEASES: { get: read, head: read } };
+          const url = `https://example.test/bloom-character/${prefix}assets/geometry-ab123456.bin`;
+          const ctx = { waitUntil: (p) => pending.push(p) };
+          if (cached) {
+            await worker.fetch(
+              new Request(url, { headers: { 'Accept-Encoding': 'gzip' } }),
+              env,
+              ctx,
+            );
+            await Promise.all(pending);
+          }
+          const response = await worker.fetch(
+            new Request(url, {
+              method,
+              headers: {
+                'Accept-Encoding': 'gzip',
+                ...(condition === null ? {} : { 'If-None-Match': condition }),
+              },
+            }),
+            env,
+            ctx,
+          );
+          const expected = condition && condition !== '"different"' ? 304 : 200;
+          assert.equal(
+            response.status,
+            expected,
+            JSON.stringify({ prefix, cached, method, condition }),
+          );
+          assert.equal(response.headers.get('ETag'), object.httpEtag);
+          assert.equal(response.headers.get('Content-Encoding'), 'gzip');
+          assert.equal(response.headers.get('X-Avatar-Stored-Encoding'), null);
+          assert.equal(
+            reads,
+            1,
+            cached ? 'conditional hit must reuse cache' : 'conditional miss must inspect R2',
+          );
+          if (expected === 304 || method === 'HEAD') assert.equal(response.body, null);
+          await Promise.all(pending);
+        }
+      }
+    }
+  }
+  globalThis.caches = undefined;
+  const missing = await worker.fetch(
+    new Request(
+      `https://example.test/bloom-character/releases/${revision}/assets/geometry-ab123456.bin`,
+      { headers: { 'If-None-Match': '*' } },
+    ),
+    { AVATAR_RUNTIME_RELEASES: { get: async () => null } },
+    {},
+  );
+  assert.equal(missing.status, 404, 'wildcard cannot make a missing object exist');
+});
