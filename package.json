@@ -58,10 +58,11 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@oxy.so/doctor": "1.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@aws-sdk/client-s3": "^3.1086.0"
   },
   "dependencies": {
-    "@oxy.so/bloom": "15.46.0",
+    "@oxy.so/bloom": "15.78.0",
     "@oxy.so/core": "7.9.0",
     "@oxy.so/services": "13.11.0",
     "@tanstack/query-sync-storage-persister": "^5.102.8",

@@ -47,3 +47,8 @@ not_found_handling = "single-page-application"
 [[routes]]
 pattern = "alia.onl"
 custom_domain = true
+
+# Separate, append-only storage: old native binaries pin a full-manifest SHA.
+[[r2_buckets]]
+binding = "AVATAR_RUNTIME_RELEASES"
+bucket_name = "alia-avatar-runtime"

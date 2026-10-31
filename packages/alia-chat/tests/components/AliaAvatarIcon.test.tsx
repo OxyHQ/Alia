@@ -24,6 +24,7 @@ vi.mock('@oxy.so/bloom/avatar', () => ({
 vi.mock('../../src/hooks/useAliaActivity', () => ({ useAliaActivity: () => seen.state }));
 
 import { ALIA_AVATAR } from '../../src/avatar';
+import { AliaAvatarProvider } from '../../src/components/AliaAvatarProvider';
 import { AliaAvatarIcon } from '../../src/components/AliaAvatarIcon';
 import { ALIA_AVATAR_STILL, ALIA_AVATAR_STILL_OF } from '../../src/lib/alia-avatar-still.generated';
 import { ALIA_CHARACTER_RUNTIME_URL } from '../../src/lib/character-runtime';
@@ -49,6 +50,19 @@ describe('AliaAvatarIcon', () => {
     });
     // Never a pressable of its own: the button keeps the press.
     expect(seen.avatar.at(-1)).not.toHaveProperty('onPress');
+  });
+
+  it('keeps the explicit chat runtime URL for nested icons', () => {
+    const runtimeUrl = 'https://host.test/releases/pinned/runtime.mjs';
+    act(() => {
+      TestRenderer.create(
+        <AliaAvatarProvider runtimeUrl={runtimeUrl}>
+          <AliaAvatarIcon />
+        </AliaAvatarProvider>,
+      );
+    });
+    expect(seen.provider).toHaveLength(2);
+    expect(seen.provider.every((value) => value.runtimeUrl === runtimeUrl)).toBe(true);
   });
 
   it.each([

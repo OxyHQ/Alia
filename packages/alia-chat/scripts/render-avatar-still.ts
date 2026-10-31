@@ -17,6 +17,7 @@
  * Needs a Chromium for `playwright-core` (`bunx playwright install chromium`).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
@@ -32,7 +33,11 @@ const bloomRoot = dirname(require.resolve('@oxy.so/bloom/package.json'));
 const bloomVersion: string = JSON.parse(
   readFileSync(join(bloomRoot, 'package.json'), 'utf8'),
 ).version;
-const runtimeDir = join(bloomRoot, 'assets', 'character-runtime');
+const runtimeDir =
+  process.env.BLOOM_AVATAR_RUNTIME_DIR ?? join(bloomRoot, 'assets', 'character-runtime');
+const runtimeRevision = createHash('sha256')
+  .update(readFileSync(join(runtimeDir, 'manifest.json')))
+  .digest('hex');
 // Bloom resolves a character before it hands it to the runtime; so does this.
 const { resolveAvatarCharacter } = await import(join(bloomRoot, 'src/agent-avatar/character.ts'));
 const character = resolveAvatarCharacter(ALIA_AVATAR);
@@ -64,6 +69,7 @@ const server = createServer((request, response) => {
 const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
 const browser = await chromium.launch({
+  executablePath: process.env.CHROME_PATH,
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
 });
 try {
@@ -97,7 +103,7 @@ try {
 
 /**
  * Alia's still: \`ALIA_AVATAR\` drawn by @oxy.so/bloom ${bloomVersion}'s character runtime as Bloom
- * draws any still (a paused portrait, reduced motion), ${CSS_SIZE} px at ${DEVICE_SCALE}x, ${bytes} bytes of PNG.
+ * runtime manifest ${runtimeRevision}. It draws a paused portrait with reduced motion, ${CSS_SIZE} px at ${DEVICE_SCALE}x, ${bytes} bytes of PNG.
  */
 export const ALIA_AVATAR_STILL = '${uri}';
 

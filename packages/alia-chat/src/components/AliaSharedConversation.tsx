@@ -6,13 +6,12 @@
  * which can hold the person's own data, and there is nothing to vote on, play, edit or regenerate.
  */
 
-import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
+import { AliaAvatarProvider } from './AliaAvatarProvider';
 import type { AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { useMemo, useRef } from 'react';
 import { View } from 'react-native';
-import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
 import { AliaRuntimeProvider } from '../runtime/config';
 import {
@@ -73,15 +72,15 @@ export function AliaSharedConversation({
   token,
   apiUrl,
   labels,
-  characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
+  characterRuntimeUrl,
 }: AliaSharedConversationProps) {
   return (
-    <AgentAvatarProvider runtimeUrl={characterRuntimeUrl}>
+    <AliaAvatarProvider runtimeUrl={characterRuntimeUrl}>
       <AliaChatLabelsProvider labels={labels}>
         <AliaRuntimeProvider apiUrl={apiUrl}>
           <SharedThread token={token} />
         </AliaRuntimeProvider>
       </AliaChatLabelsProvider>
-    </AgentAvatarProvider>
+    </AliaAvatarProvider>
   );
 }

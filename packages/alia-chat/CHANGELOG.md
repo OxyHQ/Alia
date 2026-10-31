@@ -1,5 +1,11 @@
 # @alia.onl/sdk
 
+## 22.9.0
+
+- Native avatars can use the optional shared GPU companion `@oxy.so/bloom-avatar-native@^0.1.0`. Their default asset URL pins the installed companion manifest revision; Alia retains previous releases independently of web deployments. Hosts without the companion retain the WebView fallback, and web imports no native GPU graph.
+- Avatar icons nested inside a chat preserve its explicit `characterRuntimeUrl` override.
+- Regenerated Alia's bundled still with the smooth avatar runtime; idle icons retain the same character and dimensions without fetching the 3D runtime.
+
 ## 22.8.0
 
 - **Streaming dictation (ADR 0024).** `@alia.onl/sdk/dictation` gains

@@ -1,3 +1,9 @@
+import {
+  AVATAR_RELEASE_PREFIX,
+  serveAvatarRelease,
+  serveFlatAvatarGzip,
+} from './avatar-releases.js';
+
 /**
  * Files `@alia.onl/sdk` loads from this origin in every app that embeds it: Bloom's character
  * runtime and the voice call's worklets (`/sdk/voice-worklets/<revision>.js`). A cross-origin
@@ -29,9 +35,12 @@ const IMMUTABLE = 'public, max-age=31536000, immutable';
 const UNINDEXED_PREFIXES = ['/shared/'];
 
 export default {
-  async fetch(request, env) {
-    const response = await env.ASSETS.fetch(request);
+  async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
+    if (pathname.startsWith(AVATAR_RELEASE_PREFIX)) return serveAvatarRelease(request, env, ctx);
+    const compressed = await serveFlatAvatarGzip(request, env, ctx).catch(() => null);
+    if (compressed) return compressed;
+    const response = await env.ASSETS.fetch(request);
     const shared = SHARED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
     const hashed = HASHED.some((pattern) => pattern.test(pathname));
     const unindexed = UNINDEXED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
@@ -52,6 +61,8 @@ export default {
     }
     const served = new Response(response.body, response);
     if (shared) served.headers.set('Access-Control-Allow-Origin', '*');
+    if (/^\/bloom-character\/assets\/.*\.bin$/.test(pathname))
+      served.headers.append('Vary', 'Accept-Encoding');
     // A hashed name's bytes never change, so a browser keeps them and never asks again. The asset
     // server's default (`max-age=0, must-revalidate`) made a returning visitor revalidate every
     // one: 31 requests for the character runtime alone.

@@ -33,12 +33,17 @@ content, safe areas and keyboard clearance. Hosts should not add window-height c
 scroll container to make an embedded chat visible.
 
 Alia's avatar is Bloom's 3D character (`AgentAvatar`). It draws through a runtime of
-static files (about 214 MB), which the chat loads from Alia's own origin
+static files (loaded on demand), which the chat loads from Alia's own origin
 (`ALIA_CHARACTER_RUNTIME_URL`, served with CORS open), so the app hosts nothing and mounts
 no avatar provider. To serve your own copy instead, serve the Bloom
 package's `assets/character-runtime/` directory unchanged and pass the URL of `runtime.mjs`
-as `characterRuntimeUrl` to `AliaChatSheet` or `AliaChatScreen`; native avatars run in a
-WebView, so there the URL must be absolute and reachable from the device.
+as `characterRuntimeUrl` to `AliaChatSheet` or `AliaChatScreen`; nested avatar icons
+preserve that override. Native URLs must be absolute and reachable from the device.
+For native shared GPU rendering, install the optional `@oxy.so/bloom-avatar-native@^0.1.0`
+companion with its Expo GL peer and rebuild the native app. The SDK then pins its default
+URL to the companion's full runtime manifest revision under `/bloom-character/releases/`.
+Alia retains those assets across deployments. Hosts without the companion keep the
+WebView fallback; web does not import the native companion graph.
 
 A web app with a Content-Security-Policy composes the SDK's into its own instead of listing
 Alia's origins by hand: `@alia.onl/sdk/csp` exports `ALIA_SDK_CSP` and `withAliaSdkCsp(extensions)`

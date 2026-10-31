@@ -32,7 +32,7 @@
     "@clarity.surf/sdk": "0.10.0",
     "@expo/vector-icons": "^15.1.1",
     "@oxy.so/app-preset": "^4.1.0",
-    "@oxy.so/bloom": "15.46.0",
+    "@oxy.so/bloom": "15.78.0",
     "@oxy.so/contracts": "6.1.0",
     "@oxy.so/core": "7.1.0",
     "@oxy.so/expo-splash": "^1.1.0",
@@ -97,7 +97,9 @@
     "react-native-worklets": "0.13.0",
     "socket.io-client": "^4.8.3",
     "tailwindcss": "4.2.2",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.15",
+    "@oxy.so/bloom-avatar-native": "0.1.0",
+    "expo-gl": "58.0.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.2",
