@@ -26,7 +26,7 @@ import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useScrollRestoration } from '@oxy.so/bloom/scroll';
+import { DocumentScrollRestorationBoundary, useScrollRestoration } from '@oxy.so/bloom/scroll';
 import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
 import type React from 'react';
 import { useEffect, useMemo } from 'react';
@@ -234,18 +234,20 @@ export default function AppLayout() {
               {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
               <OverlayInertBoundary>
-                {Platform.OS === 'web' ? (
-                  shell
-                ) : (
-                  // Android draws the app edge to edge and Bloom's shell takes no
-                  // safe area: without this its frame, the chat header's menu button
-                  // and the drawer all start under the status bar, where the system
-                  // takes the touch (the button did nothing to a tap on its top two
-                  // thirds). The strip above shows the root's background, which is
-                  // the shell's own surface colour. The chat keeps the bottom
-                  // inset itself (`conversation-screen.tsx`).
-                  <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-                )}
+                <DocumentScrollRestorationBoundary>
+                  {Platform.OS === 'web' ? (
+                    shell
+                  ) : (
+                    // Android draws the app edge to edge and Bloom's shell takes no
+                    // safe area: without this its frame, the chat header's menu button
+                    // and the drawer all start under the status bar, where the system
+                    // takes the touch (the button did nothing to a tap on its top two
+                    // thirds). The strip above shows the root's background, which is
+                    // the shell's own surface colour. The chat keeps the bottom
+                    // inset itself (`conversation-screen.tsx`).
+                    <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+                  )}
+                </DocumentScrollRestorationBoundary>
               </OverlayInertBoundary>
               <CommandPalette />
               <KeyboardShortcutsDialog />
