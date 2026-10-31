@@ -20,8 +20,8 @@ import type { RequireContext } from 'expo-router/build/types';
 // The exact string expo-router resolves specially; see its `qualified-entry`.
 const { ctx: appContext } = require('expo-router/_ctx') as { ctx: RequireContext };
 
-/** Lazy, like `app/` on web (`asyncRoutes.web` in app.json). */
-const fixtureContext = require.context('./routes', true, /\.tsx$/, 'lazy');
+/** Sync modules also work when the development router disables async routes. */
+const fixtureContext = require.context('./routes', true, /\.tsx$/, 'sync');
 const fixtureKeys = new Set(fixtureContext.keys());
 
 const merged = ((key: string) =>
