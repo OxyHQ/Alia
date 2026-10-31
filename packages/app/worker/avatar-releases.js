@@ -75,10 +75,10 @@ async function serve(request, env, ctx, path, flat) {
     acceptsGzip(request.cf?.clientAcceptEncoding ?? request.headers.get('Accept-Encoding'));
   const cache = globalThis.caches?.default;
   const cacheUrl = new URL(request.url);
-  // The previous cache key omitted Accept-Encoding; production hits returned identity.
-  // Version only binary entries so earlier transformed values cannot survive this fix.
+  // Older production Cache API entries materialized decoded bodies with gzip headers.
+  // Version binary entries and store encoded payloads as opaque bytes instead.
   cacheUrl.search = binary
-    ? `?avatar-encoding=binary-v2-${gzip ? 'gzip' : 'identity'}`
+    ? `?avatar-encoding=binary-v3-${gzip ? 'gzip' : 'identity'}`
     : '?avatar-encoding=identity';
   const cacheKey = new Request(cacheUrl, {
     method: 'GET',
@@ -88,6 +88,9 @@ async function serve(request, env, ctx, path, flat) {
   if (cached) {
     const cachedHeaders = new Headers(cached.headers);
     cachedHeaders.set('Cache-Control', cacheControl);
+    const storedEncoding = cachedHeaders.get('X-Avatar-Stored-Encoding');
+    if (storedEncoding) cachedHeaders.set('Content-Encoding', storedEncoding);
+    cachedHeaders.delete('X-Avatar-Stored-Encoding');
     if (request.headers.get('If-None-Match') === cached.headers.get('ETag'))
       return new Response(null, { status: 304, headers: cachedHeaders });
     // Cache API does not preserve encodeBody. Reassert it on hits to avoid double gzip.
@@ -120,12 +123,20 @@ async function serve(request, env, ctx, path, flat) {
   });
   // clone() also loses manual encoding in workerd; cache an explicitly encoded response.
   // A missing sidecar must not pin raw bytes under the gzip cache key.
-  if (cache && request.method === 'GET' && ctx?.waitUntil && (!gzip || encoded))
+  if (cache && request.method === 'GET' && ctx?.waitUntil && (!gzip || encoded)) {
+    const storedHeaders = new Headers(response.headers);
+    // Cache API may decode Content-Encoding even when it preserves that header.
+    // Cache an opaque binary payload and restore the wire encoding only on delivery.
+    if (encoded) {
+      storedHeaders.delete('Content-Encoding');
+      storedHeaders.set('X-Avatar-Stored-Encoding', 'gzip');
+    }
     ctx.waitUntil(
       cache.put(
         cacheKey,
-        new Response(response.clone().body, { headers: response.headers, encodeBody: 'manual' }),
+        new Response(response.clone().body, { headers: storedHeaders, encodeBody: 'manual' }),
       ),
     );
+  }
   return response;
 }

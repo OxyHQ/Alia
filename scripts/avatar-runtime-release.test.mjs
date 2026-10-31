@@ -388,7 +388,71 @@ test('binary cache requests explicitly negotiate their encoding and bypass prece
     seen.map((x) => x.encoding),
     ['gzip', 'identity', null],
   );
-  assert.equal(new URL(seen[0].url).search, '?avatar-encoding=binary-v2-gzip');
-  assert.equal(new URL(seen[1].url).search, '?avatar-encoding=binary-v2-identity');
+  assert.equal(new URL(seen[0].url).search, '?avatar-encoding=binary-v3-gzip');
+  assert.equal(new URL(seen[1].url).search, '?avatar-encoding=binary-v3-identity');
   assert.equal(new URL(seen[2].url).search, '?avatar-encoding=identity');
+});
+
+test('opaque cache bytes survive a cache which decodes encoded bodies while preserving headers', async (t) => {
+  const { gzipSync, gunzipSync } = await import('node:zlib');
+  const original = globalThis.caches;
+  t.after(() => {
+    globalThis.caches = original;
+  });
+  const raw = Buffer.from('exact binary bytes'.repeat(200)),
+    gzip = gzipSync(raw);
+  const stored = new Map(),
+    pending = [];
+  let reads = 0;
+  globalThis.caches = {
+    default: {
+      async match(key) {
+        return stored.get(key.url)?.clone();
+      },
+      async put(key, response) {
+        let bytes = Buffer.from(await response.arrayBuffer());
+        if (response.headers.get('Content-Encoding') === 'gzip') bytes = gunzipSync(bytes);
+        stored.set(key.url, new Response(bytes, { headers: response.headers }));
+      },
+    },
+  };
+  const env = {
+    AVATAR_RUNTIME_RELEASES: {
+      async get() {
+        reads++;
+        return { body: gzip, size: gzip.length, httpEtag: '"compressed"' };
+      },
+    },
+  };
+  for (const prefix of [`releases/${'a'.repeat(64)}/`, '']) {
+    const url = `https://example.test/bloom-character/${prefix}assets/geometry-ab123456.bin`;
+    for (const method of ['GET', 'GET', 'HEAD']) {
+      const response = await worker.fetch(
+        new Request(url, { method, headers: { 'Accept-Encoding': 'gzip' } }),
+        env,
+        { waitUntil: (p) => pending.push(p) },
+      );
+      assert.equal(response.headers.get('Content-Encoding'), 'gzip');
+      assert.equal(response.headers.get('X-Avatar-Stored-Encoding'), null);
+      assert.equal(+response.headers.get('Content-Length'), gzip.length);
+      if (method === 'GET')
+        assert.deepEqual(gunzipSync(Buffer.from(await response.arrayBuffer())), raw);
+      else assert.equal(response.body, null);
+      await Promise.all(pending);
+    }
+    const unchanged = await worker.fetch(
+      new Request(url, { headers: { 'Accept-Encoding': 'gzip', 'If-None-Match': '"compressed"' } }),
+      env,
+      {},
+    );
+    assert.equal(unchanged.status, 304);
+    assert.equal(unchanged.headers.get('X-Avatar-Stored-Encoding'), null);
+  }
+  assert.equal(reads, 2);
+  assert(
+    [...stored.values()].every(
+      (r) =>
+        !r.headers.has('Content-Encoding') && r.headers.get('X-Avatar-Stored-Encoding') === 'gzip',
+    ),
+  );
 });
