@@ -211,6 +211,13 @@ vi.mock('react-native-safe-area-context', async () => {
   };
 });
 
+// Bloom's native surface graph imports Expo Blur. This Node keyboard test has no
+// native Expo host; keep that host boundary inert, like the RN/Reanimated shims above.
+vi.mock('expo-blur', async () => {
+  const { View } = await import('react-native');
+  return { BlurView: View, BlurTargetView: View };
+});
+
 import { ComposerPanel, ComposerPill } from '@oxy.so/bloom/composer-panel';
 import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 
