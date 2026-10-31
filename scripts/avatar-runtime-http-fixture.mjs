@@ -72,11 +72,13 @@ const mf = new Miniflare(
   }),
 );
 const bucket = await mf.getR2Bucket('AVATAR_RUNTIME_RELEASES');
+let gzipEtag;
 for (const key of [`releases/${revision}/${name}`, `flat/${name}`]) {
   await bucket.put(key, raw, { httpMetadata: { contentType: 'application/octet-stream' } });
-  await bucket.put(`${key}.gz`, gzip, {
+  const compressedObject = await bucket.put(`${key}.gz`, gzip, {
     httpMetadata: { contentType: 'application/octet-stream', contentEncoding: 'gzip' },
   });
+  gzipEtag = compressedObject.httpEtag;
 }
 await mf.ready;
 console.log(
@@ -86,6 +88,7 @@ console.log(
     name,
     rawBytes: raw.length,
     gzipBytes: gzip.length,
+    gzipEtag,
     sha256: manifest.files[name],
     paths: [`/bloom-character/releases/${revision}/${name}`, `/bloom-character/${name}`],
   }),

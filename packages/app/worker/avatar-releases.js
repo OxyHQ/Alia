@@ -38,6 +38,27 @@ export function acceptsGzip(value) {
   const selected = exact.length ? exact : codings.filter((c) => c.name === '*');
   return selected.length > 0 && selected.every((c) => c.quality > 0);
 }
+/** RFC9110§13.1.2: GET/HEAD use weak comparison; call only after finding a resource. */
+export function matchesIfNoneMatch(value, etag) {
+  if (!value) return false;
+  const field = value.trim();
+  if (field === '*') return true;
+  const current = /^(?:W\/)?("[\x21\x23-\x7e\x80-\xff]*")$/.exec(etag ?? '')?.[1];
+  if (!current) return false;
+  // Entity tags can contain commas. Parse quoted tags before list delimiters;
+  // empty list elements are allowed, but malformed syntax cannot match.
+  const item = /[ \t]*(?:(?:W\/)?("[\x21\x23-\x7e\x80-\xff]*")[ \t]*(?:,|$)|,)/y;
+  let offset = 0;
+  let matched = false;
+  while (offset < field.length) {
+    item.lastIndex = offset;
+    const next = item.exec(field);
+    if (!next) return false;
+    if (next[1] === current) matched = true;
+    offset = item.lastIndex;
+  }
+  return matched;
+}
 export async function serveAvatarRelease(request, env, ctx) {
   return serve(request, env, ctx, avatarReleasePath(new URL(request.url).pathname), false);
 }
@@ -91,7 +112,7 @@ async function serve(request, env, ctx, path, flat) {
     const storedEncoding = cachedHeaders.get('X-Avatar-Stored-Encoding');
     if (storedEncoding) cachedHeaders.set('Content-Encoding', storedEncoding);
     cachedHeaders.delete('X-Avatar-Stored-Encoding');
-    if (request.headers.get('If-None-Match') === cached.headers.get('ETag'))
+    if (matchesIfNoneMatch(request.headers.get('If-None-Match'), cached.headers.get('ETag')))
       return new Response(null, { status: 304, headers: cachedHeaders });
     // Cache API does not preserve encodeBody. Reassert it on hits to avoid double gzip.
     return new Response(request.method === 'HEAD' ? null : cached.body, {
@@ -114,7 +135,7 @@ async function serve(request, env, ctx, path, flat) {
   responseHeaders.set('Cache-Control', cacheControl);
   responseHeaders.set('ETag', object.httpEtag);
   if (encoded) responseHeaders.set('Content-Encoding', 'gzip');
-  if (request.headers.get('If-None-Match') === object.httpEtag)
+  if (matchesIfNoneMatch(request.headers.get('If-None-Match'), object.httpEtag))
     return new Response(null, { status: 304, headers: responseHeaders });
   responseHeaders.set('Content-Length', String(object.size));
   const response = new Response(request.method === 'HEAD' ? null : object.body, {
