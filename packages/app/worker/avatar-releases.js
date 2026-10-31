@@ -64,6 +64,11 @@ async function serve(request, env, ctx, path, flat) {
     responseHeaders.set('Allow', 'GET, HEAD, OPTIONS');
     return new Response('Method not allowed', { status: 405, headers: responseHeaders });
   }
+  // Keep our negotiated binary representation intact through the CDN. Other types
+  // retain automatic Brotli/gzip; application/octet-stream otherwise loses its gzip.
+  const cacheControl = path.key.endsWith('.bin')
+    ? 'public, max-age=31536000, immutable, no-transform'
+    : 'public, max-age=31536000, immutable';
   const gzip =
     path.key.endsWith('.bin') &&
     acceptsGzip(request.cf?.clientAcceptEncoding ?? request.headers.get('Accept-Encoding'));
@@ -73,11 +78,13 @@ async function serve(request, env, ctx, path, flat) {
   const cacheKey = new Request(cacheUrl, { method: 'GET' });
   const cached = cache ? await cache.match(cacheKey) : null;
   if (cached) {
+    const cachedHeaders = new Headers(cached.headers);
+    cachedHeaders.set('Cache-Control', cacheControl);
     if (request.headers.get('If-None-Match') === cached.headers.get('ETag'))
-      return new Response(null, { status: 304, headers: cached.headers });
+      return new Response(null, { status: 304, headers: cachedHeaders });
     // Cache API does not preserve encodeBody. Reassert it on hits to avoid double gzip.
     return new Response(request.method === 'HEAD' ? null : cached.body, {
-      headers: cached.headers,
+      headers: cachedHeaders,
       encodeBody: 'manual',
     });
   }
@@ -93,7 +100,7 @@ async function serve(request, env, ctx, path, flat) {
   if (!object)
     return flat ? null : new Response('Not found', { status: 404, headers: responseHeaders });
   responseHeaders.set('Content-Type', path.type);
-  responseHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+  responseHeaders.set('Cache-Control', cacheControl);
   responseHeaders.set('ETag', object.httpEtag);
   if (encoded) responseHeaders.set('Content-Encoding', 'gzip');
   if (request.headers.get('If-None-Match') === object.httpEtag)

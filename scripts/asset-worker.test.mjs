@@ -86,7 +86,11 @@ test('app serves content-hashed files for a year, immutable', async () => {
   ]) {
     const response = await get(path, asset());
     assert.equal(response.status, 200, path);
-    assert.equal(response.headers.get('cache-control'), IMMUTABLE, path);
+    assert.equal(
+      response.headers.get('cache-control'),
+      path.endsWith('.bin') ? `${IMMUTABLE}, no-transform` : IMMUTABLE,
+      path,
+    );
     assert.equal(response.headers.get('etag'), '"abc"', path);
     assert.equal(await response.text(), 'bytes', path);
   }
@@ -95,7 +99,7 @@ test('app serves content-hashed files for a year, immutable', async () => {
 test("a revalidation of a hashed file is answered immutable too, so an old visitor's copy stops asking", async () => {
   const response = await get('/bloom-character/assets/furCards-Bsdd0YY1.bin', asset(304));
   assert.equal(response.status, 304);
-  assert.equal(response.headers.get('cache-control'), IMMUTABLE);
+  assert.equal(response.headers.get('cache-control'), `${IMMUTABLE}, no-transform`);
   assert.equal(response.headers.get('access-control-allow-origin'), '*');
 });
 

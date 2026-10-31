@@ -306,3 +306,45 @@ test('a missing gzip sidecar never pins raw bytes in the gzip cache', async (t) 
   await Promise.all(tasks);
   assert.equal(stored.size, 1);
 });
+
+test('binary cached hits gain no-transform while runtime and manifest retain CDN compression', async (t) => {
+  const original = globalThis.caches;
+  t.after(() => {
+    globalThis.caches = original;
+  });
+  globalThis.caches = {
+    default: {
+      async match() {
+        return new Response('old cached bytes', {
+          headers: { 'Cache-Control': 'public, max-age=31536000, immutable', ETag: '"old"' },
+        });
+      },
+    },
+  };
+  for (const name of ['assets/geometry-ab123456.bin', 'runtime.mjs', 'manifest.json']) {
+    const response = await worker.fetch(
+      new Request(`https://example.test/bloom-character/releases/${'a'.repeat(64)}/${name}`),
+      {},
+      {},
+    );
+    assert.equal(
+      response.headers.get('cache-control').includes('no-transform'),
+      name.endsWith('.bin'),
+    );
+  }
+  globalThis.caches = undefined;
+  for (const name of ['runtime.mjs', 'manifest.json']) {
+    const response = await worker.fetch(
+      new Request(`https://example.test/bloom-character/releases/${'a'.repeat(64)}/${name}`),
+      {
+        AVATAR_RUNTIME_RELEASES: {
+          async get() {
+            return { body: 'bytes', size: 5, httpEtag: '"new"' };
+          },
+        },
+      },
+      {},
+    );
+    assert(!response.headers.get('cache-control').includes('no-transform'));
+  }
+});

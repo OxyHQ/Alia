@@ -464,3 +464,14 @@ returned hit with this option or gzip is applied twice. Node Response mocks do
 not reveal the failure. Run
 `node --test scripts/avatar-runtime-http.test.mjs` against the installed runtime;
 `AVATAR_RUNTIME_DIR` can select an explicit built artifact for a local check.
+
+**CDN representation hazard:** the first public gzip canary returned the original
+2,663,968-byte binary with no `Content-Encoding`, while its weakened ETag still
+identified the1,476,356-byte gzip sidecar. The CDN had decompressed the Worker's
+response, even though workerd's miss/hit tests passed. Binary responses therefore
+also carry `Cache-Control: no-transform`, including old cache hits and raw/q=0
+responses. This is scoped to negotiated `.bin` assets: JavaScript, CSS, runtime
+entries and manifests retain normal CDN compression. Cloudflare documents that
+[compression rules respect no-transform](https://developers.cloudflare.com/rules/compression-rules/).
+The public canary requires gzip as well as exact decoded hashes, so a raw response
+cannot silently count as the expected transfer saving.
