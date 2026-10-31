@@ -1,5 +1,12 @@
 # @alia.onl/sdk
 
+## 22.10.0
+
+- The eager Ask provider and hook are available from `@alia.onl/sdk/ask/eager`, preserving
+  the root entry's eager sheet and voice behavior. `@alia.onl/sdk/voice/messages` exposes
+  voice error messages without importing the voice call. The avatar entry also exposes the
+  character parser and default runtime URL, without importing the chat.
+
 ## 22.9.0
 
 - Native avatars can use the optional shared GPU companion `@oxy.so/bloom-avatar-native@^0.1.0`. Their default asset URL pins the installed companion manifest revision; Alia retains previous releases independently of web deployments. Hosts without the companion retain the WebView fallback, and web imports no native GPU graph.

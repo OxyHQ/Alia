@@ -9,5 +9,7 @@
 export { ALIA_AVATAR, AliaAvatar } from './components/AliaAvatar';
 export type { AliaAvatarProps, AliaAvatarState } from './components/AliaAvatar';
 export { AliaAvatarIcon } from './components/AliaAvatarIcon';
+export { ALIA_CHARACTER_RUNTIME_URL } from './lib/character-runtime';
+export { DEFAULT_AGENT_CHARACTER, readAgentCharacter } from './lib/agent-character';
 export { useAliaActivity } from './hooks/useAliaActivity';
 export type { UseAliaActivityOptions } from './hooks/useAliaActivity';

@@ -178,6 +178,8 @@ const SERVICES_ENTRY_ENTRIES = [
   'runtime/index.ts',
   'avatar.ts',
   'ask.ts',
+  'ask-eager.ts',
+  'voice-messages.ts',
   'text.ts',
   'ask-text.ts',
 ];
@@ -321,6 +323,23 @@ for (const heavy of [
  * `ask`, through ONE lazy `import()`, so nothing of the chat is loaded WITH the entry.
  */
 const ASK_SHEET = path.join(SRC, 'components', 'AliaAskSheet.tsx');
+const eagerAsk = walk('ask-eager.ts', RETIRED_MODULES[0], { staticOnly: true });
+for (const file of ['AliaAskProvider.tsx', 'AliaAskSheetWithVoice.tsx']) {
+  if (!eagerAsk.visited.has(path.join(SRC, 'components', file))) {
+    failures.push(
+      `src/ask-eager.ts must load components/${file} statically, as the root entry does.`,
+    );
+  }
+}
+const voiceMessages = walk('voice-messages.ts', 'react');
+if (!voiceMessages.visited.has(path.join(SRC, 'lib', 'speech-messages.ts'))) {
+  failures.push('src/voice-messages.ts must reach lib/speech-messages.ts.');
+}
+for (const forbidden of [...MODEL_FORBIDDEN, AUDIO_ENGINE]) {
+  if (walk('voice-messages.ts', forbidden).hits.length > 0) {
+    failures.push(`src/voice-messages.ts must not reach ${forbidden}.`);
+  }
+}
 const ASK_ENTRIES = [
   {
     entry: 'ask.ts',
@@ -428,6 +447,8 @@ for (const entry of [
   'runtime/index.ts',
   'runtime/model.ts',
   'avatar.ts',
+  'ask-eager.ts',
+  'voice-messages.ts',
   'tools.ts',
   'csp.ts',
   'lib/content-utils.ts',

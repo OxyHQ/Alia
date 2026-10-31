@@ -7,10 +7,24 @@ vi.mock('@oxy.so/bloom/agent-avatar', () => ({
     return value;
   },
 }));
+vi.mock('../../src/components/AliaAvatar', () => ({ ALIA_AVATAR: {}, AliaAvatar: () => null }));
+vi.mock('../../src/components/AliaAvatarIcon', () => ({ AliaAvatarIcon: () => null }));
+vi.mock('../../src/hooks/useAliaActivity', () => ({ useAliaActivity: () => null }));
 
 import { DEFAULT_AGENT_CHARACTER, readAgentCharacter } from '../../src/lib/agent-character';
+import {
+  ALIA_CHARACTER_RUNTIME_URL as entryUrl,
+  DEFAULT_AGENT_CHARACTER as entryDefault,
+  readAgentCharacter as entryParser,
+} from '../../src/avatar';
+import { ALIA_CHARACTER_RUNTIME_URL } from '../../src/lib/character-runtime';
 
 describe('readAgentCharacter', () => {
+  it('exposes the same character parser and default runtime URL on the avatar entry', () => {
+    expect(entryParser).toBe(readAgentCharacter);
+    expect(entryDefault).toBe(DEFAULT_AGENT_CHARACTER);
+    expect(entryUrl).toBe(ALIA_CHARACTER_RUNTIME_URL);
+  });
   it('draws a stored character Bloom can parse as it is', () => {
     const stored = {
       shape: 'heart',
