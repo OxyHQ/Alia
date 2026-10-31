@@ -33,6 +33,7 @@ test('real workerd gzip misses and Cache API hits decode exactly, including HEAD
       const response = await fetch(info.origin + path, { headers: { 'Accept-Encoding': 'gzip' } });
       assert.equal(response.status, 200);
       assert.equal(response.headers.get('content-encoding'), 'gzip');
+      assert.match(response.headers.get('cache-control'), /no-transform/);
       const bytes = Buffer.from(await response.arrayBuffer());
       assert.equal(bytes.length, info.rawBytes);
       assert.equal(createHash('sha256').update(bytes).digest('hex'), info.sha256);
@@ -56,6 +57,7 @@ test('real workerd gzip misses and Cache API hits decode exactly, including HEAD
       headers: { 'Accept-Encoding': 'gzip;q=0, *;q=1' },
     });
     assert.equal(response.headers.get('content-encoding'), null);
+    assert.match(response.headers.get('cache-control'), /no-transform/);
     assert.match(response.headers.get('vary'), /Accept-Encoding/);
     assert.equal(
       createHash('sha256')

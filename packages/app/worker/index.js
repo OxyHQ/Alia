@@ -67,7 +67,9 @@ export default {
     // server's default (`max-age=0, must-revalidate`) made a returning visitor revalidate every
     // one: 31 requests for the character runtime alone.
     if (hashed && (response.status === 200 || response.status === 304)) {
-      served.headers.set('Cache-Control', IMMUTABLE);
+      // Binary gzip/identity is negotiated by this Worker, not the CDN's MIME policy.
+      const binary = /^\/bloom-character\/assets\/.*\.bin$/.test(pathname);
+      served.headers.set('Cache-Control', binary ? `${IMMUTABLE}, no-transform` : IMMUTABLE);
     }
     return served;
   },

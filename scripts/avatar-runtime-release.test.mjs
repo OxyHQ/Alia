@@ -306,3 +306,89 @@ test('a missing gzip sidecar never pins raw bytes in the gzip cache', async (t) 
   await Promise.all(tasks);
   assert.equal(stored.size, 1);
 });
+
+test('binary cached hits gain no-transform while runtime and manifest retain CDN compression', async (t) => {
+  const original = globalThis.caches;
+  t.after(() => {
+    globalThis.caches = original;
+  });
+  globalThis.caches = {
+    default: {
+      async match() {
+        return new Response('old cached bytes', {
+          headers: { 'Cache-Control': 'public, max-age=31536000, immutable', ETag: '"old"' },
+        });
+      },
+    },
+  };
+  for (const name of ['assets/geometry-ab123456.bin', 'runtime.mjs', 'manifest.json']) {
+    const response = await worker.fetch(
+      new Request(`https://example.test/bloom-character/releases/${'a'.repeat(64)}/${name}`),
+      {},
+      {},
+    );
+    assert.equal(
+      response.headers.get('cache-control').includes('no-transform'),
+      name.endsWith('.bin'),
+    );
+  }
+  globalThis.caches = undefined;
+  for (const name of ['runtime.mjs', 'manifest.json']) {
+    const response = await worker.fetch(
+      new Request(`https://example.test/bloom-character/releases/${'a'.repeat(64)}/${name}`),
+      {
+        AVATAR_RUNTIME_RELEASES: {
+          async get() {
+            return { body: 'bytes', size: 5, httpEtag: '"new"' };
+          },
+        },
+      },
+      {},
+    );
+    assert(!response.headers.get('cache-control').includes('no-transform'));
+  }
+});
+
+test('binary cache requests explicitly negotiate their encoding and bypass preceding keys', async (t) => {
+  const original = globalThis.caches;
+  t.after(() => {
+    globalThis.caches = original;
+  });
+  const seen = [];
+  globalThis.caches = {
+    default: {
+      async match(request) {
+        seen.push({ url: request.url, encoding: request.headers.get('Accept-Encoding') });
+        return null;
+      },
+    },
+  };
+  const env = {
+    AVATAR_RUNTIME_RELEASES: {
+      async get() {
+        return { body: 'bytes', size: 5, httpEtag: '"x"' };
+      },
+    },
+  };
+  const base = `https://example.test/bloom-character/releases/${'a'.repeat(64)}/`;
+  for (const encoding of ['gzip', 'identity'])
+    await worker.fetch(
+      new Request(`${base}assets/geometry-ab123456.bin`, {
+        headers: { 'Accept-Encoding': encoding },
+      }),
+      env,
+      {},
+    );
+  await worker.fetch(
+    new Request(`${base}runtime.mjs`, { headers: { 'Accept-Encoding': 'gzip' } }),
+    env,
+    {},
+  );
+  assert.deepEqual(
+    seen.map((x) => x.encoding),
+    ['gzip', 'identity', null],
+  );
+  assert.equal(new URL(seen[0].url).search, '?avatar-encoding=binary-v2-gzip');
+  assert.equal(new URL(seen[1].url).search, '?avatar-encoding=binary-v2-identity');
+  assert.equal(new URL(seen[2].url).search, '?avatar-encoding=identity');
+});
