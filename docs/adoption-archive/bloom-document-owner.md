@@ -5,15 +5,16 @@ migration. It imports DocumentScrollRestorationBoundary, which is absent from
 this consumer's published Bloom 15.78.0 pin. The manifest and lockfile remain
 unchanged. Do not merge this branch or treat it as a passing published build.
 
-Archive base: `09d13ace5bb882976f594c1e27f8bb05fe04fc36` (main fetched while
-archiving). Original patch SHA256:
+Archive base: `a09dd1587c6bddc785e4ccd6e3c4e9b0dbdc77c4`, the original
+runtime baseline. Original patch SHA256:
 `84e89991cab9a437b946f403783fdf84f962971bec3f7eaf4d6c6875f29a087b`.
 The three touched files match the original patch's preimages; the patch applies
 without adaptation. The original runtime baseline, confirmed from the task record, was
 `a09dd1587c6bddc785e4ccd6e3c4e9b0dbdc77c4` with published Bloom 15.78.0.
-No runtime or avatar validation is claimed for the newer archive base. The
-companion branch `archive/bloom-document-owner-baseline-a09dd1587` preserves
-the original base as well.
+This branch preserves that exact base. The companion branch
+`archive/bloom-document-owner-pending-release` applies the same patch onto
+`09d13ace5bb882976f594c1e27f8bb05fe04fc36`; no new runtime or avatar validation
+is claimed for that newer base.
 
 The experiment used an uncommitted Bloom boundary snapshot on top of
 `b21e86ec73d08dd0c1ca090c48ab6617e413e847`, package version 15.79.1, with
