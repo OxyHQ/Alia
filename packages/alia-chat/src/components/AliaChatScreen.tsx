@@ -21,8 +21,7 @@ import type React from 'react';
 import { useCallback } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
-import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
+import { AliaAvatarProvider } from './AliaAvatarProvider';
 import { KeyboardAvoidingView } from '../lib/keyboard';
 import {
   type AliaChatAgentRef,
@@ -109,7 +108,7 @@ export function AliaChatScreen({
   isDarkMode,
   voice,
   labels,
-  characterRuntimeUrl = ALIA_CHARACTER_RUNTIME_URL,
+  characterRuntimeUrl,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
   // The screen owns the whole window, so it keeps its composer out of both
@@ -142,7 +141,7 @@ export function AliaChatScreen({
   );
 
   return (
-    <AgentAvatarProvider runtimeUrl={characterRuntimeUrl}>
+    <AliaAvatarProvider runtimeUrl={characterRuntimeUrl}>
       <View
         className="flex-1 bg-background-full"
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
@@ -169,6 +168,6 @@ export function AliaChatScreen({
           />
         </KeyboardAvoidingView>
       </View>
-    </AgentAvatarProvider>
+    </AliaAvatarProvider>
   );
 }

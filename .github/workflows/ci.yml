@@ -542,7 +542,7 @@ jobs:
       # year-long immutable cache on content-hashed files, a 404 (not the app
       # shell) for a hashed name a deploy lacks. Plain `node --test`, no build.
       - name: Test the asset Workers
-        run: node --test scripts/asset-worker.test.mjs
+        run: node --test scripts/asset-worker.test.mjs scripts/avatar-runtime-release.test.mjs scripts/avatar-runtime-http.test.mjs
 
       # `alia-canvas` and the Codea `webview-ui` are solution-style projects
       # (`"files": []`, references only), so `tsc --noEmit` in them compiles

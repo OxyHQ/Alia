@@ -1,8 +1,8 @@
 /**
  * Serves Bloom's 3D character runtime (`AgentAvatar`) from `public/bloom-character/`.
  *
- * The runtime is ~11 MB of engine, WASM and data that Bloom ships beside its code and
- * expects the host to serve unchanged, so it is copied from the installed package on
+ * Bloom ships the engine and its lazy character catalog beside its code and expects
+ * the host to serve those bytes unchanged, so they are copied from the installed package on
  * every dev, web and build run rather than committed: a committed copy would drift from
  * the installed Bloom (same reasoning as `setup-skia-web`).
  *
@@ -22,11 +22,11 @@ if (!existsSync(join(source, 'runtime.mjs'))) {
   console.error(`@oxy.so/bloom ships no character runtime at ${source}`);
   process.exit(1);
 }
-// `integrity.json` records the hashes of the engine files, so equal manifests mean the same
-// runtime: skip the 11 MB copy (and the file churn Metro would watch) on every start.
+// `manifest.json` records the hashes of the engine files, so equal manifests mean the same
+// runtime: skip the catalog copy (and the file churn Metro would watch) on every start.
 const manifest = (dir) => {
   try {
-    return readFileSync(join(dir, 'integrity.json'), 'utf8');
+    return readFileSync(join(dir, 'manifest.json'), 'utf8');
   } catch {
     return null;
   }

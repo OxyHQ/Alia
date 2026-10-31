@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-31",
+  "runtimeRevision": "7e44cfec2bd9e1490fb90270028fd84b12fcbc019f09709af9a1b9187b36b577",
+  "companionVersion": "0.1.0",
+  "storage": {
+    "namespace": "alia-avatar-runtime",
+    "conditionalS3SecondCreateStatus": 412,
+    "firstBytesRetained": true,
+    "rawObjectsIncludingManifest": 436,
+    "rawReleaseBytes": 164467312,
+    "binaryFiles": 168,
+    "binaryRawBytes": 159276364,
+    "binaryGzipBytes": 57647194,
+    "sidecarObjectsAcrossTwoNamespaces": 336,
+    "sidecarBytesAcrossTwoNamespaces": 115294388,
+    "everyObjectReadBackAndVerified": true,
+    "overwriteOrDeleteInPublisher": false,
+    "bucketLock": false
+  },
+  "httpFixture": {
+    "host": "real workerd HTTP + R2 + Cache API",
+    "routes": ["versioned immutable release", "flat hashed web asset"],
+    "missAndCacheHitDecodedHashExact": true,
+    "headCompressedLengthExact": true,
+    "gzipQZeroReturnsRaw": true,
+    "cacheEncodingHazard": "Both Cache API put and hit must reconstruct Response with encodeBody:manual; clone alone led to double gzip."
+  },
+  "physicalFetch": {
+    "device": "Pixel 8a",
+    "os": "Android 16",
+    "clients": ["Chromium159", "React Native0.88 Hermes debug lab"],
+    "urlFamilies": ["versioned", "flat"],
+    "asset": "computer-geometry-2FhSUBsP.bin",
+    "rawBytes": 2663968,
+    "gzipBytes": 1476356,
+    "decodedSha256": "b53dfbdcceb3f1d6b41ff9a4110d1a64b8d14a2479ca2ed3ee029598a5ecda2b",
+    "allDecodedBytesExact": true,
+    "nativeResponseEncodingVerifiedAtServer": "gzip",
+    "nativeJavaScriptEncodingHeader": null,
+    "nativeHeaderNote": "Networking transparently decompresses and removes Content-Encoding."
+  },
+  "limits": [
+    "These are local HTTP and real storage checks; public Worker canary runs after deployment.",
+    "Catalog compression totals are not per-avatar startup bytes.",
+    "HTTP identity does not measure frame performance."
+  ],
+  "sdkStill": {
+    "width": 128,
+    "height": 128,
+    "pngBytes": 15415,
+    "nonzeroAlphaPixels": 8193,
+    "partialAlphaPixels": 2522,
+    "characterUnchanged": true,
+    "rendering": "paused portrait, reduced motion,64CSS atDPR2",
+    "runtimeRevision": "7e44cfec2bd9e1490fb90270028fd84b12fcbc019f09709af9a1b9187b36b577",
+    "softwareRenderer": "Chromium146 SwiftShader",
+    "validation": "PNG visually inspected; generated character fixture equality and static idle characterStill props asserted. Physical production frame gates are separate.",
+    "pngSha256": "ee4dcf7f97eea915915f60cc89d25a014b501bb39181d04532e385bfd19aff25",
+    "installedPackageRenderEqualsFinalArtifactRender": true,
+    "browserIdleCheck": {
+      "browser": "Chromium146",
+      "component": "Actual SDK AliaAvatarIcon and Bloom15.78 Avatar/BloomThemeProvider",
+      "controlledInput": "useAliaActivity returns idle; rendering and image/runtime loaders unmodified",
+      "naturalPixels": [128, 128],
+      "cssPixels": [20, 20],
+      "runtimeOrAssetRequests": 0,
+      "pageErrors": 0,
+      "freshPage": true
+    }
+  },
+  "bloomVersion": "15.78.0"
+}

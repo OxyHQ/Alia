@@ -90,6 +90,14 @@ jobs:
       # there is none in packages/app, so it can fall back to npm, which is what
       # broke Canvas below. Pinned to a major so a new one cannot change the
       # deploy path with no diff. wrangler reads credentials from `env:`.
+      # Publish immutable revisions before switching the web deployment. Old native
+      # binaries keep their pinned URL; this upload never deletes or overwrites.
+      - name: Publish avatar runtime release
+        run: node packages/app/scripts/publish-avatar-runtime.mjs
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          AVATAR_R2_ACCESS_KEY_ID: ${{ secrets.AVATAR_R2_ACCESS_KEY_ID }}
+          AVATAR_R2_SECRET_ACCESS_KEY: ${{ secrets.AVATAR_R2_SECRET_ACCESS_KEY }}
       - name: Deploy the Worker
         working-directory: packages/app
         run: bunx wrangler@4 deploy
@@ -246,7 +254,7 @@ jobs:
         if: steps.gate.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/deploy-scope.sh target app include '^(packages/app/|packages/alia-chat/|bun\.lock$)' alia-release-app-
+        run: bash .github/scripts/deploy-scope.sh target app include '^(packages/app/|packages/alia-chat/|package\.json$|\.github/workflows/deploy-frontends\.yml$|bun\.lock$)' alia-release-app-
       - name: Decide whether Canvas changed
         id: canvas
         if: steps.gate.outputs.current == 'true'

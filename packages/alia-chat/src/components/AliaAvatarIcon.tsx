@@ -1,10 +1,9 @@
-import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
+import { AliaAvatarProvider } from './AliaAvatarProvider';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { useAliaActivity } from '../hooks/useAliaActivity';
 import { ALIA_AVATAR } from '../lib/alia-character';
 import { ALIA_AVATAR_STILL } from '../lib/alia-avatar-still.generated';
-import { ALIA_CHARACTER_RUNTIME_URL } from '../lib/character-runtime';
 import { aliaIsBusy } from './AliaAvatar';
 
 const DEFAULT_SIZE = 20;
@@ -24,15 +23,15 @@ const STILL = { uri: ALIA_AVATAR_STILL };
  * (`characterIsLive`), and keeps her a still under reduced motion. The still stays under her
  * until the first live frame.
  *
- * It mounts its own `AgentAvatarProvider` on `ALIA_CHARACTER_RUNTIME_URL`: a live avatar outside
- * the chat's provider would ask the host for `/bloom-character/runtime.mjs` and get its HTML. The
+ * It inherits the chat's explicit runtime URL; outside a chat it uses the SDK default
+ * (the companion's immutable revision on native). The
  * colour (`fill`) is ignored — the likeness is painted — and it is never interactive, so the
  * button keeps the press.
  */
 export const AliaAvatarIcon: BloomIconComponent = ({ width, height }) => {
   const state = useAliaActivity();
   return (
-    <AgentAvatarProvider runtimeUrl={ALIA_CHARACTER_RUNTIME_URL}>
+    <AliaAvatarProvider>
       <Avatar
         character={ALIA_AVATAR}
         characterStill={STILL}
@@ -40,6 +39,6 @@ export const AliaAvatarIcon: BloomIconComponent = ({ width, height }) => {
         activity={aliaIsBusy(state) ? 'working' : 'idle'}
         alt="Alia"
       />
-    </AgentAvatarProvider>
+    </AliaAvatarProvider>
   );
 };
