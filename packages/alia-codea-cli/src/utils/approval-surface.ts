@@ -16,14 +16,15 @@
  *  - a QR of the deep link, for the Commons app on a phone to scan;
  *  - the https link to `auth.oxy.so/device`, the same consent page an MCP
  *    connector or an app sign-in shows, for a person approving in a browser;
- *  - the code itself, which that page repeats so the person can check the two
- *    match.
+ *  - the request's short comparison code (`deviceComparisonCode`, `CE7F-B31F`),
+ *    which that page repeats so the person can check the two match.
  *
  * Opening the link is something the person asks for (Enter), never something
  * that happens to them.
  */
 
 import { execFile } from 'node:child_process';
+import { deviceComparisonCode } from '@oxy.so/core/session';
 import chalk from 'chalk';
 import QRCode from 'qrcode';
 
@@ -184,7 +185,7 @@ export function approvalLines(
     '',
     chalk.gray('Your code (the page shows the same one):'),
     '',
-    '    ' + chalk.bold.cyan(input.authorizeCode),
+    '    ' + chalk.bold.cyan(deviceComparisonCode(input.authorizeCode)),
     '',
     chalk.blue('ℹ ') +
       (input.canPromptEnter

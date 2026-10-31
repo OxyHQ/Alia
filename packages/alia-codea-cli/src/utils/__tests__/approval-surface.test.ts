@@ -33,6 +33,8 @@ import {
  */
 
 const CODE = '9354243fe1ebfeb4fc1a71e7348690c8';
+/** What the person compares with the approval page: `deviceComparisonCode(CODE)`. */
+const COMPARISON_CODE = '9354-243F';
 const payloadFor = (appId: string) =>
   `oxycommons://approve?v=1&code=${CODE}&app=${appId}&origin=&nonce=0123456789abcdef&exp=1758000000000`;
 const PAYLOADS = {
@@ -142,7 +144,12 @@ describe('approvalLines', () => {
     const text = approvalLines(input()).map(stripAnsi).join('\n');
     expect(text).toContain('Commons');
     expect(text).toContain(`https://auth.oxy.so/device?user_code=${CODE}`);
-    expect(text).toContain(CODE);
+    // The short code the page prints too, on a line of its own; the whole
+    // handle only ever appears inside the link.
+    expect(text.split('\n').map((line) => line.trim())).toContain(COMPARISON_CODE);
+    for (const line of text.split('\n').filter((line) => line.includes(CODE))) {
+      expect(line).toContain(`user_code=${CODE}`);
+    }
     expect(text).toMatch(/press Enter/);
     // Every visible line fits the terminal it was drawn for.
     for (const line of approvalLines(input())) expect(width(line)).toBeLessThanOrEqual(100);
@@ -159,7 +166,7 @@ describe('approvalLines', () => {
     expect(joined).not.toContain('\x1b[47m');
     expect(joined).not.toMatch(/Enter/);
     expect(stripAnsi(joined)).toContain(`https://auth.oxy.so/device?user_code=${CODE}`);
-    expect(stripAnsi(joined)).toContain(CODE);
+    expect(stripAnsi(joined)).toContain(COMPARISON_CODE);
   });
 
   it('explains a missing QR on a narrow terminal and still gives the link and code', () => {
@@ -170,7 +177,7 @@ describe('approvalLines', () => {
       `too narrow for the QR — widen it to ${minimumQrColumns(PAYLOAD)} columns`,
     );
     expect(text).toContain(`user_code=${CODE}`);
-    expect(text).toContain(CODE);
+    expect(text).toContain(COMPARISON_CODE);
   });
 
   it('never prints the secret session token, because it is never given one', () => {
