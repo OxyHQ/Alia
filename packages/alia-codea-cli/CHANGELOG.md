@@ -1,5 +1,13 @@
 # @alia-codea/cli
 
+## 3.2.0
+
+`codea login` prints the request's short comparison code (`CE7F-B31F`,
+`deviceComparisonCode` from core 7.9) instead of all thirty-two characters of the
+authorize code: the same code `auth.oxy.so/device` now prints, so the two can
+actually be compared. The full code still travels in the link and the QR and is
+the only thing that approves. Uses core 7.9.
+
 ## 3.1.0
 
 Ctrl+C requests authenticated Stop for the current generation and waits for its
