@@ -480,3 +480,15 @@ a possible cause, rather than a claim established by the local emulator. Public
 URLs and stored assets remain unchanged.
 The public canary requires gzip as well as exact decoded hashes, so a raw response
 cannot silently count as the expected transfer saving.
+
+The subsequent public check exposed a narrower Cache API failure: with
+`no-transform` and explicit encoding, a hit retained `Content-Encoding: gzip`
+but returned decoded bytes (1,718,304 bytes beginning with the binary magic,
+not the237,142-byte gzip object). A fresh physical Chromium download was correct;
+the repeated wire check caught the broken representation. Binary cache entries
+now store gzip payloads without Content-Encoding, with an internal encoding
+marker removed before delivery. The public response restores gzip and manual
+encoding. The binary-v3 key bypasses the preceding entries; bytes, public URLs,
+ETags, raw fallback, and nonbinary caching are unchanged. An adversarial cache
+unit test reproduces body decoding with retained headers; workerd and public
+miss/hit checks remain required independently.
