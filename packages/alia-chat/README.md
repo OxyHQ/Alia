@@ -27,7 +27,11 @@ This Node-only entry wraps the previous resolver and redirects two verified char
 in this SDK copy. It delegates extra resolution probes to that resolver, so resolver
 implementations with side effects will observe those calls. It checks that the original
 barrel and both granular imports resolve to
-the same physical Bloom copy for the original importer and the adapter. Missing exports,
+the same physical Bloom copy for the original importer and the adapter. Both subpaths
+must be explicit `exports` keys resolving under the active Metro conditions to files
+inside that copy; arrays, patterns and redirects to other files are not supported.
+The SDK importer hashes are rechecked on affected resolutions, including in watch mode.
+Missing exports,
 an altered SDK importer or incompatible metadata fail with an explicit build error; the
 normal SDK does not require those exports when this option is not used. File hashes detect
 changes requiring review; they do not authenticate packages.

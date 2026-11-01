@@ -55,7 +55,8 @@ function collectTargets(roots) {
       throw new Error(`${PREFIX} unsupported SDK copy or version`);
     }
     const adapter = checkedFile(root, metadata.adapter);
-    for (const importer of metadata.importers) targets.set(checkedFile(root, importer), adapter);
+    for (const importer of metadata.importers)
+      targets.set(checkedFile(root, importer), { root, adapter });
   }
   return targets;
 }
@@ -90,6 +91,40 @@ function bloomRoot(file) {
   }
 }
 
+/** Resolve only explicit, file-valued exports with Metro's active conditions. */
+function exportedFile(root, entry, context, platform, subpath) {
+  const names = new Set([
+    'default',
+    context.isESMImport === true ? 'import' : 'require',
+    ...(context.unstable_conditionNames ?? []),
+    ...(context.unstable_conditionsByPlatform?.[platform] ?? []),
+  ]);
+  let target = entry;
+  while (target && typeof target === 'object' && !Array.isArray(target)) {
+    const key = Object.keys(target).find((condition) => names.has(condition));
+    target = key === undefined ? null : target[key];
+  }
+  if (
+    typeof target !== 'string' ||
+    !target.startsWith('./') ||
+    target.includes('\\') ||
+    target.includes('*') ||
+    target.split('/').some((segment) => segment === '..' || segment === 'node_modules')
+  ) {
+    throw new Error(`${PREFIX} ${subpath} has no supported export for ${platform}`);
+  }
+  try {
+    const file = fs.realpathSync(path.resolve(root, target));
+    if (!file.startsWith(`${root}${path.sep}`) || !fs.statSync(file).isFile())
+      throw new Error('invalid target');
+    return file;
+  } catch (error) {
+    throw new Error(`${PREFIX} ${subpath} export target is unavailable for ${platform}`, {
+      cause: error,
+    });
+  }
+}
+
 /**
  * Wrap a finished Metro config. Only the two verified importers in each
  * explicitly opted-in SDK copy are redirected. Register other installed copies
@@ -121,8 +156,13 @@ function withAliaGranularCharts(config, options = {}) {
     } catch {
       return delegate(context, name, platform);
     }
-    const adapter = targets.get(origin);
-    if (!adapter) return delegate(context, name, platform);
+    const registered = targets.get(origin);
+    if (!registered) return delegate(context, name, platform);
+    const refreshed = collectTargets([registered.root]).get(origin);
+    if (!refreshed || refreshed.adapter !== registered.adapter) {
+      throw new Error(`${PREFIX} SDK targets changed; restart Metro`);
+    }
+    const adapter = refreshed.adapter;
 
     let legacy;
     try {
@@ -133,8 +173,22 @@ function withAliaGranularCharts(config, options = {}) {
       });
     }
     const expectedBloom = bloomRoot(legacy);
+    const bloom = JSON.parse(fs.readFileSync(path.join(expectedBloom, 'package.json'), 'utf8'));
     const adapterContext = { ...context, originModulePath: adapter };
     for (const subpath of GRANULAR) {
+      const exported = `.${subpath.slice('@oxy.so/bloom'.length)}`;
+      if (!bloom.exports || !Object.hasOwn(bloom.exports, exported)) {
+        throw new Error(
+          `${PREFIX} ${subpath} is not exported by this Bloom; install a compatible Bloom`,
+        );
+      }
+      const publicTarget = exportedFile(
+        expectedBloom,
+        bloom.exports[exported],
+        context,
+        platform,
+        subpath,
+      );
       let originalTarget, adapterTarget;
       try {
         originalTarget = sourceFile(delegate(context, subpath, platform), subpath);
@@ -147,6 +201,11 @@ function withAliaGranularCharts(config, options = {}) {
       }
       if (originalTarget !== adapterTarget || bloomRoot(originalTarget) !== expectedBloom) {
         throw new Error(`${PREFIX} ${subpath} selects a different Bloom copy for ${platform}`);
+      }
+      if (originalTarget !== publicTarget) {
+        throw new Error(
+          `${PREFIX} ${subpath} did not resolve to its declared public export for ${platform}`,
+        );
       }
     }
     const resolvedAdapter = sourceFile(delegate(context, adapter, platform), 'SDK chart adapter');
