@@ -48,7 +48,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:metro": "node --test scripts/metro/opt-in.test.cjs",
+    "test:metro": "node --test scripts/metro/opt-in.node.cjs",
     "check:entries": "node scripts/check-entry-isolation.mjs",
     "check:entry-types": "node scripts/check-entry-types.mjs"
   },
