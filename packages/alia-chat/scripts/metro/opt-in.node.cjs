@@ -245,6 +245,11 @@ test('rejects stacking wrappers from the same or different SDK copies without ch
     /already configured.*additionalSdkRoots/,
   );
   assert.equal(r.config.resolver.resolveRequest, wrapped);
+  r.config.resolver.resolveRequest = (...args) => wrapped(...args);
+  assert.throws(() => b.helper.withAliaGranularCharts(r.config), /already configured/);
+  const clone = { ...r.config, resolver: { ...r.config.resolver } };
+  assert.throws(() => a.helper.withAliaGranularCharts(clone), /already configured/);
+  r.config.resolver.resolveRequest = wrapped;
   assert.equal(
     wrapped({ originModulePath: a.importer }, '@oxy.so/bloom/chart-cards', 'web').filePath,
     a.adapter,

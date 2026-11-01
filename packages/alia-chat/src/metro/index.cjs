@@ -139,7 +139,7 @@ function withAliaGranularCharts(config, options = {}) {
   if (!Array.isArray(options.additionalSdkRoots ?? []))
     throw new Error(`${PREFIX} additionalSdkRoots must be an array`);
   const previous = config.resolver?.resolveRequest;
-  if (previous?.[WRAPPED]) {
+  if (config[WRAPPED] || previous?.[WRAPPED]) {
     throw new Error(
       `${PREFIX} already configured; register all SDK copies with additionalSdkRoots in one call`,
     );
@@ -213,6 +213,7 @@ function withAliaGranularCharts(config, options = {}) {
     return { type: 'sourceFile', filePath: adapter };
   };
   Object.defineProperty(wrapped, WRAPPED, { value: true });
+  Object.defineProperty(config, WRAPPED, { value: true, enumerable: true });
   config.resolver.resolveRequest = wrapped;
   return config;
 }
