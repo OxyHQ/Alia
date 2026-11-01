@@ -42,96 +42,110 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-it('aborts a real linked HTTP mutation during preflight when a different projection commits', async () => {
-  const requests: string[] = [];
-  const server = createServer((request, response) => {
-    requests.push(`${request.method} ${request.url}`);
-    response.setHeader('content-type', 'application/json');
-    response.end(JSON.stringify({ alia: { enabled: false }, agents: [] }));
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  world.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  world.userId = 'A';
-  world.sessionId = 'session-A';
-  const api = await import('@/shared/api/client');
-  api.default.defaults.baseURL = world.origin;
-  const { useEmailAlerts } = await import('@/features/settings/runtime/use-email-alerts');
-  const { useAccountLifecycle } = await import('@/shell/account-lifecycle');
-  const oxy = new OxyServices({ baseURL: world.origin });
-  const token = `h.${Buffer.from(JSON.stringify({ userId: 'A', sessionId: 'session-A', exp: 4102444800 })).toString('base64url')}.s`;
-  oxy.session.setAccessToken(token);
-  api.bindApiClient(oxy);
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  let state!: ReturnType<typeof useEmailAlerts>;
-  function Screen({ userId }: { userId: string }) {
-    useAccountLifecycle(userId, world.sessionId);
-    state = useEmailAlerts();
-    return null;
-  }
-  const tree = (userId: string) =>
-    createElement(QueryClientProvider, { client }, createElement(Screen, { userId }));
-  let renderer!: ReactTestRenderer;
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let enter!: () => void;
-  const entered = new Promise<void>((resolve) => {
-    enter = resolve;
-  });
-  let complete!: () => void;
-  const completed = new Promise<void>((resolve) => {
-    complete = resolve;
-  });
-  const prototype = Object.getPrototypeOf(oxy.http) as {
-    getAuthHeader: () => Promise<string | null>;
-  };
-  const original = prototype.getAuthHeader;
-  let spy: ReturnType<typeof vi.spyOn> | undefined;
-  try {
-    await act(async () => {
-      renderer = create(tree('A'));
+it.each(['projection', 'shell-unmount'] as const)(
+  'aborts a real linked HTTP mutation during preflight on %s',
+  async (change) => {
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url}`);
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ alia: { enabled: false }, agents: [] }));
     });
-    await vi.waitFor(() => expect(state.alerts?.alia.enabled).toBe(false));
-    spy = vi.spyOn(prototype, 'getAuthHeader').mockImplementation(function (
-      this: typeof prototype,
-    ) {
-      enter();
-      return gate.then(async () => {
-        try {
-          return await original.call(this);
-        } finally {
-          complete();
-        }
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    world.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    world.userId = 'A';
+    world.sessionId = 'session-A';
+    const api = await import('@/shared/api/client');
+    api.default.defaults.baseURL = world.origin;
+    const { useEmailAlerts } = await import('@/features/settings/runtime/use-email-alerts');
+    const { useAccountLifecycle } = await import('@/shell/account-lifecycle');
+    const oxy = new OxyServices({ baseURL: world.origin });
+    const token = `h.${Buffer.from(JSON.stringify({ userId: 'A', sessionId: 'session-A', exp: 4102444800 })).toString('base64url')}.s`;
+    oxy.session.setAccessToken(token);
+    api.bindApiClient(oxy);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    let state!: ReturnType<typeof useEmailAlerts>;
+    function Screen({ userId }: { userId: string }) {
+      useAccountLifecycle(userId, world.sessionId);
+      state = useEmailAlerts();
+      return null;
+    }
+    const tree = (userId: string) =>
+      createElement(QueryClientProvider, { client }, createElement(Screen, { userId }));
+    let renderer!: ReactTestRenderer;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let enter!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    let complete!: () => void;
+    const completed = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    const prototype = Object.getPrototypeOf(oxy.http) as {
+      getAuthHeader: () => Promise<string | null>;
+    };
+    const original = prototype.getAuthHeader;
+    let spy: ReturnType<typeof vi.spyOn> | undefined;
+    const reactErrors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await act(async () => {
+        renderer = create(tree('A'));
       });
-    });
-    await act(async () => {
-      state.setEnabled(null, true);
-    });
-    await entered;
-    world.userId = 'B';
-    world.sessionId = 'session-B';
-    await act(async () => {
-      renderer.update(tree('B'));
-    });
-    expect(oxy.session.userId).toBe('A');
-    release();
-    await completed;
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(requests.filter((request) => request.startsWith('PUT '))).toEqual([]);
-  } finally {
-    release();
-    spy?.mockRestore();
-    act(() => renderer?.unmount());
-    client.clear();
-    api.releaseApiClient(oxy);
-    oxy.dispose();
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
-});
+      await vi.waitFor(() => expect(state.alerts?.alia.enabled).toBe(false));
+      spy = vi.spyOn(prototype, 'getAuthHeader').mockImplementation(function (
+        this: typeof prototype,
+      ) {
+        enter();
+        return gate.then(async () => {
+          try {
+            return await original.call(this);
+          } finally {
+            complete();
+          }
+        });
+      });
+      await act(async () => {
+        state.setEnabled(null, true);
+      });
+      await entered;
+      if (change === 'projection') {
+        world.userId = 'B';
+        world.sessionId = 'session-B';
+        await act(async () => {
+          renderer.update(tree('B'));
+        });
+      } else {
+        await act(async () => {
+          renderer.unmount();
+        });
+      }
+      expect(oxy.session.userId).toBe('A');
+      release();
+      await completed;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(requests.filter((request) => request.startsWith('PUT '))).toEqual([]);
+      expect(reactErrors.mock.calls.flat().join(' ')).not.toContain(
+        'useInsertionEffect must not schedule updates',
+      );
+    } finally {
+      release();
+      spy?.mockRestore();
+      reactErrors.mockRestore();
+      act(() => renderer?.unmount());
+      client.clear();
+      api.releaseApiClient(oxy);
+      oxy.dispose();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  },
+);
 
 it('drops an old response after an already dispatched request changes owner', async () => {
   let arrived!: () => void;

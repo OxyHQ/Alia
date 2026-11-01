@@ -8,7 +8,11 @@ import { EMAIL_ALERTS_MUTATION_KEY, queryKeys } from '@/shared/api/query-keys';
 import { API_ROUTES } from '@/shared/api/routes';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { createRandomUuid } from '@/shared/platform/random-uuid';
-import { getAccountProjection, onAccountProjectionChange } from '@/shared/state/account-epoch';
+import {
+  getAccountProjection,
+  onAccountProjectionChange,
+  onAccountProjectionInvalidation,
+} from '@/shared/state/account-epoch';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -121,7 +125,7 @@ async function ownedRequest<T>(
     if (!owns(owner)) controller.abort();
   };
   const cancel = () => controller.abort();
-  const stopProjection = onAccountProjectionChange(changed);
+  const stopProjection = onAccountProjectionInvalidation(changed);
   const stopApi = onApiSessionContextChange(changed);
   signal?.addEventListener('abort', cancel, { once: true });
   try {

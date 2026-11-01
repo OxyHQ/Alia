@@ -1,5 +1,5 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useInsertionEffect, useLayoutEffect, useRef } from 'react';
 import { queryKeys as oxyQueryKeys } from '@oxy.so/services/ui/client';
 import { useConversationStore, useThoughtStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
@@ -7,7 +7,12 @@ import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import { useShowStore } from '@/features/shows/runtime/show-store';
-import { advanceAccountEpoch, commitAccountProjection } from '@/shared/state/account-epoch';
+import {
+  advanceAccountEpoch,
+  bindAccountProjectionShell,
+  commitAccountProjection,
+  releaseAccountProjectionShell,
+} from '@/shared/state/account-epoch';
 
 /**
  * What happens to the previous account's in-memory state when the signed-in
@@ -82,6 +87,12 @@ function isAliaQuery(query: { queryKey: readonly unknown[] }): boolean {
  * Mounted once, by the app layout, next to the account-scoped store bindings.
  */
 export function useAccountLifecycle(userId: string | null, sessionId: string | null = null): void {
+  const shell = useRef({});
+  useInsertionEffect(() => {
+    const lease = shell.current;
+    bindAccountProjectionShell(lease);
+    return () => releaseAccountProjectionShell(lease);
+  }, []);
   useLayoutEffect(() => {
     commitAccountProjection(userId, sessionId);
   }, [userId, sessionId]);

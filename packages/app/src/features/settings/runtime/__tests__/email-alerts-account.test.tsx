@@ -5,7 +5,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query';
-import { createElement, startTransition, Suspense } from 'react';
+import { createElement, startTransition, StrictMode, Suspense, useEffect, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
@@ -59,6 +59,7 @@ vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 
 import { useEmailAlerts } from '@/features/settings/runtime/use-email-alerts';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
+import { getAccountProjection } from '@/shared/state/account-epoch';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const alerts = (id: string) => ({
@@ -578,9 +579,9 @@ it('does not replay a restored paused mutation without a registered mutation fun
   expect(restored.getMutationCache().getAll()[0].state.status).toBe('error');
   expect(world.api.put).not.toHaveBeenCalled();
   await act(async () => {
-    await original.continue();
+    await expect(original.continue()).rejects.toThrow('The active account changed');
   });
-  expect(world.api.put).toHaveBeenCalledTimes(1);
+  expect(world.api.put).not.toHaveBeenCalled();
   restored.clear();
 });
 
@@ -693,4 +694,104 @@ it('does not invalidate the committed owner when a different projection suspends
     resume();
     await pending;
   });
+});
+
+it('rejects a retained action after the entire account shell unmounts while bearer A remains', async () => {
+  world.api.get.mockResolvedValue({ data: alerts('A') });
+  world.api.put.mockResolvedValue({ data: {} });
+  await act(async () => {
+    renderer = create(tree('A'));
+  });
+  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  const retained = state.setEnabled;
+  await act(async () => {
+    renderer.unmount();
+  });
+  expect(world.bearer).toBe('A');
+  await act(async () => {
+    retained('A', true);
+  });
+  expect(world.api.put).not.toHaveBeenCalled();
+});
+
+it('keeps an accepted request through StrictMode effect replay and aborts it on real shell unmount', async () => {
+  world.api.get.mockResolvedValue({ data: alerts('A') });
+  let requestSignal!: AbortSignal;
+  let reject!: (error: Error) => void;
+  world.api.put.mockImplementation((_path, _input, config: { signal: AbortSignal }) => {
+    requestSignal = config.signal;
+    return new Promise((_resolve, fail) => {
+      reject = fail;
+    });
+  });
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  function StrictProbe() {
+    useAccountLifecycle('A', 'session-A');
+    const hook = useEmailAlerts();
+    const started = useRef(false);
+    useEffect(() => {
+      if (hook.alerts && !started.current) {
+        started.current = true;
+        hook.setEnabled('A', true);
+      }
+    }, [hook]);
+    return null;
+  }
+  try {
+    await act(async () => {
+      renderer = create(
+        createElement(
+          StrictMode,
+          null,
+          createElement(QueryClientProvider, { client }, createElement(StrictProbe)),
+        ),
+      );
+    });
+    await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
+    expect(requestSignal.aborted).toBe(false);
+    await act(async () => {
+      renderer.unmount();
+    });
+    expect(requestSignal.aborted).toBe(true);
+    await act(async () => {
+      reject(new Error('cancelled'));
+    });
+    expect(world.toast.error).not.toHaveBeenCalled();
+    expect(consoleError.mock.calls.flat().join(' ')).not.toContain(
+      'useInsertionEffect must not schedule updates',
+    );
+  } finally {
+    consoleError.mockRestore();
+  }
+});
+
+it('does not let an older shell cleanup invalidate its committed replacement', async () => {
+  function Shell({ id, session }: { id: string; session: string }) {
+    useAccountLifecycle(id, session);
+    return null;
+  }
+  const shellTree = (id: string) =>
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(Shell, { id, session: `session-${id}` }),
+    );
+  let older!: ReactTestRenderer;
+  let newer!: ReactTestRenderer;
+  await act(async () => {
+    older = create(shellTree('A'));
+  });
+  await act(async () => {
+    newer = create(shellTree('B'));
+  });
+  expect(getAccountProjection().userId).toBe('B');
+  const revision = getAccountProjection().revision;
+  await act(async () => {
+    older.unmount();
+  });
+  expect(getAccountProjection()).toEqual({ userId: 'B', sessionId: 'session-B', revision });
+  await act(async () => {
+    newer.unmount();
+  });
+  expect(getAccountProjection().userId).toBeNull();
 });
