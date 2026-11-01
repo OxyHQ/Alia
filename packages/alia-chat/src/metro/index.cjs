@@ -13,6 +13,7 @@ const SDK_ROOT = path.resolve(__dirname, '../..');
 const LEGACY = '@oxy.so/bloom/chart-cards';
 const GRANULAR = [`${LEGACY}/bar-list`, `${LEGACY}/line`];
 const PREFIX = '[Alia granular charts]';
+const WRAPPED = Symbol.for('@alia.onl/sdk/metro/granular-charts-resolver/v1');
 
 function checkedFile(root, entry) {
   if (!entry || typeof entry.path !== 'string' || !/^[a-f0-9]{64}$/.test(entry.sha256 ?? '')) {
@@ -102,12 +103,17 @@ function bloomRoot(file) {
 function withAliaGranularCharts(config, options = {}) {
   if (!Array.isArray(options.additionalSdkRoots ?? []))
     throw new Error(`${PREFIX} additionalSdkRoots must be an array`);
+  const previous = config.resolver?.resolveRequest;
+  if (previous?.[WRAPPED]) {
+    throw new Error(
+      `${PREFIX} already configured; register all SDK copies with additionalSdkRoots in one call`,
+    );
+  }
   const targets = collectTargets([SDK_ROOT, ...(options.additionalSdkRoots ?? [])]);
   config.resolver ??= {};
-  const previous = config.resolver.resolveRequest;
   const delegate = (context, name, platform) =>
     previous ? previous(context, name, platform) : context.resolveRequest(context, name, platform);
-  config.resolver.resolveRequest = (context, name, platform) => {
+  const wrapped = (context, name, platform) => {
     if (name !== LEGACY) return delegate(context, name, platform);
     let origin;
     try {
@@ -147,6 +153,8 @@ function withAliaGranularCharts(config, options = {}) {
     if (resolvedAdapter !== adapter) throw new Error(`${PREFIX} SDK chart adapter was redirected`);
     return { type: 'sourceFile', filePath: adapter };
   };
+  Object.defineProperty(wrapped, WRAPPED, { value: true });
+  config.resolver.resolveRequest = wrapped;
   return config;
 }
 module.exports = { withAliaGranularCharts };
