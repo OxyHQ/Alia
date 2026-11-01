@@ -1,0 +1,101 @@
+name: Services 13 and 14 packed composition (diagnostic only)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  composition:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+      - uses: actions/checkout@v7
+        with:
+          repository: OxyHQ/oxy
+          ref: b974ae2afe2cb1ffd1a15180231a7832997cdd5f
+          path: oxy-candidate
+      - name: Build and pack the Oxy release candidate
+        working-directory: oxy-candidate
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = b974ae2afe2cb1ffd1a15180231a7832997cdd5f
+          bun install --frozen-lockfile --minimum-release-age=0
+          bun run --filter @oxy.so/contracts build
+          bun run --filter @oxy.so/protocol build
+          bun run --filter @oxy.so/core build
+          bun run --cwd packages/services build
+          bun run --cwd packages/mcp build
+          mkdir -p "$RUNNER_TEMP/oxy14"
+          for package in contracts protocol telemetry core services mcp; do
+            bun pm pack --cwd "packages/$package" --destination "$RUNNER_TEMP/oxy14"
+          done
+      - name: Pack the SDK candidate and verify manifest
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/alia"
+          bun pm pack --cwd packages/alia-chat --destination "$RUNNER_TEMP/alia"
+          tar -xOzf "$RUNNER_TEMP/alia/alia.onl-sdk-22.10.1.tgz" package/package.json | node -e '
+            let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{
+              const p=JSON.parse(s);
+              if(p.version!=="22.10.1" || p.peerDependencies["@oxy.so/services"]!==">=13.0.0 <15") throw Error("Unexpected SDK candidate manifest");
+            });'
+      - name: Download and verify published Core and Services 13
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          mkdir -p registry
+          for pkg in '@oxy.so/core@7.10.5' '@oxy.so/core@7.9.1' '@oxy.so/services@13.16.0'; do
+            expected="$(npm view "$pkg" dist.integrity)"
+            filename="$(npm pack "$pkg" --pack-destination registry --ignore-scripts --silent)"
+            actual="sha512-$(openssl dgst -sha512 -binary "registry/$filename" | openssl base64 -A)"
+            test "$expected" = "$actual"
+            echo "$pkg integrity verified: $actual"
+          done
+      - name: Run the unchanged Oxy composition gate for both Services majors
+        working-directory: oxy-candidate
+        run: |
+          set -euo pipefail
+          SDK_ARCHIVE="$RUNNER_TEMP/alia/alia.onl-sdk-22.10.1.tgz" node -e '
+            const fs=require("node:fs"); const p="packages/core/test-consumers/product-sdks/package.json";
+            const m=JSON.parse(fs.readFileSync(p,"utf8")); m.dependencies["@alia.onl/sdk"]=`file:${process.env.SDK_ARCHIVE}`;
+            fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");'
+          for variant in services13-core7105 services14-core7105 services14-core791; do
+            mkdir -p "$RUNNER_TEMP/$variant"
+            cp "$RUNNER_TEMP/oxy14/"*.tgz "$RUNNER_TEMP/$variant/"
+            rm "$RUNNER_TEMP/$variant/oxy.so-core-"*.tgz
+            case "$variant" in
+              services13-core7105)
+                rm "$RUNNER_TEMP/$variant/oxy.so-services-"*.tgz
+                cp "$RUNNER_TEMP/registry/oxy.so-services-13.16.0.tgz" "$RUNNER_TEMP/$variant/"
+                cp "$RUNNER_TEMP/registry/oxy.so-core-7.10.5.tgz" "$RUNNER_TEMP/$variant/" ;;
+              services14-core7105) cp "$RUNNER_TEMP/registry/oxy.so-core-7.10.5.tgz" "$RUNNER_TEMP/$variant/" ;;
+              services14-core791) cp "$RUNNER_TEMP/registry/oxy.so-core-7.9.1.tgz" "$RUNNER_TEMP/$variant/" ;;
+            esac
+            echo "Testing $variant"
+            node packages/core/scripts/test-product-sdk-composition.mjs "$RUNNER_TEMP/$variant" "$RUNNER_TEMP/consumer-$variant"
+          done
+      - name: Preserve candidate hashes
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          sha512sum alia/*.tgz oxy14/*.tgz registry/*.tgz > candidate-sha512.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: services14-composition-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/candidate-sha512.txt
+            ${{ runner.temp }}/alia/*.tgz
+            ${{ runner.temp }}/oxy14/*.tgz
+          retention-days: 2
