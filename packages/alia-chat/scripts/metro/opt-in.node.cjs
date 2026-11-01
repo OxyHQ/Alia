@@ -223,3 +223,28 @@ test('packed SDK exposes an opt-in whose version and source hashes match the tar
   const helper = requireFromApp('@alia.onl/sdk/metro');
   assert.equal(typeof helper.withAliaGranularCharts({}).resolver.resolveRequest, 'function');
 });
+
+test('rejects stacking wrappers from the same or different SDK copies without changing the first', () => {
+  const a = fixture();
+  const b = fixture();
+  const r = resolver(a);
+  a.helper.withAliaGranularCharts(r.config);
+  const wrapped = r.config.resolver.resolveRequest;
+  assert.throws(
+    () => a.helper.withAliaGranularCharts(r.config),
+    /already configured.*additionalSdkRoots/,
+  );
+  assert.throws(
+    () => b.helper.withAliaGranularCharts(r.config),
+    /already configured.*additionalSdkRoots/,
+  );
+  assert.equal(r.config.resolver.resolveRequest, wrapped);
+  assert.equal(
+    wrapped({ originModulePath: a.importer }, '@oxy.so/bloom/chart-cards', 'web').filePath,
+    a.adapter,
+  );
+  assert.equal(
+    wrapped({ originModulePath: b.importer }, '@oxy.so/bloom/chart-cards', 'web').filePath,
+    path.join(a.bloom, 'barrel.js'),
+  );
+});
