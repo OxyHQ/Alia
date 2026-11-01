@@ -1,5 +1,10 @@
 # @alia.onl/sdk
 
+## 22.10.1
+
+- Admit Oxy Services 14 alongside 13. Services 14 requires Core ^7.9.1;
+  applications must satisfy that peer separately and validate their own dependency graph.
+
 ## 22.10.0
 
 - The eager Ask provider and hook are available from `@alia.onl/sdk/ask/eager`, preserving
