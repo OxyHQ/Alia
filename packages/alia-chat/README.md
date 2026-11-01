@@ -31,6 +31,8 @@ the same physical Bloom copy for the original importer and the adapter. Both sub
 must be explicit `exports` keys resolving under the active Metro conditions to files
 inside that copy; arrays, patterns and redirects to other files are not supported.
 The SDK importer hashes are rechecked on affected resolutions, including in watch mode.
+Detection uses the registered paths and their real paths; new aliases introduced later
+may be treated as unregistered, so restart Metro after changing SDK links.
 Missing exports,
 an altered SDK importer or incompatible metadata fail with an explicit build error; the
 normal SDK does not require those exports when this option is not used. File hashes detect
