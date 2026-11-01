@@ -37,7 +37,8 @@ normal SDK does not require those exports when this option is not used. File has
 changes requiring review; they do not authenticate packages.
 
 Apply the wrapper once, after other Metro wrappers. Reapplying it directly throws;
-register all copies together instead. Wrappers inserted afterward can hide this check.
+register all copies together instead. Opaque wrappers or cloned configurations can
+hide the marker; do not apply this helper again after composing them.
 Multiple installed SDK copies are not discovered automatically. To opt in other copies,
 pass `{ additionalSdkRoots: ['/absolute/path/to/sdk'] }`; each must ship matching opt-in
 metadata. Unregistered copies retain their original imports and may still include the chart
