@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "22.10.0",
+  "version": "22.10.1",
   "description": "Alia AI chat SDK \u2014 the conversation runtime, chat UI, voice calls and dictation for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
@@ -60,7 +60,7 @@
     "@expo/vector-icons": "^15.1.1",
     "@oxy.so/bloom": ">=15.10.1",
     "@oxy.so/core": ">=7.1.0 <8",
-    "@oxy.so/services": ">=13.0.0 <14",
+    "@oxy.so/services": ">=13.0.0 <15",
     "@tanstack/react-query": "^5.101",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "expo-blur": "^57.0.0 || ^58.0.0",
