@@ -26,3 +26,32 @@ export function isCurrentAccountEpoch(taken: number): boolean {
 export function advanceAccountEpoch(): void {
   epoch += 1;
 }
+
+/** The last account/session projection committed by Alia's mounted shell. */
+export type AccountProjection = {
+  userId: string | null;
+  sessionId: string | null;
+  revision: number;
+};
+let projection: AccountProjection = { userId: null, sessionId: null, revision: 0 };
+const projectionListeners = new Set<() => void>();
+
+export function commitAccountProjection(userId: string | null, sessionId: string | null): void {
+  const same =
+    projection.userId === userId &&
+    (projection.sessionId === sessionId || (userId !== null && projection.sessionId === null));
+  if (same && projection.sessionId === sessionId) return;
+  projection = { userId, sessionId, revision: projection.revision + (same ? 0 : 1) };
+  for (const listener of projectionListeners) listener();
+}
+
+export function getAccountProjection(): AccountProjection {
+  return projection;
+}
+
+export function onAccountProjectionChange(listener: () => void): () => void {
+  projectionListeners.add(listener);
+  return () => {
+    projectionListeners.delete(listener);
+  };
+}

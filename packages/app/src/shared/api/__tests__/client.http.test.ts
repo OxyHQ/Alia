@@ -72,6 +72,8 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     assert.equal(await api.socketAccessToken(new AbortController().signal), token('A'));
     assert.equal(api.hasApiSession(), true);
     assert.equal((await api.default.get('/private')).data.bearer, `Bearer ${token('A')}`);
+    const capturedA = api.getApiSessionOwner();
+    assert.ok(capturedA);
     let refreshes = 0;
     oxy.http.setAuthRefreshHandler(async () => {
       refreshes++;
@@ -81,6 +83,7 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
       (await api.default.get('/refresh')).data.bearer,
       `Bearer ${token('A', 2_000_000_001)}`,
     );
+    assert.equal(api.isCurrentApiSession(capturedA), true);
     assert.equal(refreshedRequests, 2);
     assert.equal(refreshes, 1);
     await api.default.post('/refresh-post', { title: 'Original JSON' });
@@ -122,6 +125,8 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     const pending = api.default.get('/held');
     await ready;
     oxy.session.setAccessToken(token('B'));
+    assert.equal(api.isCurrentApiSession(capturedA), false);
+    assert.equal(api.getApiSessionOwner()?.userId, 'B');
     assert.equal(disconnect.mock.calls.length, 1);
     assert.equal(socketSession.signal.aborted, true);
     let staleCallback = false;
@@ -141,6 +146,7 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     oxy.session.clear();
     assert.equal(changes, 1);
     assert.equal(api.hasApiSession(), false);
+    assert.equal(api.getApiSessionOwner(), null);
     await assert.rejects(api.socketAccessToken(new AbortController().signal), /active Oxy session/);
     unsubscribe();
     api.releaseApiClient(oxy);

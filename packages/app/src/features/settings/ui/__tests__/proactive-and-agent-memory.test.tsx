@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -43,14 +43,20 @@ vi.mock('@oxy.so/bloom/icons/RiArrowLeftLine', () => ({ RiArrowLeftLine: 'RiArro
 vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', () => ({ RiDeleteBinLine: 'RiDeleteBinLine' }));
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  useOxy: () => ({ isAuthenticated: true, user: { id: 'A' }, activeSessionId: 'session-A' }),
+}));
 vi.mock('@/shared/api/client', () => ({
   default: { get: api.get, put: api.put, delete: api.delete, post: vi.fn(), patch: vi.fn() },
+  getApiSessionSnapshot: () => JSON.stringify({ userId: 'A', bindingRevision: 1, sessionEpoch: 0 }),
+  isCurrentApiSession: () => true,
+  onApiSessionContextChange: () => () => {},
 }));
 vi.mock('@/features/settings/ui/settings-context', () => ({
   useAliaSettings: () => ({ open, close: vi.fn(), afterClose: vi.fn(), params: params.value }),
 }));
 
+const { commitAccountProjection } = await import('@/shared/state/account-epoch');
 const { ProactiveSection } = await import('@/features/settings/ui/proactive-section');
 const { AgentMemorySection, RememberingAgentsSection } = await import(
   '@/features/settings/ui/agent-memory-section'
@@ -82,6 +88,7 @@ const all = (tree: ReactTestRenderer, type: string): ReactTestInstance[] =>
   tree.root.findAll((node) => (node.type as unknown) === type);
 
 beforeEach(() => {
+  commitAccountProjection('A', 'session-A');
   api.get.mockReset();
   api.put.mockReset().mockResolvedValue({ data: {} });
   api.delete.mockReset().mockResolvedValue({ data: { removed: 1 } });
@@ -97,16 +104,29 @@ afterEach(() => {
 
 describe('Avisos: important email', () => {
   it("shows Alia's switch and one per owned agent, on by default, and saves a flip", async () => {
-    api.get.mockResolvedValue({
-      data: {
-        alia: { enabled: true },
-        agents: [
-          { agentId: 'agent-1', name: 'Scout', handle: 'scout', color: null, enabled: false },
-        ],
+    let server = {
+      alia: { enabled: true },
+      agents: [{ agentId: 'agent-1', name: 'Scout', handle: 'scout', color: null, enabled: false }],
+    };
+    api.get.mockImplementation(async () => ({ data: server }));
+    api.put.mockImplementation(
+      async (_path, input: { agentId: string | null; enabled: boolean }) => {
+        server =
+          input.agentId === null
+            ? { ...server, alia: { enabled: input.enabled } }
+            : {
+                ...server,
+                agents: server.agents.map((agent) =>
+                  agent.agentId === input.agentId ? { ...agent, enabled: input.enabled } : agent,
+                ),
+              };
+        return { data: {} };
       },
-    });
+    );
     const tree = await render(<ProactiveSection />);
-    expect(api.get).toHaveBeenCalledWith('/notifications/email-alerts');
+    expect(api.get).toHaveBeenCalledWith('/notifications/email-alerts', {
+      signal: expect.any(AbortSignal),
+    });
 
     const [alia, scout] = all(tree, 'Switch');
     expect(alia?.props.accessibilityLabel).toBe('Tell me about important emails');
@@ -115,18 +135,26 @@ describe('Avisos: important email', () => {
 
     await act(async () => alia?.props.onCheckedChange(false));
     await settle();
-    expect(api.put).toHaveBeenCalledWith('/notifications/email-alerts', {
-      agentId: null,
-      enabled: false,
-    });
+    expect(api.put).toHaveBeenCalledWith(
+      '/notifications/email-alerts',
+      {
+        agentId: null,
+        enabled: false,
+      },
+      { signal: expect.any(AbortSignal) },
+    );
     expect(all(tree, 'Switch')[0]?.props.checked).toBe(false);
 
     await act(async () => all(tree, 'Switch')[1]?.props.onCheckedChange(true));
     await settle();
-    expect(api.put).toHaveBeenLastCalledWith('/notifications/email-alerts', {
-      agentId: 'agent-1',
-      enabled: true,
-    });
+    expect(api.put).toHaveBeenLastCalledWith(
+      '/notifications/email-alerts',
+      {
+        agentId: 'agent-1',
+        enabled: true,
+      },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 });
 

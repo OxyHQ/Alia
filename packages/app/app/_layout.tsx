@@ -14,6 +14,7 @@ import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/shell/error-boundary';
 import { bindApiClient, releaseApiClient } from '@/shared/api/client';
+import { ALIA_ACCOUNT_QUERIES } from '@/shared/api/query-keys';
 import '@/shared/i18n';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/shared/i18n';
 import { useI18nStore } from '@/shared/i18n/i18n-store';
@@ -134,6 +135,7 @@ function RootLayout() {
           <OxyProvider
             baseURL={OXY_API_URL}
             clientId={OXY_CLIENT_ID}
+            accountQueries={ALIA_ACCOUNT_QUERIES}
             authRedirectUri={Platform.OS !== 'web' ? AUTH_REDIRECT_URI : undefined}
             // Wires Alia's own i18n-js instance to Oxy's resolved language (the
             // signed-in account's primary locale, or the device/guest locale
