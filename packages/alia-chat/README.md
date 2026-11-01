@@ -24,7 +24,9 @@ module.exports = withAliaGranularCharts(existingMetroConfig);
 ```
 
 This Node-only entry wraps the previous resolver and redirects two verified chart imports
-in this SDK copy. It checks that the original barrel and both granular imports resolve to
+in this SDK copy. It delegates extra resolution probes to that resolver, so resolver
+implementations with side effects will observe those calls. It checks that the original
+barrel and both granular imports resolve to
 the same physical Bloom copy for the original importer and the adapter. Missing exports,
 an altered SDK importer or incompatible metadata fail with an explicit build error; the
 normal SDK does not require those exports when this option is not used. File hashes detect
