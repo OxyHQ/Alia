@@ -29,7 +29,13 @@ function fixture() {
     fs.copyFileSync(path.join(source, file), dest);
   }
   fs.mkdirSync(bloom, { recursive: true });
-  fs.writeFileSync(path.join(bloom, 'package.json'), JSON.stringify({ name: '@oxy.so/bloom' }));
+  fs.writeFileSync(
+    path.join(bloom, 'package.json'),
+    JSON.stringify({
+      name: '@oxy.so/bloom',
+      exports: { './chart-cards/bar-list': './bar.js', './chart-cards/line': './line.js' },
+    }),
+  );
   for (const file of ['barrel.js', 'bar.js', 'line.js'])
     fs.writeFileSync(path.join(bloom, file), '');
   const importer = path.join(sdk, metadata.importers[0].path);
@@ -247,4 +253,131 @@ test('rejects stacking wrappers from the same or different SDK copies without ch
     wrapped({ originModulePath: b.importer }, '@oxy.so/bloom/chart-cards', 'web').filePath,
     path.join(a.bloom, 'barrel.js'),
   );
+});
+
+test('rejects filesystem fallback for a Bloom subpath absent from its export map', () => {
+  const f = fixture();
+  const manifest = path.join(f.bloom, 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(manifest));
+  delete pkg.exports['./chart-cards/line'];
+  fs.writeFileSync(manifest, JSON.stringify(pkg));
+  const r = resolver(f);
+  f.helper.withAliaGranularCharts(r.config);
+  assert.throws(
+    () =>
+      r.config.resolver.resolveRequest(
+        { originModulePath: f.importer },
+        '@oxy.so/bloom/chart-cards',
+        'web',
+      ),
+    /line is not exported/,
+  );
+});
+
+test('rechecks a watched SDK importer and adapter only for affected requests', () => {
+  for (const kind of ['importer', 'adapter']) {
+    const f = fixture();
+    const r = resolver(f);
+    f.helper.withAliaGranularCharts(r.config);
+    fs.appendFileSync(f[kind], '\n// changed after Metro started');
+    assert.equal(
+      r.config.resolver.resolveRequest({ originModulePath: f.importer }, 'unrelated', 'web')
+        .filePath,
+      'unrelated',
+    );
+    assert.throws(
+      () =>
+        r.config.resolver.resolveRequest(
+          { originModulePath: f.importer },
+          '@oxy.so/bloom/chart-cards',
+          'web',
+        ),
+      /changed SDK file/,
+    );
+  }
+});
+
+test('real Metro rejects unexported, null, inactive and invalid chart paths even when files exist', () => {
+  const metro = require('metro-resolver');
+  for (const value of [
+    undefined,
+    null,
+    { custom: './line.js' },
+    '../line.js',
+    { browser: './line.js' },
+  ]) {
+    const f = fixture();
+    const modules = path.join(f.sdk, 'node_modules', '@oxy.so');
+    fs.mkdirSync(modules, { recursive: true });
+    const installedBloom = path.join(modules, 'bloom');
+    fs.cpSync(f.bloom, installedBloom, { recursive: true });
+    fs.mkdirSync(path.join(installedBloom, 'chart-cards'));
+    for (const name of ['index.js', 'bar-list.js', 'line.js'])
+      fs.writeFileSync(path.join(installedBloom, 'chart-cards', name), '');
+    const manifest = path.join(installedBloom, 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(manifest));
+    pkg.exports['./chart-cards'] = './barrel.js';
+    if (value === undefined) delete pkg.exports['./chart-cards/line'];
+    else pkg.exports['./chart-cards/line'] = value;
+    fs.writeFileSync(manifest, JSON.stringify(pkg));
+    const lookup = (p) => {
+      try {
+        const stat = fs.statSync(p);
+        return { exists: true, realPath: fs.realpathSync(p), type: stat.isDirectory() ? 'd' : 'f' };
+      } catch {
+        return { exists: false };
+      }
+    };
+    const getPackageForModule = (p) => {
+      let dir = p;
+      while (dir !== path.dirname(dir)) {
+        const manifest = path.join(dir, 'package.json');
+        if (fs.existsSync(manifest))
+          return {
+            rootPath: dir,
+            packageRelativePath: path.relative(dir, p),
+            packageJson: JSON.parse(fs.readFileSync(manifest)),
+          };
+        dir = path.dirname(dir);
+      }
+      return null;
+    };
+    const warnings = [];
+    const context = {
+      allowHaste: false,
+      assetExts: new Set(),
+      customResolverOptions: {},
+      dev: false,
+      disableHierarchicalLookup: false,
+      doesFileExist: (p) => lookup(p).type === 'f',
+      fileSystemLookup: lookup,
+      getPackage: (p) => JSON.parse(fs.readFileSync(p)),
+      getPackageForModule,
+      isESMImport: true,
+      mainFields: ['react-native', 'browser', 'main'],
+      nodeModulesPaths: [],
+      originModulePath: f.importer,
+      preferNativePlatform: true,
+      resolveAsset: () => null,
+      resolveHasteModule: () => null,
+      resolveHastePackage: () => null,
+      sourceExts: ['ts', 'tsx', 'js', 'jsx', 'json'],
+      unstable_conditionNames: ['require'],
+      unstable_conditionsByPlatform: { web: ['browser'] },
+      unstable_enablePackageExports: true,
+      unstable_logWarning: (warning) => warnings.push(warning),
+    };
+    const config = {};
+    f.helper.withAliaGranularCharts(config);
+    context.resolveRequest = config.resolver.resolveRequest;
+    if (value?.browser) {
+      assert.equal(metro.resolve(context, '@oxy.so/bloom/chart-cards', 'web').filePath, f.adapter);
+      assert.deepEqual(warnings, []);
+    } else {
+      assert.throws(
+        () => metro.resolve(context, '@oxy.so/bloom/chart-cards', 'web'),
+        /not exported|no supported export|original Bloom chart barrel is unavailable|did not resolve to its declared public export/,
+      );
+    }
+  }
 });
