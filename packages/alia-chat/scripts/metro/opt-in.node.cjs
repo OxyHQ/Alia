@@ -386,3 +386,26 @@ test('real Metro rejects unexported, null, inactive and invalid chart paths even
     }
   }
 });
+
+test('rechecks a watched importer replaced by a symlink or removed', () => {
+  for (const action of ['symlink', 'remove']) {
+    const f = fixture();
+    const r = resolver(f);
+    f.helper.withAliaGranularCharts(r.config);
+    fs.renameSync(f.importer, `${f.importer}.original`);
+    if (action === 'symlink') {
+      const changed = path.join(f.sdk, 'changed.tsx');
+      fs.writeFileSync(changed, '// modified');
+      fs.symlinkSync(changed, f.importer);
+    }
+    assert.throws(
+      () =>
+        r.config.resolver.resolveRequest(
+          { originModulePath: f.importer },
+          '@oxy.so/bloom/chart-cards',
+          'web',
+        ),
+      /changed SDK file|SDK importer is missing/,
+    );
+  }
+});

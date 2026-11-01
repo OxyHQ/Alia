@@ -55,8 +55,12 @@ function collectTargets(roots) {
       throw new Error(`${PREFIX} unsupported SDK copy or version`);
     }
     const adapter = checkedFile(root, metadata.adapter);
-    for (const importer of metadata.importers)
-      targets.set(checkedFile(root, importer), { root, adapter });
+    for (const importer of metadata.importers) {
+      const target = { root, adapter };
+      targets.set(checkedFile(root, importer), target);
+      targets.set(path.resolve(root, importer.path), target);
+      targets.set(path.resolve(input, importer.path), target);
+    }
   }
   return targets;
 }
@@ -150,13 +154,16 @@ function withAliaGranularCharts(config, options = {}) {
     previous ? previous(context, name, platform) : context.resolveRequest(context, name, platform);
   const wrapped = (context, name, platform) => {
     if (name !== LEGACY) return delegate(context, name, platform);
+    const lexicalOrigin = path.resolve(context.originModulePath);
+    const lexicalTarget = targets.get(lexicalOrigin);
     let origin;
     try {
-      origin = fs.realpathSync(context.originModulePath);
-    } catch {
+      origin = fs.realpathSync(lexicalOrigin);
+    } catch (error) {
+      if (lexicalTarget) throw new Error(`${PREFIX} SDK importer is missing`, { cause: error });
       return delegate(context, name, platform);
     }
-    const registered = targets.get(origin);
+    const registered = lexicalTarget ?? targets.get(origin);
     if (!registered) return delegate(context, name, platform);
     const refreshed = collectTargets([registered.root]).get(origin);
     if (!refreshed || refreshed.adapter !== registered.adapter) {
