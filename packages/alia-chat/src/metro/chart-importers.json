@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "sdkVersion": "22.10.0",
+  "adapter": {
+    "path": "src/metro/granular-charts.js",
+    "sha256": "252add5b6642f8637f9b044a76fd05aff52fc9751bcff3e3587a95444f9ec1c1"
+  },
+  "importers": [
+    {
+      "path": "src/components/thread/ToolResultCard.tsx",
+      "sha256": "3ee679038681e7d2486b1d867e13d9e5868e729f2925b78b4577538ac5d1c6eb"
+    },
+    {
+      "path": "src/components/canvas/ChartRenderer.tsx",
+      "sha256": "848c3cb783fcd5fffd1ea9a976870be8672e470bfb1e2d50f01ab1dc447b2b11"
+    }
+  ]
+}
