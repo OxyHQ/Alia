@@ -1,10 +1,22 @@
-import apiClient from '@/shared/api/client';
-import { queryKeys } from '@/shared/api/query-keys';
+import apiClient, {
+  getApiSessionSnapshot,
+  isCurrentApiSession,
+  onApiSessionContextChange,
+  type ApiSessionOwner,
+} from '@/shared/api/client';
+import { EMAIL_ALERTS_MUTATION_KEY, queryKeys } from '@/shared/api/query-keys';
 import { API_ROUTES } from '@/shared/api/routes';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { createRandomUuid } from '@/shared/platform/random-uuid';
+import {
+  getAccountProjection,
+  onAccountProjectionChange,
+  onAccountProjectionInvalidation,
+} from '@/shared/state/account-epoch';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 
 /** One owned agent and whether it tells its owner about important mail in its own mailbox. */
 export interface AgentEmailAlert {
@@ -14,62 +26,243 @@ export interface AgentEmailAlert {
   color: string | null;
   enabled: boolean;
 }
-
 /** `GET /notifications/email-alerts`: Alia about the person's Inbox, each agent about its own. */
 export interface EmailAlerts {
   alia: { enabled: boolean };
   agents: AgentEmailAlert[];
 }
 
-/**
- * "Avísame de emails importantes", per actor. A switch flips at once and comes
- * back if the server refuses it.
- */
+type Owner = {
+  userId: string;
+  sessionId: string | null;
+  projectionRevision: number;
+  api: ApiSessionOwner;
+};
+type Input = { agentId: string | null; enabled: boolean; owner: Owner; changeId: string };
+type Changes = {
+  latest: Map<string, string>;
+  pending: Map<string, Set<string>>;
+  concurrent: Set<string>;
+};
+const changesByClient = new WeakMap<QueryClient, Changes>();
+function changesFor(client: QueryClient): Changes {
+  let changes = changesByClient.get(client);
+  if (!changes) {
+    changes = { latest: new Map(), pending: new Map(), concurrent: new Set() };
+    changesByClient.set(client, changes);
+    const registered = changes;
+    client.getMutationCache().subscribe((event) => {
+      if (
+        event.type !== 'removed' ||
+        event.mutation.options.mutationKey?.[0] !== EMAIL_ALERTS_MUTATION_KEY[0]
+      )
+        return;
+      const input = event.mutation.state.variables as Input | undefined;
+      if (!input?.owner?.api || typeof input.changeId !== 'string') return;
+      if (releaseChange(registered, input)) registered.concurrent.delete(groupKey(input.owner));
+    });
+  }
+  return changes;
+}
+function groupKey(owner: Owner): string {
+  return JSON.stringify([
+    owner.userId,
+    owner.projectionRevision,
+    owner.api.bindingRevision,
+    owner.api.sessionEpoch,
+  ]);
+}
+function fieldKey(owner: Owner, agentId: string | null): string {
+  return JSON.stringify([groupKey(owner), agentId]);
+}
+function releaseChange(changes: Changes, input: Input): boolean {
+  const field = fieldKey(input.owner, input.agentId);
+  const group = groupKey(input.owner);
+  const pending = changes.pending.get(group);
+  if (!pending?.has(input.changeId)) return false;
+  pending.delete(input.changeId);
+  if (changes.latest.get(field) === input.changeId) changes.latest.delete(field);
+  if (pending.size) return false;
+  changes.pending.delete(group);
+  return true;
+}
+function withEnabled(current: EmailAlerts, agentId: string | null, enabled: boolean): EmailAlerts {
+  return agentId === null
+    ? { ...current, alia: { enabled } }
+    : {
+        ...current,
+        agents: current.agents.map((agent) =>
+          agent.agentId === agentId ? { ...agent, enabled } : agent,
+        ),
+      };
+}
+const ownerKey = (owner: Owner) =>
+  [
+    ...queryKeys.emailAlerts,
+    owner.userId,
+    owner.sessionId,
+    owner.projectionRevision,
+    owner.api.bindingRevision,
+    owner.api.sessionEpoch,
+  ] as const;
+function owns(owner: Owner): boolean {
+  const projection = getAccountProjection();
+  return (
+    projection.userId === owner.userId &&
+    projection.revision === owner.projectionRevision &&
+    (projection.sessionId === owner.sessionId || owner.sessionId === null) &&
+    isCurrentApiSession(owner.api)
+  );
+}
+async function ownedRequest<T>(
+  owner: Owner,
+  request: (signal: AbortSignal) => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (!owns(owner)) throw new Error('The active account changed');
+  const controller = new AbortController();
+  const changed = () => {
+    if (!owns(owner)) controller.abort();
+  };
+  const cancel = () => controller.abort();
+  const stopProjection = onAccountProjectionInvalidation(changed);
+  const stopApi = onApiSessionContextChange(changed);
+  signal?.addEventListener('abort', cancel, { once: true });
+  try {
+    if (signal?.aborted || !owns(owner)) throw new Error('The active account changed');
+    const result = await request(controller.signal);
+    if (!owns(owner)) throw new Error('The active account changed');
+    return result;
+  } finally {
+    signal?.removeEventListener('abort', cancel);
+    stopProjection();
+    stopApi();
+  }
+}
+
+/** "Avísame de emails importantes", per actor. */
 export function useEmailAlerts() {
   const { t } = useTranslation();
-  const { isAuthenticated } = useOxy();
+  const { isAuthenticated, user, activeSessionId } = useOxy();
   const queryClient = useQueryClient();
-  const key = queryKeys.emailAlerts;
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const projection = useSyncExternalStore(
+    onAccountProjectionChange,
+    getAccountProjection,
+    getAccountProjection,
+  );
+  const apiSnapshot = useSyncExternalStore(
+    onApiSessionContextChange,
+    getApiSessionSnapshot,
+    getApiSessionSnapshot,
+  );
+  const api = JSON.parse(apiSnapshot) as ApiSessionOwner | null;
+  const userId = isAuthenticated ? user?.id : undefined;
+  const sessionId = activeSessionId ?? null;
+  const owner: Owner | null =
+    userId &&
+    api?.userId === userId &&
+    projection.userId === userId &&
+    (projection.sessionId === sessionId || projection.sessionId === null)
+      ? { userId, sessionId, projectionRevision: projection.revision, api }
+      : null;
 
   const query = useQuery({
-    queryKey: key,
-    queryFn: async (): Promise<EmailAlerts> =>
-      (await apiClient.get<EmailAlerts>(API_ROUTES.emailAlerts)).data,
-    enabled: isAuthenticated,
-  });
-
-  const mutation = useMutation({
-    mutationFn: async (input: { agentId: string | null; enabled: boolean }) => {
-      await apiClient.put(API_ROUTES.emailAlerts, input);
+    queryKey: owner ? ownerKey(owner) : [...queryKeys.emailAlerts, null],
+    queryFn: ({ signal }): Promise<EmailAlerts> => {
+      if (!owner) throw new Error('The active account changed');
+      return ownedRequest(
+        owner,
+        async (requestSignal) =>
+          (await apiClient.get<EmailAlerts>(API_ROUTES.emailAlerts, { signal: requestSignal }))
+            .data,
+        signal,
+      );
     },
-    onMutate: async ({ agentId, enabled }) => {
-      await queryClient.cancelQueries({ queryKey: key });
+    enabled: Boolean(owner),
+  });
+  const mutation = useMutation({
+    mutationKey: EMAIL_ALERTS_MUTATION_KEY,
+    mutationFn: async ({ agentId, enabled, owner, changeId }: Input) => {
+      if (changesFor(queryClient).latest.get(fieldKey(owner, agentId)) !== changeId)
+        throw new Error('The alert change was superseded');
+      await ownedRequest(owner, (signal) =>
+        apiClient.put(API_ROUTES.emailAlerts, { agentId, enabled }, { signal }),
+      );
+    },
+    onMutate: async ({ agentId, enabled, owner, changeId }: Input) => {
+      const changes = changesFor(queryClient);
+      if (!owns(owner) || changes.latest.get(fieldKey(owner, agentId)) !== changeId)
+        throw new Error('The active account changed');
+      const key = ownerKey(owner);
+      await queryClient.cancelQueries({ queryKey: key, exact: true });
+      if (!owns(owner) || changes.latest.get(fieldKey(owner, agentId)) !== changeId)
+        throw new Error('The active account changed');
       const previous = queryClient.getQueryData<EmailAlerts>(key);
+      const previousEnabled =
+        agentId === null
+          ? previous?.alia.enabled
+          : previous?.agents.find((agent) => agent.agentId === agentId)?.enabled;
       queryClient.setQueryData<EmailAlerts>(
         key,
-        (current) =>
-          current &&
-          (agentId === null
-            ? { ...current, alia: { enabled } }
-            : {
-                ...current,
-                agents: current.agents.map((agent) =>
-                  agent.agentId === agentId ? { ...agent, enabled } : agent,
-                ),
-              }),
+        (current) => current && withEnabled(current, agentId, enabled),
       );
-      return { previous };
+      return { owner, previousEnabled };
     },
-    onError: (_error, _input, context) => {
-      queryClient.setQueryData(key, context?.previous);
-      toast.error(t('settings.saveFailed'));
+    onError: (_error, input, context) => {
+      const changes = changesFor(queryClient);
+      if (
+        !owns(input.owner) ||
+        changes.latest.get(fieldKey(input.owner, input.agentId)) !== input.changeId
+      )
+        return;
+      if (context?.previousEnabled !== undefined) {
+        const previousEnabled = context.previousEnabled;
+        queryClient.setQueryData<EmailAlerts>(
+          ownerKey(input.owner),
+          (current) => current && withEnabled(current, input.agentId, previousEnabled),
+        );
+      }
+      if (mounted.current) toast.error(t('settings.saveFailed'));
+    },
+    onSettled: (_data, _error, input) => {
+      const changes = changesFor(queryClient);
+      const group = groupKey(input.owner);
+      if (!releaseChange(changes, input)) return;
+      const concurrent = changes.concurrent.delete(group);
+      if (!owns(input.owner)) return;
+      const sessionId = getAccountProjection().sessionId;
+      if (!concurrent && input.owner.sessionId === sessionId) return;
+      const currentOwner = { ...input.owner, sessionId };
+      const key = ownerKey(currentOwner);
+      void queryClient.cancelQueries({ queryKey: key, exact: true }, { revert: false }).then(() => {
+        if (owns(input.owner) && !changes.pending.has(group)) {
+          void queryClient.invalidateQueries({ queryKey: key, exact: true });
+        }
+      });
     },
   });
-
   return {
     alerts: query.data,
     loading: query.isPending,
     failed: query.isError,
-    setEnabled: (agentId: string | null, enabled: boolean) => mutation.mutate({ agentId, enabled }),
+    setEnabled: (agentId: string | null, enabled: boolean) => {
+      if (!owner || !owns(owner)) return;
+      const changes = changesFor(queryClient);
+      const group = groupKey(owner);
+      const changeId = createRandomUuid();
+      changes.latest.set(fieldKey(owner, agentId), changeId);
+      const pending = changes.pending.get(group) ?? new Set<string>();
+      if (pending.size) changes.concurrent.add(group);
+      pending.add(changeId);
+      changes.pending.set(group, pending);
+      mutation.mutate({ agentId, enabled, owner, changeId });
+    },
   };
 }

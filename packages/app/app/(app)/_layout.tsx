@@ -91,7 +91,7 @@ export default function AppLayout() {
   // and again whenever it changes. Each store namespaces its storage by this
   // id and discards a load that resolves after the id moved on, so switching
   // profiles never shows one account's collections under another (#547).
-  const { user } = useOxy();
+  const { user, activeSessionId } = useOxy();
   const userId = user?.id ?? null;
   useEffect(() => {
     loadProjects(userId);
@@ -107,7 +107,7 @@ export default function AppLayout() {
 
   // Everything else the previous account left in memory, on a sign-out or a
   // switch (`src/shell/account-lifecycle.ts`).
-  useAccountLifecycle(userId);
+  useAccountLifecycle(userId, activeSessionId ?? null);
 
   /**
    * The template's two sidebars: the in-flow panel from `lg` up, and the drawer

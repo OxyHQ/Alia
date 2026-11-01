@@ -1,3 +1,9 @@
+export const EMAIL_ALERTS_MUTATION_KEY = ['email-alerts-update'] as const;
+export const ALIA_ACCOUNT_QUERIES = {
+  roots: [],
+  mutationKeys: [EMAIL_ALERTS_MUTATION_KEY],
+} as const;
+
 export const queryKeys = {
   /** "Avísame de emails importantes" for Alia and each owned agent. */
   emailAlerts: ['email-alerts'] as const,

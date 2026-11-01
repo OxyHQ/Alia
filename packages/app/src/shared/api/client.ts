@@ -5,6 +5,7 @@ import config from '@/shared/platform/config';
 let owner: OxyServices | undefined;
 let linked: LinkedHttpClient | undefined;
 let unsubscribe: (() => void) | undefined;
+let bindingRevision = 0;
 const contextListeners = new Set<() => void>();
 
 /** Keep Axios response/error conventions; Oxy owns session, refresh and origin fencing. */
@@ -37,6 +38,7 @@ export function bindApiClient(oxy: OxyServices): void {
   unsubscribe?.();
   linked?.dispose();
   owner = oxy;
+  bindingRevision += 1;
   linked = oxy.createLinkedClient({ baseURL: config.apiUrl });
   let epoch = linked.client.getSessionEpoch();
   unsubscribe = linked.client.addTokenChangeListener(() => {
@@ -56,6 +58,7 @@ export function releaseApiClient(oxy: OxyServices): void {
   unsubscribe = undefined;
   linked = undefined;
   owner = undefined;
+  bindingRevision += 1;
   for (const listener of contextListeners) listener();
 }
 
@@ -63,6 +66,26 @@ export function releaseApiClient(oxy: OxyServices): void {
 export function socketAccessToken(signal: AbortSignal): Promise<string> {
   if (!linked) return Promise.reject(new Error('The Oxy provider has not bound the product API'));
   return linked.getAccessToken(config.apiUrl, { signal });
+}
+/** A serializable observation; it never contains a bearer or client instance. */
+export type ApiSessionOwner = { userId: string; bindingRevision: number; sessionEpoch: number };
+export function getApiSessionOwner(): ApiSessionOwner | null {
+  const userId = owner?.session.userId;
+  return owner && userId
+    ? { userId, bindingRevision, sessionEpoch: owner.http.getSessionEpoch() }
+    : null;
+}
+export function getApiSessionSnapshot(): string {
+  return JSON.stringify(getApiSessionOwner());
+}
+export function isCurrentApiSession(expected: ApiSessionOwner): boolean {
+  const current = getApiSessionOwner();
+  return Boolean(
+    current &&
+      current.userId === expected.userId &&
+      current.bindingRevision === expected.bindingRevision &&
+      current.sessionEpoch === expected.sessionEpoch,
+  );
 }
 export function hasApiSession(): boolean {
   return Boolean(owner?.session.userId);
