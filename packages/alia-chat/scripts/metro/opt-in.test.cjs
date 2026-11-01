@@ -192,3 +192,34 @@ test('fallback resolver is delegated, and redirected adapters are rejected', () 
     /adapter was redirected/,
   );
 });
+
+test('packed SDK exposes an opt-in whose version and source hashes match the tarball', () => {
+  const { execFileSync } = require('node:child_process');
+  const { createRequire } = require('node:module');
+  const dir = path.join(temporary, 'packed');
+  fs.mkdirSync(dir);
+  const packed = JSON.parse(
+    execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', dir], {
+      cwd: source,
+      encoding: 'utf8',
+      env: { ...process.env, npm_config_cache: path.join(dir, 'npm-cache'), TMPDIR: dir },
+    }),
+  );
+  assert.equal(packed.length, 1);
+  const destination = path.join(dir, 'node_modules', '@alia.onl', 'sdk');
+  fs.mkdirSync(destination, { recursive: true });
+  execFileSync('tar', [
+    '-xzf',
+    path.join(dir, packed[0].filename),
+    '--strip-components=1',
+    '-C',
+    destination,
+  ]);
+  const app = path.join(dir, 'app.cjs');
+  fs.writeFileSync(app, '');
+  const requireFromApp = createRequire(app);
+  const pkg = requireFromApp('@alia.onl/sdk/package.json');
+  assert.equal(pkg.peerDependencies['@oxy.so/bloom'], '>=15.10.1');
+  const helper = requireFromApp('@alia.onl/sdk/metro');
+  assert.equal(typeof helper.withAliaGranularCharts({}).resolver.resolveRequest, 'function');
+});
