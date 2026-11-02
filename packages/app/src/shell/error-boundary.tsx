@@ -56,7 +56,7 @@ export function AppErrorBoundary({ children, fallback: Fallback }: AppErrorBound
 function ErrorFallback({ onRetry }: { onRetry: () => void }) {
   const { t } = useTranslation();
   return (
-    <Screen>
+    <Screen scroll="content">
       <View className="flex-1 items-center justify-center p-6">
         <EmptyState
           icon={RiErrorWarningLine}
