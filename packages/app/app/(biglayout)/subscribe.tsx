@@ -243,7 +243,7 @@ function SubscribeContent() {
   };
 
   return (
-    <Screen header={<SubscribeHeader title={t('subscribe.title')} t={t} />}>
+    <Screen scroll="content" header={<SubscribeHeader title={t('subscribe.title')} t={t} />}>
       <ScreenScrollView>
         <View className="mx-auto w-full max-w-[1200px]">
           <View className="items-center px-6 pb-8 pt-2">

@@ -17,7 +17,7 @@ export default function NotFoundScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <Stack.Screen options={{ title: t('dialogs.notFound.title'), headerShown: false }} />
-      <Screen>
+      <Screen scroll="content">
         <View className="flex-1 items-center justify-center p-6">
           <EmptyState
             icon={RiCompass3Line}

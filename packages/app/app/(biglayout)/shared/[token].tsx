@@ -29,6 +29,7 @@ export default function SharedConversationScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <Screen
+        scroll="content"
         documentScroll
         header={
           <PageHeader

@@ -48,6 +48,7 @@ export default function DownloadScreen() {
       </Head>
 
       <Screen
+        scroll="content"
         header={
           <PageHeader
             title={t('subscribe.download.title')}
