@@ -29,9 +29,9 @@
   },
   "dependencies": {
     "@alia.onl/sdk": "workspace:*",
-    "@clarity.surf/sdk": "0.10.0",
+    "@clarity.surf/sdk": "0.11.0",
     "@expo/vector-icons": "^15.1.1",
-    "@oxy.so/app-preset": "^4.1.0",
+    "@oxy.so/app-preset": "^5.2.1",
     "@oxy.so/bloom": "16.5.0",
     "@oxy.so/contracts": "6.3.0",
     "@oxy.so/core": "7.11.1",
