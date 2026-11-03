@@ -71,7 +71,25 @@ Risk is classified per call by `classifyActionRisk` (`lib/agent/governance.ts`):
 
 ## MCP servers
 
-MCP integration lives in `packages/api/src/lib/tools/mcp.ts` and `packages/integrations/src/mcp/`. Users register MCP servers from their account; tools are introspected via `mcp-schema.ts` and surfaced as first-class tool calls inside chat. The runtime handles transport (stdio / HTTP / websocket), schema validation, lifecycle, and rate limiting per server.
+MCP integration lives in `packages/api/src/lib/tools/mcp.ts` and `packages/integrations/src/mcp/`. Users register MCP servers from their account; tools are introspected via `mcp-schema.ts` and surfaced as first-class tool calls inside chat.
+
+**Where a connector runs follows from how it is reached** (`lib/mcp-connector-config.ts`), and no
+request changes it:
+
+- A **remote** connector (`streamable-http`, `sse`) runs on the server: integrations reaches it at an
+  `https` URL. Every request it makes for the connector — the transport, OAuth discovery, token
+  exchange and refresh, revocation — goes through `mcp/connector-fetch.ts`, the SDK's `safeFetch`:
+  each hop's address is resolved and refused when it is private, loopback, link-local or the cloud
+  metadata service, and the connection is pinned to the address that was judged.
+- A **command** connector (`stdio`) runs only on the person's own device (`runtime: 'local'`),
+  started by Cowork or Codea and reached through the MCP relay (`lib/mcp-relay.ts`). The
+  integrations host is shared by every account and never starts a process; Postgres refuses a
+  command connector the server would run (`mcp_servers_command_runs_locally_check`).
+
+A registry connector runs the registry's command or is reached at the registry's address; the
+person supplies only the values of the entry's `requiredEnv`. A custom connector is the person's,
+within the two rules above. `PATCH /mcp/:id` validates the edited connector by the same rules and
+cannot change where it runs.
 
 MCP capabilities are visible to the model with the same calling convention as native tools, so the LLM does not need to distinguish them.
 

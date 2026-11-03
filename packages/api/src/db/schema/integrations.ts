@@ -258,6 +258,14 @@ export const mcpServers = pgTable(
     checkOneOf('mcp_servers_transport_check', t.transport, MCP_SERVER_TRANSPORTS),
     checkOneOf('mcp_servers_runtime_check', t.runtime, MCP_SERVER_RUNTIMES),
     checkOneOf('mcp_servers_status_check', t.status, MCP_SERVER_STATUSES),
+    /**
+     * A command connector runs on the person's own device, never on the shared
+     * integrations host (`lib/mcp-connector-config.ts`).
+     */
+    check(
+      'mcp_servers_command_runs_locally_check',
+      sql`${t.transport} <> 'stdio' or ${t.runtime} = 'local'`,
+    ),
   ],
 );
 

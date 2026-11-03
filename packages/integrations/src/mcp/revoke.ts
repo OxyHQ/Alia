@@ -8,6 +8,7 @@
  * and then the access token. A vendor with no such endpoint (or one that is
  * down) is reported, and the caller deletes the stored tokens either way.
  *
+ * Every request goes through `connectorFetch` unless a test hands in its own.
  * Nothing here logs or returns a token; the outcome is a reason code.
  */
 
@@ -17,6 +18,7 @@ import type {
   OAuthTokens,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { connectorFetch } from './connector-fetch';
 
 export type RevocationOutcome =
   | { revoked: true }
@@ -35,7 +37,7 @@ export async function revokeConnectorTokens(input: {
   fetchFn?: FetchLike;
 }): Promise<RevocationOutcome> {
   const { serverUrl, tokens, client } = input;
-  const fetchFn: FetchLike = input.fetchFn ?? ((url, init) => fetch(url, init));
+  const fetchFn: FetchLike = input.fetchFn ?? connectorFetch;
   if (!tokens?.access_token && !tokens?.refresh_token)
     return { revoked: false, reason: 'no_tokens' };
   if (!client?.client_id) return { revoked: false, reason: 'no_client' };

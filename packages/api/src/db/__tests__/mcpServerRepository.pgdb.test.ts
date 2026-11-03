@@ -100,6 +100,48 @@ describe('one user cannot install the same connector name twice', () => {
   });
 });
 
+describe("a command connector runs only on the person's device", () => {
+  /**
+   * `mcp_servers_command_runs_locally_check`: the integrations host is shared
+   * by every account, so Postgres refuses a row that would have it start a
+   * command, whichever code path tries to write one.
+   */
+  it('refuses a command connector the server would run', async () => {
+    await expect(
+      installMcpServer(
+        db,
+        newServer({
+          oxyUserId: 'mcpu-cmd-server',
+          name: 'cmd',
+          source: 'custom',
+          registryId: undefined,
+          transport: 'stdio',
+          runtime: 'server',
+          config: { command: 'node' },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      cause: { constraint_name: 'mcp_servers_command_runs_locally_check' },
+    });
+  });
+
+  it('stores one that runs on the device', async () => {
+    const row = await installMcpServer(
+      db,
+      newServer({
+        oxyUserId: 'mcpu-cmd-local',
+        name: 'cmd',
+        source: 'custom',
+        registryId: undefined,
+        transport: 'stdio',
+        runtime: 'local',
+        config: { command: 'node' },
+      }),
+    );
+    expect(row?.runtime).toBe('local');
+  });
+});
+
 describe('`config` is flat in the database and nested on both wires', () => {
   it('round-trips through the columns and back into the nested object', async () => {
     const row = await installMcpServer(
@@ -108,6 +150,7 @@ describe('`config` is flat in the database and nested on both wires', () => {
         oxyUserId: 'mcpu-config',
         name: 'stdio-one',
         transport: 'stdio',
+        runtime: 'local',
         config: {
           command: 'npx',
           args: ['-y', 'pkg'],
@@ -140,6 +183,7 @@ describe('`config` is flat in the database and nested on both wires', () => {
         oxyUserId: 'mcpu-sparse',
         name: 'sparse',
         transport: 'stdio',
+        runtime: 'local',
         config: { command: 'npx' },
       }),
     );
