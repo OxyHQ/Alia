@@ -244,11 +244,13 @@ export async function deleteMcpServerForUser(
   return row ?? null;
 }
 
-/** What `PATCH /mcp/:id` is allowed to change. */
+/**
+ * What `PATCH /mcp/:id` is allowed to change. Not `runtime`: where a connector
+ * runs follows from its transport (`lib/mcp-connector-config.ts`).
+ */
 export interface McpServerPatch {
   readonly config?: McpServerConfig | undefined;
   readonly enabled?: boolean | undefined;
-  readonly runtime?: McpServerRuntime | undefined;
 }
 
 /**
@@ -280,9 +282,8 @@ export async function updateMcpServer(
     if ('requiresOAuth' in c) set.configRequiresOauth = c.requiresOAuth ?? null;
   }
   if (patch.enabled !== undefined) set.enabled = patch.enabled;
-  if (patch.runtime !== undefined) set.runtime = patch.runtime;
 
-  // An empty patch is a legitimate request — the source's three `!== undefined`
+  // An empty patch is a legitimate request — the `!== undefined`
   // guards could all miss — and `db.update()` with no columns is a syntax error.
   // Answer with the current row rather than raising.
   if (Object.keys(set).length === 0) return findMcpServerForUser(db, id, oxyUserId);

@@ -2,18 +2,17 @@
  * MCP Server Manager
  *
  * Manages MCP server lifecycle via the official `@modelcontextprotocol/sdk`
- * client: spawning child processes (stdio), connecting to remote servers
- * (SSE / streamable-http), discovering tools and resources, and executing
- * tool calls. The SDK client + transport own the process/connection lifecycle
- * and the JSON-RPC framing + initialize handshake.
+ * client: connecting to remote servers (SSE / streamable-http), discovering
+ * tools and resources, and executing tool calls. The SDK client + transport own
+ * the connection lifecycle and the JSON-RPC framing + initialize handshake.
+ *
+ * Every request a connector makes — the transport's, OAuth discovery, token
+ * exchange, refresh — goes through `connectorFetch`, which refuses addresses
+ * inside the network. This host never starts a process (`types.ts`).
  */
 
 import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import {
-  StdioClientTransport,
-  getDefaultEnvironment,
-} from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
@@ -27,14 +26,17 @@ import type {
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { getDb } from '../db';
 import { decrypt } from '../shared/crypto';
+import { connectorFetch } from './connector-fetch';
 import { AliaOAuthProvider } from './oauth-provider';
 import { deleteConnectorAuth, findConnectorAuth } from './oauth-store';
 import { revokeConnectorTokens, type RevocationOutcome } from './revoke';
-import type {
-  McpServerSession,
-  McpServerConfig,
-  McpToolDefinition,
-  McpResourceDefinition,
+import {
+  isHostedTransport,
+  type HostedTransport,
+  type McpServerSession,
+  type McpServerConfig,
+  type McpToolDefinition,
+  type McpResourceDefinition,
 } from './types';
 
 const logger = createLogger('MCP');
@@ -52,7 +54,7 @@ const reconnecting = new Map<string, Promise<void>>();
 export async function startServer(
   serverId: string,
   oxyUserId: string,
-  transport: 'stdio' | 'sse' | 'streamable-http',
+  transport: HostedTransport,
   config: McpServerConfig,
 ): Promise<{ tools: McpToolDefinition[]; resources: McpResourceDefinition[] }> {
   if (sessions.has(serverId)) {
@@ -74,8 +76,8 @@ export async function startServer(
       })
     : undefined;
 
-  // Build the transport first — this validates required config (command/url)
-  // and constructs the transport WITHOUT spawning/connecting yet.
+  // Build the transport first — this validates the transport and url and
+  // constructs the transport WITHOUT connecting yet.
   const clientTransport = createTransport(transport, config, authProvider);
   const client = new Client({ name: 'alia-integrations', version: '1.0.0' }, { capabilities: {} });
 
@@ -95,8 +97,8 @@ export async function startServer(
   sessions.set(serverId, session);
 
   try {
-    // connect() spawns the process (stdio) / opens the connection and performs
-    // the MCP initialize handshake + notifications/initialized automatically.
+    // connect() opens the connection and performs the MCP initialize
+    // handshake + notifications/initialized automatically.
     await client.connect(clientTransport);
 
     const tools = await discoverTools(client);
@@ -130,7 +132,7 @@ export async function startServer(
 export async function startOAuth(
   serverId: string,
   oxyUserId: string,
-  transport: 'stdio' | 'sse' | 'streamable-http',
+  transport: HostedTransport,
   config: McpServerConfig,
   stateToken: string,
   callbackUrl: string,
@@ -147,7 +149,11 @@ export async function startOAuth(
     scope: config.oauthScope,
     client: config.oauthClient,
   });
-  const result = await auth(provider, { serverUrl: config.url, scope: config.oauthScope });
+  const result = await auth(provider, {
+    serverUrl: config.url,
+    scope: config.oauthScope,
+    fetchFn: connectorFetch,
+  });
 
   if (result !== 'REDIRECT') {
     throw new Error(`Expected an OAuth redirect but the flow returned '${result}'`);
@@ -169,7 +175,7 @@ export async function startOAuth(
 export async function finishOAuth(
   serverId: string,
   oxyUserId: string,
-  transport: 'stdio' | 'sse' | 'streamable-http',
+  transport: HostedTransport,
   config: McpServerConfig,
   code: string,
   callbackUrl: string,
@@ -194,6 +200,7 @@ export async function finishOAuth(
     serverUrl: config.url,
     authorizationCode: code,
     scope: config.oauthScope,
+    fetchFn: connectorFetch,
   });
   if (result !== 'AUTHORIZED') {
     throw new Error(`Expected OAuth authorization to complete but the flow returned '${result}'`);
@@ -317,7 +324,7 @@ async function ensureSession(
   serverId: string,
   reconnect?: {
     oxyUserId: string;
-    transport: 'stdio' | 'sse' | 'streamable-http';
+    transport: HostedTransport;
     config: McpServerConfig;
   },
 ): Promise<McpServerSession | undefined> {
@@ -340,7 +347,7 @@ export async function callTool(
   args: Record<string, unknown>,
   reconnect?: {
     oxyUserId: string;
-    transport: 'stdio' | 'sse' | 'streamable-http';
+    transport: HostedTransport;
     config: McpServerConfig;
   },
 ): Promise<unknown> {
@@ -394,49 +401,31 @@ export async function shutdownAll(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 function createTransport(
-  transport: 'stdio' | 'sse' | 'streamable-http',
+  transport: HostedTransport,
   config: McpServerConfig,
   authProvider?: OAuthClientProvider,
 ): Transport {
-  if (transport === 'stdio') {
-    if (!config.command) {
-      throw new Error('stdio transport requires a command');
-    }
-    return new StdioClientTransport({
-      command: config.command,
-      args: config.args ?? [],
-      // getDefaultEnvironment() is the SDK's safe inherited-env subset (PATH/HOME/…),
-      // overlaid with any explicitly configured vars.
-      env: { ...getDefaultEnvironment(), ...(config.env ?? {}) },
-    });
+  // The type says it; a caller that forced anything else past it (a stored
+  // row, a body) is refused here, before anything is constructed.
+  if (!isHostedTransport(transport)) {
+    throw new Error(`Unsupported transport: ${String(transport)}`);
+  }
+  if (!config.url) {
+    throw new Error(`${transport} transport requires a url`);
   }
 
   // For OAuth connectors the SDK provider drives auth: it attaches the stored
   // access token, refreshes it on 401, and (on the interactive path) triggers
   // discovery + DCR + PKCE.
-  const oauth = config.requiresOAuth && authProvider ? { authProvider } : {};
-
-  if (transport === 'streamable-http') {
-    if (!config.url) {
-      throw new Error('streamable-http transport requires a url');
-    }
-    return new StreamableHTTPClientTransport(new URL(config.url), {
-      ...oauth,
-      requestInit: { headers: config.headers ?? {} },
-    });
-  }
-
-  if (transport === 'sse') {
-    if (!config.url) {
-      throw new Error('sse transport requires a url');
-    }
-    return new SSEClientTransport(new URL(config.url), {
-      ...oauth,
-      requestInit: { headers: config.headers ?? {} },
-    });
-  }
-
-  throw new Error(`Unsupported transport: ${transport}`);
+  const options = {
+    ...(config.requiresOAuth && authProvider ? { authProvider } : {}),
+    fetch: connectorFetch,
+    requestInit: { headers: config.headers ?? {} },
+  };
+  const url = new URL(config.url);
+  return transport === 'streamable-http'
+    ? new StreamableHTTPClientTransport(url, options)
+    : new SSEClientTransport(url, options);
 }
 
 /**

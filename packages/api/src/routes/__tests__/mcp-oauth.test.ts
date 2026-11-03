@@ -68,7 +68,19 @@ vi.mock('../../lib/mcp-registry.js', () => ({
       icon: 'github',
       transport: 'streamable-http',
       url: 'https://mcp.github.test',
+      requiredEnv: [],
       requiresOAuth: true,
+      category: 'development',
+    },
+    {
+      id: 'github-local',
+      name: 'GitHub (local)',
+      description: 'A command connector from the registry',
+      icon: 'github',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      requiredEnv: ['GITHUB_PERSONAL_ACCESS_TOKEN'],
       category: 'development',
     },
     {
@@ -99,6 +111,7 @@ import {
   findMcpServerForUser,
   installMcpServer,
   setMcpServerStatus,
+  updateMcpServer,
   type McpServerRow,
 } from '../../db/integrations/mcpServerRepository.js';
 import {
@@ -114,6 +127,7 @@ const mockFindByName = vi.mocked(findMcpServerByName);
 const mockInstall = vi.mocked(installMcpServer);
 const mockSetStatus = vi.mocked(setMcpServerStatus);
 const mockDeleteServer = vi.mocked(deleteMcpServerForUser);
+const mockUpdate = vi.mocked(updateMcpServer);
 const mockCreateState = vi.mocked(createMcpOAuthState);
 const mockFindState = vi.mocked(findLiveMcpOAuthState);
 const mockDeleteState = vi.mocked(deleteMcpOAuthState);
@@ -378,14 +392,22 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
   describe('POST /install — idempotency on a taken name', () => {
     it('persists registry env values under config.env', async () => {
       mockInstall.mockResolvedValue(
-        serverRow({ configEnv: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' } }),
+        serverRow({
+          name: 'github-local',
+          registryId: 'github-local',
+          transport: 'stdio',
+          runtime: 'local',
+          configUrl: null,
+          configCommand: 'npx',
+          configEnv: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' },
+        }),
       );
 
       const handler = getRouteHandler('post', '/install');
       const req: any = {
         userId: USER_A,
         body: {
-          registryId: 'github',
+          registryId: 'github-local',
           env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' },
         },
       };
@@ -398,7 +420,7 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
         expect.anything(),
         expect.objectContaining({
           oxyUserId: USER_A,
-          name: 'github',
+          name: 'github-local',
           source: 'registry',
           config: expect.objectContaining({ env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' } }),
         }),
@@ -433,6 +455,7 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
           name: 'my-custom',
           displayName: 'My Custom',
           transport: 'streamable-http',
+          config: { url: 'https://mcp.example.com/mcp' },
         },
       };
       const res = makeMockRes();
@@ -579,19 +602,239 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
       expect(mockDeleteServer).not.toHaveBeenCalled();
     });
 
-    it('stops a local-process connector without revoking anything', async () => {
+    it("deletes a connector on the person's device without calling integrations", async () => {
       mockFindServer.mockResolvedValue(
-        serverRow({ transport: 'stdio', configUrl: null, configCommand: 'npx', status: 'running' }),
+        serverRow({ transport: 'stdio', runtime: 'local', configUrl: null, configCommand: 'npx' }),
       );
       mockDeleteServer.mockResolvedValue(serverRow());
-      mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
 
       const handler = getRouteHandler('delete', '/:id');
       const res = makeMockRes();
       await handler({ userId: USER_A, params: { id: 'srv-1' } }, res);
 
-      expect(mockFetch.mock.calls[0]?.[0]).toBe('http://integrations.test/mcp/servers/srv-1/stop');
+      expect(mockFetch).not.toHaveBeenCalled();
       expect(res.body).toEqual({ success: true });
     });
+  });
+});
+
+/**
+ * The integrations host is shared by every account and sits inside the VPC, so
+ * a connector it runs is a remote server at an https URL, and a command runs
+ * only on the person's own device. These are the requests that used to put a
+ * command of the caller's choosing on that host.
+ */
+describe('mcp.ts — where a connector runs', () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch = vi.fn();
+    vi.stubGlobal('fetch', mockFetch);
+    mockInstall.mockImplementation(async (_db, input) =>
+      serverRow({
+        name: input.name,
+        source: input.source,
+        transport: input.transport,
+        runtime: input.runtime,
+        configCommand: input.config.command ?? null,
+        configUrl: input.config.url ?? null,
+      }),
+    );
+  });
+
+  async function install(body: Record<string, unknown>) {
+    const res = makeMockRes();
+    await getRouteHandler('post', '/install')({ userId: USER_A, body }, res);
+    return res;
+  }
+
+  function installed() {
+    return mockInstall.mock.calls[0]?.[1];
+  }
+
+  describe('POST /install', () => {
+    it('installs a custom command connector on the device, whatever runtime the body asks for', async () => {
+      const res = await install({
+        name: 'tool',
+        displayName: 'Tool',
+        transport: 'stdio',
+        runtime: 'server',
+        config: { command: 'node', args: ['--version'] },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(installed()).toMatchObject({ transport: 'stdio', runtime: 'local' });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('refuses a command connector without a command', async () => {
+      const res = await install({ name: 'tool', displayName: 'Tool', transport: 'stdio' });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.code).toBe('invalid_connector');
+      expect(mockInstall).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['plain http', 'http://mcp.example.com/mcp'],
+      ['not a URL', 'mcp.example.com'],
+      ['another scheme', 'file:///etc/passwd'],
+    ])('refuses a remote connector at %s', async (_label, url) => {
+      const res = await install({
+        name: 'remote',
+        displayName: 'Remote',
+        transport: 'streamable-http',
+        config: { url },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.code).toBe('invalid_connector');
+      expect(mockInstall).not.toHaveBeenCalled();
+    });
+
+    it('stores a remote connector with no command, args or env, and runs it on the server', async () => {
+      const res = await install({
+        name: 'remote',
+        displayName: 'Remote',
+        transport: 'streamable-http',
+        runtime: 'local',
+        config: {
+          url: 'https://mcp.example.com/mcp',
+          command: 'node',
+          args: ['--version'],
+          env: { NODE_OPTIONS: '--version' },
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(installed()).toMatchObject({
+        transport: 'streamable-http',
+        runtime: 'server',
+        config: {
+          url: 'https://mcp.example.com/mcp',
+          command: undefined,
+          args: undefined,
+          env: undefined,
+        },
+      });
+    });
+
+    it("installs a registry connector from the registry's command and address, never the body's", async () => {
+      const res = await install({
+        registryId: 'github-local',
+        transport: 'streamable-http',
+        runtime: 'server',
+        config: { command: 'node', args: ['--version'], url: 'https://elsewhere.example.com' },
+        env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(installed()).toMatchObject({
+        transport: 'stdio',
+        runtime: 'local',
+        config: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-github'],
+          url: undefined,
+          env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' },
+        },
+      });
+    });
+
+    it('refuses registry env values the entry does not name', async () => {
+      const res = await install({
+        registryId: 'github-local',
+        env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token', NODE_OPTIONS: '--version' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(mockInstall).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /:id', () => {
+    async function patch(row: McpServerRow, body: Record<string, unknown>) {
+      mockFindServer.mockResolvedValue(row);
+      mockUpdate.mockResolvedValue(row);
+      const res = makeMockRes();
+      await getRouteHandler('patch', '/:id')({ userId: USER_A, params: { id: row.id }, body }, res);
+      return res;
+    }
+
+    const customRemote = () =>
+      serverRow({ source: 'custom', registryId: null, name: 'remote', configRequiresOauth: null });
+
+    it('cannot move a connector to the server', async () => {
+      const row = serverRow({
+        transport: 'stdio',
+        runtime: 'local',
+        configUrl: null,
+        configCommand: 'node',
+      });
+      const res = await patch(row, { runtime: 'server', enabled: true });
+
+      expect(res.statusCode).toBe(200);
+      expect(mockUpdate).toHaveBeenCalledWith(expect.anything(), row.id, USER_A, {
+        config: undefined,
+        enabled: true,
+      });
+    });
+
+    it('cannot point a custom remote connector at plain http', async () => {
+      const res = await patch(customRemote(), { config: { url: 'http://10.0.0.5/mcp' } });
+
+      expect(res.statusCode).toBe(400);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('writes the whole validated config, so a command never reaches a remote connector', async () => {
+      const res = await patch(customRemote(), {
+        config: { url: 'https://two.example.com/mcp', command: 'node' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(mockUpdate).toHaveBeenCalledWith(expect.anything(), 'srv-1', USER_A, {
+        config: {
+          command: undefined,
+          args: undefined,
+          url: 'https://two.example.com/mcp',
+          headers: undefined,
+          env: undefined,
+        },
+        enabled: undefined,
+      });
+    });
+
+    it("refuses an edit of a registry connector's command or address", async () => {
+      const res = await patch(serverRow(), { config: { url: 'https://elsewhere.example.com' } });
+
+      expect(res.statusCode).toBe(400);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for a connector of another account', async () => {
+      mockFindServer.mockResolvedValue(null);
+      const res = makeMockRes();
+      await getRouteHandler('patch', '/:id')(
+        { userId: USER_B, params: { id: 'srv-1' }, body: { enabled: false } },
+        res,
+      );
+
+      expect(res.statusCode).toBe(404);
+      expect(mockFindServer).toHaveBeenCalledWith(expect.anything(), 'srv-1', USER_B);
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not ask integrations to start a connector on the person's device", async () => {
+    mockFindServer.mockResolvedValue(
+      serverRow({ transport: 'stdio', runtime: 'local', configUrl: null, configCommand: 'node' }),
+    );
+    const res = makeMockRes();
+    await getRouteHandler('post', '/:id/start')({ userId: USER_A, params: { id: 'srv-1' } }, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

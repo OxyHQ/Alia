@@ -778,6 +778,20 @@
       "when": 1793161362980,
       "tag": "0110_oauth_state_pkce",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1793747317556,
+      "tag": "0111_command_connectors_run_locally",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1793747335197,
+      "tag": "0112_command_connectors_run_locally_validate",
+      "breakpoints": true
     }
   ]
 }

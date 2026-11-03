@@ -2,8 +2,7 @@
  * MCP Server Manager Types
  *
  * Types for managing MCP server connections via the official
- * `@modelcontextprotocol/sdk` client. Supports stdio (child process),
- * SSE, and streamable-http transports.
+ * `@modelcontextprotocol/sdk` client.
  */
 
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -22,10 +21,23 @@ export interface McpResourceDefinition {
   mimeType?: string;
 }
 
+/**
+ * How this host reaches a connector: always over the network. A connector that
+ * is a command runs on the person's own device (the API's `runtime: 'local'`,
+ * through the MCP relay); this host is shared by every account and never starts
+ * a process a person named.
+ */
+export const HOSTED_TRANSPORTS = ['sse', 'streamable-http'] as const;
+export type HostedTransport = (typeof HOSTED_TRANSPORTS)[number];
+
+export function isHostedTransport(value: unknown): value is HostedTransport {
+  return (HOSTED_TRANSPORTS as readonly unknown[]).includes(value);
+}
+
 export interface McpServerSession {
   id: string;
   oxyUserId: string;
-  transport: 'stdio' | 'sse' | 'streamable-http';
+  transport: HostedTransport;
   config: McpServerConfig;
   status: 'starting' | 'running' | 'stopped' | 'error';
   statusMessage?: string;
@@ -48,8 +60,6 @@ export interface McpOAuthClient {
 }
 
 export interface McpServerConfig {
-  command?: string;
-  args?: string[];
   url?: string;
   headers?: Record<string, string>;
   env?: Record<string, string>;

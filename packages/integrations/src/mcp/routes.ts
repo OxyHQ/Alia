@@ -10,10 +10,9 @@ import { Router, type Router as RouterType } from 'express';
 import { errorMessage } from '../shared/utils';
 import { createLogger } from '../shared/logger';
 import * as manager from './manager';
+import { HOSTED_TRANSPORTS, isHostedTransport } from './types';
 
 const logger = createLogger('MCP');
-
-const VALID_TRANSPORTS = new Set(['stdio', 'sse', 'streamable-http']);
 
 /**
  * The OAuth fields of a config, checked here because they reach the vendor: a
@@ -77,21 +76,15 @@ router.post('/servers/:id/start', async (req, res) => {
   if (!oxyUserId || typeof oxyUserId !== 'string') {
     return res.status(400).json({ error: 'oxyUserId must be a non-empty string' });
   }
-  if (!transport || !VALID_TRANSPORTS.has(transport)) {
+  if (!isHostedTransport(transport)) {
     return res
       .status(400)
-      .json({ error: `transport must be one of: ${[...VALID_TRANSPORTS].join(', ')}` });
+      .json({ error: `transport must be one of: ${HOSTED_TRANSPORTS.join(', ')}` });
   }
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     return res.status(400).json({ error: 'config must be an object' });
   }
-  if (transport === 'stdio' && (!config.command || typeof config.command !== 'string')) {
-    return res.status(400).json({ error: 'stdio transport requires config.command as a string' });
-  }
-  if (
-    (transport === 'streamable-http' || transport === 'sse') &&
-    (!config.url || typeof config.url !== 'string')
-  ) {
+  if (!config.url || typeof config.url !== 'string') {
     return res
       .status(400)
       .json({ error: `${transport} transport requires config.url as a string` });
@@ -116,7 +109,7 @@ router.post('/servers/:id/oauth/start', async (req, res) => {
   if (!oxyUserId || typeof oxyUserId !== 'string') {
     return res.status(400).json({ error: 'oxyUserId must be a non-empty string' });
   }
-  if (transport !== 'sse' && transport !== 'streamable-http') {
+  if (!isHostedTransport(transport)) {
     return res.status(400).json({ error: 'OAuth requires an sse or streamable-http transport' });
   }
   if (
@@ -160,7 +153,7 @@ router.post('/servers/:id/oauth/finish', async (req, res) => {
   if (!oxyUserId || typeof oxyUserId !== 'string') {
     return res.status(400).json({ error: 'oxyUserId must be a non-empty string' });
   }
-  if (transport !== 'sse' && transport !== 'streamable-http') {
+  if (!isHostedTransport(transport)) {
     return res.status(400).json({ error: 'OAuth requires an sse or streamable-http transport' });
   }
   if (
@@ -243,7 +236,7 @@ router.post('/servers/:id/tools/:toolName/call', async (req, res) => {
   }
   const canReconnect =
     typeof oxyUserId === 'string' &&
-    VALID_TRANSPORTS.has(transport) &&
+    isHostedTransport(transport) &&
     !!config &&
     typeof config === 'object' &&
     !Array.isArray(config);

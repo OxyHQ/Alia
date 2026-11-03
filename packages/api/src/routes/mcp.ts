@@ -12,7 +12,6 @@ import {
   serializeMcpServer,
   setMcpServerStatus,
   updateMcpServer,
-  type McpServerConfig,
 } from '../db/integrations/mcpServerRepository.js';
 import {
   createMcpOAuthState,
@@ -20,16 +19,14 @@ import {
   deleteMcpOAuthStateByToken,
   findLiveMcpOAuthState,
 } from '../db/integrations/mcpOAuthStateRepository.js';
-import type {
-  McpServerResource,
-  McpServerRuntime,
-  McpServerTool,
-  McpServerTransport,
-} from '../db/schema/integrations.js';
+import type { McpServerResource, McpServerTool } from '../db/schema/integrations.js';
 import { MCP_REGISTRY, type McpRegistryEntry } from '../lib/mcp-registry.js';
 import {
+  connectorFromRegistry,
   integrationsConfigFor,
   isRegistryEntryConfigured,
+  parseConnector,
+  patchedConnector,
   registryEntryOf,
 } from '../lib/mcp-connector-config.js';
 import { log } from '../lib/logger.js';
@@ -299,72 +296,60 @@ router.get('/installed', authenticateToken, async (req, res) => {
   }
 });
 
-// Install MCP server
+/** An optional display string: absent, or a string. */
+function optionalText(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string';
+}
+
+// Install MCP server. What the connector is and where it runs come from
+// `lib/mcp-connector-config.ts`; this route only names it.
 router.post('/install', authenticateToken, async (req, res) => {
   try {
     const db = getDb();
-    const { registryId, name, displayName, description, icon, transport, runtime, config, env } =
-      req.body;
+    const { registryId, name, displayName, description, icon, transport, config, env } = req.body;
 
-    let serverConfig: {
-      name?: string;
-      displayName?: string;
-      description?: string;
-      icon?: string;
-      transport?: McpServerTransport;
-      runtime?: McpServerRuntime;
-      config?: McpServerConfig;
-    } = { name, displayName, description, icon, transport, runtime, config };
-
-    // If installing from registry, use registry defaults
-    if (registryId) {
-      const registryEntry = MCP_REGISTRY.find((s) => s.id === registryId);
-      if (!registryEntry) {
-        return res.status(404).json({ error: 'Server not found in registry' });
-      }
-      if (!isRegistryEntryConfigured(registryEntry)) {
-        return res
-          .status(503)
-          .json({ error: `${registryEntry.name} is not available yet`, code: 'not_configured' });
-      }
-
-      serverConfig = {
-        name: registryEntry.id,
-        displayName: registryEntry.name,
-        description: registryEntry.description,
-        icon: registryEntry.icon,
-        transport: registryEntry.transport,
-        runtime: runtime || 'server',
-        config: {
-          command: registryEntry.command,
-          args: registryEntry.args,
-          // Remote connectors carry their hosted endpoint + OAuth requirement;
-          // stdio entries leave these undefined, and `installMcpServer` turns an
-          // undefined into a NULL column, which `toMcpServerConfig` reads back as
-          // an absent key.
-          url: registryEntry.url,
-          requiresOAuth: registryEntry.requiresOAuth,
-          ...(env && typeof env === 'object' && !Array.isArray(env) ? { env } : {}),
-          ...config,
-        },
-      };
+    const registryEntry = registryId ? MCP_REGISTRY.find((s) => s.id === registryId) : undefined;
+    if (registryId && !registryEntry) {
+      return res.status(404).json({ error: 'Server not found in registry' });
+    }
+    if (registryEntry && !isRegistryEntryConfigured(registryEntry)) {
+      return res
+        .status(503)
+        .json({ error: `${registryEntry.name} is not available yet`, code: 'not_configured' });
     }
 
-    if (!serverConfig.name || !serverConfig.displayName || !serverConfig.transport) {
-      return res.status(400).json({ error: 'name, displayName, and transport are required' });
+    const identity = registryEntry
+      ? {
+          name: registryEntry.id,
+          displayName: registryEntry.name,
+          description: registryEntry.description,
+          icon: registryEntry.icon,
+        }
+      : { name, displayName, description, icon };
+    if (
+      typeof identity.name !== 'string' ||
+      !identity.name ||
+      typeof identity.displayName !== 'string' ||
+      !identity.displayName ||
+      !optionalText(identity.description) ||
+      !optionalText(identity.icon)
+    ) {
+      return res.status(400).json({ error: 'name and displayName are required' });
+    }
+
+    const connector = registryEntry
+      ? connectorFromRegistry(registryEntry, env)
+      : parseConnector(transport, config);
+    if (!connector.ok) {
+      return res.status(400).json({ error: connector.error, code: 'invalid_connector' });
     }
 
     const server = await installMcpServer(db, {
       oxyUserId: req.userId!,
-      name: serverConfig.name,
-      displayName: serverConfig.displayName,
-      description: serverConfig.description,
-      icon: serverConfig.icon,
-      source: registryId ? 'registry' : 'custom',
-      registryId,
-      transport: serverConfig.transport,
-      runtime: serverConfig.runtime ?? 'server',
-      config: serverConfig.config ?? {},
+      ...identity,
+      source: registryEntry ? 'registry' : 'custom',
+      registryId: registryEntry?.id,
+      ...connector.spec,
     });
 
     if (!server) {
@@ -374,8 +359,8 @@ router.post('/install', authenticateToken, async (req, res) => {
       // starting OAuth, so an already-installed registry connector must return
       // the existing server (200) rather than 409 — otherwise Connect fails.
       // Custom installs keep the 409 (the user explicitly named a new server).
-      if (registryId) {
-        const existing = await findMcpServerByName(db, req.userId!, registryId);
+      if (registryEntry) {
+        const existing = await findMcpServerByName(db, req.userId!, registryEntry.id);
         if (existing) {
           return res.status(200).json({ server: serializeMcpServer(existing) });
         }
@@ -390,10 +375,12 @@ router.post('/install', authenticateToken, async (req, res) => {
   }
 });
 
-// Uninstall MCP server. A remote connector's authorization is revoked first —
-// the vendor is asked to forget the grant and integrations deletes the stored
-// tokens — and the row goes only once that answered, so a failed disconnect is
-// retried rather than leaving a credential behind for a connector that is gone.
+// Uninstall MCP server. A connector the server runs is remote, and its
+// authorization is revoked first — the vendor is asked to forget the grant and
+// integrations deletes the stored tokens — and the row goes only once that
+// answered, so a failed disconnect is retried rather than leaving a credential
+// behind for a connector that is gone. A connector on the person's device has
+// nothing on the server to revoke.
 router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
     const db = getDb();
@@ -402,40 +389,27 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    const remote = existing.transport === 'sse' || existing.transport === 'streamable-http';
     if (existing.runtime === 'server' && INTEGRATIONS_URL) {
-      if (remote) {
-        try {
-          const response = await integrationsFetch(
-            req.userId!,
-            `/mcp/servers/${existing.id}/revoke`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                oxyUserId: req.userId,
-                config: integrationsConfigFor(existing),
-              }),
-              signal: AbortSignal.timeout(20_000),
-            },
-          );
-          if (!response.ok) throw new Error(`revoke answered ${response.status}`);
-        } catch (err: unknown) {
-          log.general.warn({ err, serverId: existing.id }, 'MCP revoke failed');
-          return res
-            .status(502)
-            .json({ error: 'Could not disconnect right now. Try again.', code: 'revoke_failed' });
-        }
-      } else if (existing.status === 'running') {
-        try {
-          await integrationsFetch(req.userId!, `/mcp/servers/${existing.id}/stop`, {
+      try {
+        const response = await integrationsFetch(
+          req.userId!,
+          `/mcp/servers/${existing.id}/revoke`,
+          {
             method: 'POST',
-            headers: {},
-            signal: AbortSignal.timeout(5_000),
-          });
-        } catch {
-          // Best effort
-        }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              oxyUserId: req.userId,
+              config: integrationsConfigFor(existing),
+            }),
+            signal: AbortSignal.timeout(20_000),
+          },
+        );
+        if (!response.ok) throw new Error(`revoke answered ${response.status}`);
+      } catch (err: unknown) {
+        log.general.warn({ err, serverId: existing.id }, 'MCP revoke failed');
+        return res
+          .status(502)
+          .json({ error: 'Could not disconnect right now. Try again.', code: 'revoke_failed' });
       }
     }
 
@@ -451,14 +425,30 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
   }
 });
 
-// Update MCP server config
+// Update MCP server config. The edited connector is validated as a whole by
+// the same rules as an install, and where it runs is not editable: it follows
+// from its transport.
 router.patch('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const { config, enabled, runtime } = req.body;
-    const server = await updateMcpServer(getDb(), req.params.id, req.userId!, {
-      config,
+    const db = getDb();
+    const { config, enabled } = req.body;
+    if (enabled !== undefined && typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be a boolean' });
+    }
+
+    const existing = await findMcpServerForUser(db, req.params.id, req.userId!);
+    if (!existing) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
+
+    const edited = config === undefined ? undefined : patchedConnector(existing, config);
+    if (edited && !edited.ok) {
+      return res.status(400).json({ error: edited.error, code: 'invalid_connector' });
+    }
+
+    const server = await updateMcpServer(db, existing.id, req.userId!, {
+      config: edited?.spec.config,
       enabled,
-      runtime,
     });
 
     if (!server) {
