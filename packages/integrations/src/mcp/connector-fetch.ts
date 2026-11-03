@@ -37,9 +37,14 @@ export const connectorFetch: FetchLike = async (input, init) => {
   }
 
   const body = request.body ? Buffer.from(await request.arrayBuffer()) : undefined;
+  // `forEach`, not iteration: this package's `lib` has no `DOM.Iterable`.
+  const requestHeaders: Record<string, string> = {};
+  request.headers.forEach((value, name) => {
+    requestHeaders[name] = value;
+  });
   const { response, status, headers } = await safeFetch(request.url, {
     method: request.method,
-    headers: Object.fromEntries(request.headers),
+    headers: requestHeaders,
     ...(body ? { body } : {}),
     ...(init?.redirect === 'manual' ? { redirect: 'manual' as const } : {}),
     ...(init?.redirect === 'error' ? { maxRedirects: 0 } : {}),
