@@ -3,6 +3,7 @@ import { useCredits } from '@/features/billing/runtime/use-credits';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { useHapticsSettingRow } from '@oxy.so/bloom/preferences';
+import { formatCurrency } from '@oxy.so/bloom/locale';
 import { SettingsGeneralPage, type SettingsPageSection } from '@oxy.so/bloom/settings-modal';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { toast } from '@oxy.so/bloom/toast';
@@ -24,19 +25,12 @@ export function GeneralSection() {
   const { data: subscription } = useSubscription();
   const { data: credits } = useCredits();
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const haptics = useHapticsSettingRow();
   const languages = currentLanguages.length ? currentLanguages : [currentLanguage];
 
   const plan = subscription?.plan;
-  const price =
-    plan && plan.price > 0
-      ? new Intl.NumberFormat(undefined, {
-          style: 'currency',
-          currency: plan.currency,
-          maximumFractionDigits: 0,
-        }).format(plan.price)
-      : null;
+  const price = plan && plan.price > 0 ? formatCurrency(plan.price, plan.currency, locale) : null;
 
   const sections: SettingsPageSection[] = [
     ...(isAuthenticated

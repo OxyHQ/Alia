@@ -1,5 +1,6 @@
 import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { formatCompactNumber } from '@oxy.so/bloom/locale';
 import type { Agent } from '@/shared/contracts/agents';
 import { readAgentCharacter } from '@alia.onl/sdk';
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
@@ -15,17 +16,12 @@ const STATUS_TONE = {
   offline: 'default',
 } as const;
 
-function formatCount(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
-
 /**
  * Who the agent is: the mark in its own colour carrying the status dot, the
  * name, handle and author, the tagline, and how it has been received.
  */
 export function AgentIdentitySummary({ agent }: { agent: Agent }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const handle = agentHandle(agent);
 
   return (
@@ -64,8 +60,8 @@ export function AgentIdentitySummary({ agent }: { agent: Agent }) {
       <View className="flex-row items-center gap-3">
         <Rating value={agent.rating} count={agent.reviewCount} size="sm" />
         <Muted>
-          {formatCount(agent.hireCount)} {t('agents.hires')} · {formatCount(agent.usageCount)}{' '}
-          {t('agents.uses')}
+          {formatCompactNumber(agent.hireCount, locale)} {t('agents.hires')} ·{' '}
+          {formatCompactNumber(agent.usageCount, locale)} {t('agents.uses')}
         </Muted>
       </View>
     </View>

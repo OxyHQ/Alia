@@ -5,6 +5,7 @@ import { useComposerDraftStore } from '@alia.onl/sdk/runtime';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
+import { writeClipboardText } from '@oxy.so/bloom/hooks';
 import { Dialog, type DialogAction } from '@oxy.so/bloom/dialog';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
@@ -872,10 +873,10 @@ export function MemorySection() {
                 tone="neutral"
                 leadingIcon={RiFileCopyLine}
                 onPress={() => {
-                  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                    navigator.clipboard.writeText(PROVIDER_IMPORT_PROMPT);
-                    toast.success(t('memory.promptCopied'));
-                  }
+                  writeClipboardText(PROVIDER_IMPORT_PROMPT).then(
+                    () => toast.success(t('memory.promptCopied')),
+                    () => undefined,
+                  );
                 }}
               >
                 {t('memory.copyPrompt')}

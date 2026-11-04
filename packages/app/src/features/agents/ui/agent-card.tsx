@@ -1,5 +1,6 @@
 import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { formatCompactNumber } from '@oxy.so/bloom/locale';
 import type { Agent } from '@/shared/contracts/agents';
 import { readAgentCharacter } from '@alia.onl/sdk';
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
@@ -17,11 +18,6 @@ interface AgentCardProps {
   onChat?: (id: string) => void;
   onHire?: (id: string) => void;
   variant?: 'featured' | 'grid';
-}
-
-function formatCount(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
 }
 
 /** The agent's status, as the tone of Bloom's status dot. */
@@ -42,12 +38,12 @@ export const AgentCard = React.memo(function AgentCard({
   onHire,
   variant = 'grid',
 }: AgentCardProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const isFeatured = variant === 'featured';
   const handle = agentHandle(agent);
   const stats = [
-    `${formatCount(agent.hireCount)} ${t('agents.hires')}`,
-    `${formatCount(agent.usageCount)} ${t('agents.uses')}`,
+    `${formatCompactNumber(agent.hireCount, locale)} ${t('agents.hires')}`,
+    `${formatCompactNumber(agent.usageCount, locale)} ${t('agents.uses')}`,
     ...(agent.rating > 0 ? [`${agent.rating} ${t('agents.rating')}`] : []),
   ].join(' · ');
 

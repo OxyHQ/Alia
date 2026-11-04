@@ -58,7 +58,7 @@
     "react": "^19.2.3",
     "react-native": "^0.86.0 || ^0.88.0",
     "@expo/vector-icons": "^15.1.1",
-    "@oxy.so/bloom": ">=15.10.1",
+    "@oxy.so/bloom": ">=17.5.0",
     "@oxy.so/core": ">=7.1.0 <8",
     "@oxy.so/services": ">=13.0.0 <15",
     "@tanstack/react-query": "^5.101",
