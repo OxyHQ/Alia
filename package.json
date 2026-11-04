@@ -41,6 +41,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "doctor:oxy": "oxy-doctor --ci",
+    "i18n:check": "oxy-doctor-i18n --ci",
     "lint:canvas": "bun run --filter alia-canvas lint",
     "android": "bun run --filter @alia/app android",
     "ios": "bun run --filter @alia/app ios",
@@ -57,7 +58,7 @@
   "author": "",
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
-    "@oxy.so/doctor": "1.5.0",
+    "@oxy.so/doctor": "1.6.0",
     "typescript": "^5.9.3",
     "@aws-sdk/client-s3": "^3.1086.0"
   },

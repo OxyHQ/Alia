@@ -340,6 +340,11 @@ jobs:
       - name: Verify Oxy dependency health
         run: bun run doctor:oxy
 
+      # Translation keys follow ADR 0055: nested identifier segments under a
+      # namespace, and no key in a translation that English lacks.
+      - name: Translation key convention
+        run: bun run i18n:check
+
       # Every Oxy app shares one Postgres: a new migration may not hold a lock
       # that stalls a hot table (NOT VALID foreign keys, hot-table DDL alone in
       # its migration). The rules are @oxy.so/db's; baselines and hot tables are
