@@ -1,5 +1,6 @@
 import { useLabels } from '../../lib/labels';
 import { BarListCard, LineChartCard } from '@oxy.so/bloom/chart-cards';
+import { formatNumber } from '@oxy.so/bloom/locale';
 
 interface ChartData {
   chartType: 'bar' | 'line' | 'pie';
@@ -13,8 +14,7 @@ interface ChartRendererProps {
   title?: string;
 }
 
-const NUMBER = new Intl.NumberFormat();
-const format = (value: number) => NUMBER.format(value);
+const format = (value: number) => formatNumber(value);
 
 /**
  * A generated chart on Bloom's chart cards, painted from Bloom's chart palette.

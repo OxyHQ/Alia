@@ -1,4 +1,4 @@
-import { useReducedMotion } from 'react-native-reanimated';
+import { usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
 import SkillCoverCanvas from './skill-cover-canvas';
 import SkillCoverStaticGrid from './skill-cover-static';
 import type { SkillCoverCanvasProps } from './skill-cover-palette';
@@ -13,8 +13,8 @@ import type { SkillCoverCanvasProps } from './skill-cover-palette';
  * loads it.
  *
  * Reduced motion is honoured here, at the last gate, because the person who
- * asked their OS for it did not ask per screen. `useReducedMotion` reads the
- * OS setting once and is a plain boolean; under it the cover is exactly the
+ * asked their OS for it did not ask per screen. Bloom's `usePrefersReducedMotion`
+ * follows the OS setting live; under it the cover is exactly the
  * static grid the catalogue shows, not a slower animation.
  *
  * `./skill-cover-canvas` resolves to the skia implementation on native and to
@@ -22,7 +22,7 @@ import type { SkillCoverCanvasProps } from './skill-cover-palette';
  * module would get no canvas.
  */
 export default function SkillCoverAnimatedCanvas(props: SkillCoverCanvasProps) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = usePrefersReducedMotion();
   if (reducedMotion) {
     return <SkillCoverStaticGrid {...props} />;
   }

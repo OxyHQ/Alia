@@ -162,7 +162,6 @@ vi.mock('react-native-reanimated', async () => {
     useSharedValue: (initial: unknown) => ReactModule.useRef({ value: initial }).current,
     useAnimatedStyle: () => ({}),
     useDerivedValue: (fn: () => unknown) => ReactModule.useRef({ value: fn() }).current,
-    useReducedMotion: () => true,
     withTiming: (value: unknown) => value,
     withSpring: (value: unknown) => value,
     runOnJS: (fn: unknown) => fn,

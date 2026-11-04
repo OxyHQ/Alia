@@ -53,7 +53,6 @@ vi.mock('react-native-reanimated', async () => {
     },
     useAnimatedStyle: (build: () => unknown) => build(),
     useAnimatedReaction: () => undefined,
-    useReducedMotion: () => rea.reduce,
     cancelAnimation: (value: object) => {
       rea.cancelled.add(value);
     },
@@ -76,6 +75,8 @@ vi.mock('react-native-reanimated', async () => {
     withSequence: (...steps: Described[]): Described => ({ kind: 'sequence', steps }),
   };
 });
+
+vi.mock('@oxy.so/bloom/hooks', () => ({ usePrefersReducedMotion: () => rea.reduce }));
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');

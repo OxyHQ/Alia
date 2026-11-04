@@ -5,7 +5,6 @@ import Animated, {
   Easing,
   useAnimatedReaction,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withDelay,
   withRepeat,
@@ -13,6 +12,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { usePrefersReducedMotion } from '@oxy.so/bloom/hooks';
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import type { AgentState } from '../types';
 
@@ -435,7 +435,7 @@ export const AmbientField = memo(function AmbientField({
   paused = false,
 }: AmbientFieldProps) {
   const [field, setField] = useState({ width: 0, height: 0 });
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
 
   // On web, AppState follows the page's visibility.
   const [inForeground, setInForeground] = useState(AppState.currentState !== 'background');

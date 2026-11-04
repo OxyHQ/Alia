@@ -117,7 +117,6 @@ export function reanimatedModule() {
     useAnimatedStyle: (style: () => unknown) => style(),
     useAnimatedProps: (props: () => unknown) => props(),
     useDerivedValue: (value: () => unknown) => ({ value: value() }),
-    useReducedMotion: () => true,
     useFrameCallback: () => ({ setActive() {} }),
     useAnimatedReaction: () => {},
     useAnimatedRef: () => React.useRef(null),
