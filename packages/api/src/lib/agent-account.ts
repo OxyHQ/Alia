@@ -51,17 +51,15 @@
  * is an ATTRIBUTION lookup rather than a write gate. Same shape, different
  * blast radius.
  *
- * ## The client is per request, deliberately
+ * ## Asked as the caller
  *
- * `middleware/auth.ts`'s module-level `oxyClient` carries no tokens and must
- * never be given any: it is shared across concurrent requests, so
- * `setTokens` on it leaks one caller's session into another's, which
- * `lib/oxy-user-hydration.ts` spells out at the one place that reads it. A
- * verdict is scoped to the caller, so it needs the caller's bearer, so it needs
- * its own client. One is built per cache MISS, not per request.
+ * A verdict is scoped to the caller, so it is read with the caller's bearer:
+ * `oxy.withUser(accessToken, …)`, a client bound to exactly that bearer and
+ * disposed when the read settles. The process's one `OxyServer` (`lib/oxy.ts`)
+ * is never given a session — it is shared across concurrent requests.
  */
 
-import { OxyServices } from '@oxy.so/core';
+import type { AccountNode } from '@oxy.so/core';
 import { resolveAccountDelegationAccess } from '@oxy.so/core/session';
 import type { AccountCategoryId, AvatarCharacter } from '@oxy.so/contracts';
 import type { Executor } from '../db/index.js';
@@ -74,6 +72,7 @@ import {
 } from './agent-identity.js';
 import { agentOpensOn } from './agent-availability.js';
 import { log } from './logger.js';
+import { oxy } from './oxy.js';
 
 /** Why a caller may not act as an account. Maps 1:1 onto an HTTP status. */
 export type AgentAccountRefusal =
@@ -196,12 +195,9 @@ export async function verifyAgentAccount(params: {
     if (cached !== undefined && cached.expiresAt > Date.now()) return cached.verdict;
   }
 
-  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  oxy.session.setAccessToken(params.accessToken);
-
-  let node: Awaited<ReturnType<typeof oxy.accounts.get>>;
+  let node: AccountNode;
   try {
-    node = await oxy.accounts.get(params.oxyAccountId);
+    node = await oxy.withUser(params.accessToken, (user) => user.accounts.get(params.oxyAccountId));
   } catch (error: unknown) {
     // Oxy answers 404 for an account the caller cannot see, which is the same
     // response as one that does not exist — and both are cacheable refusals.
@@ -380,47 +376,46 @@ export async function createAgentBotAccount(params: {
    */
   character?: AvatarCharacter;
 }): Promise<{ oxyAccountId: string; username: string }> {
-  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  oxy.session.setAccessToken(params.accessToken);
-
-  let username = params.username;
-  for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
-    /**
-     * Labelled HERE, on the way out, because a `bot` handle must end in `bot`
-     * and the retry below rewrites the name. Applying it any earlier would put
-     * the collision suffix after the label — `nadiabot-i`, refused, retried,
-     * refused again, five times — which is the shape of an infinite loop that
-     * happens to be bounded.
-     *
-     * So the label is last, always, and the account is created under the value
-     * that carries it rather than under the one this was asked for.
-     * `suggestAgentUsername` proposes a base — `nadia` — and this is where it
-     * becomes a handle: `nadiabot` first, then `nadia-ibot` if that is taken.
-     */
-    const candidate = applyBotUsernameSuffix(username);
-    try {
-      const node = await oxy.accounts.create({
-        kind: 'bot',
-        username: candidate,
-        name: { displayName: params.displayName },
-        ...(params.bio !== undefined && { bio: params.bio }),
-        ...(params.parentAccountId !== undefined && { parentAccountId: params.parentAccountId }),
-        ...(params.color !== undefined && { color: params.color }),
-        ...(params.accountCategories !== undefined && {
-          accountCategories: params.accountCategories,
-        }),
-        ...(params.character !== undefined && { character: params.character }),
-      });
-      return { oxyAccountId: node.accountId, username: candidate };
-    } catch (error: unknown) {
-      if (!isConflict(error)) throw error;
-      // A suffix rather than a counter: a counter races with every other client
-      // proposing the same base, and would spend all five attempts walking the
-      // same taken sequence.
-      username = `${params.username}-${Math.random().toString(36).slice(2, 6)}`;
+  return oxy.withUser(params.accessToken, async (user) => {
+    let username = params.username;
+    for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
+      /**
+       * Labelled HERE, on the way out, because a `bot` handle must end in `bot`
+       * and the retry below rewrites the name. Applying it any earlier would put
+       * the collision suffix after the label — `nadiabot-i`, refused, retried,
+       * refused again, five times — which is the shape of an infinite loop that
+       * happens to be bounded.
+       *
+       * So the label is last, always, and the account is created under the value
+       * that carries it rather than under the one this was asked for.
+       * `suggestAgentUsername` proposes a base — `nadia` — and this is where it
+       * becomes a handle: `nadiabot` first, then `nadia-ibot` if that is taken.
+       */
+      const candidate = applyBotUsernameSuffix(username);
+      try {
+        const node = await user.accounts.create({
+          kind: 'bot',
+          username: candidate,
+          name: { displayName: params.displayName },
+          ...(params.bio !== undefined && { bio: params.bio }),
+          ...(params.parentAccountId !== undefined && { parentAccountId: params.parentAccountId }),
+          ...(params.color !== undefined && { color: params.color }),
+          ...(params.accountCategories !== undefined && {
+            accountCategories: params.accountCategories,
+          }),
+          ...(params.character !== undefined && { character: params.character }),
+        });
+        return { oxyAccountId: node.accountId, username: candidate };
+      } catch (error: unknown) {
+        if (!isConflict(error)) throw error;
+        // A suffix rather than a counter: a counter races with every other client
+        // proposing the same base, and would spend all five attempts walking the
+        // same taken sequence.
+        username = `${params.username}-${Math.random().toString(36).slice(2, 6)}`;
+      }
     }
-  }
-  throw new Error(`could not mint a bot account: ${USERNAME_ATTEMPTS} usernames were all taken`);
+    throw new Error(`could not mint a bot account: ${USERNAME_ATTEMPTS} usernames were all taken`);
+  });
 }
 
 /**
@@ -436,9 +431,9 @@ export async function setAgentAccountCharacter(params: {
   oxyAccountId: string;
   character: AvatarCharacter;
 }): Promise<void> {
-  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  oxy.session.setAccessToken(params.accessToken);
-  await oxy.accounts.update(params.oxyAccountId, { character: params.character });
+  await oxy.withUser(params.accessToken, (user) =>
+    user.accounts.update(params.oxyAccountId, { character: params.character }),
+  );
 }
 
 function isConflict(error: unknown): boolean {

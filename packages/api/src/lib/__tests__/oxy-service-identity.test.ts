@@ -1,6 +1,6 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /** Identity hydration through the real SDK and a local Oxy/workload metadata server. */
@@ -30,19 +30,6 @@ const ADA = {
 
 /** An id the edge resolves to nothing — the positive control for "populated". */
 const UNKNOWN = 'oxy-account-nobody';
-
-/** Where the stand-in client points, filled in once the edge is listening. */
-const shared = vi.hoisted(() => ({ baseURL: '' }));
-
-/**
- * The one line of `middleware/auth.ts` this file depends on, and a REAL client
- * rather than a fake one — the SDK is the subject. Anchored to the real module
- * by the last case in this file.
- */
-vi.mock('../../middleware/auth.js', async () => {
-  const { OxyServer } = await import('@oxy.so/core/server');
-  return { oxyClient: new OxyServer({ baseURL: shared.baseURL }) };
-});
 
 const logged = vi.hoisted(() => ({ warn: vi.fn() }));
 vi.mock('../logger.js', () => ({
@@ -154,7 +141,6 @@ const edge = new OxyEdge();
 
 beforeAll(async () => {
   await edge.listen();
-  shared.baseURL = edge.baseURL;
 });
 
 afterAll(async () => {
@@ -213,12 +199,11 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
 
     const resolved = await hydrate([ADA.id]);
 
-    // The reported bug, in the state that produced it: an account the edge knows
-    // perfectly well, and an empty map.
+    // A process that cannot attest has no bearer for the batch read: an account
+    // the edge knows perfectly well, and an empty map — reported as a FAILED
+    // read (next case), never as accounts that do not exist. Nothing was
+    // minted, because nothing could be.
     expect(resolved.size).toBe(0);
-    // The floor. An empty map is also what a hydration that never reached the
-    // network returns, and that is a different bug: the edge WAS asked, and it
-    // was asked with no bearer, which is the refusal this whole file is about.
     expect(edge.byIds).toHaveLength(0);
     expect(edge.exchanges).toHaveLength(0);
   });
@@ -228,49 +213,25 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
 
     await hydrate([ADA.id]);
 
-    // Two separate lines, because they are two separate facts and an operator
-    // seeing only the second would go looking at Oxy: the deployment holds no
-    // credential, and this particular batch resolved nobody.
+    // A refused chunk is a FAILURE, said as one — never folded into "these
+    // accounts do not exist" (`users.lookupMany`'s `failed`, not `missing`).
     expect(logged.warn).toHaveBeenCalledWith(
-      { requested: 1 },
-      expect.stringContaining('resolved none'),
+      expect.objectContaining({ requested: 1, failed: 1 }),
+      expect.stringContaining('failed'),
     );
   });
 
-  /**
-   * The deployment this migration produces, which the old code called broken.
-   *
-   * No pair anywhere, and a task role the SDK attests. Before oxy ADR 0026 those
-   * were the same state: the client came back `null`, every name and handle
-   * rendered blank, and a warning told the operator to go and set a credential
-   * the deployment does not need — which is a warning that gets acted on.
-   *
-   * ## Why this stops at the client and does not hydrate
-   *
-   * The attested exchange is two round trips to `169.254.170.2`, the container
-   * credentials endpoint, which exists on a Fargate task and nowhere else. The
-   * fake edge in this file cannot stand in for it, and a mock of
-   * `serviceToken` would be asserting the mock. What belongs to Alia is the
-   * decision — build the client, do not warn — and that is what is asserted
-   * here; minting from the attestation is `@oxy.so/core`'s and is tested there.
-   */
-  it('builds a client, silently, on an attested task role with no pair', async () => {
+  it('builds the one client, with Alia\u2019s identity, on an attested task role with no pair', async () => {
     vi.resetModules();
     vi.stubEnv('OXY_API_URL', edge.baseURL);
     vi.stubEnv('OXY_SERVICE_API_KEY', undefined);
     vi.stubEnv('OXY_SERVICE_API_SECRET', undefined);
     vi.stubEnv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI', '/v2/credentials/9f0c');
 
-    const { canAuthenticateAsOxyService, oxyServiceClient } = await import(
-      '../oxy-service-client.js'
-    );
+    const { oxy } = await import('../oxy.js');
 
-    expect(canAuthenticateAsOxyService()).toBe(true);
-    expect(oxyServiceClient()).not.toBeNull();
-    expect(logged.warn).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('no Oxy service identity'),
-    );
+    expect(oxy.baseURL).toBe(edge.baseURL);
+    expect(logged.warn).not.toHaveBeenCalled();
   });
 
   it('resolves the identity when it presents Alia’s own credential', async () => {
@@ -335,26 +296,33 @@ describe('an Oxy account is hydrated as Alia, not as nobody', () => {
     expect(edge.mints - mintsBefore).toBe(1);
   });
 
-  it('stands in for a shared client that really does carry no credential', () => {
+  it('constructs exactly one Oxy client in the API, and never hands it a session', () => {
     /**
-     * The anchor for the mock at the top of this file.
-     *
-     * The stand-in is `new OxyServer({ baseURL })` and nothing else, which is
-     * a fair stand-in only while the real one is the same. It is also the
-     * invariant `oxy-user-hydration.ts` and `agent-account.ts` both argue for in
-     * prose and nothing enforced: the process's shared client verifies inbound
-     * user tokens and must never be given a session or a credential, because it
-     * is shared across concurrent requests.
+     * `lib/oxy.ts` is the only module that builds an `OxyServer` or an
+     * `OxyServices`: everything else — the auth lanes, the service lane, other
+     * products, calls as the person (`oxy.withUser`) — goes through it. The
+     * process client is shared across concurrent requests, so it is never given
+     * a session or a customer credential.
      */
-    const source = readFileSync(new URL('../../middleware/auth.ts', import.meta.url), 'utf8');
+    const root = new URL('../../', import.meta.url);
+    const sources = readdirSync(root, { recursive: true, encoding: 'utf8' }).filter(
+      (file) => file.endsWith('.ts') && !file.includes('__tests__') && !file.endsWith('.test.ts'),
+    );
+    // The floor: the tree was read.
+    expect(sources.length).toBeGreaterThan(100);
+    const constructing = sources.filter((file) =>
+      /new OxyServ(?:er|ices)\(/.test(readFileSync(new URL(file, root), 'utf8')),
+    );
+    expect(constructing).toEqual(['lib/oxy.ts']);
 
-    // The floor first: an unreadable or wrong file is what makes the two
-    // `not.toMatch`es below pass while measuring nothing.
-    expect(source.length).toBeGreaterThan(1_000);
-    expect(source).toContain('export const oxyClient');
-    expect(source).toMatch(/new OxyServer\(\{\s*baseURL/);
-
+    const source = readFileSync(new URL('../oxy.ts', import.meta.url), 'utf8');
+    expect(source).toContain("serviceIdentity: 'when-anonymous'");
+    expect(source).toContain('applicationId: ALIA_APPLICATION_ID');
+    expect(source).toContain('expectedAudience: ALIA_SERVICE_AUDIENCE');
     expect(source).not.toMatch(/serviceAuth\s*:/);
-    expect(source).not.toMatch(/oxyClient\.setTokens/);
+    for (const file of sources) {
+      const text = readFileSync(new URL(file, root), 'utf8');
+      expect(text, file).not.toMatch(/\boxy\.(?:setTokens|session\.setAccessToken)\(/);
+    }
   });
 });

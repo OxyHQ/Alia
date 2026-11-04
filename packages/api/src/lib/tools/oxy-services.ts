@@ -35,15 +35,13 @@ import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
 import { declareOxyAppTool, declareReadOnly } from '../agent/tool-effects.js';
 import { revokeOxyExecutionAuthorization } from '../oxy-capability-authority.js';
-import { oxyServiceClient } from '../oxy-service-client.js';
+import { oxy } from '../oxy.js';
 import { TTLCache } from '../ttl-cache.js';
 import { sanitizeOxyToolNamePart as sanitizeName } from './oxy-tool-names.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
 function agency() {
-  const client = oxyServiceClient();
-  if (!client) throw new OxyAuthorityUnavailableError('Alia service identity is unavailable');
-  return client.agency;
+  return oxy.agency;
 }
 
 export type OxyToolAutonomy = AutonomyLevel;

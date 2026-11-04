@@ -71,10 +71,29 @@ function toneFor(name: string): SettingsServerTone {
 // A connector is "connected" only when it's genuinely usable: an OAuth
 // connector must have completed the flow (server running) — merely having an
 // installed McpServer (created before the OAuth redirect) is NOT connected.
-// A non-OAuth (stdio) connector is done once installed.
+// A non-OAuth (stdio) connector is done once installed — unless it is turned
+// off (see `isTurnedOffOnDevice`).
 function isServerConnected(server: InstalledMcpServer | undefined): boolean {
   if (!server) return false;
+  if (isTurnedOffOnDevice(server)) return false;
   return server.config?.requiresOAuth ? server.status === 'running' : true;
+}
+
+/**
+ * A command connector that runs on the person's own device and is turned off.
+ *
+ * A command connector (`stdio`) only ever runs on the person's device — Alia
+ * for desktop (Cowork) or Codea starts it there, never Alia's servers. Those
+ * installed before that rule were moved to the device and turned OFF, so none
+ * starts on a machine it was never meant for; the person turns it back on.
+ */
+function isTurnedOffOnDevice(server: InstalledMcpServer): boolean {
+  return server.runtime === 'local' && !server.enabled;
+}
+
+/** `npx -y @scope/server --flag`: the command a device connector runs, as the person sees it. */
+function deviceCommand(server: InstalledMcpServer): string {
+  return [server.config?.command, ...(server.config?.args ?? [])].filter(Boolean).join(' ');
 }
 
 /** "Stopped · 3 tools enabled" — the status only when it is not the usual one. */
@@ -206,6 +225,7 @@ export function ConnectorsSection() {
     install,
     installCustom,
     uninstall,
+    updateConfig,
     startOAuth,
     completeOAuth,
   } = useMcpServers();
@@ -273,6 +293,8 @@ export function ConnectorsSection() {
     () => installed.filter((s) => isServerConnected(s)),
     [installed],
   );
+
+  const turnedOffServers = useMemo(() => installed.filter(isTurnedOffOnDevice), [installed]);
 
   const filteredRegistry = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -350,6 +372,27 @@ export function ConnectorsSection() {
   };
 
   const findServer = (serverId: string) => installed.find((s) => s._id === serverId);
+
+  /** Turn a device connector back on: it starts on the person's own computer, never on Alia's. */
+  const handleTurnOnDevice = async (server: InstalledMcpServer) => {
+    const name = server.displayName || server.name;
+    const ok = await confirm({
+      title: t('connectors.device.turnOnTitle', { name }),
+      description: t('connectors.device.turnOnDescription', { command: deviceCommand(server) }),
+      confirmLabel: t('connectors.device.turnOn'),
+      cancelLabel: t('common.cancel'),
+    });
+    if (!ok) return;
+    setPendingId(server._id);
+    try {
+      await updateConfig(server._id, { enabled: true });
+      toast.success(t('connectors.device.turnedOnToast', { name }));
+    } catch {
+      toast.error(t('connectors.device.turnOnFailed'));
+    } finally {
+      setPendingId(null);
+    }
+  };
 
   const handleServerAction = (serverId: string, actionId: string) => {
     const server = findServer(serverId);
@@ -515,6 +558,44 @@ export function ConnectorsSection() {
           {...serverListProps}
         />
       </SettingsSection>
+
+      {turnedOffServers.length > 0 ? (
+        <SettingsSection
+          label={t('connectors.device.title')}
+          description={t('connectors.device.description')}
+          inset={8}
+        >
+          <SettingsCard>
+            {turnedOffServers.map((server) => (
+              <SettingsRow
+                key={server._id}
+                label={server.displayName || server.name}
+                description={deviceCommand(server)}
+              >
+                <>
+                  <Button
+                    size="sm"
+                    appearance="outline"
+                    tone="neutral"
+                    onPress={() => void handleUninstallServer(server)}
+                  >
+                    {t('connectors.uninstall')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    appearance="outline"
+                    tone="neutral"
+                    loading={pendingId === server._id}
+                    onPress={() => void handleTurnOnDevice(server)}
+                  >
+                    {t('connectors.device.turnOn')}
+                  </Button>
+                </>
+              </SettingsRow>
+            ))}
+          </SettingsCard>
+        </SettingsSection>
+      ) : null}
 
       <SettingsSection
         label={t('connectors.title')}

@@ -5,6 +5,7 @@
  * failed operation is an error.
  */
 
+import { isIP } from 'node:net';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const clarity = vi.hoisted(() => ({ resolve: vi.fn(), operationsGet: vi.fn(), byUrl: vi.fn() }));
@@ -16,7 +17,22 @@ vi.mock('../../clarity-client.js', () => ({
     documents: { byUrl: clarity.byUrl },
   }),
 }));
-vi.mock('../sandbox.js', () => ({ validateUrl: vi.fn(async () => ({ valid: true })) }));
+// DNS is the network's, not this test's: a public NAME resolves as public. An
+// address literal goes to the SDK's real check, which refuses a private one
+// before any lookup — the case at the end of this file.
+vi.mock('@oxy.so/core/server', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@oxy.so/core/server')>();
+  return {
+    ...real,
+    assertSafePublicUrl: vi.fn(async (url: string, options?: { signal?: AbortSignal }) => {
+      const { protocol, hostname } = new URL(url);
+      const publicName = /^https?:$/.test(protocol) && hostname !== '' && !isIP(hostname);
+      return publicName
+        ? { ok: true as const, ip: '93.184.216.34', family: 4 as const }
+        : real.assertSafePublicUrl(url, options);
+    }),
+  };
+});
 vi.mock('../../logger.js', () => ({ log: { tools: { error: vi.fn() } } }));
 
 const { readWebPage, webScraperTool } = await import('../web-scraper.js');
@@ -77,5 +93,18 @@ describe('readWebPage', () => {
     );
 
     expect(result).toMatchObject({ error: expect.stringContaining('turn cancelled') });
+  });
+});
+
+describe('a URL the model hands the tool', () => {
+  it.each([
+    'http://169.254.169.254/latest/meta-data',
+    'http://127.0.0.1:8080/admin',
+    'http://10.0.0.5/',
+    'file:///etc/passwd',
+  ])('is refused before Clarity is asked anything: %s', async (url) => {
+    const result = await readWebPage(url);
+    expect(result).toEqual({ error: expect.stringMatching(/^URL blocked: /) });
+    expect(clarity.resolve).not.toHaveBeenCalled();
   });
 });

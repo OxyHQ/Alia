@@ -47,7 +47,11 @@ vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   return { log: { files: child, general: child } };
 });
-vi.mock('../../oxy-service-client.js', () => ({ oxyServiceClient: () => null }));
+vi.mock('../../oxy.js', () => ({
+  get oxy() {
+    return null;
+  },
+}));
 
 const {
   copyIntoOxy,

@@ -215,7 +215,7 @@ describe('MCP relay authentication', () => {
    * would answer the second handshake `auth-ok` from memory.
    */
   it('asks Oxy on every handshake and refuses a revoked session on the next one', async () => {
-    // The precondition, stated: `middleware/auth.ts`'s `oxyClient` holds no
+    // The precondition, stated: the one Oxy client (`lib/oxy.ts`) holds no
     // service credential, and with no ECS task role to attest it cannot open
     // the feed at all.
     expect(canAttestWorkloadIdentity()).toBe(false);

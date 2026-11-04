@@ -65,7 +65,7 @@ const origin = `http://localhost:${address.port}`;
 process.env.OXY_API_URL = origin;
 process.env.CROWDSOURCE_BASE_URL = origin;
 const { getCrowdSourceClient, resetCrowdSourceClient } = await import('../../client.js');
-const { oxyServiceClient } = await import('../../../oxy-service-client.js');
+const { oxy } = await import('../../../oxy.js');
 const report = {
   externalReportId: 'report-one',
   subject: { externalId: 'skill-one', type: 'custom.alia.skill' },
@@ -102,7 +102,7 @@ try {
   process.stdout.write('ALIA_CROWDSOURCE_WORKLOAD_OK\n');
 } finally {
   resetCrowdSourceClient();
-  oxyServiceClient()?.dispose();
+  oxy.dispose();
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }

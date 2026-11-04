@@ -42,7 +42,7 @@ import {
   type MigrationKind,
 } from '../lib/files/migrate-to-oxy.js';
 import { reconcileReferencesOnce } from '../lib/files/oxy-file-sync.js';
-import { oxyServiceClient } from '../lib/oxy-service-client.js';
+import { oxy } from '../lib/oxy.js';
 
 function flag(argv: string[], name: string): string | undefined {
   const index = argv.indexOf(name);
@@ -65,9 +65,7 @@ async function fetchSyraImage(imageAssetId: string): Promise<{ bytes: Buffer; mi
 }
 
 async function oxySha256(fileIds: string[]): Promise<Map<string, string>> {
-  const client = oxyServiceClient();
-  if (client === null) throw new Error('Alia has no Oxy service identity');
-  const metadata = await client.assets.metadataByIds(fileIds);
+  const metadata = await oxy.assets.metadataByIds(fileIds);
   return new Map(metadata.map((entry) => [entry.id, entry.sha256]));
 }
 

@@ -18,6 +18,8 @@ import { attachAgentIdentities } from '../lib/agent-identity.js';
 import { loadAgentForActor, refusalStatus, refusalMessage } from '../lib/agent-account.js';
 import {
   hasOrganizationPermission,
+  listedOrganizationAccess,
+  organizationAccessFor,
   requireOrganizationPermission,
   OrganizationAccessError,
   organizationDirectory,
@@ -35,7 +37,7 @@ function session(handler: Handler) {
     try {
       if (!req.user?.id || req.machineCredential)
         throw new OrganizationAccessError(401, 'An Oxy user session is required');
-      await withOrganizationSession(req.accessToken, (client) => handler(req, res, client));
+      await withOrganizationSession(req, (client) => handler(req, res, client));
     } catch (error) {
       if (error instanceof OrganizationAccessError)
         return res.status(error.status).json({ error: error.message });
@@ -54,12 +56,12 @@ function session(handler: Handler) {
 async function workspace(req: Request, client: OxyServices, permission: string) {
   const row = await findOrganizationById(getDb(), String(req.params.id));
   if (!row) throw new OrganizationAccessError(404, 'Workspace not found');
-  const directory = await organizationDirectory(client, [row.oxyAccountId]);
+  const directory = await organizationDirectory([row.oxyAccountId]);
   const organization = directory.get(row.oxyAccountId);
   if (!organization) throw new OrganizationAccessError(404, 'Organization unavailable');
-  const node = await client.accounts.get(organization.accountId);
-  requireOrganizationPermission(node, permission);
-  return { row, organization, node };
+  const access = await organizationAccessFor(req, organization.accountId);
+  requireOrganizationPermission(access, permission);
+  return { row, organization, access };
 }
 
 // Legacy links never read or redeem the retired local credential table.
@@ -73,22 +75,21 @@ router.get(
   '/',
   session(async (_req, res, client) => {
     const nodes = (await client.accounts.list()).filter((node) =>
-      hasOrganizationPermission(node, 'account:read'),
+      hasOrganizationPermission(listedOrganizationAccess(node), 'account:read'),
     );
-    const byAccount = new Map(nodes.map((node) => [node.accountId, node]));
+    const byAccount = new Map(
+      nodes.map((node) => [node.accountId, listedOrganizationAccess(node)]),
+    );
     const rows = await listOrganizationsForAccounts(
       getDb(),
       nodes.map((node) => node.accountId),
     );
-    const directory = await organizationDirectory(
-      client,
-      rows.map((row) => row.oxyAccountId),
-    );
+    const directory = await organizationDirectory(rows.map((row) => row.oxyAccountId));
     res.json({
       organizations: rows.flatMap((row) => {
         const organization = directory.get(row.oxyAccountId);
-        const node = organization && byAccount.get(organization.accountId);
-        return organization && node ? [workspaceResponse(row, organization, node)] : [];
+        const access = organization && byAccount.get(organization.accountId);
+        return organization && access ? [workspaceResponse(row, organization, access)] : [];
       }),
     });
   }),
@@ -101,23 +102,23 @@ router.post(
       .object({ oxyAccountId: z.string().trim().min(1).max(128) })
       .strict()
       .parse(req.body);
-    const directory = await organizationDirectory(client, [oxyAccountId]);
+    const directory = await organizationDirectory([oxyAccountId]);
     const organization = directory.get(oxyAccountId);
     if (!organization || organization.status !== 'active' || organization.claimStatus !== 'claimed')
       throw new OrganizationAccessError(403, 'Select an active organization claimed in Oxy');
-    const node = await client.accounts.get(organization.accountId);
-    requireOrganizationPermission(node, 'account:update');
-    if (!['owner', 'admin'].includes(node.callerMembership!.role))
+    const access = await organizationAccessFor(req, organization.accountId);
+    requireOrganizationPermission(access, 'account:update');
+    if (!['owner', 'admin'].includes(access.role))
       throw new OrganizationAccessError(403, 'Organization administrator access is required');
     const row = await createOrganization(getDb(), organization.accountId);
-    res.status(201).json({ organization: workspaceResponse(row, organization, node) });
+    res.status(201).json({ organization: workspaceResponse(row, organization, access) });
   }),
 );
 router.get(
   '/:id',
   session(async (req, res, client) => {
-    const { row, organization, node } = await workspace(req, client, 'account:read');
-    res.json({ organization: workspaceResponse(row, organization, node) });
+    const { row, organization, access } = await workspace(req, client, 'account:read');
+    res.json({ organization: workspaceResponse(row, organization, access) });
   }),
 );
 router.patch(
@@ -134,12 +135,14 @@ router.patch(
       })
       .strict()
       .parse(req.body);
-    const { row, organization, node } = await workspace(req, client, 'account:read');
-    if (settings.billingEmail !== undefined) requireOrganizationPermission(node, 'billing:manage');
-    if (settings.apiCallLimit !== undefined) requireOrganizationPermission(node, 'account:update');
+    const { row, organization, access } = await workspace(req, client, 'account:read');
+    if (settings.billingEmail !== undefined)
+      requireOrganizationPermission(access, 'billing:manage');
+    if (settings.apiCallLimit !== undefined)
+      requireOrganizationPermission(access, 'account:update');
     const updated = await updateOrganization(getDb(), row.id, settings);
     if (!updated) throw new OrganizationAccessError(404, 'Workspace not found');
-    res.json({ organization: workspaceResponse(updated, organization, node) });
+    res.json({ organization: workspaceResponse(updated, organization, access) });
   }),
 );
 router.delete(

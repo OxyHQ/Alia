@@ -96,16 +96,26 @@ vi.mock('../../../middleware/auth.js', () => ({
   // mount ORDER rather than restating it.
   optionalAuth: signIn,
   authenticateTokenOrApiKey: signIn,
-  oxyClient: {
-    users: {
-      getMany: async () => state.users,
-      byUsername: async () => {
-        if (state.profile === null) throw new NotFound('no such username');
-        return state.profile;
+}));
+vi.mock('../../../lib/oxy.js', async () => {
+  const { OxyServices } = await import('@oxy.so/core');
+  const { fakeWithUser } = await import('../../../__tests__/mocks/oxy-user-client.js');
+  const userClient = () => new OxyServices({ baseURL: 'https://api.oxy.test' });
+  return {
+    oxy: {
+      withUser: fakeWithUser(userClient),
+      // `lib/socket-session-auth.ts` builds its handshake verifier at import.
+      middleware: { socket: () => () => undefined },
+      users: {
+        lookupMany: async () => ({ found: state.users, missing: [], failed: [] }),
+        byUsername: async () => {
+          if (state.profile === null) throw new NotFound('no such username');
+          return state.profile;
+        },
       },
     },
-  },
-}));
+  };
+});
 
 const repository = vi.hoisted(() => ({
   findAgentByOxyAccountId: vi.fn(),

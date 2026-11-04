@@ -30,7 +30,7 @@ const mutations = [
   ['runner', 'const taskId = env.ALIA_CANARY_OXY_TASK_ID;', 'const taskId = "unbound";'],
   ['runner', 'return { accountId, taskId };', 'return { accountId };'],
   ['runner', 'const requester = canaryRequester(process.env);', 'const requester = {};'],
-  ['runner', 'const oxy = oxyServiceClient();', 'const oxy = fakeClient();'],
+  ['runner', "import { oxy } from '../lib/oxy.js';", 'const oxy = fakeClient();'],
   ['runner', '    requester,', '    requester: { accountId: "owner" },'],
   [
     'runner',

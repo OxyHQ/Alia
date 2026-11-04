@@ -118,7 +118,8 @@ beforeAll(async () => {
     );
   });
   issuer = await listen(app);
-  fixture.oxy = new OxyServer({ baseURL: origin(issuer) });
+  // As `shared/oxy.ts` builds it: Alia's own audience on the server.
+  fixture.oxy = new OxyServer({ baseURL: origin(issuer), expectedAudience: ALIA_SERVICE_AUDIENCE });
   vi.spyOn(fixture.oxy, 'introspectServiceToken').mockImplementation(async (bearer) => {
     const result = await fetch(`${origin(issuer)}/auth/resources/introspect`, {
       method: 'POST',

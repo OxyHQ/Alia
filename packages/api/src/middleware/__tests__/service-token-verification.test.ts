@@ -268,15 +268,14 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
     const auth = code(path.join(REPO_ROOT, 'packages/api/src/middleware/auth.ts'));
     // The three SDK entry points this repository is allowed to authenticate
     // with. Named, so replacing one with a local function fails here.
-    expect(auth).toContain('createOxyAuthMiddleware(oxyClient');
-    expect(auth).toContain('createOptionalOxyAuth(oxyClient');
-    expect(auth).toContain('oxyClient.middleware.service(');
-    // And a DELEGATED request is verified by a client that can prove who Alia
-    // is. `oxyClient` holds no credential, so the SDK's acting-as check could
-    // never reach Oxy from it and refused every delegated user; the lane split
-    // is asserted here because deleting it fails nothing else in this file.
-    expect(auth).toContain('const verifier = oxyServiceClient();');
-    expect(auth).toContain('createOxyAuthMiddleware(verifier');
+    expect(auth).toContain('createOxyAuthMiddleware(oxy');
+    expect(auth).toContain('createOptionalOxyAuth(oxy');
+    expect(auth).toContain('oxy.middleware.service(');
+    // One verifier for every lane: the process's one `OxyServer`, which proves
+    // Alia's workload, so a delegated request's grant check can reach Oxy. The
+    // lanes are built once, not per request.
+    expect(auth).toContain("import { oxy, OXY_API_URL } from '../lib/oxy.js';");
+    expect(auth).not.toContain('new OxyServer(');
     // And the service-token middleware is what `/internal` is behind.
     const internal = code(path.join(REPO_ROOT, 'packages/api/src/routes/internal.ts'));
     expect(internal).toMatch(/router\.post\('\/trigger',\s*oxyServiceAuth/);
@@ -285,7 +284,10 @@ describe('inbound verification is @oxy.so/core, not a local implementation (#139
   it('authenticates the integrations boundary through the shared workload verifier', () => {
     const source = code(path.join(REPO_ROOT, 'packages/integrations/src/shared/internal-auth.ts'));
     expect(source).toContain('oxy.middleware.service(');
-    expect(source).toContain('expectedAudience: ALIA_SERVICE_AUDIENCE');
+    // Alia's own audience is the integrations server's, set once.
+    expect(code(path.join(REPO_ROOT, 'packages/integrations/src/shared/oxy.ts'))).toContain(
+      'expectedAudience: ALIA_SERVICE_AUDIENCE',
+    );
     expect(source).toContain('isAliaWorkload(');
     expect(source).not.toContain('INTEGRATIONS_SECRET');
   });

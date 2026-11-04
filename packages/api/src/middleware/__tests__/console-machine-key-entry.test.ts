@@ -9,9 +9,10 @@ vi.mock('@oxy.so/core/server', async () => {
   return createRequire(import.meta.url)('@oxy.so/core/server') as Record<string, unknown>;
 });
 const serviceVerifier = vi.hoisted(() => ({ current: null as unknown }));
-vi.mock('../../lib/oxy-service-client.js', () => ({
-  oxyServiceClient: () => serviceVerifier.current,
-}));
+vi.mock('../../lib/oxy.js', async () => {
+  const { forwardingOxy } = await import('../../__tests__/mocks/oxy-user-client.js');
+  return { oxy: forwardingOxy(() => serviceVerifier.current), OXY_API_URL: 'https://api.oxy.so' };
+});
 const observedRefusals = vi.hoisted(() => [] as string[]);
 vi.mock('../../lib/logger.js', () => ({
   log: {

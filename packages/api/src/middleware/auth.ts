@@ -1,7 +1,5 @@
-import { ALIA_SERVICE_AUDIENCE } from '@alia.onl/server';
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import {
-  OxyServer,
   createOxyAliaMachineCredentialAuth,
   type OxyAliaMachinePrincipal,
   createOptionalOxyAuth,
@@ -13,32 +11,11 @@ import {
 } from '@oxy.so/core/server';
 import { log } from '../lib/logger.js';
 import { authenticateChannelAccount, hasChannelContext } from './channel-auth.js';
-import { oxyServiceClient } from '../lib/oxy-service-client.js';
+import { oxy, OXY_API_URL } from '../lib/oxy.js';
 import {
   oxyInferenceEndpointRefusal,
   resolveOxyDeploymentEnvironment,
 } from '../lib/inference/oxy-inference.js';
-
-// Initialize Oxy client
-export const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
-const OXY_API_REQUEST_TIMEOUT = (() => {
-  try {
-    const hostname = new URL(OXY_API_URL).hostname;
-    // Local Oxy may be using the production database through a development
-    // tunnel. Its session checks can exceed the SDK's 5s default under load.
-    // Keep the longer deadline scoped to loopback so hosted deployments retain
-    // the SDK default.
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
-      ? 15_000
-      : undefined;
-  } catch {
-    return undefined;
-  }
-})();
-export const oxyClient = new OxyServer({
-  baseURL: OXY_API_URL,
-  requestTimeout: OXY_API_REQUEST_TIMEOUT,
-});
 
 // Extend Express Request for Oxy users and service tokens
 declare global {
@@ -60,10 +37,6 @@ declare global {
 }
 
 /**
- * Oxy authentication middleware (official @oxy.so/core/server)
- * Validates JWT tokens (including service tokens) and sets req.userId, req.user, req.accessToken
- */
-/**
  * What Alia writes down when Oxy refuses a credential.
  *
  * The SDK answers a fixed body and tells the caller nothing, which is right —
@@ -77,144 +50,49 @@ const onOxyRefusal = ({ code, stage, reason, status, optional }: OxyAuthRefusal)
   log.auth.warn({ code, stage, reason, status, optional }, 'Oxy refused a credential');
 };
 
-const oxyAuthOptions = {
-  auth: { debug: true, onRefusal: onOxyRefusal, expectedAudience: ALIA_SERVICE_AUDIENCE },
-} as const;
+/**
+ * Every lane is built ONCE, from the one `OxyServer` (`lib/oxy.ts`), whose
+ * `expectedAudience` is Alia's own (`oxy-service:<ALIA_APPLICATION_ID>`).
+ *
+ * A user bearer is validated against Oxy; a service token is verified against
+ * Oxy's public keys and its LIVE authority, and an `X-Oxy-User-Id` on it is
+ * honoured only after Oxy confirms requester proof or an external delegation
+ * grant. A process that cannot attest its own workload cannot ask either
+ * question, and the SDK answers that as 503 (`SERVICE_AUTHORITY_UNAVAILABLE`):
+ * an outage, never a refusal and never a pass.
+ */
+const authOptions = { auth: { onRefusal: onOxyRefusal } } as const;
 
-/** The same observer on the service-only lane, which `serviceAuth` forwards. */
-const oxyServiceAuthOptions = {
-  debug: true,
-  onRefusal: onOxyRefusal,
-  expectedAudience: ALIA_SERVICE_AUDIENCE,
-} as const;
-
-const userTokenAuth = createOxyAuthMiddleware(oxyClient, oxyAuthOptions);
+/** Oxy authentication for a user bearer OR a service token, delegated or not. */
+export const authenticateToken = createOxyAuthMiddleware(oxy, authOptions);
 
 /** Optional Oxy auth: verifies a token when present (service tokens set `req.serviceApp`), never refuses. */
-const optionalUserTokenAuth = createOptionalOxyAuth(oxyClient, oxyAuthOptions);
-
-/**
- * The header a service sets to say "I am acting for this person".
- *
- * Read as a constant so the delegation lane is chosen in ONE place. Nothing
- * here grants anything on the strength of it: the grant is Oxy's answer to
- * `GET /internal/service-acting-as/verify`, which the middleware below asks for
- * on every delegated request.
- */
-const OXY_DELEGATED_USER_HEADER = 'x-oxy-user-id';
-
-type AuthLane = (req: Request, res: Response, next: NextFunction) => unknown;
-
-/**
- * The receiving product proves its workload to Oxy for live service authority
- * and requester checks. Use that same shared verifier for both service and
- * session tokens; an absent user header does not skip live service validation.
- * A deployment without its workload can still validate a human session through
- * the plain SDK lane, but cannot authorize a service or delegated requester.
- */
-function workloadAware<Lane extends AuthLane>(
-  plain: Lane,
-  build: (verifier: OxyServer) => Lane,
-  whenUnverifiable: 'refuse' | 'continue',
-): Lane {
-  let delegated: Lane | undefined;
-  let builtFrom: OxyServer | undefined;
-
-  const dispatch: AuthLane = (req, res, next) => {
-    const verifier = oxyServiceClient();
-    if (!verifier) {
-      if (req.headers[OXY_DELEGATED_USER_HEADER] === undefined) {
-        void plain(req, res, next);
-        return;
-      }
-      // Boot normally requires the workload. Report deployment unavailability
-      // distinctly from a verified denial of the requester's account authority.
-      if (whenUnverifiable === 'refuse') {
-        log.auth.error(
-          { path: req.path },
-          'Delegated request refused: Alia workload identity is unavailable',
-        );
-        res.status(503).json({
-          error: 'SERVICE_DELEGATION_UNAVAILABLE',
-          code: 'delegation_unverifiable',
-          message: 'Delegated requests cannot be verified by this deployment',
-          status: 503,
-        });
-        return;
-      }
-      void plain(req, res, next);
-      return;
-    }
-
-    if (builtFrom !== verifier) {
-      delegated = build(verifier);
-      builtFrom = verifier;
-    }
-    void (delegated as Lane)(req, res, next);
-  };
-  // The dispatcher IS whichever lane it wraps, and saying so keeps each mount's
-  // own inference: Express reads `:planId` off the route only while every
-  // handler on it still carries the SDK's exact middleware type.
-  return dispatch as unknown as Lane;
-}
-
-/**
- * Oxy authentication for a user bearer OR a service token, delegated or not.
- *
- * The workload verifier handles live service authority and user sessions;
- * the plain verifier remains available when no workload identity is configured.
- */
-export const authenticateToken = workloadAware(
-  userTokenAuth,
-  (verifier) => createOxyAuthMiddleware(verifier, oxyAuthOptions),
-  'refuse',
-);
-
-const oxyOptionalAuth = workloadAware(
-  optionalUserTokenAuth,
-  (verifier) => createOptionalOxyAuth(verifier, oxyAuthOptions),
-  'continue',
-);
-
-/**
- * `@oxy.so/core` 4.4 types this middleware's `req.user` as its own `User`, while
- * this app's Express augmentation (above) says `OxyRequestUser`; both describe
- * the same object the middleware sets. Viewed as an `AuthLane` so the lanes
- * below compose; the runtime function is the SDK's, untouched.
- */
-const asAuthLane = (lane: unknown): AuthLane => lane as AuthLane;
-
-const serviceOnlyAuth = asAuthLane(oxyClient.middleware.service(oxyServiceAuthOptions));
+export const optionalAuth = createOptionalOxyAuth(oxy, authOptions);
 
 /**
  * Service-only auth — rejects anything that isn't a service token.
  * Use for internal-only endpoints (e.g., /internal/trigger).
  *
- * Alia deliberately supplies no private verification secret. The compatible
- * `@oxy.so/core` release verifies Ed25519 service tokens against Oxy's public
- * `/.well-known/jwks.json`, including issuer, audience, lifetime, type and
- * authority. The middleware fails closed when that endpoint or exact `kid` is not
- * available. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
+ * Alia supplies no private verification secret: service tokens are verified
+ * against Oxy's public `/.well-known/jwks.json` (issuer, audience, lifetime,
+ * type and live authority), failing closed when the key set or exact `kid` is
+ * unavailable. Never add `ACCESS_TOKEN_SECRET` or a private signing key here.
  *
  * `/internal/trigger` is a DELEGATED surface — it documents `X-Oxy-User-Id` and
- * refuses without a `req.userId`. The shared verifier checks live workload
- * authority and requester proof, or the external caller's bounded grant.
+ * refuses without a `req.userId`; the grant is Oxy's answer, never the header.
  */
-export const oxyServiceAuth = workloadAware(
-  serviceOnlyAuth,
-  (verifier) => asAuthLane(verifier.middleware.service(oxyServiceAuthOptions)),
-  'refuse',
-);
+export const oxyServiceAuth: RequestHandler = oxy.middleware.service({
+  onRefusal: onOxyRefusal,
+});
 
 /**
- * Optional auth - attaches user if token present, doesn't block if absent
- * Tries bot auth first (Telegram), then Oxy JWT auth
+ * The Oxy Console app-only lane (ADR 0010 §2), or `null` when this deployment's
+ * Oxy origin is not one Alia may send that credential to.
  */
-
-export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
-  // Uses @oxy.so/core/server optional auth — attaches user if valid, continues if not.
-  oxyOptionalAuth(req, res, next);
-}
+const machineCredentialAuth =
+  oxyInferenceEndpointRefusal(OXY_API_URL, resolveOxyDeploymentEnvironment()) === null
+    ? createOxyAliaMachineCredentialAuth(oxy, { environment: resolveOxyDeploymentEnvironment() })
+    : null;
 
 /**
  * Refuse a retired `alia_sk_*` key with a body that says so.
@@ -252,15 +130,13 @@ export function authenticateTokenOrApiKey(req: Request, res: Response, next: Nex
       res.status(403).json({ error: 'MACHINE_PRODUCT_ROUTE_UNSUPPORTED' });
       return;
     }
-    const environment = resolveOxyDeploymentEnvironment();
-    const verifier = oxyServiceClient();
-    if (!verifier || oxyInferenceEndpointRefusal(OXY_API_URL, environment) !== null) {
+    if (!machineCredentialAuth) {
       res.status(503).json({ error: 'MACHINE_CREDENTIAL_VERIFIER_UNAVAILABLE' });
       return;
     }
     // Canonical SDK verification uses Alia's own resource identity. No local
     // lookup, JWT decoding, credential persistence or owner-to-user conversion.
-    void createOxyAliaMachineCredentialAuth(verifier, { environment })(req, res, next);
+    void machineCredentialAuth(req, res, next);
     return;
   }
   // Already authenticated (e.g., by channel bot pre-middleware)

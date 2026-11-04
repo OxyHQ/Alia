@@ -42,7 +42,7 @@ import {
   findHireableAgentByOxyAccountId,
   type AgentRecord,
 } from '../db/agents/agentRepository.js';
-import { oxyClient } from '../middleware/auth.js';
+import { oxy } from './oxy.js';
 import { agentOpensOn } from './agent-availability.js';
 import { log } from './logger.js';
 import { hydrateOxyUsers } from './oxy-user-hydration.js';
@@ -203,7 +203,7 @@ export async function findAgentByOxyHandle(
 
   let accountId: string;
   try {
-    const profile = await oxyClient.users.byUsername(username);
+    const profile = await oxy.users.byUsername(username);
     if (typeof profile.id !== 'string' || profile.id === '') return null;
     accountId = profile.id;
   } catch (error: unknown) {

@@ -82,8 +82,6 @@
  * the daily floor stays exactly what every other account gets.
  */
 
-import { OxyServices } from '@oxy.so/core';
-
 import { getDb, type ApiDatabase } from '../db/index.js';
 import {
   findSubscriptionByStripeId,
@@ -99,6 +97,7 @@ import { getPlans, type PlanData } from './gateway-client.js';
 // pairing every displaying surface uses, rather than a second call site for it.
 import { getOrCreateUserCredits } from './user-credits-helpers.js';
 import { log } from './logger.js';
+import { oxy } from './oxy.js';
 
 /** The Oxy usernames that hold the top plan of every product. */
 const COMPED_USERNAMES = ['oxy'] as const;
@@ -240,11 +239,6 @@ export async function seedCompedAccounts(): Promise<{
   if (plans.size === 0) {
     throw new Error('refusing to comp an account: the catalogue has no active paid plan');
   }
-
-  // Alia's own client rather than `middleware/auth.ts`'s: importing that one
-  // would pull the express middleware, the developer-key repository and the
-  // channel registry into a deploy one-shot that needs none of them.
-  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
   let granted = 0;
   let unchanged = 0;

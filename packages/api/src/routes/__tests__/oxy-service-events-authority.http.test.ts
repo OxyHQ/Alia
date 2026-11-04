@@ -18,7 +18,10 @@ const state = vi.hoisted(() => ({
   claim: vi.fn(async () => false),
   catalogueReads: 0,
 }));
-vi.mock('../../lib/oxy-service-client.js', () => ({ oxyServiceClient: () => state.oxy }));
+vi.mock('../../lib/oxy.js', async () => {
+  const { forwardingOxy } = await import('../../__tests__/mocks/oxy-user-client.js');
+  return { oxy: forwardingOxy(() => state.oxy), OXY_API_URL: 'https://api.oxy.so' };
+});
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   claimAutomationEvent: state.claim,
@@ -138,7 +141,8 @@ beforeAll(async () => {
     });
   });
   issuer = await listen(authority);
-  state.oxy = new OxyServer({ baseURL: origin(issuer) });
+  // As `lib/oxy.ts` builds it: Alia's own audience on the server.
+  state.oxy = new OxyServer({ baseURL: origin(issuer), expectedAudience: ALIA_SERVICE_AUDIENCE });
   vi.spyOn(state.oxy, 'introspectServiceToken').mockImplementation(async (bearer) => {
     const response = await fetch(`${origin(issuer)}/auth/resources/introspect`, {
       method: 'POST',

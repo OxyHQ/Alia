@@ -106,7 +106,12 @@ vi.mock('../../credits-manager.js', () => ({
   safeRefund: async () => undefined,
 }));
 vi.mock('../../plan-access.js', () => ({ getUserEntitlements: async () => null }));
-vi.mock('../../../middleware/auth.js', () => ({ oxyClient: { users: { get: async () => null } } }));
+vi.mock('../../oxy.js', async () => {
+  const { OxyServices } = await import('@oxy.so/core');
+  const { fakeWithUser } = await import('../../../__tests__/mocks/oxy-user-client.js');
+  const userClient = () => new OxyServices({ baseURL: 'https://api.oxy.test' });
+  return { oxy: { withUser: fakeWithUser(userClient), users: { get: async () => null } } };
+});
 vi.mock('../../hooks/index.js', () => ({ runBeforeChatHooks: () => memory.runBeforeChatHooks() }));
 vi.mock('../../autonomy/runtime.js', () => ({ runAutonomyBeforeChat: async () => null }));
 vi.mock('../../logger.js', () => {

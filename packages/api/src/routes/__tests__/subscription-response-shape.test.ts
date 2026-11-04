@@ -19,8 +19,8 @@ vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
   optionalAuth: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
-  oxyClient: { users: { get: vi.fn() } },
 }));
+vi.mock('../../lib/oxy.js', () => ({ oxy: { users: { get: vi.fn() } } }));
 
 vi.mock('../../db/billing/subscriptionRepository.js', () => ({
   findActiveSubscription: vi.fn(),

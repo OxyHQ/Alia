@@ -131,8 +131,18 @@ vi.mock('../../credits-manager.js', () => ({
   safeRefund: async () => undefined,
 }));
 vi.mock('../../credit-price-snapshot.js', () => ({ captureCreditPriceBook: async () => ({}) }));
+/** Whether Oxy can answer the product-grant read: `false` is an outage. */
+const productCredits = vi.hoisted(() => ({
+  answers: true,
+  Unavailable: class ProductCreditAuthorityUnavailableError extends Error {},
+}));
 vi.mock('../../product-credit-access', () => ({
   readConfiguredProductCreditSnapshot: async () => undefined,
+  productCreditSnapshotOrNone: async (read: () => Promise<unknown>) => {
+    if (!productCredits.answers) throw new productCredits.Unavailable('Oxy is unreachable');
+    return read();
+  },
+  ProductCreditAuthorityUnavailableError: productCredits.Unavailable,
 }));
 vi.mock('../../plan-access.js', () => ({ getUserEntitlements: async () => null }));
 vi.mock('../../autonomy/runtime.js', () => ({ runAutonomyBeforeChat: async () => null }));
@@ -202,6 +212,7 @@ beforeEach(() => {
   turn.failAfterReserve = false;
   turn.prefetchFails = false;
   turn.recalls = 0;
+  productCredits.answers = true;
 });
 
 describe('a gated attachment', () => {
@@ -396,6 +407,36 @@ describe('a credit held for a turn that then fails', () => {
     turn.agent = null;
     await run({ messages: [{ role: 'user', content: 'hola' }] });
     expect(sequence).toEqual(['reserve']);
+  });
+});
+
+describe('an Oxy that cannot say whether the person holds a product grant', () => {
+  it('refuses the turn 503 — never legacy funding, never "out of credits"', async () => {
+    turn.agent = null;
+    productCredits.answers = false;
+
+    const { ctx, captured } = await run({ messages: [{ role: 'user', content: 'hola' }] });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(503);
+    expect(captured.body?.error?.code).toBe('PRODUCT_CREDITS_UNAVAILABLE');
+    expect(sequence).toEqual([]);
+  });
+
+  it('ends an open stream with the same error', async () => {
+    turn.agent = null;
+    productCredits.answers = false;
+
+    const { ctx, sse, captured } = await run(
+      { messages: [{ role: 'user', content: 'hola' }] },
+      { sseSent: true },
+    );
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBeNull();
+    expect(sse.writeError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'PRODUCT_CREDITS_UNAVAILABLE' }),
+    );
   });
 });
 

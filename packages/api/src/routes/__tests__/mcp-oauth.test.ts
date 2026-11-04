@@ -781,6 +781,29 @@ describe('mcp.ts — where a connector runs', () => {
       });
     });
 
+    it('turns a command connector the migration turned off back on, on the device only', async () => {
+      // The shape 0111 left: moved to the device, turned off, its command kept.
+      const row = serverRow({
+        source: 'custom',
+        registryId: null,
+        transport: 'stdio',
+        runtime: 'local',
+        enabled: false,
+        status: 'stopped',
+        configUrl: null,
+        configCommand: 'npx',
+      });
+      const res = await patch(row, { enabled: true });
+
+      expect(res.statusCode).toBe(200);
+      expect(mockUpdate).toHaveBeenCalledWith(expect.anything(), row.id, USER_A, {
+        config: undefined,
+        enabled: true,
+      });
+      // Turning it on is a switch Cowork and Codea read; the server starts nothing.
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it('cannot point a custom remote connector at plain http', async () => {
       const res = await patch(customRemote(), { config: { url: 'http://10.0.0.5/mcp' } });
 

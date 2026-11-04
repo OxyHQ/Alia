@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import postgres from 'postgres';
 import { z } from 'zod';
-import { OxyServices } from '@oxy.so/core';
+import { oxy } from '../lib/oxy.js';
 
 async function main() {
   const { values } = parseArgs({
@@ -84,8 +84,8 @@ async function main() {
     );
     if (!values.apply) return;
     if (values['plan-sha256'] !== sha256) throw new Error('Plan changed; review a fresh dry-run');
-    if (!process.env.OXY_ADMIN_ACCESS_TOKEN)
-      throw new Error('Reviewed mapping requires an authorized Oxy staff session');
+    const adminToken = process.env.OXY_ADMIN_ACCESS_TOKEN;
+    if (!adminToken) throw new Error('Reviewed mapping requires an authorized Oxy staff session');
     const ids = new Set<string>();
     const accounts = new Map(
       records.filter((row) => row.oxy_account_id).map((row) => [row.oxy_account_id, row.id]),
@@ -108,16 +108,11 @@ async function main() {
       accounts.set(mapping.accountId, mapping.workspaceId);
       ids.add(mapping.workspaceId);
     }
-    const oxy = new OxyServices({
-      baseURL: process.env.OXY_API_URL || 'https://api.oxy.so',
-      enableCache: false,
-    });
-    oxy.session.setAccessToken(process.env.OXY_ADMIN_ACCESS_TOKEN);
-    try {
+    await oxy.withUser(adminToken, async (admin) => {
       for (const mapping of mappings) {
         const record = records.find((row) => row.id === mapping.workspaceId);
         if (!record) throw new Error('Missing source evidence');
-        const linked = await oxy.organizations.importExternal({
+        const linked = await admin.organizations.importExternal({
           namespace: 'alia',
           externalId: record.id,
           accountId: mapping.accountId,
@@ -128,9 +123,7 @@ async function main() {
           await db`update organizations set oxy_account_id=${linked.accountId} where id=${record.id} and (oxy_account_id is null or oxy_account_id=${linked.accountId}) returning id`;
         if (updated.length !== 1) throw new Error('Mapping changed; stop and review a fresh plan');
       }
-    } finally {
-      oxy.dispose();
-    }
+    });
   } finally {
     await db.end();
   }

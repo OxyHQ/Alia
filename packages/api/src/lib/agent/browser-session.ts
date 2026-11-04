@@ -15,7 +15,7 @@
  * reached and no further. What cannot work was removed; what remains works in
  * the image as it is built.
  *
- * `validateUrl` still runs before Clarity is asked anything: Clarity fetches on
+ * `assertSafePublicUrl` still runs before Clarity is asked anything: Clarity fetches on
  * our behalf, and a URL a model produced is not trusted because it came back
  * through a service.
  *
@@ -23,7 +23,7 @@
  * pre-warm or close.
  */
 
-import { validateUrl } from '../tools/sandbox.js';
+import { assertSafePublicUrl } from '@oxy.so/core/server';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { clarityClient } from '../clarity-client.js';
@@ -86,8 +86,8 @@ export class BrowserSession {
   private async goto(url: string, signal?: AbortSignal): Promise<string> {
     if (!url) return 'Error: url is required for goto action';
 
-    const check = await validateUrl(url);
-    if (!check.valid) return `Error: URL blocked — ${check.reason}`;
+    const check = await assertSafePublicUrl(url, { signal });
+    if (!check.ok) return `Error: URL blocked — ${check.reason}`;
 
     this.currentUrl = url;
     return await this.read(url, signal);

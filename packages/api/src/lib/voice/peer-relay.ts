@@ -6,7 +6,7 @@ import {
   ALIA_SERVICE_AUDIENCE,
   isAliaWorkload,
 } from '@alia.onl/server/internal';
-import { oxyServiceClient } from '../oxy-service-client.js';
+import { oxy } from '../oxy.js';
 import type { WebSocketRoute } from '../websocket-upgrades.js';
 import { VOICE_PEER_PATH, type VoiceRoute, type VoiceRouting } from './routing-directory.js';
 
@@ -21,8 +21,6 @@ export interface VoicePeerAuth {
 
 export const productionVoicePeerAuth: VoicePeerAuth = {
   async token(url, signal) {
-    const oxy = oxyServiceClient();
-    if (!oxy) throw new Error('Voice peer workload unavailable');
     const target = new URL(url);
     target.protocol = 'http:';
     const transport = oxy.createServiceClient({
@@ -36,8 +34,6 @@ export const productionVoicePeerAuth: VoicePeerAuth = {
     }
   },
   async verify(token) {
-    const oxy = oxyServiceClient();
-    if (!oxy) return false;
     try {
       const principal = await oxy.introspectServiceToken(token);
       return (

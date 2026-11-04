@@ -8,22 +8,27 @@ vi.mock('../../middleware/auth.js', () => ({
     const id = req.headers['x-test-user'];
     if (typeof id === 'string') {
       req.user = { id };
+      req.userId = id;
+      // A fresh session per request, so one case's cached access answer
+      // (`oxy.accountAccessFor` keeps positive ones per session) never answers
+      // the next after the fixture changed what Oxy says.
+      req.sessionId = `session-${crypto.randomUUID()}`;
       req.accessToken = req.headers.authorization?.slice(7);
     }
     next();
   },
-  oxyClient: {
-    users: { getMany: async () => [] },
-    assets: { publicUrl: (id: string) => `https://cloud.oxy.so/${id}` },
-  },
 }));
+// The REAL one Oxy client, built against the fake Oxy below once it listens.
+const live = vi.hoisted(() => ({ oxy: null as unknown }));
+vi.mock('../../lib/oxy.js', async () => {
+  const { forwardingOxy } = await import('../../__tests__/mocks/oxy-user-client.js');
+  return { oxy: forwardingOxy(() => live.oxy) };
+});
 const { connectPostgres, closePostgres } = await import('../../db/index.js');
 const { createOrganization } = await import('../../db/organizations/organizationRepository.js');
 const { organizations } = await import('../../db/schema/organizations.js');
 const router = (await import('../organization.js')).default;
-const { organizationDirectory, withOrganizationSession } = await import(
-  '../../lib/organization-access.js'
-);
+const { organizationDirectory } = await import('../../lib/organization-access.js');
 let db: NonNullable<ReturnType<typeof connectPostgres>>;
 let api: Server;
 let oxy: Server;
@@ -86,15 +91,14 @@ function organization(id: string) {
   };
 }
 function node(id: string, role: string) {
+  const permissions = (grants[role] ?? []).filter((p) => p !== revoked);
   return {
     accountId: id,
     kind: 'organization',
     relationship: 'member',
-    callerMembership: {
-      status: removed ? 'removed' : 'active',
-      role,
-      permissions: (grants[role] ?? []).filter((p) => p !== revoked),
-    },
+    callerMembership: { status: removed ? 'removed' : 'active', role, permissions },
+    // What a single-account read carries: the caller's EFFECTIVE access.
+    callerAccess: { role, permissions, status: 'active', source: 'direct' },
   };
 }
 async function listen(server: Server) {
@@ -157,9 +161,15 @@ beforeAll(async () => {
             : { member: { _id: 'member-1', role: body.role }, success: true },
         ),
       );
-    else res.end(JSON.stringify({ account: node(path.split('/').pop() ?? '', role) }));
+    else if (removed || role === 'outsider') {
+      // Oxy's answer for an account this caller has no access to.
+      res.statusCode = 403;
+      res.end(JSON.stringify({ message: 'forbidden' }));
+    } else res.end(JSON.stringify({ account: node(path.split('/').pop() ?? '', role) }));
   });
-  process.env.OXY_API_URL = await listen(oxy);
+  const oxyOrigin = await listen(oxy);
+  const { OxyServer } = await import('@oxy.so/core/server');
+  live.oxy = new OxyServer({ baseURL: oxyOrigin });
   const app = express();
   app.use(express.json());
   app.use('/organization', router);
@@ -172,7 +182,7 @@ afterAll(async () => {
     new Promise<void>((resolve, reject) => oxy.close((e) => (e ? reject(e) : resolve()))),
   ]);
   await closePostgres();
-  delete process.env.OXY_API_URL;
+  (live.oxy as { dispose(): void } | null)?.dispose();
 });
 beforeEach(() => {
   seen.length = 0;
@@ -368,9 +378,7 @@ describe('Oxy permission authority', () => {
       'missing',
       'redirect',
     ];
-    const result = await withOrganizationSession(token('owner'), (client) =>
-      organizationDirectory(client, ids),
-    );
+    const result = await organizationDirectory(ids);
     expect(seen.map((r) => (r.body.ids as string[]).length)).toEqual([100, 100, 4]);
     expect(result.size).toBe(202);
     expect(result.get('redirect')?.accountId).toBe('canonical');

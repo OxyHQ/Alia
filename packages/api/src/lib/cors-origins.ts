@@ -99,7 +99,8 @@ function serialisesToAnOrigin(candidate: string): boolean {
 }
 
 /**
- * Build the internal-routes CORS middleware.
+ * The browser origins Alia's credentialed surfaces admit: HTTP (`createInternalCors`)
+ * and Socket.IO (`socket.ts`) read this one list.
  *
  * A function rather than a module-level constant, so `WEB_URL` is read when the
  * middleware is built rather than when this module is first imported. It was
@@ -115,16 +116,22 @@ function serialisesToAnOrigin(candidate: string): boolean {
  * on: a mistyped `WEB_URL` costs that origin its CORS headers, which surfaces
  * immediately in the browser, and never the whole API.
  */
-export function createInternalCors(webUrl: string | undefined): RequestHandler {
+export function appOriginsFor(webUrl: string | undefined): string[] {
   const configured = [...(webUrl ? [webUrl] : []), ...PRODUCTION_ORIGINS, ...DEV_ORIGINS];
-  const appOrigins = configured.filter((origin) => {
+  return configured.filter((origin) => {
     if (serialisesToAnOrigin(origin)) return true;
     log.general.error({ origin }, 'CORS origin ignored: it has no origin to match against');
     return false;
   });
+}
 
+/**
+ * Build the internal-routes CORS middleware over {@link appOriginsFor} — the
+ * same origins Socket.IO admits (`socket.ts`, `createOxySocketCors`).
+ */
+export function createInternalCors(webUrl: string | undefined): RequestHandler {
   return createOxyCors({
-    appOrigins,
+    appOrigins: appOriginsFor(webUrl),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',

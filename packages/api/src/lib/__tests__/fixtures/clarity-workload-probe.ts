@@ -61,7 +61,7 @@ const origin = `http://127.0.0.1:${address.port}`;
 process.env.OXY_API_URL = origin;
 process.env.CLARITY_API_URL = origin;
 const { clarityClient, disposeClarityClient } = await import('../../clarity-client.js');
-const { oxyServiceClient } = await import('../../oxy-service-client.js');
+const { oxy } = await import('../../oxy.js');
 try {
   const client = clarityClient();
   assert.equal(client, clarityClient());
@@ -86,7 +86,7 @@ try {
   process.stdout.write('ALIA_CLARITY_WORKLOAD_OK\n');
 } finally {
   disposeClarityClient();
-  oxyServiceClient()?.dispose();
+  oxy.dispose();
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }

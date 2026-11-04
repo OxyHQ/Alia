@@ -8,7 +8,10 @@ import {
   selectProductCreditGrant,
   type ProductCreditSnapshot,
 } from './product-credit-contract';
-import { readConfiguredProductCreditSnapshot } from './product-credit-access';
+import {
+  productCreditSnapshotOrNone,
+  readConfiguredProductCreditSnapshot,
+} from './product-credit-access';
 import { USAGE_WINDOW_CREDITS } from './usage-window';
 
 export function effectiveCreditPlan(
@@ -53,10 +56,14 @@ export function productAllowanceReadModel(
     remaining: Math.max(0, grant.benefit.included - consumed - reserved),
   };
 }
+/** `null` when there is no allowance to show; an Oxy that cannot answer throws
+ * `ProductCreditAuthorityUnavailableError` rather than reading as "none". */
 export async function readCurrentProductAllowance(userId: string, accessToken?: string) {
-  const input = await readConfiguredProductCreditSnapshot(userId, accessToken).catch(
-    () => undefined,
-  );
+  const input = accessToken
+    ? await productCreditSnapshotOrNone(() =>
+        readConfiguredProductCreditSnapshot(userId, accessToken),
+      )
+    : undefined;
   if (!input || !productCreditPlanId(input, userId)) return null;
   const selected = selectProductCreditGrant(input, userId);
   if (!selected) return null;

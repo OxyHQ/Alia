@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { hostAwaitsResults, parseHostRequest, type HostRequest } from '../host-tools.js';
 import { productCreditPlanId } from '../product-credit-contract';
 import { USAGE_WINDOW_CREDITS } from '../usage-window';
-import { readConfiguredProductCreditSnapshot } from '../product-credit-access';
+import {
+  ProductCreditAuthorityUnavailableError,
+  productCreditSnapshotOrNone,
+  readConfiguredProductCreditSnapshot,
+} from '../product-credit-access';
 /**
  * Pre-flight assembly for /v1/chat/completions: body validation, the parallel
  * prefetch (credits, model, memory, profile, entitlements, linked
@@ -892,10 +896,12 @@ export async function buildChatRequestContext(
           // would start with it spent reserves nothing and is refused below.
           // It fails OPEN — a window that cannot be read never stops a turn;
           // the balance still bounds it.
+          // An account Oxy says holds no grant keeps legacy funding; an Oxy that
+          // cannot answer is NOT that, and refuses the turn below (503).
           const productCreditSnapshot =
-            req.user?.id === creditAccountId
-              ? await readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken).catch(
-                  () => undefined,
+            req.user?.id === creditAccountId && req.accessToken
+              ? await productCreditSnapshotOrNone(() =>
+                  readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken),
                 )
               : undefined;
           const window = await usageWindowFor(
@@ -903,7 +909,12 @@ export async function buildChatRequestContext(
             productCreditPlanId(productCreditSnapshot, creditAccountId),
           );
           if (window?.exhausted) {
-            return { reservation: null, error: false as const, window };
+            return {
+              reservation: null,
+              error: false as const,
+              window,
+              authorityUnavailable: false,
+            };
           }
           const priceBook = await captureCreditPriceBook();
           signal?.throwIfAborted();
@@ -916,15 +927,30 @@ export async function buildChatRequestContext(
           if (reservation?.productAllocationId)
             reservation.refreshProductCreditSnapshot = () =>
               readConfiguredProductCreditSnapshot(creditAccountId, req.accessToken);
-          return { reservation, error: false as const, window: null };
+          return { reservation, error: false as const, window: null, authorityUnavailable: false };
         })().catch((error) => {
+          if (error instanceof ProductCreditAuthorityUnavailableError) {
+            log.v1.warn({ err: error }, 'Product credit authority unavailable');
+            return {
+              reservation: null,
+              error: false as const,
+              window: null,
+              authorityUnavailable: true,
+            };
+          }
           log.v1.error({ err: error }, 'Error reserving credits');
-          return { reservation: null, error: true as const, window: null };
+          return {
+            reservation: null,
+            error: true as const,
+            window: null,
+            authorityUnavailable: false,
+          };
         })
       : {
           reservation: null,
           error: false as const,
           window: null as UsageWindow | null,
+          authorityUnavailable: false,
         },
   );
 
@@ -993,6 +1019,24 @@ export async function buildChatRequestContext(
         sse.writeError(windowError);
       } else {
         res.status(429).json({ error: windowError });
+      }
+      return null;
+    }
+
+    // Oxy could not say whether this account holds a product grant. Never read
+    // as "no grant" (legacy funding) and never as "out of credits" (402).
+    if (creditResult.authorityUnavailable) {
+      clearTimeout(globalTimer);
+      const unavailable = {
+        message: 'Credits are temporarily unavailable. Try again in a moment.',
+        type: 'api_error',
+        param: null,
+        code: 'PRODUCT_CREDITS_UNAVAILABLE',
+      };
+      if (sse.sent) {
+        sse.writeError(unavailable);
+      } else {
+        res.status(503).json({ error: unavailable });
       }
       return null;
     }

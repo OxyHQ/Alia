@@ -105,6 +105,13 @@ vi.mock('@oxy.so/core', () => ({
     }
   },
 }));
+vi.mock('../oxy.js', async () => {
+  const { OxyServices } = await import('@oxy.so/core');
+  const { fakeWithUser } = await import('../../__tests__/mocks/oxy-user-client.js');
+  const userClient = () => new OxyServices({ baseURL: 'https://api.oxy.test' });
+  const oxy = userClient();
+  return { oxy: Object.assign(oxy, { withUser: fakeWithUser(userClient) }) };
+});
 
 import { isCompedSubscriptionId, seedCompedAccounts } from '../seed-comped-accounts.js';
 

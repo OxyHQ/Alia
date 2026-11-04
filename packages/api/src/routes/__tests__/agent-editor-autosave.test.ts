@@ -67,7 +67,12 @@ vi.mock('../../middleware/auth.js', () => ({
     next();
   },
   optionalAuth: (req: Request, _res: Response, next: NextFunction) => next(),
-  oxyClient: { users: { getMany: async () => [] }, assets: { publicUrl: (id: string) => id } },
+}));
+vi.mock('../../lib/oxy.js', () => ({
+  oxy: {
+    users: { lookupMany: async () => ({ found: [], missing: [], failed: [] }) },
+    assets: { publicUrl: (id: string) => id },
+  },
 }));
 
 /**

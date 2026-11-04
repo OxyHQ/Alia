@@ -1,4 +1,7 @@
-import { oxyClient } from '../middleware/auth.js';
+import { oxy } from './oxy.js';
+
+/** The handshake verifier, built once from the one `OxyServer`. */
+const authenticateHandshake = oxy.middleware.socket();
 
 /** The person and the session a socket's token was validated as. */
 export interface SocketSession {
@@ -58,10 +61,7 @@ export async function authenticateSocketSession(
   } = { handshake: { auth: { token } } };
 
   let authError: Error | undefined;
-  const authenticate = oxyClient.middleware.socket({
-    debug: process.env.NODE_ENV !== 'production',
-  });
-  await authenticate(handshake, (err) => {
+  await authenticateHandshake(handshake, (err) => {
     authError = err;
   });
   if (authError) return null;

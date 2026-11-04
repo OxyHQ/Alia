@@ -6,9 +6,10 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CreateOxyExecutionAuthorizationInput } from '../oxy-capability-authority.js';
 const state = vi.hoisted(() => ({ client: undefined as unknown }));
-vi.mock('../oxy-service-client.js', () => ({
-  oxyServiceClient: () => state.client,
-  oxyServiceToken: async () => 'fixture-service-token',
+vi.mock('../oxy.js', () => ({
+  get oxy() {
+    return state.client;
+  },
 }));
 const real: typeof import('@oxy.so/core/server') = createRequire(import.meta.url)(
   '@oxy.so/core/server',

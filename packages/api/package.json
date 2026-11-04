@@ -37,7 +37,7 @@
     "@kaana.ai/contracts": "8.2.0",
     "@kaana.ai/sdk": "3.5.0",
     "@oxy.so/contracts": "6.5.0",
-    "@oxy.so/core": "7.16.0",
+    "@oxy.so/core": "7.17.0",
     "@oxy.so/db": "^1.4.0",
     "@oxy.so/mcp": "1.4.1",
     "@oxy.so/utils": "^1.5.2",

@@ -18,8 +18,8 @@ vi.mock('../logger.js', () => {
   const quiet = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: new Proxy({}, { get: () => quiet }) };
 });
-vi.mock('../../middleware/auth.js', () => ({
-  oxyClient: { middleware: { socket: () => (_socket: unknown, next: () => void) => next() } },
+vi.mock('../../lib/oxy.js', () => ({
+  oxy: { middleware: { socket: () => (_socket: unknown, next: () => void) => next() } },
 }));
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentOxyAccountId: vi.fn() }));

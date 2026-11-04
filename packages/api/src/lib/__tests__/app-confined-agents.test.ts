@@ -17,16 +17,20 @@ const oxy = vi.hoisted(() => ({
   calls: 0,
 }));
 
-vi.mock('../oxy-service-client.js', () => ({
-  oxyServiceClient: () => ({
-    agency: {
-      agentAvailability: async (agentAccountId: string) => {
-        oxy.calls += 1;
-        if (oxy.failing) throw new Error('Oxy is unreachable');
-        return oxy.availability.get(agentAccountId) ?? { anywhere: true };
+vi.mock('../oxy.js', () => ({
+  // The issuer `lib/app-surface.ts` verifies assertions against.
+  OXY_API_URL: 'https://api.oxy.so',
+  get oxy() {
+    return {
+      agency: {
+        agentAvailability: async (agentAccountId: string) => {
+          oxy.calls += 1;
+          if (oxy.failing) throw new Error('Oxy is unreachable');
+          return oxy.availability.get(agentAccountId) ?? { anywhere: true };
+        },
       },
-    },
-  }),
+    };
+  },
 }));
 vi.mock('../logger.js', () => {
   const channel = () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() });

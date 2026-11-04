@@ -60,10 +60,12 @@ vi.mock('../../../lib/user-credits-helpers.js', () => ({
 }));
 
 vi.mock('../../../middleware/auth.js', () => ({
-  oxyClient: { users: { get: (...args: any[]) => mockGetUserById(...args) } },
   optionalAuth: vi.fn((_r: any, _s: any, n: any) => n()),
   authenticateTokenOrApiKey: vi.fn((_r: any, _s: any, n: any) => n()),
   authenticateToken: vi.fn((_r: any, _s: any, n: any) => n()),
+}));
+vi.mock('../../../lib/oxy.js', () => ({
+  oxy: { users: { get: (...args: any[]) => mockGetUserById(...args) } },
 }));
 
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));

@@ -208,11 +208,11 @@ vi.mock('../../../middleware/api-key-rate-limit.js', () => ({
   apiKeyRateLimit: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
 }));
 vi.mock('../../../middleware/auth.js', () => ({
-  oxyClient: { users: { get: vi.fn(async () => null) } },
   optionalAuth: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateToken: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateTokenOrApiKey: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
 }));
+vi.mock('../../../lib/oxy.js', () => ({ oxy: { users: { get: vi.fn(async () => null) } } }));
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
   findUserMemory: vi.fn(async () => null),

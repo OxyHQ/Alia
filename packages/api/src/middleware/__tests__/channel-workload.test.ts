@@ -6,8 +6,8 @@ const fixture = vi.hoisted(() => ({
   link: vi.fn(),
   connection: vi.fn(),
 }));
-vi.mock('../../lib/oxy-service-client.js', () => ({
-  oxyServiceClient: () => ({
+vi.mock('../../lib/oxy.js', () => ({
+  oxy: {
     middleware: {
       service: () => async (req: any, res: any, next: () => void) => {
         if (req.headers.authorization !== 'Bearer workload') {
@@ -18,7 +18,7 @@ vi.mock('../../lib/oxy-service-client.js', () => ({
         next();
       },
     },
-  }),
+  },
 }));
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../db/integrations/botRepository.js', () => ({

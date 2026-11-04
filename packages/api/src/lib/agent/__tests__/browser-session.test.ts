@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 /**
  * The runner's `browser` primitive is Clarity-only, and this is the freeze.
  *
@@ -27,13 +28,22 @@ vi.mock('../../clarity-client.js', () => ({
     documents: { byUrl: clarity.byUrl },
   }),
 }));
-// DNS is the network's, not this test's: every public name here resolves as
-// public. The private-address case is refused by `validateUrl`'s own IP check,
-// before any lookup.
-vi.mock('../../public-host.js', async () => ({
-  ...(await vi.importActual<typeof import('../../public-host.js')>('../../public-host.js')),
-  classifyHost: vi.fn(async () => 'ok'),
-}));
+// DNS is the network's, not this test's: every public NAME here resolves as
+// public. An address literal — the metadata-service case — goes to the SDK's
+// real check, which refuses it before any lookup.
+vi.mock('@oxy.so/core/server', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@oxy.so/core/server')>();
+  return {
+    ...real,
+    assertSafePublicUrl: vi.fn(async (url: string, options?: { signal?: AbortSignal }) => {
+      const { protocol, hostname } = new URL(url);
+      const publicName = /^https?:$/.test(protocol) && hostname !== '' && !isIP(hostname);
+      return publicName
+        ? { ok: true as const, ip: '93.184.216.34', family: 4 as const }
+        : real.assertSafePublicUrl(url, options);
+    }),
+  };
+});
 vi.mock('../../logger.js', () => ({
   log: { agents: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } },
 }));

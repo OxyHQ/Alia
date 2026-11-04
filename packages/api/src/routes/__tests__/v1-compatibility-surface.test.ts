@@ -530,7 +530,7 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
     // Positive controls, chosen rather than found. Each scanner is shown reading
     // a value the file demonstrably contains before any exact set is asserted.
     expect(headersRead(auth)).toContain('authorization');
-    expect(environmentRead(auth)).toContain('OXY_API_URL');
+    expect(environmentRead(parse('lib/oxy.ts'))).toContain('OXY_API_URL');
     expect(prefixesScreened(auth)).toContain('alia_sk_');
 
     /**
@@ -571,7 +571,10 @@ describe('the compatibility surface keeps Oxy authority and refuses retired Alia
 
   it('has no internal shared-secret configuration', () => {
     // Every shared-secret lane is enumerated, so adding one remains visible.
-    expect(environmentRead(auth)).toEqual(['OXY_API_URL']);
+    // The auth lanes read no configuration of their own: the one Oxy client
+    // (`lib/oxy.ts`) reads the Oxy origin and nothing else.
+    expect(environmentRead(auth)).toEqual([]);
+    expect(environmentRead(parse('lib/oxy.ts'))).toEqual(['OXY_API_URL']);
   });
 
   it('the /v1 router does not read credentials itself', () => {

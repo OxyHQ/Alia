@@ -11,15 +11,15 @@
  * unreviewed agent both work, and the endpoint starts failing the moment the
  * feature is used.
  *
- * This module resolves accounts instead. It reads through `users.getMany`, the batch
- * endpoint built for exactly this fan-out, so a page of twenty reviews costs one
- * round trip rather than twenty.
+ * This module resolves accounts instead. It reads through `users.lookupMany`, the
+ * batch endpoint built for exactly this fan-out, so a page of twenty reviews
+ * costs one round trip rather than twenty — and it says which ids FAILED, apart
+ * from the ones Oxy answered do not exist.
  */
 
 import { getNormalizedUserHandle, type User } from '@oxy.so/core';
-import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
-import { oxyServiceClient } from './oxy-service-client.js';
+import { oxy } from './oxy.js';
 
 /**
  * What a caller may render for an account.
@@ -70,41 +70,22 @@ function toHydrated(user: User): HydratedOxyUser | null {
 }
 
 /**
- * Resolve many account ids in one batch.
+ * Resolve many account ids in one batch, for DISPLAY.
  *
- * **Fails OPEN.** An id Oxy cannot resolve — deleted, federated, or simply
- * unreachable because Oxy is having a bad afternoon — is absent from the map and
- * the caller renders its own fallback. The alternative is letting an identity
- * lookup decide whether a list of reviews or members can be displayed at all,
- * which makes an Oxy outage an Alia outage for pages whose actual subject is
- * stored right here. The identity is decoration on somebody else's row; the row
- * is the fact.
+ * An id Oxy does not resolve — deleted, federated, or in a chunk that failed —
+ * is absent from the map and the caller renders its own fallback: the identity
+ * is decoration on somebody else's row, and an Oxy outage must not decide
+ * whether a list of reviews or members can be shown at all. That is the ONLY
+ * thing this is for. Nothing may treat an absent id as "this account does not
+ * exist" (authority, completeness, a cache of unknown ids); such a caller reads
+ * `oxy.users.lookupMany` itself and handles `failed`.
  *
- * ## The call is made AS ALIA, and it has to be
- *
- * `/users/by-ids` is a POST, so oxy-api's CSRF middleware refuses it unless the
- * request carries a bearer. `middleware/auth.ts`'s shared `oxyClient` carries
- * none — it exists to VERIFY inbound user tokens — so this read answered
- * `403 CSRF_TOKEN_MISSING` for every caller, and `@oxy.so/core` swallows a failed
- * chunk and returns the users that resolved. Zero of them. Failing open then did
- * exactly what it promises: every name, handle and avatar in the product
- * rendered as a client-side fallback, and a newly created agent came back with
- * no identity at all.
- *
- * So the batch goes through {@link oxyServiceClient}, which presents Alia's own
- * ApplicationCredential. NOT by giving the shared client `setTokens` or
- * `configureServiceAuth`: it is shared across concurrent requests, so one
- * caller's session would leak into another's, and arming service mode on it
- * would change what a dozen unrelated call sites send.
- *
- * A deployment with no credential falls back to the shared client, which is the
- * line this one replaced — same call, same failing-open result, no new failure
- * mode introduced where there was none. `oxy-service-client.ts` says once, at
- * warn, that identity will resolve nothing.
- *
- * The viewer is still nobody's business here: `/users/by-ids` answers every
- * caller with the same public profile, which is why one process-wide credential
- * can serve a read on behalf of any of them.
+ * The read goes out through the one `OxyServer` (`lib/oxy.ts`), whose
+ * `serviceIdentity: 'when-anonymous'` carries Alia's own service token:
+ * `/users/by-ids` is a POST, which oxy-api refuses without a bearer, and its
+ * public profiles are the same for every viewer, so one process-wide identity
+ * serves every caller. A failed chunk is logged as a failure, never folded
+ * into "not found".
  */
 export async function hydrateOxyUsers(
   ids: readonly (string | null | undefined)[],
@@ -117,26 +98,18 @@ export async function hydrateOxyUsers(
 
   try {
     // The SDK deduplicates and chunks; passing the whole list is intended use.
-    const users = await (oxyServiceClient() ?? oxyClient).users.getMany(wanted);
-    for (const user of users) {
+    const { found, failed, error } = await oxy.users.lookupMany(wanted);
+    for (const user of found) {
       const hydrated = toHydrated(user);
       if (hydrated) resolved.set(hydrated._id, hydrated);
     }
-    if (resolved.size === 0) {
-      /**
-       * The line this fault needed and did not have.
-       *
-       * `@oxy.so/core` catches a failed chunk itself and returns the users that
-       * resolved, so an unauthenticated 403 arrives here as an empty array and
-       * the `catch` below never runs. "Oxy refused us" and "none of these
-       * accounts exist" are the same value at this seam; they are not the same
-       * event, and only one of them is a deployment fault.
-       */
-      log.general.warn({ requested: wanted.length }, 'Oxy resolved none of the requested accounts');
+    if (failed.length > 0) {
+      log.general.warn(
+        { err: error, requested: wanted.length, failed: failed.length },
+        'Oxy user hydration failed for some accounts; rendering them without profiles',
+      );
     }
   } catch (error: unknown) {
-    // Counted, not swallowed: a persistent gap here shows as every author
-    // rendering as a fallback, and this is the line that says why.
     log.general.warn(
       { err: error, requested: wanted.length },
       'Oxy user hydration failed; rendering ids without profiles',

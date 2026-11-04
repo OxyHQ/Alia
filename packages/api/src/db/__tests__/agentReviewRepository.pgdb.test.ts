@@ -24,13 +24,21 @@ import {
  */
 
 /**
- * `hydrateOxyUsers` reads through the module-level `oxyClient`, which talks to a
+ * `hydrateOxyUsers` reads through the one Oxy client (`lib/oxy.ts`), which talks to a
  * real Oxy. Stubbed so the last block of this file measures the HYDRATION and
  * not the network.
  */
 const getUsersByIds = vi.fn();
-vi.mock('../../middleware/auth.js', () => ({
-  oxyClient: { users: { getMany: (ids: string[]) => getUsersByIds(ids) } },
+vi.mock('../../lib/oxy.js', () => ({
+  oxy: {
+    users: {
+      lookupMany: async (ids: string[]) => ({
+        found: await getUsersByIds(ids),
+        missing: [],
+        failed: [],
+      }),
+    },
+  },
 }));
 
 const { hydrateOxyUsers } = await import('../../lib/oxy-user-hydration.js');

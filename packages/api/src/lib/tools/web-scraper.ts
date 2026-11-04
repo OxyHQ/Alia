@@ -4,14 +4,21 @@ import { z } from 'zod';
 import { describeClarityFailure, readClarityDocument } from '../clarity-read.js';
 import { getErrorMessage } from '../errors/index.js';
 import { log } from '../logger.js';
-import { validateUrl } from './sandbox.js';
+import { assertSafePublicUrl } from '@oxy.so/core/server';
 
 const MAX_CONTENT_CHARS = 8_000;
 
-/** Read one public page through Clarity. Never throws; failures are `{ error }`. */
+/**
+ * Read one public page through Clarity. Never throws; failures are `{ error }`.
+ *
+ * The URL is the model's, shaped by search results and by what the person
+ * typed, and a URL is not trusted because Clarity is the one fetching it: it
+ * must be a public http(s) URL whose name resolves ONLY to public addresses
+ * (`assertSafePublicUrl`) before Clarity is asked anything.
+ */
 export async function readWebPage(url: string, signal?: AbortSignal) {
-  const urlCheck = await validateUrl(url);
-  if (!urlCheck.valid) return { error: `URL blocked: ${urlCheck.reason}` };
+  const urlCheck = await assertSafePublicUrl(url, { signal });
+  if (!urlCheck.ok) return { error: `URL blocked: ${urlCheck.reason}` };
 
   try {
     const read = await readClarityDocument(url, { signal });

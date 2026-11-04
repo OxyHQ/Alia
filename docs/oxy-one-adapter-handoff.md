@@ -25,8 +25,8 @@ Oxy middleware's validated request identity; do not accept a browser-provided
 subject, service token or global mutable user token. SDK transport must forward
 that request's user session independently and schema-parse `ProductAccess`.
 `productAccess({ schemaVersion: 1, subjectAccountId, productId })` is the existing
-SDK read contract. A request-scoped server SDK forwarding method is required
-before wiring the Alia shared `oxyClient`; mutating its token would cross accounts.
+SDK read contract. A request-scoped read goes through `oxy.withUser(req, …)` (`lib/oxy.ts`);
+mutating the shared client's token would cross accounts.
 
 Output: `{ state: 'unconfigured' | 'ready' | 'unavailable', subjectAccountId,
 productId, evaluatedAt, capabilities, quotas, conflicts, sourceGrantIds }`.

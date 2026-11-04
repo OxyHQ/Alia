@@ -12,10 +12,9 @@ vi.mock('../../../db/agents/skillRepository.js', () => ({ findReportedSkill: vi.
  *
  * Mocked at `hydrateOxyUsers` — the narrow seam `lib/agent-identity.ts` reads
  * through — rather than at `attachAgentIdentity`, so the mapping from an Oxy
- * user to the three rendered fields is the SHIPPED one. `middleware/auth`'s
- * `oxyClient` goes with it because the avatar resolution calls
- * `assets.publicUrl`, and importing the real middleware here would drag in
- * the whole database and telemetry stack.
+ * user to the three rendered fields is the SHIPPED one. The one Oxy client
+ * (`lib/oxy.ts`) goes with it because the avatar resolution calls
+ * `assets.publicUrl`.
  */
 const oxyIdentity = vi.hoisted(() => ({
   users: [] as { _id: string; username: string; displayName: string; avatar?: string }[],
@@ -23,8 +22,8 @@ const oxyIdentity = vi.hoisted(() => ({
 vi.mock('../../oxy-user-hydration.js', () => ({
   hydrateOxyUsers: async () => new Map(oxyIdentity.users.map((u) => [u._id, u])),
 }));
-vi.mock('../../../middleware/auth.js', () => ({
-  oxyClient: { assets: { publicUrl: (id: string) => `https://cloud.oxy.so/${id}` } },
+vi.mock('../../../lib/oxy.js', () => ({
+  oxy: { assets: { publicUrl: (id: string) => `https://cloud.oxy.so/${id}` } },
 }));
 
 import { findAgentById } from '../../../db/agents/agentRepository.js';

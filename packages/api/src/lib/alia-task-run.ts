@@ -41,7 +41,7 @@ import {
   markAutomationActionStep,
 } from '../db/automation/automationDefinitionRepository.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
-import { oxyClient } from '../middleware/auth.js';
+import { oxy } from './oxy.js';
 import { postAliaMessage } from './agent/alia-outreach.js';
 import type { AliaTaskJobData } from './alia-task-queue.js';
 import { renderAutomationStageTask } from './automation-stage-task.js';
@@ -131,7 +131,7 @@ async function loadPersonContext(
         log.agents.warn({ err }, 'Could not load memory for an Alia task');
         return null;
       }),
-    (oxyClient.users.get(userId) as Promise<OxyUser>).catch((err: unknown) => {
+    (oxy.users.get(userId) as Promise<OxyUser>).catch((err: unknown) => {
       log.agents.info({ err }, 'Could not fetch the Oxy profile for an Alia task');
       return null;
     }),

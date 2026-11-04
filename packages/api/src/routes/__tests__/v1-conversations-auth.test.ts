@@ -20,7 +20,6 @@ const lane = vi.hoisted(() => ({ blanketCalls: 0 }));
 vi.mock('../../middleware/auth.js', () => {
   const next = (_req: unknown, _res: unknown, done: () => void) => done();
   return {
-    oxyClient: { users: { get: vi.fn(async () => null) }, middleware: { socket: vi.fn() } },
     optionalAuth: vi.fn(next),
     authenticateToken: vi.fn(
       (
@@ -50,6 +49,9 @@ vi.mock('../../middleware/auth.js', () => {
     ),
   };
 });
+vi.mock('../../lib/oxy.js', () => ({
+  oxy: { users: { get: vi.fn(async () => null) }, middleware: { socket: vi.fn() } },
+}));
 vi.mock('../conversations.js', () => {
   const router = Router();
   router.get('/', (req, res) => {

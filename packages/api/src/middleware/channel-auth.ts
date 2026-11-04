@@ -1,7 +1,6 @@
 import type { VerifiedChannelContext } from '../types/channel-context.js';
 import type { Request, Response, NextFunction } from 'express';
 import {
-  ALIA_SERVICE_AUDIENCE,
   ALIA_INTEGRATIONS_WORKLOAD_ID,
   ALIA_CHANNEL_HEADER,
   ALIA_PLATFORM_USER_HEADER,
@@ -9,7 +8,7 @@ import {
   isAliaWorkload,
 } from '@alia.onl/server/internal';
 import { isLiveEntityId } from '@oxy.so/db';
-import { oxyServiceClient } from '../lib/oxy-service-client.js';
+import { oxy } from '../lib/oxy.js';
 import { getDb } from '../db/index.js';
 import { findSystemBot, findBotUser } from '../db/integrations/botRepository.js';
 import { findConnectedAccountBySession } from '../db/integrations/connectedAccountRepository.js';
@@ -18,6 +17,9 @@ import type { ChannelId } from '../lib/channels/types.js';
 export function channelAccountOf(req: Request): string | undefined {
   return req.channelContext?.accountId;
 }
+
+/** Service tokens minted for Alia; built once, the audience is the server's own. */
+const serviceTokenAuth = oxy.middleware.service();
 
 /** Authenticate the exact integrations workload. Brand, headers and API keys confer no trust. */
 async function requireIntegrations(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -28,12 +30,7 @@ async function requireIntegrations(req: Request, res: Response, next: NextFuncti
     res.status(403).json({ error: 'Channel identity must come from its provider link' });
     return;
   }
-  const oxy = oxyServiceClient();
-  if (!oxy) {
-    res.status(503).json({ error: 'Integrations verifier unavailable' });
-    return;
-  }
-  await oxy.middleware.service({ expectedAudience: ALIA_SERVICE_AUDIENCE })(req, res, () => {
+  await serviceTokenAuth(req, res, () => {
     const principal = req.serviceApp;
     if (
       !isAliaWorkload(
