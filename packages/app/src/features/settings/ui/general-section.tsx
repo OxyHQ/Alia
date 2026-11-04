@@ -2,13 +2,14 @@ import { useSubscription } from '@/features/billing/runtime/use-billing';
 import { useCredits } from '@/features/billing/runtime/use-credits';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
+import { useHapticsSettingRow } from '@oxy.so/bloom/preferences';
 import { SettingsGeneralPage, type SettingsPageSection } from '@oxy.so/bloom/settings-modal';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { toast } from '@oxy.so/bloom/toast';
 import { COLOR_PRESET_REGISTRY, useBloomTheme } from '@oxy.so/bloom/theme';
 import { getNativeLanguageName } from '@oxy.so/core';
 import { useAccountColorSave, useOxy } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
-import { SettingsPreferenceSelect } from './preference-select';
 import { useAliaSettings } from './settings-context';
 
 /**
@@ -24,6 +25,7 @@ export function GeneralSection() {
   const { data: credits } = useCredits();
   const router = useRouter();
   const { t } = useTranslation();
+  const haptics = useHapticsSettingRow();
   const languages = currentLanguages.length ? currentLanguages : [currentLanguage];
 
   const plan = subscription?.plan;
@@ -87,7 +89,7 @@ export function GeneralSection() {
           key: 'appearance',
           label: t('settings.appearance.title'),
           control: (
-            <SettingsPreferenceSelect
+            <SettingsSelect
               label={t('settings.appearance.title')}
               value={mode}
               onChange={setMode}
@@ -103,7 +105,7 @@ export function GeneralSection() {
           key: 'color',
           label: t('settings.accentColor.title'),
           control: (
-            <SettingsPreferenceSelect
+            <SettingsSelect
               label={t('settings.accentColor.title')}
               value={colorValue}
               onChange={(name) =>
@@ -117,6 +119,7 @@ export function GeneralSection() {
             />
           ),
         },
+        haptics,
       ],
     },
   ];

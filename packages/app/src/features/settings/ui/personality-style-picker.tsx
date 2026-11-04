@@ -6,8 +6,8 @@ import {
   type PersonalityStyleId,
 } from '@/features/settings/model/personality-styles';
 import type { SettingsRowData } from '@oxy.so/bloom/settings-modal';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { useEffect } from 'react';
-import { SettingsPreferenceSelect } from './preference-select';
 
 interface PersonalityStyleRowOptions {
   selectedStyle: string;
@@ -41,7 +41,7 @@ export function usePersonalityStyleRow({
     label: t('settings.personalityStyle.title'),
     description: `${phrase || '…'}${isStreaming ? ' |' : ''}`,
     control: (
-      <SettingsPreferenceSelect
+      <SettingsSelect
         label={t('settings.personalityStyle.title')}
         value={currentStyleId}
         onChange={onSelectStyle}

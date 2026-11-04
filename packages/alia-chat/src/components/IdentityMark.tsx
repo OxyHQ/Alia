@@ -1,7 +1,7 @@
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import type { AliaAvatarState } from './AliaAvatar';
-import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
   useSharedValue,
@@ -146,6 +146,7 @@ export function IdentityMark({
   // One-shot press/mount flourish. Skipped while the state-driven spin runs so
   // the two never fight over the shared rotation value.
   const [spinCount, setSpinCount] = useState(spinOnMount ? 1 : 0);
+  const haptic = useHaptics();
   useAnimatedReaction(
     () => spinCount,
     (current, previous) => {
@@ -168,8 +169,7 @@ export function IdentityMark({
     if (state !== 'thinking' && state !== 'working') {
       setSpinCount((count) => count + 1);
     }
-    // Best-effort flourish: rejects on platforms without haptics — not an error.
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    haptic();
     onPress?.();
   };
 

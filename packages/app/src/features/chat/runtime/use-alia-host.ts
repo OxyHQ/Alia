@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Message } from '@alia.onl/sdk/model';
 import type { AliaRuntimeHost, AliaUsageFrame } from '@alia.onl/sdk/runtime';
 import { resolveFaviconUrl } from '@clarity.surf/sdk';
-import * as Haptics from 'expo-haptics';
+import { useHaptics } from '@oxy.so/bloom/hooks';
 import { usePathname, useRouter } from 'expo-router';
 import { useMemo, useRef } from 'react';
 import type { CreditsInfo } from '@/features/billing/runtime/use-credits';
@@ -38,6 +38,7 @@ export function useAliaHost(): AliaRuntimeHost {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const previewAgentRow = useAgentRowPreview();
+  const haptic = useHaptics();
 
   // Read when a conversation is opened, not when the host is built: a pathname that changed
   // would otherwise rebuild the host (and re-subscribe every thread) on every navigation.
@@ -52,9 +53,7 @@ export function useAliaHost(): AliaRuntimeHost {
         deepResearch: useStore.getState().deepResearchMode,
       }),
       onTurnStart: () => useStore.getState().setBottomChatHeightHandler(true),
-      onOutput: () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      },
+      onOutput: () => haptic(),
       onUsage: (usage: AliaUsageFrame) => {
         queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) =>
           old ? { ...old, credits: usage.credits_remaining ?? old.credits } : old,
@@ -126,6 +125,6 @@ export function useAliaHost(): AliaRuntimeHost {
       },
       closeConversation: () => router.replace('/(app)'),
     }),
-    [queryClient, previewAgentRow, router],
+    [queryClient, previewAgentRow, router, haptic],
   );
 }
