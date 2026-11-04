@@ -10,13 +10,13 @@ import {
   SettingsTextField,
   type SettingsRowData,
 } from '@oxy.so/bloom/settings-modal';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { usePersonalityStyleRow } from './personality-style-picker';
-import { SettingsPreferenceSelect } from './preference-select';
 
 const LANGUAGES = [
   { value: 'en-US', label: 'English' },
@@ -179,7 +179,7 @@ export function PersonalizationSection() {
       label: t('settings.aliaLanguage.title'),
       description: t('settings.aliaLanguage.description'),
       control: (
-        <SettingsPreferenceSelect
+        <SettingsSelect
           label={t('settings.aliaLanguage.title')}
           value={language}
           onChange={setLanguage}
@@ -192,7 +192,7 @@ export function PersonalizationSection() {
       label: t('settings.voicePreference.title'),
       description: t('settings.voicePreference.description'),
       control: (
-        <SettingsPreferenceSelect
+        <SettingsSelect
           label={t('settings.voicePreference.title')}
           value={voice || 'female'}
           onChange={setVoice}

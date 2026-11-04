@@ -53,7 +53,7 @@ vi.mock('@/features/connections/runtime/use-mcp-servers', () => ({
 }));
 vi.mock('@/shared/api/error-utils', () => ({ errorStatus: () => undefined }));
 vi.mock('../settings-context', () => ({ useAliaSettings: () => mocks.settings }));
-vi.mock('../preference-select', () => ({ SettingsPreferenceSelect: () => null }));
+vi.mock('@oxy.so/bloom/settings-modal/rows', () => ({ SettingsSelect: () => null }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: mocks.toast }));
 vi.mock('@oxy.so/bloom/surfaces', () => ({ confirm: mocks.confirm }));
 vi.mock('@oxy.so/bloom/dialog', () => ({ Dialog: () => null }));

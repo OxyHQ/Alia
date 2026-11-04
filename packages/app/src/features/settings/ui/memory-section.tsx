@@ -18,6 +18,7 @@ import {
   SettingsSection,
   SettingsValueField,
 } from '@oxy.so/bloom/settings-modal';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -28,7 +29,6 @@ import { useRouter } from 'expo-router';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { SettingsPreferenceSelect } from './preference-select';
 import { RememberingAgentsSection } from './agent-memory-section';
 
 /** This page's own strings. */
@@ -690,7 +690,7 @@ export function MemorySection() {
                   exportFormat === 'json' ? t('memory.jsonDescription') : t('memory.csvDescription')
                 }
               >
-                <SettingsPreferenceSelect
+                <SettingsSelect
                   label={t('memory.format')}
                   value={exportFormat}
                   onChange={setExportFormat}
@@ -767,7 +767,7 @@ export function MemorySection() {
                       : t('memory.replaceDescription')
                 }
               >
-                <SettingsPreferenceSelect
+                <SettingsSelect
                   label={t('memory.importStrategy')}
                   value={importStrategy}
                   onChange={setImportStrategy}

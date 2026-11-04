@@ -19,6 +19,7 @@ import {
   type SettingsMenuAction,
   type SettingsServerTone,
 } from '@oxy.so/bloom/settings-modal';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
@@ -31,7 +32,6 @@ import {
 } from '@oxy.so/bloom/accordion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, View } from 'react-native';
-import { SettingsPreferenceSelect } from './preference-select';
 import { useAliaSettings } from './settings-context';
 
 type Translate = ReturnType<typeof useTranslation>['t'];
@@ -602,7 +602,7 @@ export function ConnectorsSection() {
         description={t('connectors.subtitle')}
         inset={8}
         action={
-          <SettingsPreferenceSelect
+          <SettingsSelect
             label={t('settings.connections.catalog')}
             value={tab}
             onChange={setTab}

@@ -9,11 +9,11 @@ import {
   SettingsValueField,
   type SettingsRowData,
 } from '@oxy.so/bloom/settings-modal';
+import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useEffect, useState } from 'react';
 import { Platform, Share } from 'react-native';
-import { SettingsPreferenceSelect } from './preference-select';
 
 interface ThreatEntry {
   id: string;
@@ -187,7 +187,7 @@ export function SecuritySection() {
               key: 'format',
               label: t('settings.security.format'),
               control: (
-                <SettingsPreferenceSelect
+                <SettingsSelect
                   label={t('settings.account.security.exportFormat')}
                   value={exportFormat}
                   onChange={setExportFormat}
