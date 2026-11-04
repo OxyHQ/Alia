@@ -67,7 +67,7 @@ import {
   legacyStorageReadRecorded,
   privateContentFallbackRecorded,
 } from '../observability/metrics.js';
-import { oxyServiceClient } from '../oxy-service-client.js';
+import { oxy as aliaOxy } from '../oxy.js';
 import { readS3Object, uploadToS3Deterministic, type S3ObjectStream } from '../s3.js';
 
 /** Raised when Alia has no Oxy service identity, so nothing can be stored in Oxy. */
@@ -94,7 +94,7 @@ export function setOxyFilesClientForTests(factory: (() => OxyServer | null) | nu
 }
 
 function oxy(): OxyServer {
-  const client = clientOverride ? clientOverride() : oxyServiceClient();
+  const client = clientOverride ? clientOverride() : aliaOxy;
   if (client === null) throw new OxyFilesUnavailableError();
   return client;
 }
@@ -411,7 +411,10 @@ export async function openStoredContent(
   return openLegacyObject(stored.objectKey, kind);
 }
 
-/** Raised when an Oxy download link Alia was given did not serve the file. */
+/** How long an Oxy download link may take to start answering. */
+const OXY_DOWNLOAD_RESPONSE_TIMEOUT_MS = 30_000;
+
+/** Raised when an Oxy download link Alia was given did not serve the file (0: no answer in time). */
 export class OxyDownloadError extends Error {
   constructor(readonly status: number) {
     super(`An Oxy download link answered ${status}`);
@@ -428,7 +431,20 @@ export class OxyDownloadError extends Error {
 export async function openOxyFile(fileId: string): Promise<StoredContentStream | null> {
   const [link] = await oxy().assets.linkedDownloadUrls([fileId]);
   if (link === undefined) return null;
-  const response = await fetch(link.url);
+  // An Oxy-minted link on Oxy's own storage host: a trusted fixed host, so a
+  // plain fetch — bounded until the response starts. The body is streamed on
+  // to the reader, whose own connection decides how long that takes.
+  const started = new AbortController();
+  const deadline = setTimeout(
+    () => started.abort(new OxyDownloadError(0)),
+    OXY_DOWNLOAD_RESPONSE_TIMEOUT_MS,
+  );
+  let response: Response;
+  try {
+    response = await fetch(link.url, { signal: started.signal });
+  } finally {
+    clearTimeout(deadline);
+  }
   if (!response.ok || response.body === null) throw new OxyDownloadError(response.status);
   return {
     body: Readable.fromWeb(response.body as import('node:stream/web').ReadableStream),

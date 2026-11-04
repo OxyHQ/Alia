@@ -101,9 +101,17 @@ vi.mock('../logger.js', () => {
   const c = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { general: c, agents: c, chat: c, v1: c, providers: c } };
 });
-vi.mock('../../middleware/auth.js', () => ({
-  oxyClient: { users: { byUsername: async () => ({ id: 'oxy-bot-1' }) } },
-}));
+vi.mock('../oxy.js', async () => {
+  const { OxyServices } = await import('@oxy.so/core');
+  const { fakeWithUser } = await import('../../__tests__/mocks/oxy-user-client.js');
+  const userClient = () => new OxyServices({ baseURL: 'https://api.oxy.test' });
+  return {
+    oxy: {
+      withUser: fakeWithUser(userClient),
+      users: { byUsername: async () => ({ id: 'oxy-bot-1' }) },
+    },
+  };
+});
 
 const { loadTurnAgent, canReachAgent, verifyAgentAccount, clearAgentAccountVerdicts } =
   await import('../agent-account.js');

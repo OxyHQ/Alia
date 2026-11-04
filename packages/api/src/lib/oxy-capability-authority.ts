@@ -14,7 +14,7 @@ import {
   type ResourceRef,
 } from '@oxy.so/contracts';
 import { getErrorStatus } from '@oxy.so/core';
-import { oxyServiceClient } from './oxy-service-client.js';
+import { oxy } from './oxy.js';
 
 export interface OxyExecutionLimit {
   tool: string;
@@ -47,9 +47,7 @@ export async function createOxyExecutionAuthorization(
       : !input.automationId || Boolean(input.runId) || Boolean(input.stepId)
   )
     throw new Error('Execution terms must identify exactly one direct run or automation');
-  const client = oxyServiceClient();
-  if (!client) throw new Error('Requester authority is unavailable');
-  const registration = (await client.agency.serviceCatalogs()).find(
+  const registration = (await oxy.agency.serviceCatalogs()).find(
     (entry) => entry.catalog.appId === input.resource.appId,
   );
   if (!registration) throw new Error('Oxy catalogue is unavailable');
@@ -59,7 +57,7 @@ export async function createOxyExecutionAuthorization(
     digest: registration.digest,
   });
   return (
-    await client.agency.createForegroundExecutionAuthorization(
+    await oxy.agency.createForegroundExecutionAuthorization(
       firstPartyExecutionAuthorizationInputSchema.parse({
         authority: 'first_party',
         kind: input.kind,
@@ -83,10 +81,8 @@ export async function revokeOxyExecutionAuthorization(
   accessToken: string,
   authorizationId: string,
 ): Promise<void> {
-  const client = oxyServiceClient();
-  if (!client) throw new Error('Requester authority is unavailable');
   try {
-    await client.agency.revokeExecutionAuthorization(authorizationId, {
+    await oxy.agency.revokeExecutionAuthorization(authorizationId, {
       requesterToken: accessToken,
     });
   } catch (error) {

@@ -30,10 +30,15 @@ vi.mock('../../lib/logger.js', () => {
 });
 
 const serviceFetch = vi.hoisted(() => vi.fn());
-vi.mock('../../lib/oxy-service-client.js', () => ({
-  oxyServiceClient: () => ({
+vi.mock('../../lib/oxy.js', () => ({
+  oxy: {
     middleware: {
-      service: () => (req: any, _res: unknown, next: () => void) => {
+      // Stands in for the SDK's service lane: no service bearer, no caller.
+      service: () => (req: any, res: any, next: () => void) => {
+        if (!req.headers.authorization?.startsWith('Bearer ')) {
+          res.status(401).json({ error: 'SERVICE_TOKEN_REQUIRED' });
+          return;
+        }
         req.serviceApp = {
           appId: 'application-1',
           authority: 'external',
@@ -54,7 +59,7 @@ vi.mock('../../lib/oxy-service-client.js', () => ({
         }));
       },
     },
-  }),
+  },
 }));
 const eventsModule = await import('../oxy-service-events.js');
 const router = eventsModule.default;

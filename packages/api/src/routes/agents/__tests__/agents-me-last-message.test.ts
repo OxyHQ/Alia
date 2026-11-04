@@ -34,7 +34,16 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateToken: signIn,
   optionalAuth: signIn,
   authenticateTokenOrApiKey: signIn,
-  oxyClient: { users: { getMany: async () => [], byUsername: async () => ({ id: 'acct-bot' }) } },
+}));
+vi.mock('../../../lib/oxy.js', () => ({
+  oxy: {
+    // `lib/socket-session-auth.ts` builds its handshake verifier at import.
+    middleware: { socket: () => () => undefined },
+    users: {
+      lookupMany: async () => ({ found: [], missing: [], failed: [] }),
+      byUsername: async () => ({ id: 'acct-bot' }),
+    },
+  },
 }));
 
 vi.mock('../../../db/agents/agentRepository.js', () => ({

@@ -1,7 +1,7 @@
 import { createAliaTransportForOxyService } from '@alia.onl/server';
 import { ALIA_ACCOUNT_CONTEXT_HEADER } from '@alia.onl/server/internal';
 import { isLiveEntityId } from '@oxy.so/db';
-import { oxyServiceClient } from './oxy-service-client.js';
+import { oxy } from './oxy.js';
 
 const transports = new Map<string, ReturnType<typeof createAliaTransportForOxyService>>();
 
@@ -17,8 +17,6 @@ export async function integrationsFetch(
     throw new Error('Integrations account context unavailable');
   let transport = transports.get(baseURL);
   if (!transport) {
-    const oxy = oxyServiceClient();
-    if (!oxy) throw new Error('Alia workload identity unavailable');
     transport = createAliaTransportForOxyService(oxy, { baseURL });
     transports.set(baseURL, transport);
   }

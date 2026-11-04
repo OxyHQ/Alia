@@ -33,14 +33,14 @@ Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 | `X-Oxy-App-Assertion` (beside a session token) | Not a credential. The Oxy-signed proof of which Oxy app the request comes from (Oxy ADR 0045), sent by the SDK; Alia reads the surface from it to decide whether an app-confined agent opens — see [agents](./agents.md#where-an-agent-opens-is-oxys-adr-0021) |
 | `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots. Validated by `authenticateChannelBotSecret` (`packages/api/src/middleware/auth.ts`), which `authenticateTokenOrApiKey` dispatches to — so it works on `/alia/chat` as well as `/v1/*`. `routes/v1.ts:35` holds a second, pre-auth copy that matches against `listChannels()` rather than `getConfiguredChannels()` |
 
-A delegated service request (`X-Oxy-User-Id`) is verified by Alia's OWN
-credentialed Oxy client (`lib/oxy-service-client.ts`), not by the credential-free
-`oxyClient` that verifies inbound user tokens: the SDK checks the acting-as grant
+A delegated service request (`X-Oxy-User-Id`) is verified by Alia's ONE Oxy
+client (`lib/oxy.ts`), which also verifies inbound user tokens and proves Alia's
+own workload: the SDK checks the acting-as grant
 through a service-to-service endpoint and must present the verifier's own service
 token to reach it. With no credential it threw, cached a negative answer and
 refused every delegated user with `403 SERVICE_ACTING_AS_UNAUTHORIZED` — a valid
 grant included. A deployment that somehow holds no identity now answers
-`503 SERVICE_DELEGATION_UNAVAILABLE` instead of blaming the caller's grant;
+`503 SERVICE_AUTHORITY_UNAVAILABLE` instead of blaming the caller's grant;
 being able to mint an Oxy service token — from a credential pair, or by
 attesting the ECS task role under oxy ADR 0026 — is a boot requirement, so a
 serving process always can.

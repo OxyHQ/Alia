@@ -33,7 +33,7 @@ vi.mock('../../db/automation/aliaTaskAuthorityRepository.js', () => ({
   listAliaTaskAuthorizationsForRun: state.authorizations,
 }));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: state.memory }));
-vi.mock('../../middleware/auth.js', () => ({ oxyClient: { users: { get: state.oxyUser } } }));
+vi.mock('../../lib/oxy.js', () => ({ oxy: { users: { get: state.oxyUser } } }));
 vi.mock('../agent/alia-outreach.js', () => ({ postAliaMessage: state.post }));
 vi.mock('../chat-core.js', () => ({
   resolveDefaultModel: state.resolveModel,

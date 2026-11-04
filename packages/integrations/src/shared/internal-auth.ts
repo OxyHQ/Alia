@@ -10,7 +10,8 @@ import { oxy } from './oxy';
 
 const verifiedRequests = new WeakSet<object>();
 
-const serviceAuth = oxy.middleware.service({ expectedAudience: ALIA_SERVICE_AUDIENCE });
+/** Alia's own audience is the server's (`shared/oxy.ts`). */
+const serviceAuth = oxy.middleware.service();
 const expectedWorkload = () => process.env.ALIA_API_WORKLOAD_ID || ALIA_API_WORKLOAD_ID;
 
 /** Same-product process authentication. This never fabricates an Oxy user session. */

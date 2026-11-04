@@ -1,8 +1,10 @@
 import { configuredProductCheckout } from '../lib/product-credit-contract';
 import { effectiveCreditPlan, readCurrentProductAllowance } from '../lib/product-credit-read-model';
+import { ProductCreditAuthorityUnavailableError } from '../lib/product-credit-access';
 import { Router, type Request, type Response } from 'express';
 import Stripe from 'stripe';
-import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
+import { authenticateToken, optionalAuth } from '../middleware/auth.js';
+import { oxy } from '../lib/oxy.js';
 import { getDb } from '../db/index.js';
 import {
   addCredits,
@@ -108,7 +110,7 @@ async function getOrCreateStripeCustomer(
   // Fetch email from Oxy
   let email: string | undefined;
   try {
-    const oxyUser = await oxyClient.users.get(userId);
+    const oxyUser = await oxy.users.get(userId);
     email = oxyUser?.email;
   } catch (e: unknown) {
     log.credits.error({ err: e }, 'Failed to fetch user from Oxy');
@@ -749,6 +751,10 @@ router.get('/entitlements', authenticateToken, async (req: Request, res: Respons
       effectivePlanId: effectiveCreditPlan(entitlements.planId, productAllowance?.planId ?? null),
     });
   } catch (error: unknown) {
+    if (error instanceof ProductCreditAuthorityUnavailableError) {
+      res.status(503).json({ error: { code: error.code, message: error.message } });
+      return;
+    }
     log.credits.error({ err: error }, 'Error fetching entitlements');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch entitlements') });
   }

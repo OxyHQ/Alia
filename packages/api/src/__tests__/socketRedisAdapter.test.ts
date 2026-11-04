@@ -40,9 +40,7 @@ vi.mock('../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { general: child, v1: child, chat: child } };
 });
-vi.mock('../middleware/auth.js', () => ({
-  oxyClient: { middleware: { socket: () => vi.fn() } },
-}));
+vi.mock('../lib/oxy.js', () => ({ oxy: { middleware: { socket: () => vi.fn() } } }));
 vi.mock('../db/index.js', () => ({ getDb: () => ({}) }));
 // `socket.ts` reads the agent's BOT ACCOUNT and asks Oxy whether the socket's
 // user may act as it — the same gate the HTTP routes use — so this stands in

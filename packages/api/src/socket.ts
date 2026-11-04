@@ -1,9 +1,11 @@
 import { Server, type Socket } from 'socket.io';
+import { createOxySocketCors } from '@oxy.so/core/server';
 import { createAdapter } from '@socket.io/redis-adapter';
 import type http from 'http';
 import { getRedisClient, getRedisSubClient } from './lib/redis.js';
 import { log } from './lib/logger.js';
-import { oxyClient } from './middleware/auth.js';
+import { oxy } from './lib/oxy.js';
+import { appOriginsFor } from './lib/cors-origins.js';
 import { getDb } from './db/index.js';
 import { findAgentOxyAccountId } from './db/agents/agentRepository.js';
 import { verifyAgentAccount } from './lib/agent-account.js';
@@ -75,21 +77,14 @@ function runtimeOffer(value: unknown): UserRuntimePresence | null {
   return { id, label, models: names };
 }
 
-const ALLOWED_ORIGINS = [
-  process.env.WEB_URL || 'http://localhost:4150',
-  'https://alia.onl',
-  'https://console.alia.onl',
-];
-
 let io: Server | null = null;
 
 export function initSocket(server: http.Server) {
   io = new Server(server, {
-    cors: {
-      origin: ALLOWED_ORIGINS,
-      methods: ['GET', 'POST'],
-      credentials: true,
-    },
+    // The origins HTTP admits (`lib/cors-origins.ts`), on both transports:
+    // `cors` for long-polling and `allowRequest` for the WebSocket handshake,
+    // which browsers apply no CORS to.
+    ...createOxySocketCors({ appOrigins: appOriginsFor(process.env.WEB_URL) }),
     transports: ['websocket', 'polling'],
     // Upgrades to other paths belong to `lib/websocket-upgrades.ts`, which
     // refuses unknown ones itself. engine.io's default ends any upgrade it did
@@ -141,19 +136,10 @@ export function initSocket(server: http.Server) {
   // Authenticate every connection. `oxy.middleware.socket()` validates the handshake
   // bearer token, plants `socket.data.userId`, and rejects unauthenticated /
   // invalid / expired tokens before any `connection` handler runs.
-  io.use(oxyClient.middleware.socket({ debug: process.env.NODE_ENV !== 'production' }));
+  io.use(oxy.middleware.socket());
 
   io.on('connection', (socket) => {
     const userId = socketUserId(socket);
-
-    socket.on('subscribe-telegram-token', (token: string) => {
-      // Telegram link tokens are short-lived, single-use codes minted for the
-      // authenticated user who initiated linking; the room is the token itself.
-      if (typeof token !== 'string' || token.length === 0 || token.length > 256) return;
-      Promise.resolve(socket.join(`telegram-token:${token}`)).catch((err) =>
-        log.general.warn({ err }, 'socket.join telegram-token failed'),
-      );
-    });
 
     socket.on('subscribe-workflow', async (executionId: string) => {
       if (typeof executionId !== 'string' || executionId.length === 0 || executionId.length > 256)
@@ -310,6 +296,10 @@ export function initSocket(server: http.Server) {
       );
     };
     socket.on('subscribe-notifications', joinOwnUserRoom);
+    // "Your Telegram is linked" goes to the person who linked it. The pairing
+    // code an older app still sends with this is ignored: a room named by a
+    // client-chosen string is one any client can join.
+    socket.on('subscribe-telegram-token', joinOwnUserRoom);
     // Alia's live state (`alia:activity`), for every "Ask Alia" button the person has open.
     socket.on('subscribe-alia-activity', joinOwnUserRoom);
   });
@@ -320,9 +310,9 @@ export function getIO(): Server | null {
   return io;
 }
 
-export function emitTelegramLinked(token: string, data: any) {
+export function emitTelegramLinked(userId: string, data: any) {
   if (io) {
-    io.to(`telegram-token:${token}`).emit('telegram-linked', data);
+    io.to(`user:${userId}`).emit('telegram-linked', data);
   }
 }
 

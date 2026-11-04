@@ -10,7 +10,8 @@ import sharedRouter from './shared.js';
 import agentsV1Router from './v1/agents.js';
 import { cancelChatTurn } from '../lib/chat/turn-control.js';
 import { submitHostResult } from '../lib/chat/host-results.js';
-import { authenticateToken, authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
+import { authenticateToken, authenticateTokenOrApiKey } from '../middleware/auth.js';
+import { oxy } from '../lib/oxy.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { log } from '../lib/logger.js';
@@ -78,7 +79,7 @@ router.get('/me', async (req: Request, res: Response) => {
     // a profile-fetch failure must not block the credits payload.
     let oxyUser: User | null = null;
     try {
-      oxyUser = await oxyClient.users.get(userId);
+      oxyUser = await oxy.users.get(userId);
     } catch (err) {
       log.general.warn({ err, userId }, 'Failed to load Oxy user for /v1/me');
     }

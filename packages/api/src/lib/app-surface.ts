@@ -21,7 +21,7 @@
 
 import type { Request } from 'express';
 import { readAppAssertionHeader, verifyAppAssertion } from '@oxy.so/core/server';
-import { OXY_API_URL } from '../middleware/auth.js';
+import { OXY_API_URL } from './oxy.js';
 
 const surfaces = new WeakMap<Request, Promise<string | null>>();
 

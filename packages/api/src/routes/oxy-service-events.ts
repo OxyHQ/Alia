@@ -7,7 +7,6 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { ALIA_SERVICE_AUDIENCE } from '@alia.onl/server/internal';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import {
@@ -19,7 +18,7 @@ import {
 import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
 import { getErrorMessage } from '../lib/errors/index.js';
 import { log } from '../lib/logger.js';
-import { oxyServiceClient } from '../lib/oxy-service-client.js';
+import { oxy } from '../lib/oxy.js';
 import { sendNotification } from '../lib/notification-service.js';
 import { handleInboxEmailEvent } from '../lib/proactive/email-outreach.js';
 
@@ -96,9 +95,12 @@ function isNewEmail(event: NormalizedAutomationEventInput): boolean {
 
 const router = Router();
 
-router.post('/', async (request: Request, response: Response, next) => {
-  if (!request.headers.authorization?.startsWith('Bearer '))
-    return response.status(401).json({ error: 'service_bearer_required' });
+/**
+ * The caller is authenticated FIRST — Oxy verifies the signature, recipient
+ * (Alia's own audience) and live binding — and only an authenticated caller's
+ * body is parsed. A brand or a scope string is not trust.
+ */
+router.post('/', oxy.middleware.service(), async (request: Request, response: Response, next) => {
   const parsed = normalizedEventSchema.safeParse(request.body);
   if (!parsed.success) {
     return response
@@ -111,17 +113,7 @@ router.post('/', async (request: Request, response: Response, next) => {
   if (parsed.data.resource.effectiveAccountId !== parsed.data.accountId) {
     return response.status(400).json({ error: 'event_resource_account_mismatch' });
   }
-  const oxy = oxyServiceClient();
-  if (!oxy) return response.status(503).json({ error: 'service_verifier_unavailable' });
-  // Core verifies the signature, recipient and live binding. Its finite central
-  // bridge handles old cohort v1 issuers; a brand or scope string is not trust.
-  await oxy.middleware.service({ expectedAudience: ALIA_SERVICE_AUDIENCE })(
-    request,
-    response,
-    () => {
-      void acceptVerifiedEvent(request, response, parsed.data).catch(next);
-    },
-  );
+  await acceptVerifiedEvent(request, response, parsed.data).catch(next);
 });
 
 async function acceptVerifiedEvent(
@@ -143,8 +135,6 @@ async function acceptVerifiedEvent(
   try {
     // Discover with Alia's own platform transport; never forward an Alia-audience
     // caller token to Oxy. Registry ownership is checked against the live caller.
-    const oxy = oxyServiceClient();
-    if (!oxy) throw new Error('Service verifier unavailable');
     registrations = await oxy.agency.serviceCatalogs({ appId: input.appId });
   } catch (error: unknown) {
     log.triggers.warn({ err: error }, 'Oxy event catalog unavailable');

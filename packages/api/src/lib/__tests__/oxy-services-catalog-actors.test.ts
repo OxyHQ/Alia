@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { canonicalCapabilityJson } from '@oxy.so/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../oxy-service-client.js', () => {
+vi.mock('../oxy.js', () => {
   const { OxyServer }: typeof import('@oxy.so/core/server') = createRequire(import.meta.url)(
     '@oxy.so/core/server',
   );
@@ -17,7 +17,11 @@ vi.mock('../oxy-service-client.js', () => {
     baseURL: 'https://api.oxy.so',
     serviceAuth: { apiKey: 'synthetic-app', apiSecret: 'synthetic-secret' },
   });
-  return { oxyServiceClient: () => client, oxyServiceToken: async () => 'ALIA-SERVICE-TOKEN' };
+  return {
+    get oxy() {
+      return client;
+    },
+  };
 });
 
 const logged = vi.hoisted(() => ({ error: vi.fn() }));

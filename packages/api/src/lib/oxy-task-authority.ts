@@ -3,13 +3,11 @@ import { getDb } from '../db/index.js';
 import { agentSessions } from '../db/schema/agent-sessions.js';
 import { log } from './logger.js';
 /** Durable own-task authority binds the requester once; workers store only its id. */
-import { oxyServiceClient } from './oxy-service-client.js';
+import { oxy } from './oxy.js';
 
 const TASK_LIFETIME_MS = 365 * 24 * 60 * 60_000;
 function agency() {
-  const client = oxyServiceClient();
-  if (!client) throw new Error('Oxy task authority is unavailable');
-  return client.agency;
+  return oxy.agency;
 }
 
 export async function createOxyTask(input: {

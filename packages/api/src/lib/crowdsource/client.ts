@@ -7,15 +7,13 @@ import { crowdSourceForOxyService, type CrowdSource } from '@crowdsource.you/cor
 
 import { crowdSourceConfig } from './config.js';
 import { log } from '../logger.js';
-import { oxyServiceClient } from '../oxy-service-client.js';
+import { oxy } from '../oxy.js';
 
 let client: CrowdSource | undefined;
 
 /** The client, or `undefined` where this process cannot authenticate as Alia. */
 export function getCrowdSourceClient(): CrowdSource | undefined {
   if (client) return client;
-  const oxy = oxyServiceClient();
-  if (!oxy) return undefined;
   const config = crowdSourceConfig();
   client = crowdSourceForOxyService({
     oxy,

@@ -20,7 +20,7 @@ const files = vi.hoisted(
 );
 const seen = vi.hoisted(() => ({ tokens: [] as string[], downloads: [] as string[] }));
 
-vi.mock('../../oxy-service-client.js', async () => {
+vi.mock('../../oxy.js', async () => {
   const actual = await import('@oxy.so/core');
   class FakeOxyServices {
     assets = {
@@ -47,14 +47,16 @@ vi.mock('../../oxy-service-client.js', async () => {
   }
   const client = new FakeOxyServices();
   return {
-    oxyServiceClient: () => ({
-      assets: {
-        withRequester: (proof: { requesterToken?: string; taskId?: string }) => {
-          seen.tokens.push(proof.requesterToken ?? `task:${proof.taskId}`);
-          return client.assets;
+    get oxy() {
+      return {
+        assets: {
+          withRequester: (proof: { requesterToken?: string; taskId?: string }) => {
+            seen.tokens.push(proof.requesterToken ?? `task:${proof.taskId}`);
+            return client.assets;
+          },
         },
-      },
-    }),
+      };
+    },
   };
 });
 

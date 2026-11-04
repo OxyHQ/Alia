@@ -50,8 +50,8 @@ vi.mock('../lib/redis.js', () => ({
   getRedisClient: vi.fn(() => null),
   getRedisSubClient: vi.fn(() => null),
 }));
-vi.mock('../middleware/auth.js', () => ({
-  oxyClient: {
+vi.mock('../lib/oxy.js', () => ({
+  oxy: {
     middleware: { socket: vi.fn(() => (_socket: unknown, next: () => void) => next()) },
   },
 }));
@@ -192,12 +192,13 @@ describe('each product event is emitted under its own name, to its own room', ()
       status: 'completed',
       audioUrl: 'https://x.test/a.mp3',
     });
-    emitTelegramLinked('tok-1', { linked: true });
+    emitTelegramLinked('user-ws13', { linked: true });
     emitWorkflowProgress('exec-1', { step: 2 });
 
     expect(broadcasts.map((entry) => ({ event: entry.event, rooms: entry.rooms }))).toEqual([
       { event: 'audio:job-update', rooms: ['user:user-ws13'] },
-      { event: 'telegram-linked', rooms: ['telegram-token:tok-1'] },
+      // The person who linked it, never a room named by a client-chosen string.
+      { event: 'telegram-linked', rooms: ['user:user-ws13'] },
       { event: 'workflow-progress', rooms: ['workflow:exec-1'] },
     ]);
   });

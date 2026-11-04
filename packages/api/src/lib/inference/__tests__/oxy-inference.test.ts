@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   clientOptions: [] as unknown[],
   serviceOptions: [] as unknown[],
+  serviceClients: [] as unknown[],
   configuredCredentials: [] as Array<readonly [string, string]>,
 }));
 
@@ -26,7 +27,8 @@ vi.mock('@oxy.so/core/server', async (importActual) => ({
         ]);
     }
 
-    createServiceClient() {
+    createServiceClient(options: unknown) {
+      mocks.serviceClients.push(options);
       return { getAccessToken: async () => 'short-lived-oxy-service-token' };
     }
   },
@@ -51,16 +53,24 @@ describe('Oxy inference client', () => {
   beforeEach(() => {
     mocks.clientOptions.length = 0;
     mocks.serviceOptions.length = 0;
+    mocks.serviceClients.length = 0;
     mocks.configuredCredentials.length = 0;
     resetOxyInferenceClient();
   });
 
-  it('resolves workload credentials lazily outside ECS and never arms the customer key', () => {
+  /**
+   * The process's ONE `OxyServer` (`lib/oxy.ts`) is the credential: building an
+   * inference client constructs no second server, and arms no customer key.
+   */
+  it('mints from the one Oxy client, never a second server or the customer key', async () => {
+    const { oxy } = await import('../../oxy.js');
+    expect(oxy).toBeDefined();
     expect(
       buildOxyInferenceClient({ ...configured, AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '' }),
     ).not.toBeNull();
+    expect(mocks.serviceOptions).toEqual([]);
     expect(mocks.configuredCredentials).toEqual([]);
-    expect(mocks.serviceOptions[0]).toMatchObject({ workloadCredentials: expect.any(Function) });
+    expect(mocks.serviceClients).toEqual([{ baseURL: 'https://api.oxy.so', audience: 'oxy-api' }]);
   });
 
   /**
@@ -82,9 +92,8 @@ describe('Oxy inference client', () => {
     } as NodeJS.ProcessEnv;
 
     expect(buildOxyInferenceClient(attesting)).not.toBeNull();
-    expect(mocks.serviceOptions).toEqual([
-      { baseURL: 'https://api.oxy.so', workloadCredentials: expect.any(Function) },
-    ]);
+    expect(mocks.serviceOptions).toEqual([]);
+    expect(mocks.serviceClients).toEqual([{ baseURL: 'https://api.oxy.so', audience: 'oxy-api' }]);
     expect(mocks.configuredCredentials).toEqual([]);
 
     const options = mocks.clientOptions[0] as { credential: () => Promise<string> };
@@ -126,12 +135,7 @@ describe('Oxy inference client', () => {
 
   it('hands the published SDK an Oxy service-token credential', async () => {
     expect(buildOxyInferenceClient(configured)).not.toBeNull();
-    expect(mocks.serviceOptions).toEqual([
-      {
-        baseURL: 'https://api.oxy.so',
-        workloadCredentials: expect.any(Function),
-      },
-    ]);
+    expect(mocks.serviceOptions).toEqual([]);
     expect(mocks.configuredCredentials).toEqual([]);
     expect(mocks.clientOptions).toHaveLength(1);
 

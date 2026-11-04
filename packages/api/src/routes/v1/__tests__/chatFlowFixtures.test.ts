@@ -325,11 +325,16 @@ vi.mock('../../../middleware/api-key-rate-limit.js', () => ({
 }));
 
 vi.mock('../../../middleware/auth.js', () => ({
-  oxyClient: { users: { get: vi.fn(async () => null) } },
   optionalAuth: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateToken: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
   authenticateTokenOrApiKey: vi.fn((_r: unknown, _s: unknown, next: () => void) => next()),
 }));
+vi.mock('../../../lib/oxy.js', async () => {
+  const { OxyServices } = await import('@oxy.so/core');
+  const { fakeWithUser } = await import('../../../__tests__/mocks/oxy-user-client.js');
+  const userClient = () => new OxyServices({ baseURL: 'https://api.oxy.test' });
+  return { oxy: { withUser: fakeWithUser(userClient), users: { get: vi.fn(async () => null) } } };
+});
 
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 

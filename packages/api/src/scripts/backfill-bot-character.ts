@@ -30,13 +30,14 @@
  * so it can be re-run. It never writes to Alia's database.
  */
 
-import { OxyServices } from '@oxy.so/core';
+import type { OxyServices } from '@oxy.so/core';
 import { readTargetDatabase } from '@oxy.so/db/migrate';
 
 import { assertTargetDatabase } from '../db/assertTargetDatabase.js';
 import { closePostgres, connectPostgres, getDb } from '../db/index.js';
 import { agents } from '../db/schema/agents.js';
 import { log } from '../lib/logger.js';
+import { oxy } from '../lib/oxy.js';
 
 interface Report {
   readonly agents: number;
@@ -60,8 +61,10 @@ async function main(): Promise<void> {
   if (!connectPostgres(process.env.DATABASE_URL)) throw new Error('DATABASE_URL is required');
   await assertTargetDatabase(expectedDatabase);
 
-  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  if (token) oxy.session.setAccessToken(token);
+  // As the admin when a bearer is given (the writes need it); a dry run reads
+  // through Alia's own client.
+  const asOperator = <T>(run: (client: OxyServices) => Promise<T>): Promise<T> =>
+    token ? oxy.withUser(token, run) : run(oxy);
 
   let report: Report;
   try {
@@ -76,14 +79,16 @@ async function main(): Promise<void> {
     const failed: { oxyAccountId: string; reason: string }[] = [];
     for (const row of rows) {
       try {
-        const node = await oxy.accounts.get(row.oxyAccountId);
+        const node = await asOperator((client) => client.accounts.get(row.oxyAccountId));
         if (node.account?.character !== undefined) {
           alreadyHadOne += 1;
           continue;
         }
         missing += 1;
         if (apply) {
-          await oxy.accounts.update(row.oxyAccountId, { character: row.character });
+          await asOperator((client) =>
+            client.accounts.update(row.oxyAccountId, { character: row.character }),
+          );
           written += 1;
         }
       } catch (error: unknown) {

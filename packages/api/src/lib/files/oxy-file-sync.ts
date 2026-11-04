@@ -36,7 +36,7 @@ import {
 } from '../../db/files/oxyFileRepository.js';
 import type { OxyServer } from '@oxy.so/core/server';
 import { log } from '../logger.js';
-import { oxyServiceClient } from '../oxy-service-client.js';
+import { oxy } from '../oxy.js';
 import { deleteS3Objects } from '../s3.js';
 
 /** A reference intent that fails this many times is dead-lettered for a person to read. */
@@ -52,9 +52,10 @@ const GC_BATCH = 200;
 const GC_INTERVAL_MS = 5 * 60 * 1000;
 
 /** Injectable for tests. */
-let clientFactory: () => OxyServer | null = oxyServiceClient;
+const sharedClient = (): OxyServer | null => oxy;
+let clientFactory: () => OxyServer | null = sharedClient;
 export function setOxyFileSyncClientForTests(factory: (() => OxyServer | null) | null): void {
-  clientFactory = factory ?? oxyServiceClient;
+  clientFactory = factory ?? sharedClient;
 }
 
 // ── Reference sync ──────────────────────────────────────────────────────────

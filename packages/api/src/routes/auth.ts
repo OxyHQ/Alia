@@ -9,17 +9,11 @@
  */
 
 import { Router } from 'express';
-import { OxyServices } from '@oxy.so/core';
 import { authenticateToken } from '../middleware/auth.js';
 import { log } from '../lib/logger.js';
+import { oxy } from '../lib/oxy.js';
 
 const router = Router();
-
-// Initialize Oxy client
-const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
-const oxyClient = new OxyServices({
-  baseURL: OXY_API_URL,
-});
 
 /**
  * GET /auth/me
@@ -33,7 +27,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
 
     // Get full user data from Oxy
-    const user = await oxyClient.users.get(req.user.id);
+    const user = await oxy.users.get(req.user.id);
 
     res.json({
       user: {

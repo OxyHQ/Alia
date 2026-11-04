@@ -1,4 +1,4 @@
-import { oxyServiceClient } from '../oxy-service-client.js';
+import { oxy } from '../oxy.js';
 /**
  * The documents a person attaches to a turn, read from Oxy Files with verified
  * requester proof (`{ type: 'file', file: { file_id, filename, mime } }`,
@@ -270,9 +270,7 @@ export async function resolveFileParts(
       'Files are read with your own Oxy session; this request has none.',
     );
   }
-  const client = oxyServiceClient();
-  if (!client) throw new FilePartError('file_unavailable', 'Oxy Files is temporarily unavailable.');
-  const assets = client.assets.withRequester(
+  const assets = oxy.assets.withRequester(
     options.taskId ? { taskId: options.taskId } : { requesterToken: accessToken! },
   );
   const resolved = await Promise.all(

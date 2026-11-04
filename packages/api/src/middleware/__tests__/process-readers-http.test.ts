@@ -21,9 +21,10 @@ const fixture = vi.hoisted(() => ({
   owner: '0192f3a4-b5c6-7d8e-9f01-23456789abcd',
   lookup: vi.fn(),
 }));
-vi.mock('../../lib/oxy-service-client.js', () => ({
-  oxyServiceClient: () => fixture.oxy,
-}));
+vi.mock('../../lib/oxy.js', async () => {
+  const { forwardingOxy } = await import('../../__tests__/mocks/oxy-user-client.js');
+  return { oxy: forwardingOxy(() => fixture.oxy), OXY_API_URL: 'https://api.oxy.so' };
+});
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../db/integrations/botRepository.js', () => ({
   findSystemBot: async () => ({ id: 'system-bot', status: 'active' }),
@@ -153,7 +154,8 @@ beforeAll(async () => {
     );
   });
   issuer = await listen(app);
-  fixture.oxy = new OxyServer({ baseURL: origin(issuer) });
+  // As `lib/oxy.ts` builds it: Alia's own audience on the server.
+  fixture.oxy = new OxyServer({ baseURL: origin(issuer), expectedAudience: ALIA_SERVICE_AUDIENCE });
   vi.spyOn(fixture.oxy, 'introspectServiceToken').mockImplementation(async (bearer) => {
     const result = await fetch(`${origin(issuer)}/auth/resources/introspect`, {
       method: 'POST',

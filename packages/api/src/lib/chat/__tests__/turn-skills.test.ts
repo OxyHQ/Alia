@@ -8,7 +8,7 @@ const H = vi.hoisted(() => ({
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentSkills: H.findAgentSkills }));
 vi.mock('../../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn() }));
-vi.mock('../../../middleware/auth.js', () => ({ oxyClient: {} }));
+vi.mock('../../../lib/oxy.js', () => ({ oxy: {} }));
 vi.mock('../../agent-account.js', () => ({ loadTurnAgent: vi.fn() }));
 vi.mock('../../hooks/index.js', () => ({ runBeforeChatHooks: vi.fn() }));
 vi.mock('../../plan-access.js', () => ({ getUserEntitlements: vi.fn() }));

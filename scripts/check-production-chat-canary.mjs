@@ -56,7 +56,7 @@ export function checkProductionChatCanary({ workflow, runner, build }) {
     'const taskId = env.ALIA_CANARY_OXY_TASK_ID;',
     'return { accountId, taskId };',
     'const requester = canaryRequester(process.env);',
-    'const oxy = oxyServiceClient();',
+    "import { oxy } from '../lib/oxy.js';",
   ])
     requireText(runner, binding, `runner lost requester binding: ${binding}`);
   if (

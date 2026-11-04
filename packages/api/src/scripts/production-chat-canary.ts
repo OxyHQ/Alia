@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createAliaTransportForOxyService } from '@alia.onl/server';
-import { oxyServiceClient } from '../lib/oxy-service-client.js';
+import { oxy } from '../lib/oxy.js';
 
 type Case = Readonly<{
   label: string;
@@ -271,8 +271,6 @@ async function waitUntilReady(signal: AbortSignal): Promise<void> {
 
 async function main(): Promise<void> {
   const requester = canaryRequester(process.env);
-  const oxy = oxyServiceClient();
-  if (!oxy) throw new Error('The canary requires its registered Alia workload identity');
   const transport = createAliaTransportForOxyService(oxy, {
     baseURL: 'http://127.0.0.1:3001',
     requester,

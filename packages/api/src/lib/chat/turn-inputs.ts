@@ -15,7 +15,7 @@
 import { getDb } from '../../db/index.js';
 import { findAgentSkills } from '../../db/agents/agentRepository.js';
 import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
-import { oxyClient } from '../../middleware/auth.js';
+import { oxy } from '../oxy.js';
 import { loadTurnAgent } from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
@@ -80,7 +80,7 @@ export async function prefetchTurnInputs(identity: TurnIdentity): Promise<Prefet
     // The profile is an HTTP call to Oxy: bounded, so a slow Oxy never holds a turn.
     isDirectUserSession && oxyUserId !== undefined
       ? Promise.race<OxyUserProfile | null>([
-          oxyClient.users.get(oxyUserId),
+          oxy.users.get(oxyUserId),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
         ]).catch(() => null)
       : Promise.resolve<OxyUserProfile | null>(null),

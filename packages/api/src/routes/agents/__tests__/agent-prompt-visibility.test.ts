@@ -79,15 +79,29 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateToken: maybeSignIn,
   optionalAuth: maybeSignIn,
   authenticateTokenOrApiKey: maybeSignIn,
-  oxyClient: {
-    users: {
-      getMany: async () => [
-        { id: 'acct-bot', username: 'pepe', name: { displayName: 'Pepe' }, color: 'mint' },
-      ],
-      byUsername: async () => ({ id: 'acct-bot' }),
-    },
-  },
 }));
+vi.mock('../../../lib/oxy.js', async () => {
+  const { OxyServices } = await import('@oxy.so/core');
+  const { fakeWithUser } = await import('../../../__tests__/mocks/oxy-user-client.js');
+  const userClient = () => new OxyServices({ baseURL: 'https://api.oxy.test' });
+  return {
+    oxy: {
+      withUser: fakeWithUser(userClient),
+      // `lib/socket-session-auth.ts` builds its handshake verifier at import.
+      middleware: { socket: () => () => undefined },
+      users: {
+        lookupMany: async () => ({
+          found: [
+            { id: 'acct-bot', username: 'pepe', name: { displayName: 'Pepe' }, color: 'mint' },
+          ],
+          missing: [],
+          failed: [],
+        }),
+        byUsername: async () => ({ id: 'acct-bot' }),
+      },
+    },
+  };
+});
 
 const repository = vi.hoisted(() => ({
   findAgentById: vi.fn(),

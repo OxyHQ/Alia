@@ -31,6 +31,8 @@ type OxyCoreServer = typeof import('@oxy.so/core/server');
 const real: OxyCoreServer = createRequire(import.meta.url)('@oxy.so/core/server');
 
 export const createOxyCors: OxyCoreServer['createOxyCors'] = real.createOxyCors;
+/** REAL: Socket.IO admits the same origins as HTTP (`socket.ts`), which is the subject. */
+export const createOxySocketCors: OxyCoreServer['createOxySocketCors'] = real.createOxySocketCors;
 
 /**
  * REAL, and for the third time in this file the same reason: the behaviour is
@@ -61,8 +63,7 @@ export const verifyAppAssertion: OxyCoreServer['verifyAppAssertion'] = real.veri
 export const signOxyAppAssertion: OxyCoreServer['signOxyAppAssertion'] = real.signOxyAppAssertion;
 
 /**
- * REAL: `OxyServer` is the API's Oxy client itself (`middleware/auth.ts`,
- * `lib/oxy-service-client.ts`), constructed at import. Constructing it reaches
+ * REAL: `OxyServer` is the API's one Oxy client (`lib/oxy.ts`), constructed at import. Constructing it reaches
  * no network; only its calls do, and those are what tests stub.
  */
 export const OxyServer: OxyCoreServer['OxyServer'] = real.OxyServer;
@@ -94,3 +95,14 @@ export const oxyTrustProxy: OxyCoreServer['oxyTrustProxy'] = real.oxyTrustProxy;
 /** Verified principal projection and canonical application identity are real shared contracts. */
 export const getOxyActor = real.getOxyActor;
 export const OXY_ALIA_RESOURCE_APPLICATION_ID = real.OXY_ALIA_RESOURCE_APPLICATION_ID;
+
+/**
+ * REAL: the address check in front of every URL a model hands a tool
+ * (`lib/tools/web-scraper.ts`, `lib/agent/browser-session.ts`) is the subject.
+ */
+export const assertSafePublicUrl: OxyCoreServer['assertSafePublicUrl'] = real.assertSafePublicUrl;
+
+/** REAL: the caller-access outcome mapping (401 / 403 / 503) is the subject. */
+export const OxyAccessError: OxyCoreServer['OxyAccessError'] = real.OxyAccessError;
+export const accessErrorStatus: OxyCoreServer['accessErrorStatus'] = real.accessErrorStatus;
+export type OxyAccountAccess = import('@oxy.so/core/server').OxyAccountAccess;

@@ -9,6 +9,7 @@ import { getUserEntitlements } from '../lib/plan-access.js';
 import { readUsageWindow } from '../lib/usage-window.js';
 
 import { effectiveCreditPlan, readCurrentProductAllowance } from '../lib/product-credit-read-model';
+import { ProductCreditAuthorityUnavailableError } from '../lib/product-credit-access';
 
 const router = Router();
 
@@ -45,6 +46,10 @@ router.get('/', authenticateToken, async (req, res) => {
             },
     });
   } catch (error: unknown) {
+    if (error instanceof ProductCreditAuthorityUnavailableError) {
+      res.status(503).json({ error: { code: error.code, message: error.message } });
+      return;
+    }
     log.credits.error({ err: error }, 'Error');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch credits') });
   }

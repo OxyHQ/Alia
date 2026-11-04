@@ -182,7 +182,9 @@ vi.mock('@oxy.so/core/server', () => ({
       next();
     }),
   ),
-  // `middleware/auth.ts` builds its `OxyServer` at import; the service lane is
+  // The Oxy Console app-key lane, built once at import; no case here reaches it.
+  createOxyAliaMachineCredentialAuth: vi.fn(() => vi.fn()),
+  // `lib/oxy.ts` builds its `OxyServer` at import; the service lane is
   // a pass-through here because the verified principal comes from the mocked
   // `createOxyAuthMiddleware` above.
   OxyServer: class {

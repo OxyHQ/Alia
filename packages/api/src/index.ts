@@ -1,5 +1,6 @@
 import express from 'express';
-import { oxyTrustProxy } from '@oxy.so/core/server';
+import { createOxyRateLimit, createOxySecurityHeaders, oxyTrustProxy } from '@oxy.so/core/server';
+import { oxy } from './lib/oxy.js';
 import { startPlatformActivity } from './lib/platform-activity.js';
 import http from 'http';
 import type { WebSocket } from 'ws';
@@ -188,11 +189,34 @@ app.use((req, res, next) => {
   internalCors(req, res, next);
 });
 
-// Allow cross-origin resource loading (fixes ERR_BLOCKED_BY_RESPONSE.NotSameOrigin)
-app.use((_req, res, next) => {
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  next();
-});
+// Oxy's shared security headers. CORP stays `cross-origin`: the app, Canvas and
+// other Oxy origins load media from this API (ERR_BLOCKED_BY_RESPONSE.NotSameOrigin).
+app.use(
+  createOxySecurityHeaders({ helmet: { crossOriginResourcePolicy: { policy: 'cross-origin' } } }),
+);
+
+/**
+ * Per-person (or per-service) request budget, keyed by the identity Oxy
+ * verified and per hashed address for anonymous callers. Resolving the session
+ * here is reused by the route's own auth, not repeated.
+ *
+ * Exempt: the server-to-server receivers, each authenticated by its own
+ * signature or service token and paced by its sender — Stripe, CrowdSource,
+ * Oxy file and service events (`/webhooks`, `/billing/webhook`) and the
+ * service-only `/internal` lane — and an Oxy Console app key (`oxy_sk_`),
+ * which authenticates nothing but the two app-only chat routes and is paced by
+ * Oxy Console's own limits; this resolver cannot read it and would otherwise
+ * put every customer behind one server address in the anonymous bucket.
+ */
+app.use(
+  createOxyRateLimit(oxy, {
+    exempt: (req) =>
+      req.path.startsWith('/webhooks/') ||
+      req.path === '/billing/webhook' ||
+      req.path.startsWith('/internal/') ||
+      req.headers.authorization?.startsWith('Bearer oxy_sk_') === true,
+  }),
+);
 
 // Stripe webhook needs raw body for signature verification
 app.use('/billing/webhook', express.raw({ type: 'application/json' }));

@@ -6,11 +6,13 @@ import {
 } from '@alia.onl/server/internal';
 
 const state = vi.hoisted(() => ({ introspect: vi.fn(), create: vi.fn() }));
-vi.mock('../../oxy-service-client.js', () => ({
-  oxyServiceClient: () => ({
-    introspectServiceToken: state.introspect,
-    createServiceClient: state.create,
-  }),
+vi.mock('../../oxy.js', () => ({
+  get oxy() {
+    return {
+      introspectServiceToken: state.introspect,
+      createServiceClient: state.create,
+    };
+  },
 }));
 const { productionVoicePeerAuth } = await import('../peer-relay.js');
 afterEach(() => {

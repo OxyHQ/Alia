@@ -25,7 +25,7 @@
 
 import type { AgentAvailability } from '@oxy.so/contracts';
 import { log } from './logger.js';
-import { oxyServiceClient } from './oxy-service-client.js';
+import { oxy } from './oxy.js';
 import { TTLCache } from './ttl-cache.js';
 
 const AVAILABILITY_TTL_MS = 60_000;
@@ -39,9 +39,7 @@ const availabilities = new TTLCache<AgentAvailability>({
 async function readAvailability(agentAccountId: string): Promise<AgentAvailability | null> {
   try {
     return await availabilities.getOrLoad(agentAccountId, async () => {
-      const client = oxyServiceClient();
-      if (!client) throw new Error('Alia holds no Oxy service credential');
-      return client.agency.agentAvailability(agentAccountId);
+      return oxy.agency.agentAvailability(agentAccountId);
     });
   } catch (error: unknown) {
     log.agents.warn({ err: error, agentAccountId }, 'Could not read where an agent opens');

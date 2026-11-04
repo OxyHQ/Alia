@@ -94,14 +94,22 @@ vi.mock('../../middleware/auth.js', () => ({
     typed.user = { id: state.userId };
     next();
   },
-  oxyClient: {
-    users: { getMany: async () => state.users },
-    assets: {
-      publicUrl: (id: string, variant?: string) =>
-        `https://cloud.oxy.so/${id}?variant=${variant ?? ''}`,
-    },
-  },
 }));
+vi.mock('../../lib/oxy.js', async () => {
+  const { OxyServices } = await import('@oxy.so/core');
+  const { fakeWithUser } = await import('../../__tests__/mocks/oxy-user-client.js');
+  const userClient = () => new OxyServices({ baseURL: 'https://api.oxy.test' });
+  return {
+    oxy: {
+      withUser: fakeWithUser(userClient),
+      users: { lookupMany: async () => ({ found: state.users, missing: [], failed: [] }) },
+      assets: {
+        publicUrl: (id: string, variant?: string) =>
+          `https://cloud.oxy.so/${id}?variant=${variant ?? ''}`,
+      },
+    },
+  };
+});
 
 const repository = vi.hoisted(() => ({
   createAgent: vi.fn(),

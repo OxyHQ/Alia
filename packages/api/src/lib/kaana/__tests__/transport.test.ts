@@ -5,7 +5,11 @@ import { OxyServer } from '@oxy.so/core/server';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({ client: null as OxyServer | null }));
-vi.mock('../../oxy-service-client.js', () => ({ oxyServiceClient: () => H.client }));
+vi.mock('../../oxy.js', () => ({
+  get oxy() {
+    return H.client;
+  },
+}));
 const { getKaanaClient, setKaanaClientForTests } = await import('../transport.js');
 let issuer: Server;
 let baseURL: string;
@@ -86,10 +90,5 @@ describe('getKaanaClient', () => {
       a?.dispose?.();
       b?.dispose?.();
     }
-  });
-  it('reports missing configured workload identity without a substitute credential', () => {
-    H.client?.dispose();
-    H.client = null;
-    expect(getKaanaClient('A')).toBeNull();
   });
 });

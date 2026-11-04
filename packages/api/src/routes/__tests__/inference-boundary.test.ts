@@ -154,7 +154,7 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     // compatible core release. Passing `jwtSecret` here would distribute Oxy's
     // access-token signing capability into Alia and is therefore forbidden.
     const auth = code('middleware/auth.ts');
-    expect(auth).toContain('oxyClient.middleware.service(');
+    expect(auth).toContain('oxy.middleware.service(');
     expect(auth).not.toContain('jwtSecret');
 
     /**
@@ -251,7 +251,9 @@ describe('every unauthenticated inbound entry point is replay-protected (#139 ws
 
   it('the Oxy event surface verifies central service identity before it acts', () => {
     const events = code('routes/oxy-service-events.ts');
-    expect(events).toContain('expectedAudience: ALIA_SERVICE_AUDIENCE');
+    // Alia's own audience is set once, on the one server every mount uses.
+    expect(code('lib/oxy.ts')).toContain('expectedAudience: ALIA_SERVICE_AUDIENCE');
+    expect(events).toContain("router.post('/', oxy.middleware.service(),");
     expect(events).toContain('registeredByApplicationId === publisher.appId');
     expect(events).toContain("publisher.authority !== 'first_party'");
     expect(events).toContain("publisher.scopes?.includes('capability-events:publish')");
@@ -259,7 +261,7 @@ describe('every unauthenticated inbound entry point is replay-protected (#139 ws
     expect(events).not.toContain('timingSafeEqual');
     // Central service verification precedes the database claim, or a forged
     // event could still burn its idempotency key.
-    const verifyAt = events.indexOf('await oxy.middleware.service(');
+    const verifyAt = events.indexOf('oxy.middleware.service(');
     const claimAt = events.indexOf('await claimAutomationEvent(');
     expect(verifyAt).toBeGreaterThan(-1);
     expect(claimAt).toBeGreaterThan(-1);

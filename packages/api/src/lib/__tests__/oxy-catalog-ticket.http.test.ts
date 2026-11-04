@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OxyToolExecutionContext } from '../tools/oxy-services.js';
 
 const state = vi.hoisted(() => ({ client: undefined as unknown }));
-vi.mock('../oxy-service-client.js', () => ({
-  oxyServiceClient: () => state.client,
-  oxyServiceToken: () => (state.client as { serviceToken(): Promise<string> }).serviceToken(),
+vi.mock('../oxy.js', () => ({
+  get oxy() {
+    return state.client;
+  },
 }));
 vi.mock('../logger.js', () => ({
   log: { general: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } },

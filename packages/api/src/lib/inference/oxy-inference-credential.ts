@@ -1,7 +1,6 @@
-/** Hosted inference authenticates Alia's workload through the shared Oxy SDK. */
+/** Hosted inference authenticates Alia's workload through the one `OxyServer` (`lib/oxy.ts`). */
 import type { OxyInferenceCredential } from '@oxy.so/core/inference';
-import { OxyServer } from '@oxy.so/core/server';
-import { createAwsWorkloadCredentialProvider } from '@oxy.so/core/server/aws';
+import { oxy } from '../oxy.js';
 
 export const OXY_API_URL_ENV = 'OXY_API_URL';
 export const OXY_INFERENCE_CREDENTIAL_REQUIRED_ENV: readonly string[] = [OXY_API_URL_ENV];
@@ -16,11 +15,7 @@ export function createOxyInferenceCredential(
 ): OxyInferenceCredential {
   const missing = unsetOxyInferenceCredentialVariables(env);
   if (missing.length) throw new Error(`Oxy inference requires ${[...missing].sort().join(', ')}`);
-  const oxy = new OxyServer({
-    baseURL: env[OXY_API_URL_ENV]!.trim(),
-    workloadCredentials: createAwsWorkloadCredentialProvider(),
-  });
-  const baseURL = env[OXY_API_URL_ENV]!.trim();
+  const baseURL = (env[OXY_API_URL_ENV] ?? '').trim();
   const transport = oxy.createServiceClient({ baseURL, audience: 'oxy-api' });
   return () => transport.getAccessToken(baseURL);
 }

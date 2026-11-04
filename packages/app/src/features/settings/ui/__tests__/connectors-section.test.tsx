@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     install: vi.fn(),
     installCustom: vi.fn(),
     uninstall: vi.fn(),
+    updateConfig: vi.fn(),
     startOAuth: vi.fn(),
     completeOAuth: vi.fn(),
   },
@@ -146,6 +147,74 @@ afterEach(() => {
 
 const serverList = (r: ReactTestRenderer) =>
   r.root.findAllByType('SettingsServerList' as never)[0]!;
+
+/** A command connector moved to the person's device and turned off. */
+const filesystem = {
+  _id: 's9',
+  name: 'filesystem',
+  displayName: 'Filesystem',
+  source: 'registry',
+  registryId: 'filesystem',
+  transport: 'stdio',
+  runtime: 'local',
+  enabled: false,
+  status: 'stopped',
+  config: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '~/Notes'] },
+  tools: [],
+};
+
+const turnOnButton = (r: ReactTestRenderer) =>
+  r.root
+    .findAllByType('Button' as never)
+    .find((button) => button.props.children === 'connectors.device.turnOn')!;
+
+describe('a command connector turned off on the device', () => {
+  it('is listed as off, with the command it runs, and not as connected', () => {
+    mocks.hook.installed = [github, filesystem];
+    const r = mount();
+    expect((serverList(r).props.servers as { id: string }[]).map((s) => s.id)).toEqual(['s1']);
+    const row = r.root
+      .findAllByType('SettingsRow' as never)
+      .find((node) => node.props.label === 'Filesystem')!;
+    expect(row.props.description).toBe('npx -y @modelcontextprotocol/server-filesystem ~/Notes');
+  });
+
+  it('turns back on only after the person confirms the command, and only as enabled', async () => {
+    mocks.hook.installed = [filesystem];
+    mocks.hook.updateConfig.mockResolvedValue(undefined);
+    const r = mount();
+
+    mocks.confirm.mockResolvedValueOnce(false);
+    await act(async () => {
+      turnOnButton(r).props.onPress();
+    });
+    expect(mocks.hook.updateConfig).not.toHaveBeenCalled();
+
+    mocks.confirm.mockResolvedValueOnce(true);
+    await act(async () => {
+      turnOnButton(r).props.onPress();
+    });
+    expect(mocks.confirm).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        description: expect.stringContaining('npx -y @modelcontextprotocol/server-filesystem'),
+      }),
+    );
+    // Only the switch: where it runs and what it runs are not the client's to send.
+    expect(mocks.hook.updateConfig).toHaveBeenCalledWith('s9', { enabled: true });
+    expect(mocks.toast.success).toHaveBeenCalled();
+  });
+
+  it('says so when turning it on fails', async () => {
+    mocks.hook.installed = [filesystem];
+    mocks.hook.updateConfig.mockRejectedValue(new Error('offline'));
+    mocks.confirm.mockResolvedValueOnce(true);
+    const r = mount();
+    await act(async () => {
+      turnOnButton(r).props.onPress();
+    });
+    expect(mocks.toast.error).toHaveBeenCalledWith('connectors.device.turnOnFailed');
+  });
+});
 
 describe('ConnectorsSection', () => {
   it('shows a skeleton row while loading', () => {

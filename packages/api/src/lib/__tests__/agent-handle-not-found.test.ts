@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { byUsername, warn } = vi.hoisted(() => ({ byUsername: vi.fn(), warn: vi.fn() }));
 
-vi.mock('../../middleware/auth.js', () => ({ oxyClient: { users: { byUsername } } }));
+vi.mock('../../lib/oxy.js', () => ({ oxy: { users: { byUsername } } }));
 vi.mock('../logger.js', () => ({
   log: { general: { warn, info: vi.fn(), error: vi.fn(), debug: vi.fn() } },
 }));

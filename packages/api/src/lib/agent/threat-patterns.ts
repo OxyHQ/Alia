@@ -41,7 +41,7 @@ export interface ThreatPattern {
  * rather than left to read as protection.
  *
  * These two stay because a URL is still an argument something can carry. The
- * `browser` primitive is also guarded by `validateUrl` before Clarity is asked
+ * `browser` primitive is also guarded by `assertSafePublicUrl` before Clarity is asked
  * anything; this is the belt to that brace, and it is what makes the attempt
  * visible in the event stream.
  */

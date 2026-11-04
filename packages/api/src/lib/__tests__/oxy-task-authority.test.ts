@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const authority = vi.hoisted(() => ({ createTask: vi.fn(), revokeTask: vi.fn() }));
-vi.mock('../oxy-service-client.js', () => ({ oxyServiceClient: () => ({ agency: authority }) }));
+vi.mock('../oxy.js', () => ({
+  get oxy() {
+    return { agency: authority };
+  },
+}));
 import { createOxyTask, revokeOxyTask } from '../oxy-task-authority.js';
 beforeEach(() => {
   vi.resetAllMocks();

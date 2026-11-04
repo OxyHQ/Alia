@@ -14,9 +14,10 @@ import { createInternalCatalogMcpHttpService } from '@oxy.so/mcp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ client: undefined as unknown, warn: vi.fn(), error: vi.fn() }));
-vi.mock('../oxy-service-client.js', () => ({
-  oxyServiceClient: () => state.client,
-  oxyServiceToken: async () => (state.client as { serviceToken(): Promise<string> }).serviceToken(),
+vi.mock('../oxy.js', () => ({
+  get oxy() {
+    return state.client;
+  },
 }));
 vi.mock('../logger.js', () => ({
   log: { general: { info: vi.fn(), warn: state.warn, error: state.error } },
