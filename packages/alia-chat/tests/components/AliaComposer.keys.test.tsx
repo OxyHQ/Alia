@@ -83,6 +83,9 @@ vi.mock('react-native', async () => {
     TouchableHighlight: host('TouchableHighlight'),
     TouchableWithoutFeedback: host('TouchableWithoutFeedback'),
     KeyboardAvoidingView: host('KeyboardAvoidingView'),
+    // Bloom's collapsible motion builds its curve with `Easing.bezier(...)`
+    // at render, so the mock has to hand back a curve, not a bare value.
+    Easing: new Proxy({}, { get: () => () => (t: number) => t }),
     /*
      * react-native's OWN `Animated`, which is a different library from the
      * reanimated mocked below and is reached by a different Bloom component:
@@ -98,13 +101,14 @@ vi.mock('react-native', async () => {
         this.value = initial;
         this.interpolate = () => ({ value: initial, interpolate: () => ({}) });
         this.setValue = () => {};
+        this.stopAnimation = () => {};
         this.addListener = () => '0';
         this.removeAllListeners = () => {};
       } as unknown as new (
         value: number,
       ) => unknown,
-      timing: () => ({ start: () => {} }),
-      spring: () => ({ start: () => {} }),
+      timing: () => ({ start: () => {}, stop: () => {}, reset: () => {} }),
+      spring: () => ({ start: () => {}, stop: () => {}, reset: () => {} }),
     },
     Dimensions: {
       get: () => ({ width: 1280, height: 800, scale: 1, fontScale: 1 }),
