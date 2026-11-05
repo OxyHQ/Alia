@@ -45,7 +45,7 @@
     "@syra.fm/sdk": "0.23.0",
     "adm-zip": "^0.6.1",
     "ai": "6.0.225",
-    "bullmq": "^5.80.2",
+    "bullmq": "^6.3.15",
     "cors": "^2.8.6",
     "cron-parser": "4.9.0",
     "drizzle-orm": "0.45.2",
