@@ -87,11 +87,18 @@ starts that image's API and enters its loopback HTTP endpoint with Alia's
 shared Alia SDK workload transport and a live QA automation task. The ordinary
 Oxy middleware validates the exact workload, requester account and task before
 chat runs; there is no canary-only authentication exception.
-The protected production environment holds `ALIA_CANARY_OXY_USER_ID` for the
-dedicated QA account and `ALIA_CANARY_OXY_TASK_ID` for its revocable automation
-root. Create that root through Oxy using the QA account's real signed-in session;
-never persist that bearer or fabricate a grant in SQL. These protected values
-are not workflow inputs, so an operator cannot substitute an arbitrary customer.
+Two repository variables, writable by repository admins only, name the QA
+identity: `ALIA_CANARY_OXY_USER_ID` for the dedicated QA account and
+`ALIA_CANARY_OXY_TASK_ID` for its revocable automation root. They are not in
+the `production` environment: the job runs in no environment, because an
+environment's OIDC subject is one the deploy role does not trust. While either
+is unset the run fails its input checks before it starts any task. Create the
+root through Oxy using the QA account's real signed-in session; never persist
+that bearer or fabricate a grant in SQL. Oxy binds a task to the workload
+credential that created it (`firstPartyTasks.service.ts` in OxyHQ/oxy), so the
+root must be created by Alia's own production workload, the one the canary
+one-shot presents. These values are not workflow inputs, so an operator cannot
+substitute an arbitrary customer.
 A missing, expired or revoked task must fail instead of using the workload owner.
 The runner supplies no conversation id, so it creates no durable thread or
 retryable tool side effects. Its result contains only model ids,
