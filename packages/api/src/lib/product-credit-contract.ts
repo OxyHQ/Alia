@@ -15,7 +15,7 @@ export const productCreditAdapterSchema = z
         z
           .object({
             offerId: z.string().min(1).max(160),
-            offerVersion: z.number().int().positive().safe(),
+            offerVersion: z.number().int().positive(),
             planId: z.enum(['go', 'pro', 'max', 'ultra']),
             billingPeriod: z.enum(['monthly', 'annual']).optional(),
           })

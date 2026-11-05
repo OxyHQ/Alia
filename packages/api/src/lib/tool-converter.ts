@@ -73,7 +73,7 @@ export function convertOpenAIToolsToToolSet(
     toolSet[sanitizedName] = tool({
       description: t.function.description || `Tool: ${originalName}`,
       inputSchema: zodSchema,
-      execute: async (params: Record<string, unknown>) => {
+      execute: async (params: unknown) => {
         // Return params for client-side execution
         // The actual tool execution happens on the client (Cursor/VS Code)
         return {

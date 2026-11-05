@@ -551,7 +551,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     res.status(201).json({ agent: await attachAgentIdentity(withoutInternalAgentBindings(agent)) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     log.agents.error({ err: error }, 'Error creating agent');
     res.status(500).json({ error: 'Failed to create agent' });
@@ -729,7 +729,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     res.json({ agent: withoutInternalAgentBindings(hydrated) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     log.agents.error({ err: error }, 'Error updating agent');
     res.status(500).json({ error: 'Failed to update agent' });

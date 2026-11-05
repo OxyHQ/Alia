@@ -24,6 +24,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { urlCheck } from '@oxy.so/contracts';
 import { z } from 'zod';
 import type { readWebPage } from './tools/web-scraper.js';
 import type { searchWeb, WebSearchResult } from './tools/web-search.js';
@@ -36,9 +37,10 @@ const MAX_NEW_RESULTS = 8;
 
 export const watchConfigSchema = z
   .object({
+    // Stored watches keep the URL exactly as written: zod 4's `z.url()` would trim it.
     url: z
       .string()
-      .url()
+      .check(urlCheck())
       .max(2_048)
       .optional()
       .describe('A public page to watch. Exactly one of url or query.'),

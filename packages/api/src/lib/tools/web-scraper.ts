@@ -49,7 +49,7 @@ export const webScraperTool = tool({
   description:
     'Read the main content and citation metadata of a public web page. Pages that need JavaScript or interaction may be unreadable.',
   inputSchema: z.object({
-    url: z.string().url().describe('The public URL to read'),
+    url: z.url().describe('The public URL to read'),
     extractLinks: z
       .boolean()
       .optional()

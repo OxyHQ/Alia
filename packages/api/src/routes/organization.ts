@@ -44,7 +44,7 @@ function session(handler: Handler) {
       if (error instanceof z.ZodError)
         return res
           .status(400)
-          .json({ error: 'Invalid organization request', details: error.flatten() });
+          .json({ error: 'Invalid organization request', details: z.flattenError(error) });
       if (isUniqueViolation(error))
         return res.status(409).json({ error: 'This organization already has an Alia workspace' });
       log.organization.error({ err: error }, 'Organization request failed');
@@ -128,7 +128,7 @@ router.patch(
       .object({
         settings: z
           .object({
-            billingEmail: z.string().email().nullable().optional(),
+            billingEmail: z.email().nullable().optional(),
             apiCallLimit: z.number().int().nonnegative().nullable().optional(),
           })
           .strict(),
@@ -202,7 +202,7 @@ router.post(
   '/:id/invitations',
   session(async (req, res, client) => {
     const body = z
-      .object({ email: z.string().trim().email().max(254), role: memberRole })
+      .object({ email: z.string().trim().pipe(z.email().max(254)), role: memberRole })
       .strict()
       .parse(req.body);
     const { organization } = await workspace(req, client, 'members:invite');

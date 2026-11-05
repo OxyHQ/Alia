@@ -18,14 +18,14 @@ const resourceSchema = z
 const taskInputSchema = z
   .object({
     objective: z.string(),
-    trigger: z.record(z.unknown()),
-    inputs: z.record(z.unknown()),
+    trigger: z.record(z.string(), z.unknown()),
+    inputs: z.record(z.string(), z.unknown()),
     actions: z.array(
       z
         .object({
           resource: resourceSchema,
           tool: z.string(),
-          input: z.record(z.unknown()),
+          input: z.record(z.string(), z.unknown()),
         })
         .strict(),
     ),

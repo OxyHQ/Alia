@@ -47,7 +47,7 @@ function agency() {
 export type OxyToolAutonomy = AutonomyLevel;
 
 const ticketResponseSchema = z.object({
-  decision: z.object({ allowed: z.boolean(), reason: z.string() }).passthrough(),
+  decision: z.object({ allowed: z.boolean(), reason: z.string() }).loose(),
   ticket: z.string().min(1).optional(),
 });
 
@@ -611,7 +611,7 @@ const auditedResultSchema = z
   .object({
     auditEventId: z.string().trim().min(1),
   })
-  .passthrough();
+  .loose();
 
 function responseAuditEventId(response: Response, result: unknown): string | undefined {
   const header = response.headers.get('x-oxy-audit-event-id')?.trim();
@@ -940,9 +940,9 @@ async function callBoundTool(
 
 const singleMcpTextResultSchema = z
   .object({
-    content: z.tuple([z.object({ type: z.literal('text'), text: z.string() }).passthrough()]),
+    content: z.tuple([z.object({ type: z.literal('text'), text: z.string() }).loose()]),
   })
-  .passthrough();
+  .loose();
 
 function parseMcpTextResult(text: string): unknown {
   try {

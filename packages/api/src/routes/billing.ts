@@ -147,8 +147,8 @@ router.get('/packages', async (_req: Request, res: Response) => {
 
 const createCheckoutSchema = z.object({
   packageId: z.string(),
-  successUrl: z.string().url(),
-  cancelUrl: z.string().url(),
+  successUrl: z.url(),
+  cancelUrl: z.url(),
 });
 
 router.post('/checkout/credits', authenticateToken, async (req: Request, res: Response) => {
@@ -198,7 +198,7 @@ router.post('/checkout/credits', authenticateToken, async (req: Request, res: Re
     res.json({ sessionId: session.id, url: session.url });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error creating checkout session');
@@ -215,8 +215,8 @@ const MAX_CUSTOM_CREDITS = 1_000_000;
 
 const customCreditsSchema = z.object({
   credits: z.number().int().min(MIN_CUSTOM_CREDITS).max(MAX_CUSTOM_CREDITS),
-  successUrl: z.string().url(),
-  cancelUrl: z.string().url(),
+  successUrl: z.url(),
+  cancelUrl: z.url(),
 });
 
 router.post('/checkout/custom-credits', authenticateToken, async (req: Request, res: Response) => {
@@ -270,7 +270,7 @@ router.post('/checkout/custom-credits', authenticateToken, async (req: Request, 
     res.json({ sessionId: session.id, url: session.url });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error creating custom credits checkout');
@@ -380,8 +380,8 @@ router.get('/plans', async (req: Request, res: Response) => {
 const createSubscriptionSchema = z.object({
   planId: z.string(),
   billingPeriod: z.enum(['monthly', 'annual']).default('monthly'),
-  successUrl: z.string().url(),
-  cancelUrl: z.string().url(),
+  successUrl: z.url(),
+  cancelUrl: z.url(),
 });
 
 router.post('/checkout/subscription', authenticateToken, async (req: Request, res: Response) => {
@@ -450,7 +450,7 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
     res.json({ sessionId: session.id, url: session.url });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error creating subscription checkout');
@@ -691,7 +691,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return res.status(400).json({ error: 'Invalid input', details: error.issues });
     }
     if (respondBillingUnavailable(error, res)) return;
     log.credits.error({ err: error }, 'Error changing plan');
