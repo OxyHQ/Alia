@@ -28,9 +28,12 @@ permissions:
   contents: read
   id-token: write
 
+# One publish at a time, never cancelled mid-upload: a pending run is replaced
+# by a newer push's (GitHub keeps one pending run per group), which is what an
+# OTA channel wants, since the newest bundle supersedes every older one.
 concurrency:
-  group: oxy-updates-${{ github.ref }}
-  cancel-in-progress: true
+  group: oxy-updates
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -51,6 +54,16 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+
+      # A warm cache keeps `bun install` from fetching the `libsignal` git
+      # dependency from GitHub unauthenticated (see the top of ci.yml).
+      - name: Restore bun git-dependency cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache/@GH@*
+          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       # --ignore-scripts, as deploy-frontends.yml: the app needs no install
       # script, and alia-cowork's (electron, playwright) only slow this down.

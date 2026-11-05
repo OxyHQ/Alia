@@ -53,6 +53,9 @@ const MAIN_REF = "'refs/heads/main'";
 const EXPECTED = {
   'ci.yml': 'per-commit',
   'production-chat-canary.yml': 'serialised',
+  // One OTA publish at a time: a newer pending push replaces an older one, and a
+  // publish is never cancelled half-uploaded.
+  'publish-update.yml': 'serialised',
   // One live Kaana transcription session at a time, billed to the QA account.
   'production-dictation-canary.yml': 'serialised',
   // One instance restarted over SSM: two overlapping restarts could leave the
