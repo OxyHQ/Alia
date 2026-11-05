@@ -30,7 +30,7 @@
     "telegraf": "^4.16.3",
     "telegram": "^2.26.22",
     "ws": "^8.21.0",
-    "zod": "^4.4.3",
+    "zod": "^4.6.7",
     "@alia.onl/server": "workspace:*",
     "@aws-sdk/credential-provider-node": "3.972.84"
   },

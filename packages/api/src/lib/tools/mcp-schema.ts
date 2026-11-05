@@ -13,16 +13,16 @@ const MAX_DEPTH = 20;
  * Handles common types used in MCP and OpenAI function calling.
  * Includes recursion depth guard for untrusted schemas.
  */
-export function jsonSchemaToZod(schema: Record<string, any> | undefined, depth = 0): z.ZodTypeAny {
+export function jsonSchemaToZod(schema: Record<string, any> | undefined, depth = 0): z.ZodType {
   if (depth > MAX_DEPTH) return z.any();
-  if (!schema || Object.keys(schema).length === 0) return z.object({}).passthrough();
+  if (!schema || Object.keys(schema).length === 0) return z.looseObject({});
 
   const type = schema.type;
 
   if (type === 'object') {
     const properties = schema.properties || {};
     const required: string[] = schema.required || [];
-    const shape: Record<string, z.ZodTypeAny> = {};
+    const shape: Record<string, z.ZodType> = {};
 
     for (const [key, propSchema] of Object.entries(properties)) {
       let zodProp = jsonSchemaToZod(propSchema as Record<string, any>, depth + 1);
@@ -40,7 +40,7 @@ export function jsonSchemaToZod(schema: Record<string, any> | undefined, depth =
       shape[key] = zodProp;
     }
 
-    return z.object(shape).passthrough();
+    return z.looseObject(shape);
   }
 
   if (type === 'string') {
@@ -68,7 +68,7 @@ export function jsonSchemaToZod(schema: Record<string, any> | undefined, depth =
       jsonSchemaToZod(unionSchemas[0], depth + 1),
       jsonSchemaToZod(unionSchemas[1], depth + 1),
       ...unionSchemas.slice(2).map((s) => jsonSchemaToZod(s, depth + 1)),
-    ] as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]);
+    ] as [z.ZodType, z.ZodType, ...z.ZodType[]]);
   }
 
   return z.any();

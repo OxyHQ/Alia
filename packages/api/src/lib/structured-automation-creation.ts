@@ -48,7 +48,7 @@ export const automationResourceSchema = z
 export const automationLimitSchema = z
   .object({
     key: z.string().min(1),
-    value: z.union([z.string(), z.number().finite(), z.boolean(), z.array(z.string())]),
+    value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]),
   })
   .strict();
 
@@ -69,7 +69,7 @@ const automationLimitsSchema = z.array(automationLimitSchema).superRefine((limit
 const automationActionLimitSchema = z
   .object({
     key: z.string().min(1),
-    value: z.union([z.number().finite(), z.boolean()]),
+    value: z.union([z.number(), z.boolean()]),
   })
   .strict();
 

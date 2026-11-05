@@ -27,8 +27,8 @@
     "migrate:oxy-files": "bun src/scripts/migrate-to-oxy-files.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "3.0.84",
-    "@ai-sdk/provider": "3.0.14",
+    "@ai-sdk/openai": "3.0.137",
+    "@ai-sdk/provider": "3.0.19",
     "@aws-sdk/client-ec2": "^3.1086.0",
     "@aws-sdk/client-s3": "^3.1086.0",
     "@clarity.surf/sdk": "0.10.0",
@@ -44,7 +44,7 @@
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "0.23.0",
     "adm-zip": "^0.6.1",
-    "ai": "6.0.225",
+    "ai": "6.0.323",
     "bullmq": "^6.3.15",
     "cors": "^2.8.6",
     "cron-parser": "4.9.0",
@@ -65,12 +65,12 @@
     "web-push": "^3.6.7",
     "ws": "^8.21.0",
     "yaml": "^2.9.0",
-    "zod": "^3.25.76",
+    "zod": "^4.6.7",
     "@alia.onl/server": "workspace:*",
     "@aws-sdk/credential-provider-node": "3.972.84"
   },
   "devDependencies": {
-    "@ai-sdk/provider-utils": "4.0.38",
+    "@ai-sdk/provider-utils": "4.0.64",
     "@types/adm-zip": "^0.5.8",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

@@ -88,7 +88,7 @@ router.post('/', async (request: Request, response: Response) => {
   if (!parsed.success) {
     return response
       .status(400)
-      .json({ error: 'invalid_automation', details: parsed.error.flatten() });
+      .json({ error: 'invalid_automation', details: z.flattenError(parsed.error) });
   }
   try {
     const created = await createStructuredAutomation({
@@ -178,7 +178,7 @@ router.patch('/:id', async (request: Request, response: Response) => {
   if (!parsed.success) {
     return response.status(400).json({
       error: 'invalid_automation_patch',
-      details: parsed.error.flatten(),
+      details: z.flattenError(parsed.error),
     });
   }
   const existing = await findAutomationDefinition(

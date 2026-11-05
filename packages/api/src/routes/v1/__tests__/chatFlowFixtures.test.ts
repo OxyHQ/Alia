@@ -192,7 +192,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
       H.state.calls.push(options);
       return {
         content: H.state.generateContent,
-        finishReason: H.state.generateFinishReason,
+        finishReason: { unified: H.state.generateFinishReason, raw: H.state.generateFinishReason },
         usage: H.V3_USAGE,
         warnings: [],
       };
@@ -582,7 +582,12 @@ const run = (req: RecordingReq, res: RecordingRes): Promise<void> =>
 // ── Scripted provider turns ────────────────────────────────────────────────
 
 const streamStart = { type: 'stream-start', warnings: [] };
-const finish = (reason = 'stop') => ({ type: 'finish', usage: V3_USAGE, finishReason: reason });
+// The V3 shape: the AI SDK runs tools only on a unified `stop` or `tool-calls`.
+const finish = (reason = 'stop') => ({
+  type: 'finish',
+  usage: V3_USAGE,
+  finishReason: { unified: reason, raw: reason },
+});
 const say = (id: string, text: string) => [
   { type: 'text-start', id },
   { type: 'text-delta', id, delta: text },

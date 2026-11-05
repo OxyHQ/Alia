@@ -48,10 +48,10 @@ import {
 
 const checkAnswerSchema = z
   .object({ available: z.boolean(), remaining: z.number().int().min(0).optional() })
-  .passthrough();
+  .loose();
 const consumeAnswerSchema = z
   .object({ consumed: z.boolean(), remaining: z.number().int().min(0).optional() })
-  .passthrough();
+  .loose();
 
 export interface FeatureState {
   readonly key: GatedFeature;

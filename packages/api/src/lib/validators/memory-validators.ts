@@ -31,7 +31,7 @@ export const PreferencesSchema = z
     responseLength: z.enum(['short', 'medium', 'long']).optional(),
     interests: z.array(z.string().max(100)).max(50, 'Maximum 50 interests allowed').optional(),
   })
-  .passthrough(); // Allow additional properties
+  .loose(); // Allow additional properties
 
 // Schema for context
 export const ContextSchema = z
@@ -41,7 +41,7 @@ export const ContextSchema = z
     timezone: z.string().max(100).optional(),
     bio: z.string().max(1000).optional(),
   })
-  .passthrough(); // Allow additional properties
+  .loose(); // Allow additional properties
 
 // Export format schema
 export const ExportFormatSchema = z.enum(['json', 'csv']);

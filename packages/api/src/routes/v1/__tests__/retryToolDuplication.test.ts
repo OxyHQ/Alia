@@ -92,7 +92,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
     doGenerate: async () => ({
       // An answer with words: a completion with none is a typed failure.
       content: [{ type: 'text', text: 'Recovered.' }],
-      finishReason: 'stop',
+      finishReason: { unified: 'stop', raw: 'stop' },
       usage: V3_USAGE,
       warnings: [],
     }),
@@ -127,13 +127,13 @@ function scriptFor(offeredTools: boolean): ReadableStream<Record<string, unknown
     { type: 'text-start', id: 't1' },
     { type: 'text-delta', id: 't1', delta: 'Recovered.' },
     { type: 'text-end', id: 't1' },
-    { type: 'finish', usage: V3_USAGE, finishReason: 'stop' },
+    { type: 'finish', usage: V3_USAGE, finishReason: { unified: 'stop', raw: 'stop' } },
   ];
   const callTool: Array<Record<string, unknown>> = [
     { type: 'tool-input-start', id: 'call-1', toolName: 'webSearch' },
     { type: 'tool-input-end', id: 'call-1' },
     { type: 'tool-call', toolCallId: 'call-1', toolName: 'webSearch', input: '{"query":"alia"}' },
-    { type: 'finish', usage: V3_USAGE, finishReason: 'tool-calls' },
+    { type: 'finish', usage: V3_USAGE, finishReason: { unified: 'tool-calls', raw: 'tool_calls' } },
   ];
   const failure: Array<Record<string, unknown>> = [
     { type: 'error', error: new Error('upstream exploded') },

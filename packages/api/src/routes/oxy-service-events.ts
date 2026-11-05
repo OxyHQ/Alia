@@ -6,6 +6,7 @@
  * whose signed capability catalog is owned by the calling application.
  */
 
+import { isoDateTime } from '@oxy.so/contracts';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
@@ -38,8 +39,9 @@ const normalizedEventSchema = z
     accountId: z.string().min(1),
     resource: resourceSchema,
     type: z.string().min(1),
-    occurredAt: z.string().datetime(),
-    data: z.record(z.unknown()).default({}),
+    // Oxy's timestamp check: seconds stay optional, as they were before zod 4.
+    occurredAt: z.string().check(isoDateTime()),
+    data: z.record(z.string(), z.unknown()).default({}),
   })
   .strict();
 
@@ -105,7 +107,7 @@ router.post('/', oxy.middleware.service(), async (request: Request, response: Re
   if (!parsed.success) {
     return response
       .status(400)
-      .json({ error: 'invalid_normalized_event', details: parsed.error.flatten() });
+      .json({ error: 'invalid_normalized_event', details: z.flattenError(parsed.error) });
   }
   if (parsed.data.resource.appId !== parsed.data.appId) {
     return response.status(400).json({ error: 'event_resource_app_mismatch' });

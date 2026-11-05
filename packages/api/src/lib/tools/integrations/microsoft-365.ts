@@ -149,8 +149,8 @@ export function buildOutlookTools(userId: string): ToolSet {
     sendOutlookMail: tool({
       description: '[Outlook] Send an email from the person’s Outlook account.',
       inputSchema: z.object({
-        to: z.array(z.string().email()).min(1).max(50),
-        cc: z.array(z.string().email()).max(50).optional(),
+        to: z.array(z.email()).min(1).max(50),
+        cc: z.array(z.email()).max(50).optional(),
         subject: z.string().max(500),
         body: z.string().max(100_000).describe('Plain text body'),
       }),
@@ -248,7 +248,7 @@ export function buildOutlookTools(userId: string): ToolSet {
           .describe('IANA or Windows time zone for start and end without an offset (default UTC)'),
         body: z.string().max(20_000).optional(),
         location: z.string().max(500).optional(),
-        attendees: z.array(z.string().email()).max(100).optional(),
+        attendees: z.array(z.email()).max(100).optional(),
         online: z.boolean().optional().describe('Add a Teams meeting link'),
       }),
       execute: async ({ subject, start, end, timeZone, body, location, attendees, online }) =>
