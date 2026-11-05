@@ -11,6 +11,43 @@ The package ships **raw TypeScript source** — `main`, `types` and every
 app, which is why the section on endpoints below matters more than it would for
 a prebuilt library.
 
+## Optional granular chart imports for Metro
+
+The standard SDK entries and Bloom peer range are unchanged. Apps that install a Bloom
+version exposing `chart-cards/bar-list` and `chart-cards/line` can opt into a narrower
+chart graph by wrapping their **finished** Metro configuration:
+
+```js
+const { withAliaGranularCharts } = require('@alia.onl/sdk/metro');
+
+module.exports = withAliaGranularCharts(existingMetroConfig);
+```
+
+This Node-only entry wraps the previous resolver and redirects two verified chart imports
+in this SDK copy. It delegates extra resolution probes to that resolver, so resolver
+implementations with side effects will observe those calls. It checks that the original
+barrel and both granular imports resolve to
+the same physical Bloom copy for the original importer and the adapter. Both subpaths
+must be explicit `exports` keys resolving under the active Metro conditions to files
+inside that copy; arrays, patterns and redirects to other files are not supported.
+The SDK importer hashes are rechecked on affected resolutions, including in watch mode.
+Detection uses the registered paths and their real paths; new aliases introduced later
+may be treated as unregistered, so restart Metro after changing SDK links.
+Missing exports,
+an altered SDK importer or incompatible metadata fail with an explicit build error; the
+normal SDK does not require those exports when this option is not used. File hashes detect
+changes requiring review; they do not authenticate packages.
+
+Apply the wrapper once, after other Metro wrappers. Reapplying it directly throws;
+register all copies together instead. Opaque wrappers or cloned configurations can
+hide the marker; do not apply this helper again after composing them.
+Multiple installed SDK copies are not discovered automatically. To opt in other copies,
+pass `{ additionalSdkRoots: ['/absolute/path/to/sdk'] }`; each must ship matching opt-in
+metadata. Unregistered copies retain their original imports and may still include the chart
+barrel. This does not deduplicate React, Bloom or SDK providers, nor prove a bundle-size
+reduction. Review importers, update the version and hashes in `chart-importers.json`, and
+run the Metro tests when updating the SDK package or those files.
+
 ## Install
 
 ```sh

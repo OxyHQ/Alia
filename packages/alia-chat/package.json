@@ -17,6 +17,10 @@
     "./csp": "./src/csp.ts",
     "./dictation": "./src/dictation.ts",
     "./model": "./src/runtime/model.ts",
+    "./metro": {
+      "types": "./src/metro/index.d.cts",
+      "default": "./src/metro/index.cjs"
+    },
     "./runtime": "./src/runtime/index.ts",
     "./text": "./src/text.ts",
     "./tools": "./src/tools.ts",
@@ -44,6 +48,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:metro": "node --test scripts/metro/opt-in.node.cjs",
     "check:entries": "node scripts/check-entry-isolation.mjs",
     "check:entry-types": "node scripts/check-entry-types.mjs",
     "render:avatar-still": "bun scripts/render-avatar-still.ts"
@@ -95,6 +100,7 @@
   },
   "devDependencies": {
     "@types/react-test-renderer": "^19.1.0",
+    "metro-resolver": "0.87.1",
     "react-test-renderer": "19.3.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",
