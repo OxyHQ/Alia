@@ -32,10 +32,10 @@
     "@clarity.surf/sdk": "0.10.0",
     "@expo/app-integrity": "~58.0.2",
     "@expo/vector-icons": "^15.1.1",
-    "@oxy.so/app-preset": "5.3.1",
+    "@oxy.so/app-preset": "6.0.0",
     "@oxy.so/bloom": "17.8.2",
     "@oxy.so/contracts": "6.9.0",
-    "@oxy.so/core": "7.22.0",
+    "@oxy.so/core": "7.23.0",
     "@oxy.so/expo-splash": "^1.1.0",
     "@oxy.so/services": "14.3.8",
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -78,6 +78,7 @@
     "expo-status-bar": "~58.0.4",
     "expo-symbols": "~58.0.4",
     "expo-system-ui": "~58.0.6",
+    "expo-updates": "~58.0.21",
     "expo-web-browser": "~58.0.6",
     "i18n-js": "^4.5.3",
     "lightningcss": "1.33.0",
@@ -104,6 +105,7 @@
     "expo-gl": "58.0.3"
   },
   "devDependencies": {
+    "@oxy.so/ship": "2.0.0",
     "@tailwindcss/postcss": "4.3.2",
     "@types/react": "~19.3.0",
     "react-test-renderer": "19.3.0",

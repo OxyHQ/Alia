@@ -32,6 +32,22 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   );
   plugins.splice(routerIndex >= 0 ? routerIndex + 1 : 0, 0, ...splashPlugins);
 
+  // OTA updates from Oxy Updates (oxy-api), published on every push to main by
+  // `.github/workflows/publish-update.yml`, signed with the ecosystem
+  // certificate. The runtime is the app `version` (appVersion policy): bump it
+  // for a native change, which is also what releases a new binary
+  // (`.github/workflows/android-release.yml`). It derives android.versionCode /
+  // ios.buildNumber from `version` too, so neither is kept in app.json. The
+  // client id is the one `app/_layout.tsx` hands the OxyProvider.
+  plugins.push([
+    '@oxy.so/app-preset/plugin/withOxyUpdates',
+    {
+      clientId:
+        process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
+        'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3',
+    },
+  ]);
+
   // `@expo/config-types` 58.0.3 does not declare the flag yet; the CLI reads it.
   const experiments: ExpoConfig['experiments'] & { noxcturnalTransformWorker?: boolean } = {
     ...config.experiments,

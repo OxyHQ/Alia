@@ -1,0 +1,116 @@
+name: Publish OTA update
+
+# Publishes Alia's JS bundle and assets to Oxy Updates (oxy-api), channel
+# `production`, on every push to main that can change what the app runs. The
+# binary polls https://api.oxy.so/updates/v1/apps/<client id>/manifest
+# (`withOxyUpdates` in packages/app/app.config.ts) and accepts an update
+# only for its own runtime: the app `version` (appVersion policy). A native
+# change bumps `version`, which also makes android-release.yml build and
+# release a new binary.
+#
+# No secret. Authentication is GitHub trusted publishing (oxy ADR 0057): the job
+# asks GitHub for an OIDC token addressed to https://api.oxy.so, and oxy-api
+# exchanges it for a five-minute `updates:publish` token of the Alia app,
+# only for this repository, refs/heads/main and THIS file's path
+# (.github/workflows/publish-update.yml; renaming it breaks publishing).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/app/**
+      - packages/alia-chat/**
+      - package.json
+      - bun.lock
+      - .github/workflows/publish-update.yml
+
+permissions:
+  contents: read
+  id-token: write
+
+# One publish at a time, never cancelled mid-upload: a pending run is replaced
+# by a newer push's (GitHub keeps one pending run per group), which is what an
+# OTA channel wants, since the newest bundle supersedes every older one.
+concurrency:
+  group: oxy-updates
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_DIR: packages/app
+      # Alia's PUBLIC client id (not a secret): the one in the manifest URL.
+      OXY_CLIENT_ID: oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      # A warm cache keeps `bun install` from fetching the `libsignal` git
+      # dependency from GitHub unauthenticated (see the top of ci.yml).
+      - name: Restore bun git-dependency cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache/@GH@*
+          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
+
+      # --ignore-scripts, as deploy-frontends.yml: the app needs no install
+      # script, and alia-cowork's (electron, playwright) only slow this down.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+      # The update must be built with the binary's environment, so it comes from
+      # the same place oxy's android-release.yml reads it: the eas.json
+      # `production` profile's `env` (following `extends`), plus NODE_ENV.
+      - name: Build environment from eas.json
+        run: |
+          node - <<'JS' >> "$GITHUB_ENV"
+          const { readFileSync } = require('node:fs');
+          const { join } = require('node:path');
+          const eas = JSON.parse(readFileSync(join(process.env.APP_DIR, 'eas.json'), 'utf8'));
+          const resolve = (name, seen = new Set()) => {
+            const profile = eas.build?.[name];
+            if (!profile) throw new Error(`eas.json has no build profile "${name}"`);
+            if (seen.has(name)) throw new Error(`eas.json profile "${name}" extends itself`);
+            seen.add(name);
+            const base = profile.extends ? resolve(profile.extends, seen) : {};
+            return { ...base, ...profile.env };
+          };
+          for (const [key, value] of Object.entries(resolve('production'))) {
+            if (!/^[A-Z_][A-Z0-9_]*$/.test(key) || /[\r\n]/.test(String(value))) {
+              throw new Error(`eas.json env ${key} cannot be exported`);
+            }
+            console.log(`${key}=${value}`);
+          }
+          console.log('NODE_ENV=production');
+          JS
+
+      - name: Publish to Oxy Updates
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          OXY_SHIP_CLIENT_ID: ${{ env.OXY_CLIENT_ID }}
+          OXY_API_URL: https://api.oxy.so
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        # The update's message is the commit's subject line: oxy-api takes at
+        # most 500 characters, and a squash merge's body is the whole PR.
+        run: |
+          subject="${COMMIT_MESSAGE%%$'\n'*}"
+          bunx --no-install oxy-ship publish \
+            --channel production \
+            --platform all \
+            --git-commit "$GITHUB_SHA" \
+            --message "${subject:0:500}"
