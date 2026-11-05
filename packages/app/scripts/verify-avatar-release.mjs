@@ -3,8 +3,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const revision =
-  process.argv[2] ??
-  require('@oxy.so/bloom-avatar-native/runtime-revision').AVATAR_RUNTIME_REVISION;
+  process.argv[2] ?? require('@oxy.so/bloom/agent-avatar/runtime-revision').AVATAR_RUNTIME_REVISION;
 assert.match(revision, /^[a-f0-9]{64}$/);
 const origin = process.argv[3] ?? 'https://alia.onl';
 const root = `${origin}/bloom-character/releases/${revision}/`;

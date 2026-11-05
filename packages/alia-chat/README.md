@@ -39,11 +39,12 @@ no avatar provider. To serve your own copy instead, serve the Bloom
 package's `assets/character-runtime/` directory unchanged and pass the URL of `runtime.mjs`
 as `characterRuntimeUrl` to `AliaChatSheet` or `AliaChatScreen`; nested avatar icons
 preserve that override. Native URLs must be absolute and reachable from the device.
-For native shared GPU rendering, install the optional `@oxy.so/bloom-avatar-native@^0.1.0`
-companion with its Expo GL peer and rebuild the native app. The SDK then pins its default
-URL to the companion's full runtime manifest revision under `/bloom-character/releases/`.
-Alia retains those assets across deployments. Hosts without the companion keep the
-WebView fallback; web does not import the native companion graph.
+Bloom includes the Android shared GPU renderer. Install its Expo GL peer and rebuild
+native apps after upgrading Bloom; no separate avatar package is needed. The SDK pins
+its native default URL to Bloom's full runtime manifest revision under
+`/bloom-character/releases/`. Alia retains those assets across deployments, including
+releases used by older installed apps. Web imports no native GPU graph. Platforms
+without the shared renderer retain Bloom's existing fallback.
 
 A web app with a Content-Security-Policy composes the SDK's into its own instead of listing
 Alia's origins by hand: `@alia.onl/sdk/csp` exports `ALIA_SDK_CSP` and `withAliaSdkCsp(extensions)`
