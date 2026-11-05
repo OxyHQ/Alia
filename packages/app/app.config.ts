@@ -3,6 +3,14 @@ import { resolve } from 'node:path';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 import { oxySplashScreenPlugin } from '@oxy.so/expo-splash/config';
 
+// App variant: a development build sits next to the production app on the SAME
+// device with a distinct applicationId/bundleId and name. Build it with
+// `APP_VARIANT=development` (e.g. `APP_VARIANT=development npx expo run:android`);
+// production is the default.
+const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development';
+const APP_ID = IS_DEV_VARIANT ? 'onl.alia.app.dev' : 'onl.alia.app';
+const APP_NAME = IS_DEV_VARIANT ? 'Alia (Dev)' : 'Alia';
+
 /**
  * Keep push credentials out of the repository while preserving local native
  * development. EAS file secrets expose a temporary path through the named
@@ -12,7 +20,7 @@ import { oxySplashScreenPlugin } from '@oxy.so/expo-splash/config';
  */
 export default ({ config }: ConfigContext): ExpoConfig => {
   const googleServicesFile = process.env.GOOGLE_SERVICES_JSON?.trim() || './google-services.json';
-  const android = { ...config.android };
+  const android = { ...config.android, package: APP_ID };
   const plugins = [...(config.plugins ?? [])];
 
   // Keep the two Oxy splash entries adjacent and immediately after the router:
@@ -66,8 +74,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name: config.name ?? 'Alia',
+    name: APP_NAME,
     slug: config.slug ?? 'alia',
+    ios: { ...config.ios, bundleIdentifier: APP_ID },
     android,
     plugins,
     experiments,
