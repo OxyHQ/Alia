@@ -374,6 +374,27 @@ strips and restores actor fields for pre-4.11 contracts. The registered catalogu
 and its digest remain intact; requester and bot accounts stay separate.
 
 
+## Native app releases and OTA updates
+
+The Expo app (`packages/app`, `onl.alia.app`) ships natively in two ways, neither
+through AWS:
+
+- **Android binary** — `.github/workflows/android-release.yml` calls oxy's reusable
+  `android-release.yml`, which runs only on Oxy's build machine (`seldon`). When
+  the app `version` (`packages/app/app.json`) has no GitHub release
+  `android-v<version>` yet, it prebuilds, builds the AAB and APK signed with the
+  Oxy ecosystem key and publishes them as that release; otherwise it ends.
+- **OTA update** — `.github/workflows/publish-update.yml` publishes every push to
+  main that touches the app or `alia-chat` to Oxy Updates (oxy-api), channel
+  `production`, with `oxy-ship` over GitHub trusted publishing (OIDC, no secret;
+  the trusted publisher pins this repository, `refs/heads/main` and that file path).
+
+`version` is both the OTA runtime (`withOxyUpdates`, appVersion policy) and the
+store build number (`@oxy.so/app-preset` derives `versionCode` 1.0.0 -> 1000000):
+bump it for a native change, which releases a new binary, and never for a
+JS-only one. Both builds take their environment from the `production` profile's
+`env` in `packages/app/eas.json` (public `EXPO_PUBLIC_*` values only).
+
 ## Codea and Cowork desktop artifacts
 
 `alia-codea` and `alia-cowork` are private workspace packages. The npm release
