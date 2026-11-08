@@ -123,9 +123,9 @@ The person's power level still governs the inference a tool runs during the call
   (`lib/voice/turn.ts`). Within the contract's 32 768 characters: the history shrinks
   first, then the recalled memories go; if the base prompt alone does not fit, the
   call refuses to open (`realtime-rejected`) rather than cut it.
-- **Memory per actor:** an Alia call has the person's memory and the
-  `saveUserMemory` family; an agent's call has `agent_memory_documents` and its
-  `memory` tool. Memories are recalled at open.
+- **Memory per actor:** an Alia call has the person's Nilo memory
+  tools (`oxy_nilo_memories__*`) and recalls on demand; an agent's call has
+  `agent_memory_documents` and its `memory` tool.
 - **Tools:** `ToolPipeline.forUser` with the person on the socket as
   `requesterAccountId`, so an agent's `oxy_*` tools reach its owner's apps only when
   the owner is the one talking (ADR 0015). Serialized with
