@@ -35,8 +35,10 @@ import { useComposerDraft, useComposerDraftStore, useTurnEdit } from '@alia.onl/
 import { AiChatContainer, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 interface StreamOptions {
+  text?: string;
   /** How many flushes the reply arrives in. */
   chunks?: number;
   /** Time between flushes, ms. The real stream's is 50. */
@@ -56,7 +58,7 @@ interface FixtureWindow {
 }
 
 function registry() {
-  const w = window as unknown as FixtureWindow;
+  const w = globalThis as unknown as FixtureWindow;
   w.__aliaFixture ??= {
     opened: {},
     threads: {},
@@ -72,6 +74,7 @@ export default function FixtureChatPage() {
   const [messages, setMessages] = useState<Message[]>(conversation.messages);
   const [isLoading, setIsLoading] = useState(false);
   const turnRef = useRef(0);
+  const cancelStreamRef = useRef<() => void>(() => {});
   // The router may hand this instance a different id rather than mount a new one.
   const [shownId, setShownId] = useState(id);
   if (shownId !== id) {
@@ -80,7 +83,7 @@ export default function FixtureChatPage() {
   }
 
   const stream = useCallback(
-    ({ chunks = 60, intervalMs = 50 }: StreamOptions = {}) =>
+    ({ chunks = 60, intervalMs = 50, text = 'Tell me more.' }: StreamOptions = {}) =>
       new Promise<{ updates: number; elapsed: number }>((resolve) => {
         const turn = (turnRef.current += 1);
         const reply = fixtureReply(`${id}:${turn}`);
@@ -88,7 +91,7 @@ export default function FixtureChatPage() {
         const replyId = `${id}-stream-${turn}`;
         setMessages((prev) => [
           ...prev,
-          { id: `${id}-ask-${turn}`, role: 'user', content: 'Tell me more.', createdAt: now },
+          { id: `${id}-ask-${turn}`, role: 'user', content: text, createdAt: now },
           { id: replyId, role: 'assistant', content: '', isStreaming: true, createdAt: now },
         ]);
         setIsLoading(true);
@@ -120,6 +123,16 @@ export default function FixtureChatPage() {
             );
           }
         }, intervalMs);
+        cancelStreamRef.current = () => {
+          clearInterval(timer);
+          setIsLoading(false);
+          setMessages((prev) =>
+            prev.map((message) =>
+              message.id === replyId ? { ...message, isStreaming: false } : message,
+            ),
+          );
+          resolve({ updates: sent, elapsed: performance.now() - started });
+        };
       }),
     [id],
   );
@@ -138,6 +151,7 @@ export default function FixtureChatPage() {
         });
       });
       return () => {
+        cancelStreamRef.current();
         cancelAnimationFrame(frame);
         clearTimeout(timer);
         delete fixtures.threads[id];
@@ -146,7 +160,7 @@ export default function FixtureChatPage() {
     }, [id, stream]),
   );
 
-  const onStop = useCallback(() => {}, []);
+  const onStop = useCallback(() => cancelStreamRef.current(), []);
   /**
    * The chat's own menu and a turn's edit, acting on the fixture's thread, so
    * the visual QA sweep (`scripts/visual/qa-sweep.mjs`) can open the header
@@ -181,7 +195,8 @@ export default function FixtureChatPage() {
     const store = useComposerDraftStore.getState();
     store.clear(store.address(id));
     if (edit.editing !== undefined) await edit.submit(text);
-  }, [draft.text, edit, id]);
+    else if (Platform.OS !== 'web') void stream({ chunks: 240, intervalMs: 50, text });
+  }, [draft.text, edit, id, stream]);
 
   return (
     <KeyboardFrame>
@@ -195,6 +210,7 @@ export default function FixtureChatPage() {
             onValueChange={setText}
             onSubmit={() => void submit()}
             onStop={onStop}
+            busy={Platform.OS !== 'web' && isLoading}
             disableKeyboardAvoidance
           />
         }
