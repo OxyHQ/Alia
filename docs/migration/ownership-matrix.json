@@ -637,7 +637,8 @@
       "dependsOn": ["gwc-import-embeddings", "provider-api"],
       "removalGate": "A hop to Kaana without a timeout means a hung Kaana hangs memory writes for as long as the socket stays open. Add a timeout as part of the move, and preserve 1536 dimensions.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/memory/embeddings.ts:20-32 (no timeout/maxAttempts passed); default at packages/api/src/internal/providers/lib/provider-api.ts:103 (maxAttempts=3, timeout undefined)"
+      "evidence": "packages/api/src/lib/memory/embeddings.ts:20-32 (no timeout/maxAttempts passed); default at packages/api/src/internal/providers/lib/provider-api.ts:103 (maxAttempts=3, timeout undefined)",
+      "removedIn": "alia-memory-moved-to-nilo"
     },
     {
       "id": "behaviour-images",
@@ -2894,7 +2895,8 @@
       "dependsOn": ["behaviour-embeddings", "gateway-client", "provider-api"],
       "removalGate": "Kaana must expose an embeddings endpoint with the SAME 1536 dimensionality, or every stored memory embedding becomes incomparable.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/memory/embeddings.ts:7, :10-11, :20-28"
+      "evidence": "packages/api/src/lib/memory/embeddings.ts:7, :10-11, :20-28",
+      "removedIn": "alia-memory-moved-to-nilo"
     },
     {
       "id": "gwc-import-health",

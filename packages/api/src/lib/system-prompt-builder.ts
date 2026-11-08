@@ -61,9 +61,8 @@ import { agentMemoryPromptSection } from './agent/agent-memory-runtime.js';
 // ---------------------------------------------------------------------------
 
 export interface UserMemoryData {
-  memories?: Array<{ title: string; summary: string }>;
-  preferences?: Record<string, any>;
-  context?: Record<string, any>;
+  /** What the person set in Alia: tone and response length reach the prompt (language does not). */
+  preferences?: { tone?: string; responseLength?: string };
   /**
    * The person's memory settings. Only `recallEnabled` is read here — the
    * switch the app labels "Use in AI responses" — and only for the writing
@@ -332,6 +331,19 @@ export class SystemPromptBuilder {
         systemMessage += `\n\nThe user's name is ${userName}.`;
       }
       if (oxyServiceCtx) systemMessage += oxyServiceCtx;
+    }
+
+    // 9. The answer settings the person chose in Alia (direct sessions only). Settings, not
+    // memories: what Alia remembers about them is Nilo's, recalled by the model.
+    if (mayReadAliaMemory && userMemory?.preferences && isDirectUserSession) {
+      const { tone, responseLength } = userMemory.preferences;
+      const chosen = [
+        tone ? `tone: ${tone}` : '',
+        responseLength ? `response length: ${responseLength}` : '',
+      ].filter(Boolean);
+      if (chosen.length > 0) {
+        systemMessage += `\n\nAnswer preferences the person set (${chosen.join('; ')}).`;
+      }
     }
 
     /**

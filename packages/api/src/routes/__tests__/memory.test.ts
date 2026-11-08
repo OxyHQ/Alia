@@ -1,41 +1,25 @@
 // packages/api/src/routes/__tests__/memory.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The repository replaces the model. `getDb()` is mocked too because the route
- * module calls it for a handle — otherwise every case fails with "Postgres is
- * not connected" before reaching the assertion it is about.
- *
- * `vi.importActual` is gone with the model: the constants this file's subject
- * uses (`getMemoryLimit`) now live in `domain/user-memory.ts`, which is not
- * mocked and needs no spreading.
+ * Alia's memory of the person is Nilo's, so `/memory` serves only her settings: the profile,
+ * the preferences she answers by, the "Use in AI responses" toggle and the agents that remember
+ * the person. The repository replaces the model; `getDb()` is mocked because the route calls it
+ * for a handle.
  */
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({
-  addEntries: vi.fn(),
-  countEntries: vi.fn(),
-  deleteEntryById: vi.fn(),
-  findEntryByTitle: vi.fn(),
   findUserMemory: vi.fn(),
-  mergeContext: vi.fn(),
-  mergePreferences: vi.fn(),
-  normalizeMemoryTitle: (t: string) => t.trim().toLowerCase(),
-  replaceContext: vi.fn(),
-  replaceEntries: vi.fn(),
   replacePreferences: vi.fn(),
-  saveEntryByTitle: vi.fn(),
-  updateEntryById: vi.fn(),
   updateSettings: vi.fn(),
 }));
 
-// The subscription lookup moved to a Postgres repository; these suites care
-// only that the memory limit falls back when there is no active subscription,
-// so the repository is stubbed rather than the model. `db/index.js` is already
-// mocked above for the memory repository, and the two share it.
-vi.mock('../../db/billing/subscriptionRepository.js', () => ({
-  findActiveSubscription: vi.fn().mockResolvedValue(null),
+vi.mock('../../db/agents/agentMemoryRepository.js', () => ({
+  listAgentsRememberingPerson: vi.fn(async () => []),
 }));
+vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentsByIds: vi.fn(async () => []) }));
+vi.mock('../../lib/agent-identity.js', () => ({ attachAgentIdentities: vi.fn(async () => []) }));
 
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: vi.fn((_req: any, _res: any, next: any) => next()),
@@ -49,69 +33,16 @@ vi.mock('../../lib/memory/user-memory-service.js', () => ({
   getOrCreateUserMemory: vi.fn(),
 }));
 
-import { getOrCreateUserMemory } from '../../lib/memory/user-memory-service.js';
 import {
-  findEntryByTitle,
   findUserMemory,
-  saveEntryByTitle,
+  replacePreferences,
   updateSettings,
 } from '../../db/memory/userMemoryRepository.js';
-import { AddMemorySchema, MemorySettingsSchema } from '../../lib/validators/memory-validators.js';
+import { MemorySettingsSchema } from '../../lib/validators/memory-validators.js';
+import { getOrCreateUserMemory } from '../../lib/memory/user-memory-service.js';
 import router from '../memory.js';
 
 const mockGetOrCreate = getOrCreateUserMemory as unknown as ReturnType<typeof vi.fn>;
-
-/**
- * Point the mocked repository at one in-memory profile.
- *
- * The two handler cases below assert what the store ends up holding — that
- * `/add` inserts, that `/settings` changes ONE toggle and leaves the other —
- * and bare spies would reduce both to "the handler called something", which is
- * true of a handler that writes the wrong thing. `doc.save` counts writes.
- */
-interface FakeEntry {
-  _id: string;
-  title: string;
-  summary: string;
-  type: string;
-}
-interface FakeProfile {
-  _id: string;
-  memories: FakeEntry[];
-  settings: { autoSaveEnabled: boolean; recallEnabled: boolean };
-  save: ReturnType<typeof vi.fn<() => void>>;
-}
-
-function useProfile(doc: FakeProfile) {
-  mockGetOrCreate.mockResolvedValue(doc);
-  const fold = (t: string) => t.trim().toLowerCase();
-
-  vi.mocked(findUserMemory).mockResolvedValue(
-    doc as unknown as Awaited<ReturnType<typeof findUserMemory>>,
-  );
-  vi.mocked(findEntryByTitle).mockImplementation(
-    async (_db, _id, title) =>
-      doc.memories.find((m) => fold(m.title) === fold(title)) as unknown as Awaited<
-        ReturnType<typeof findEntryByTitle>
-      >,
-  );
-  vi.mocked(saveEntryByTitle).mockImplementation(async (_db, _id, incoming) => {
-    doc.save();
-    const i = doc.memories.findIndex((m) => fold(m.title) === fold(incoming.title));
-    if (i !== -1) {
-      doc.memories[i] = { ...doc.memories[i], summary: incoming.summary, type: incoming.type };
-      return doc.memories[i] as unknown as Awaited<ReturnType<typeof saveEntryByTitle>>;
-    }
-    const created = { _id: `entry-${doc.memories.length + 1}`, ...incoming };
-    doc.memories.push(created);
-    return created as unknown as Awaited<ReturnType<typeof saveEntryByTitle>>;
-  });
-  vi.mocked(updateSettings).mockImplementation(async (_db, _id, patch) => {
-    doc.save();
-    if (patch.autoSaveEnabled !== undefined) doc.settings.autoSaveEnabled = patch.autoSaveEnabled;
-    if (patch.recallEnabled !== undefined) doc.settings.recallEnabled = patch.recallEnabled;
-  });
-}
 
 function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', path: string) {
   const layer = (router as any).stack.find(
@@ -135,191 +66,88 @@ function makeMockRes() {
   return res;
 }
 
-describe('memory routes — validators and core logic', () => {
+const profile = () => ({
+  _id: 'profile-1',
+  oxyUserId: 'user-1',
+  settings: { autoSaveEnabled: true, recallEnabled: true },
+  preferences: { language: 'es-ES' },
+  writingStyle: null,
+});
+
+describe('memory routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('AddMemorySchema accepts title/summary/type and rejects a missing type', () => {
-    const valid = AddMemorySchema.safeParse({
-      title: 'Food',
-      summary: 'Loves strawberries',
-      type: 'topic',
-    });
-    expect(valid.success).toBe(true);
-
-    const invalid = AddMemorySchema.safeParse({ title: 'Food', summary: 'Loves strawberries' });
-    expect(invalid.success).toBe(false);
-  });
-
-  it('AddMemorySchema rejects an unknown type value', () => {
-    const invalid = AddMemorySchema.safeParse({ title: 'Food', summary: 'x', type: 'hobby' });
-    expect(invalid.success).toBe(false);
-  });
-
-  it('MemorySettingsSchema accepts a partial update', () => {
-    const result = MemorySettingsSchema.safeParse({ autoSaveEnabled: false });
-    expect(result.success).toBe(true);
-  });
-
-  it('adds a new memory when title does not already exist', async () => {
-    const doc = {
-      _id: 'profile-1',
-      memories: [] as FakeEntry[],
-      settings: { autoSaveEnabled: true, recallEnabled: true },
-      save: vi.fn<() => void>(),
-    };
-    useProfile(doc);
-
-    const handler = getRouteHandler('post', '/add');
-    const req: any = {
-      user: { id: 'user-1' },
-      body: { title: 'Food', summary: 'Loves strawberries', type: 'topic' },
-    };
-    const res = makeMockRes();
-
-    await handler(req, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(doc.memories).toHaveLength(1);
-    expect(doc.memories[0]).toMatchObject({
-      title: 'Food',
-      summary: 'Loves strawberries',
-      type: 'topic',
-    });
-    expect(doc.save).toHaveBeenCalled();
-  });
-
-  it('updates settings via the real PUT /settings handler', async () => {
-    const doc = {
-      _id: 'profile-1',
-      memories: [] as FakeEntry[],
-      settings: { autoSaveEnabled: true, recallEnabled: true },
-      save: vi.fn<() => void>(),
-    };
-    useProfile(doc);
-
-    const handler = getRouteHandler('put', '/settings');
-    const req: any = { user: { id: 'user-1' }, body: { autoSaveEnabled: false } };
-    const res = makeMockRes();
-
-    await handler(req, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(doc.settings.autoSaveEnabled).toBe(false);
-    expect(doc.settings.recallEnabled).toBe(true); // untouched — proves this was a partial update, not an overwrite
-    expect(doc.save).toHaveBeenCalled();
-    expect(res.body).toEqual(doc.settings);
-  });
-});
-
-vi.mock('ai', async () => {
-  const actual = await vi.importActual<typeof import('ai')>('ai');
-  return { ...actual, generateText: vi.fn() };
-});
-
-vi.mock('../../lib/chat-core.js', () => ({
-  resolveUtilityModel: vi
-    .fn()
-    .mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
-  getAIModel: vi.fn().mockReturnValue({}),
-}));
-
-vi.mock('../../lib/tools/index.js', () => ({
-  saveUserMemoryTool: vi.fn().mockReturnValue({ execute: vi.fn() }),
-}));
-
-import { generateText } from 'ai';
-import { resolveUtilityModel } from '../../lib/chat-core.js';
-
-describe('POST /memory/import/from-text', () => {
-  it('extracts and returns saved memories via the real route handler', async () => {
-    (generateText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      toolResults: [
-        {
-          toolName: 'saveUserMemory',
-          input: { title: 'Food', summary: 'Loves strawberries', type: 'topic' },
-          output: { success: true },
-        },
-        {
-          toolName: 'saveUserMemory',
-          input: { title: 'Bad', summary: 'x', type: 'topic' },
-          output: { success: false },
-        },
-      ],
-    });
-
-    const handler = getRouteHandler('post', '/import/from-text');
-    const req: any = {
-      user: { id: 'user-1' },
-      body: { text: 'The user loves strawberries and dislikes cilantro.' },
-    };
-    const res = makeMockRes();
-
-    await handler(req, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({
-      saved: [{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }],
-    });
-  });
-
-  it('rejects text over 50,000 characters without calling generateText', async () => {
-    const mockGenerateText = generateText as unknown as ReturnType<typeof vi.fn>;
-    mockGenerateText.mockClear();
-
-    const handler = getRouteHandler('post', '/import/from-text');
-    const req: any = { user: { id: 'user-1' }, body: { text: 'x'.repeat(50_001) } };
-    const res = makeMockRes();
-
-    await handler(req, res);
-
-    expect(res.statusCode).toBe(400);
-    expect(mockGenerateText).not.toHaveBeenCalled();
-  });
-
-  it('constructs saveUserMemoryTool with the initiator asserted server-side', async () => {
-    const { saveUserMemoryTool } = await import('../../lib/tools/index.js');
-    const mockSaveUserMemoryTool = saveUserMemoryTool as unknown as ReturnType<typeof vi.fn>;
-    mockSaveUserMemoryTool.mockClear();
-
-    (generateText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ toolResults: [] });
-
-    const handler = getRouteHandler('post', '/import/from-text');
-    const req: any = { user: { id: 'user-1' }, body: { text: 'some memory text' } };
-    const res = makeMockRes();
-
-    await handler(req, res);
-
-    expect(mockSaveUserMemoryTool).toHaveBeenCalledWith('user-1', { initiatedBy: 'user' });
-  });
-
-  it('delegates retries to Oxy and never selects a second provider in Alia', async () => {
-    const mockResolveModel = resolveUtilityModel as unknown as ReturnType<typeof vi.fn>;
-    const mockGenerateText = generateText as unknown as ReturnType<typeof vi.fn>;
-    mockResolveModel.mockClear();
-    mockGenerateText.mockClear();
-
-    mockResolveModel.mockResolvedValueOnce({
-      provider: 'kaana',
-      modelId: 'example/model',
-      oxyInferenceTarget: { kind: 'model', model: 'example/model' },
-      keyConfig: { provider: 'kaana', modelId: 'example/model' },
-    });
-
-    mockGenerateText.mockRejectedValueOnce(
-      Object.assign(new Error('Oxy inference unavailable'), { statusCode: 503 }),
+    mockGetOrCreate.mockResolvedValue(profile());
+    vi.mocked(findUserMemory).mockResolvedValue(
+      profile() as unknown as Awaited<ReturnType<typeof findUserMemory>>,
     );
+  });
 
-    const handler = getRouteHandler('post', '/import/from-text');
-    const req: any = { user: { id: 'user-1' }, body: { text: 'The user loves strawberries.' } };
+  it('serves the profile on GET /', async () => {
     const res = makeMockRes();
+    await getRouteHandler('get', '/')({ user: { id: 'user-1' } }, res);
+    expect(res.body).toMatchObject({ settings: { recallEnabled: true } });
+    expect(mockGetOrCreate).toHaveBeenCalledWith('user-1');
+  });
 
-    await handler(req, res);
+  it('replaces only the named preferences: language, tone and response length', async () => {
+    const res = makeMockRes();
+    await getRouteHandler('put', '/preferences')(
+      {
+        user: { id: 'user-1' },
+        body: {
+          language: 'en-US',
+          tone: 'casual',
+          responseLength: 'short',
+          interests: ['chess'],
+          isAdmin: true,
+        },
+      },
+      res,
+    );
+    expect(replacePreferences).toHaveBeenCalledWith({}, 'profile-1', {
+      language: 'en-US',
+      tone: 'casual',
+      responseLength: 'short',
+    });
+  });
 
-    expect(mockResolveModel).toHaveBeenCalledTimes(1);
-    expect(mockGenerateText).toHaveBeenCalledTimes(1);
-    expect(res.statusCode).toBe(500);
-    expect(res.body).toEqual({ error: 'Failed to import from text' });
+  it('changes one toggle and leaves the other', async () => {
+    const res = makeMockRes();
+    await getRouteHandler('put', '/settings')(
+      { user: { id: 'user-1' }, body: { recallEnabled: false } },
+      res,
+    );
+    expect(updateSettings).toHaveBeenCalledWith({}, 'profile-1', {
+      autoSaveEnabled: undefined,
+      recallEnabled: false,
+    });
+  });
+
+  it('refuses malformed settings', async () => {
+    const res = makeMockRes();
+    await getRouteHandler('put', '/settings')(
+      { user: { id: 'user-1' }, body: { recallEnabled: 'yes' } },
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(MemorySettingsSchema.safeParse({ recallEnabled: 'yes' }).success).toBe(false);
+  });
+
+  it('lists the agents that remember the person', async () => {
+    const res = makeMockRes();
+    await getRouteHandler('get', '/agents')({ user: { id: 'user-1' } }, res);
+    expect(res.body).toEqual({ agents: [] });
+  });
+
+  it('has no route that adds, searches, imports, exports or edits memories: they are Nilo’s', () => {
+    const paths = (router as any).stack
+      .filter((layer: any) => layer.route)
+      .map(
+        (layer: any) => `${Object.keys(layer.route.methods)[0]?.toUpperCase()} ${layer.route.path}`,
+      )
+      .sort();
+    expect(paths).toEqual(['GET /', 'GET /agents', 'PUT /preferences', 'PUT /settings']);
   });
 });

@@ -22,11 +22,7 @@ export const API_ROUTES = {
   // Memory routes
   memory: {
     get: '/memory',
-    add: '/memory/add',
-    update: (id: string) => `/memory/${id}`,
-    delete: (id: string) => `/memory/${id}`,
     preferences: '/memory/preferences',
-    context: '/memory/context',
     /** Every agent that remembers something about the caller (memory per actor). */
     agents: '/memory/agents',
   },

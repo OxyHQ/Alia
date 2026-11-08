@@ -49,9 +49,7 @@ function profile(overrides: Partial<IWritingStyleProfile> = {}): IWritingStylePr
 
 function memory(overrides: Partial<UserMemoryData> = {}): UserMemoryData {
   return {
-    memories: [],
     preferences: {},
-    context: {},
     settings: { recallEnabled: true },
     writingStyle: profile(),
     ...overrides,
@@ -123,17 +121,17 @@ describe("the person's writing style in the system message", () => {
     expect(off).not.toContain(HEADER);
   });
 
-  it('does not put stored facts, preferences or context in the prompt: memory is Nilo’s', async () => {
+  it('carries the tone and length the person set, as settings; what she remembers is Nilo’s', async () => {
     const prompt = await build({
-      userMemory: memory({
-        memories: [{ key: 'pet', value: 'a cat named Mochi', category: 'fact' }] as never,
-        preferences: { tone: 'sardonic-zq' } as never,
-        context: { occupation: 'lighthouse keeper' } as never,
-      }),
+      userMemory: memory({ preferences: { tone: 'sardonic-zq', responseLength: 'short' } }),
     });
-    expect(prompt).not.toContain('Mochi');
-    expect(prompt).not.toContain('sardonic-zq');
-    expect(prompt).not.toContain('lighthouse keeper');
+    expect(prompt).toContain('tone: sardonic-zq');
+    expect(prompt).toContain('response length: short');
+    const off = await build({
+      userMemory: memory({ preferences: { tone: 'sardonic-zq' } }),
+      personalization: false,
+    });
+    expect(off).not.toContain('sardonic-zq');
   });
 
   it('is absent when the person turned off "Use in AI responses"', async () => {

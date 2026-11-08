@@ -6,10 +6,10 @@ import { authenticateToken } from '../../middleware/auth.js';
 import { resolveStoredModel, getAIModel } from '../../lib/chat-core.js';
 import { getDb } from '../../db/index.js';
 import {
-  findEntryByTitle,
-  getOrCreateUserMemory,
-  saveEntryByTitle,
-} from '../../db/memory/userMemoryRepository.js';
+  type CanvasMemoryAccess,
+  readCanvasMemory,
+  writeCanvasMemory,
+} from '../../lib/canvas/nilo-memory.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
 import { kaanaCapabilityUnavailable } from '../../lib/inference/hosted-capability-error.js';
@@ -73,7 +73,13 @@ router.post('/', async (req: Request, res: Response) => {
 
     try {
       // Execute the workflow
-      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId, executionId);
+      const { results, finalOutput } = await executeWorkflow(
+        nodes,
+        edges,
+        req.userId,
+        executionId,
+        req.accessToken,
+      );
 
       await completeExecution(getDb(), executionId, {
         status: 'completed',
@@ -113,6 +119,7 @@ async function executeWorkflow(
   edges: WorkflowEdge[],
   userId: string,
   executionId: string,
+  accessToken?: string,
 ): Promise<{ results: any[]; finalOutput: string }> {
   const results: any[] = [];
   const nodeOutputs = new Map<string, any>();
@@ -171,7 +178,11 @@ async function executeWorkflow(
         }
       }
 
-      const output = await executeNode(node, inputs.join('\n\n'), userId);
+      const output = await executeNode(node, inputs.join('\n\n'), userId, {
+        userId,
+        accessToken,
+        runId: executionId,
+      });
 
       nodeOutputs.set(nodeId, output);
 
@@ -222,7 +233,12 @@ async function executeWorkflow(
   return { results, finalOutput };
 }
 
-async function executeNode(node: WorkflowNode, input: string, userId: string): Promise<any> {
+async function executeNode(
+  node: WorkflowNode,
+  input: string,
+  userId: string,
+  memoryAccess: CanvasMemoryAccess,
+): Promise<any> {
   switch (node.type) {
     case 'textInput':
       return node.data.text || '';
@@ -331,30 +347,9 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       if (!memoryKey) {
         throw new Error('Memory key is required');
       }
-      const db = getDb();
-      if (operation === 'read') {
-        const userMemory = await getOrCreateUserMemory(db, userId);
-        const entry = await findEntryByTitle(db, userMemory._id, memoryKey);
-        return entry ? entry.summary : '';
-      } else if (operation === 'write') {
-        /**
-         * One upsert rather than a read then an update-or-append — statements
-         * racing each other, so two canvas runs writing the same key could both
-         * append and leave duplicate memories. `saveEntryByTitle` settles that on
-         * the server.
-         *
-         * It folds case and whitespace like the write path everywhere else, so a
-         * canvas writing `"Coffee"` against a stored `"coffee"` updates the entry
-         * that is already there rather than appending a second one.
-         */
-        const userMemory = await getOrCreateUserMemory(db, userId);
-        await saveEntryByTitle(db, userMemory._id, {
-          title: memoryKey,
-          summary: input,
-          type: 'topic',
-        });
-        return input;
-      }
+      // The person's memory is Nilo's (`lib/canvas/nilo-memory.ts`).
+      if (operation === 'read') return readCanvasMemory(memoryKey, memoryAccess);
+      if (operation === 'write') return writeCanvasMemory(memoryKey, input, memoryAccess);
       throw new Error(`Unknown memory operation: ${operation}`);
     }
 

@@ -40,8 +40,17 @@ recalled automatically before the turn: recalling is the model's call.
 (`lib/tool-pipeline.ts`). An agent never gets them: it keeps its own memory (§ below).
 
 What was retired from Alia: `saveUserMemory`, `updateUserMemory`, `forgetUserMemory`,
-`updateUserPreferences`, `updateUserContext`, the `memory-recall` before-chat hook and the
-facts, preferences and context blocks of the system prompt.
+`updateUserPreferences`, `updateUserContext`, the `memory-recall` before-chat hook, the
+facts, preferences and context blocks of the system prompt, the embeddings and vector
+search, the `/memory/*` routes to add, edit, search, import and export memories, and the
+Settings → Memory list (it now explains where memories live and opens Nilo). The canvas
+`memory` node reads and writes a Nilo memory by key (`lib/canvas/nilo-memory.ts`).
+
+What Alia keeps (`user_memories`, `GET /memory`, `PUT /memory/preferences|settings`): the
+answer preferences the person chose (language, tone, response length), the
+"Use in AI responses" toggle, and the learned writing style. Those are settings, not
+memories. Language, tone and response length still reach the prompt; nothing else about
+the person does.
 
 ### Writing style
 

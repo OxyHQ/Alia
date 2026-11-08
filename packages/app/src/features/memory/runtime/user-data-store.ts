@@ -1,18 +1,12 @@
 import { create } from 'zustand';
 
-interface Memory {
-  _id: string;
-  title: string;
-  summary: string;
-  type: 'profile' | 'topic' | 'person';
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface UserMemory {
-  memories: Memory[];
+/**
+ * What `GET /memory` returns: the person's profile, not their memories. What
+ * Alia remembers lives in the `memories` database of the person's Nilo
+ * workspace.
+ */
+export interface UserMemory {
   settings: {
-    autoSaveEnabled: boolean;
     recallEnabled: boolean;
   };
   preferences: {
@@ -20,21 +14,14 @@ interface UserMemory {
     tone?: string;
     voice?: string;
     responseLength?: 'short' | 'medium' | 'long';
-    interests?: string[];
     [key: string]: unknown;
-  };
-  context: {
-    occupation?: string;
-    location?: string;
-    bio?: string;
-    timezone?: string;
   };
 }
 
 /**
- * Shared read surface for the user's memory document. `useUserData` owns the
+ * Shared read surface for the user's memory profile. `useUserData` owns the
  * fetching and writes through to here. Nothing is persisted — a cached copy of
- * one account's memories must not survive on disk into the next sign-in.
+ * one account's profile must not survive on disk into the next sign-in.
  */
 interface UserDataState {
   memory: UserMemory | null;
