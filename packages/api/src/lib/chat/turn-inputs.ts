@@ -18,7 +18,6 @@ import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemo
 import { oxy } from '../oxy.js';
 import { loadTurnAgent } from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
-import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
 import type { ChatMessage } from '../message-converter.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
@@ -131,26 +130,4 @@ export async function buildTurnSkills(input: {
     log.v1.warn({ err }, 'Skill runtime unavailable for this turn');
     return null;
   }
-}
-
-/** Memories recalled for this turn by the before-chat hooks, if any. */
-export async function recallTurnMemories(input: {
-  readonly oxyUserId: string;
-  readonly conversationId: string | undefined;
-  readonly messages: ChatMessage[];
-  readonly modelId: string;
-  readonly selectedSkillNames?: string[] | null;
-}): Promise<Array<{ title: string; summary: string }> | undefined> {
-  const hookResult = await runBeforeChatHooks({
-    userId: input.oxyUserId,
-    conversationId: input.conversationId,
-    messages: input.messages,
-    model: input.modelId,
-    skillNames: input.selectedSkillNames ?? undefined,
-    platform: 'app' as const,
-    metadata: {},
-  }).catch(() => null);
-  return hookResult?.metadata?.recalledMemories as
-    | Array<{ title: string; summary: string }>
-    | undefined;
 }

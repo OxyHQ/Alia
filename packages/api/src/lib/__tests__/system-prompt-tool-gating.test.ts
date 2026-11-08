@@ -63,16 +63,12 @@ describe('prompt cache layout', () => {
     const busy = await SystemPromptBuilder.build({
       isDirectUserSession: true,
       oxyUser: { name: { full: 'Ada Lovelace' } },
-      recalledMemories: [{ title: 'Tea', summary: 'prefers green tea' }],
-      userMemory: { preferences: { diet: 'vegan' } },
     });
     // The head is byte-identical; only the tail differs.
     const head = quiet.slice(0, quiet.indexOf('Today is'));
     expect(head.length).toBeGreaterThan(500);
     expect(busy.startsWith(head)).toBe(true);
     expect(busy.indexOf('Ada Lovelace')).toBeGreaterThan(head.length);
-    expect(busy.indexOf('green tea')).toBeGreaterThan(head.length);
-    expect(busy.indexOf('vegan')).toBeGreaterThan(head.length);
   });
 
   it('puts the date after the skills index and the Apps catalogue', async () => {

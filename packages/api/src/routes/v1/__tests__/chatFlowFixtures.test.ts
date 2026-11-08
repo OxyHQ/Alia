@@ -83,7 +83,6 @@ const H = vi.hoisted(() => {
     entitlements: null as unknown,
     /** The rolling usage window `readUsageWindow` answers, or null for a plan without one. */
     usageWindow: null as unknown,
-    recalledMemories: undefined as unknown,
     userMemory: null as unknown,
     searchResults: [] as Array<{ url: string; title: string; snippet: string }>,
     /** Exact agent row returned for `body.agentId`, or null for a stale/missing id. */
@@ -284,7 +283,7 @@ vi.mock('../../../lib/usage-window.js', async (importOriginal) => ({
 vi.mock('../../../lib/hooks/index.js', () => ({
   runBeforeChatHooks: vi.fn(async () => {
     H.timeline.push('recall:beforeChatHooks');
-    return { metadata: { recalledMemories: H.state.recalledMemories } };
+    return {};
   }),
   runAfterChatHooks: vi.fn(async (ctx: Record<string, unknown>) => {
     H.afterChat.push(ctx);
@@ -672,7 +671,6 @@ beforeEach(() => {
   H.state.reservation = RESERVATION;
   H.state.entitlements = ENTITLEMENTS;
   H.state.usageWindow = null;
-  H.state.recalledMemories = undefined;
   H.state.userMemory = null;
   H.state.searchResults = [];
   H.state.agent = null;
@@ -833,7 +831,6 @@ describe('fixture: an explicit agent id is fail-closed at the streaming route', 
  */
 describe('fixture: app chat flow — streaming, direct user session, one server tool', () => {
   beforeEach(() => {
-    H.state.recalledMemories = [{ title: 'Coffee', summary: 'Prefers oat milk.' }];
     H.state.streamTurns = [
       [streamStart, ...callTool('call-1', 'getCurrentDate', '{}'), finish('tool-calls')],
       [streamStart, ...say('t1', 'It is Tuesday.'), finish('stop')],
@@ -866,7 +863,6 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
       'credits:reserve',
       // Memory recall runs here — before the model call, and its result reaches
       // the system prompt (asserted separately below).
-      'recall:beforeChatHooks',
       // What the turn puts in the context window, once it is assembled and
       // before the model is called.
       'sse:event:alia.context',
@@ -924,36 +920,22 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     expect(vi.mocked(saveConversation).mock.lastCall?.[0]).not.toHaveProperty('originApp');
   });
 
-  it('recall reaches the model call, not merely precedes it', async () => {
-    const body = {
-      messages: [{ role: 'user', content: 'what day is it' }],
-      model: CHAT_MODEL,
-      stream: true,
-      conversationId: 'conv-ws13',
-    };
-    await run(recordingReq({ body: { ...body } }), recordingRes());
-
-    // Ordering alone is a weak claim: a recall that ran first and was then
-    // dropped on the floor orders identically. What must survive an inference
-    // swap is that the recalled text is IN the prompt the model receives.
-    expect(H.timeline.indexOf('recall:beforeChatHooks')).toBeLessThan(
-      H.timeline.indexOf('model:doStream'),
+  it('hands the model no recalled memories: its memory is Nilo’s tools, not a hook', async () => {
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'what day is it' }],
+          model: CHAT_MODEL,
+          stream: true,
+          conversationId: 'conv-ws13',
+        },
+      }),
+      recordingRes(),
     );
-    const withRecall = systemPromptSeenByModel();
-    expect(withRecall).toContain('## Recalled Memories');
-    expect(withRecall).toContain('- Coffee: Prefers oat milk.');
-
-    // The control the assertion above needs: the same request with nothing
-    // recalled produces a system prompt WITHOUT the section. Without this, a
-    // heading that turned out to be unconditional boilerplate would satisfy the
-    // check while carrying no memory at all.
-    H.state.recalledMemories = undefined;
-    H.state.calls.length = 0;
-    H.state.streamTurns = [[streamStart, ...say('t1', 'It is Tuesday.'), finish('stop')]];
-    await run(recordingReq({ body: { ...body } }), recordingRes());
-    const withoutRecall = systemPromptSeenByModel();
-    expect(withoutRecall.length).toBeGreaterThan(100);
-    expect(withoutRecall).not.toContain('## Recalled Memories');
+    const prompt = systemPromptSeenByModel();
+    expect(prompt.length).toBeGreaterThan(100);
+    expect(prompt).not.toContain('## Recalled Memories');
+    expect(H.timeline).not.toContain('recall:beforeChatHooks');
   });
 
   it('executes the tool for real between the call frame and the result frame', async () => {
@@ -1659,7 +1641,6 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
 
     expect(H.timeline).toEqual([
       'credits:reserve',
-      'recall:beforeChatHooks',
       'observe:agent.start',
       'model:doGenerate',
       'credits:finalize',
@@ -1863,7 +1844,6 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
     expect(H.timeline).toEqual([
       'sse:comment(keep-alive)',
       'credits:reserve',
-      'recall:beforeChatHooks',
       'sse:event:alia.context',
       'observe:agent.start',
       'model:doStream',

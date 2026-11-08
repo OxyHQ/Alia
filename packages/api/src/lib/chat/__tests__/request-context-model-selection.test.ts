@@ -848,23 +848,20 @@ describe('the reply is stored under the id the client drew it with', () => {
  * prompt read `ctx.personalization` (`tool-pipeline.test.ts`, `system-prompt-builder` tests).
  */
 describe('personalization', () => {
-  it('is on when absent, and reads the person’s memory and recall', async () => {
+  it('is on when absent, and reads the person’s profile', async () => {
     const { ctx } = await run(undefined, { directUserId: 'user-1' });
     expect(ctx?.personalization).toBe(true);
     expect(memory.findUserMemory).toHaveBeenCalled();
-    expect(memory.runBeforeChatHooks).toHaveBeenCalled();
   });
 
-  it('`false` reads no memory profile and recalls nothing', async () => {
+  it('`false` reads no memory profile', async () => {
     const { ctx } = await run(undefined, {
       directUserId: 'user-1',
       body: { personalization: false },
     });
     expect(ctx?.personalization).toBe(false);
     expect(ctx?.userMemory).toBeNull();
-    expect(ctx?.recalledMemories).toBeUndefined();
     expect(memory.findUserMemory).not.toHaveBeenCalled();
-    expect(memory.runBeforeChatHooks).not.toHaveBeenCalled();
   });
 
   it.each([['false'], [0], [null], [{}]])(

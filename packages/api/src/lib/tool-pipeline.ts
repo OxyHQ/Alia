@@ -57,16 +57,12 @@
 import type { GatedPart } from './agent-features.js';
 import { getToolResultBudget, wrapToolsWithTruncation } from './tools/result-truncation.js';
 import type { ToolSet } from 'ai';
+import { isAliaMemoryTool } from './tools/oxy-tool-names.js';
 import {
   getCurrentDateTool,
   webSearchTool,
   webScraperTool,
   generateFileTool,
-  saveUserMemoryTool,
-  updateUserMemoryTool,
-  forgetUserMemoryTool,
-  updateUserPreferencesTool,
-  updateUserContextTool,
   createSearchThreadTool,
   createSendTelegramTool,
   createGetWhatsAppChatsTool,
@@ -601,14 +597,6 @@ export class ToolPipeline {
            * The agent is closed over, never offered to the model.
            */
           aliaTools.searchThread = createSearchThreadTool(userId, agent._id);
-        } else {
-          Object.assign(aliaTools, {
-            saveUserMemory: saveUserMemoryTool(userId),
-            updateUserMemory: updateUserMemoryTool(userId),
-            forgetUserMemory: forgetUserMemoryTool(userId),
-            updateUserPreferences: updateUserPreferencesTool(userId),
-            updateUserContext: updateUserContextTool(userId),
-          });
         }
       }
       if (grants.allows('messaging')) {
@@ -817,7 +805,14 @@ export class ToolPipeline {
       aliaTools,
       byName(mcpTools),
       byName(integrationTools),
-      byName(oxyServiceTools),
+      // Alia's memory of the person is Nilo's: with personalization off for the turn it is not offered.
+      byName(
+        personalization
+          ? oxyServiceTools
+          : Object.fromEntries(
+              Object.entries(oxyServiceTools).filter(([name]) => !isAliaMemoryTool(name)),
+            ),
+      ),
       byName(ownAgentTools),
     );
 

@@ -20,7 +20,6 @@ const turn = vi.hoisted(() => ({
   agent: null as Record<string, unknown> | null,
   /** A later step of the context throws, after the credit was reserved. */
   failAfterReserve: false,
-  recalls: 0,
   prefetchFails: false,
 }));
 
@@ -110,10 +109,6 @@ vi.mock('../turn-inputs.js', () => ({
   buildTurnSkills: async () => {
     if (turn.failAfterReserve) throw new Error('skills down');
     return null;
-  },
-  recallTurnMemories: async () => {
-    turn.recalls += 1;
-    return undefined;
   },
 }));
 
@@ -211,7 +206,6 @@ beforeEach(() => {
   turn.agent = SINDI;
   turn.failAfterReserve = false;
   turn.prefetchFails = false;
-  turn.recalls = 0;
   productCredits.answers = true;
 });
 
@@ -437,18 +431,5 @@ describe('an Oxy that cannot say whether the person holds a product grant', () =
     expect(sse.writeError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'PRODUCT_CREDITS_UNAVAILABLE' }),
     );
-  });
-});
-
-describe('Alia’s memory recall', () => {
-  it('runs for Alia’s turns', async () => {
-    turn.agent = null;
-    await run({ messages: [{ role: 'user', content: 'hola' }] });
-    expect(turn.recalls).toBe(1);
-  });
-
-  it('does not run for an agent’s turn: its memory is its own', async () => {
-    await run({ agentId: 'sindi', messages: [{ role: 'user', content: 'hola' }] });
-    expect(turn.recalls).toBe(0);
   });
 });

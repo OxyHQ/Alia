@@ -15,7 +15,7 @@ import { listMessages, toStoredMessage } from '../../db/chat/messageRepository.j
 import { getDb } from '../../db/index.js';
 import type { MessageContent, ToolInvocation } from '../../domain/conversation.js';
 import type { HydratedAgent } from '../agent-identity.js';
-import { buildTurnSkills, EMPTY_SKILL_RUNTIME, recallTurnMemories } from '../chat/turn-inputs.js';
+import { buildTurnSkills, EMPTY_SKILL_RUNTIME } from '../chat/turn-inputs.js';
 import { realtimeSessionConfigSchema } from '@kaana.ai/contracts';
 import type { ChatMessage } from '../message-converter.js';
 import { priorToolCallsOf } from '../message-converter.js';
@@ -104,12 +104,11 @@ function languageSection(language: string): string {
 
 /**
  * The call's instructions, within the contract's 32 768 characters: the
- * history shrinks first, then the recalled memories go; if the base prompt
- * alone still does not fit, the call refuses to open rather than cut it
+ * history shrinks to fit; if the base prompt alone still does not fit, the call refuses to open rather than cut it
  * silently (ADR 0017 §3).
  */
 export async function composeVoiceInstructions(input: {
-  readonly base: (withRecalledMemories: boolean) => Promise<string>;
+  readonly base: () => Promise<string>;
   readonly history: readonly HistoryMessage[];
   readonly language: string;
   readonly cap?: number;
@@ -119,16 +118,14 @@ export async function composeVoiceInstructions(input: {
   const compose = (base: string, lines: readonly string[]) =>
     [base, historySection(lines), language].filter((part) => part !== '').join('\n\n');
 
-  for (const withRecalled of [true, false]) {
-    const base = await input.base(withRecalled);
-    let budget = HISTORY_START_CHARS;
-    for (;;) {
-      const lines = historyLines(input.history, budget);
-      const text = compose(base, lines);
-      if (text.length <= cap) return text;
-      if (lines.length === 0) break;
-      budget = Math.max(0, Math.min(budget, lines.join('\n').length) - (text.length - cap) - 1);
-    }
+  const base = await input.base();
+  let budget = HISTORY_START_CHARS;
+  for (;;) {
+    const lines = historyLines(input.history, budget);
+    const text = compose(base, lines);
+    if (text.length <= cap) return text;
+    if (lines.length === 0) break;
+    budget = Math.max(0, Math.min(budget, lines.join('\n').length) - (text.length - cap) - 1);
   }
   throw new VoiceFailure('realtime-rejected');
 }
@@ -159,17 +156,9 @@ export interface VoiceTurnInput {
 
 /** The default builder: the real prompt, memory, skills and tool pipeline. */
 export async function buildVoiceTurn(input: VoiceTurnInput): Promise<VoiceTurnContext> {
-  const { oxyUserId, linkedAgent, conversationId } = input;
+  const { oxyUserId, linkedAgent } = input;
   const asChat = input.history as unknown as ChatMessage[];
-  const [skills, recalledMemories] = await Promise.all([
-    buildTurnSkills({ oxyUserId, linkedAgent }),
-    recallTurnMemories({
-      oxyUserId,
-      conversationId,
-      messages: asChat,
-      modelId: 'voice',
-    }),
-  ]);
+  const skills = await buildTurnSkills({ oxyUserId, linkedAgent });
 
   const assembled = await ToolPipeline.forUser({
     userId: oxyUserId,
@@ -189,7 +178,7 @@ export async function buildVoiceTurn(input: VoiceTurnInput): Promise<VoiceTurnCo
   });
 
   const runtime = skills ?? EMPTY_SKILL_RUNTIME;
-  const base = async (withRecalled: boolean): Promise<string> => {
+  const base = async (): Promise<string> => {
     const parts = await SystemPromptBuilder.buildMeasured({
       surface: 'chat',
       model: null,
@@ -198,7 +187,6 @@ export async function buildVoiceTurn(input: VoiceTurnInput): Promise<VoiceTurnCo
       accessToken: input.accessToken(),
       oxyUser: input.oxyUser,
       userMemory: input.userMemory,
-      ...(withRecalled && recalledMemories ? { recalledMemories } : {}),
       skills: runtime,
       linkedAgent,
       responseMode: 'voice',

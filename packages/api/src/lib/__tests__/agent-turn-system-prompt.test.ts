@@ -187,7 +187,6 @@ describe('a turn that belongs to an agent', () => {
       userId: 'person-1',
       accessToken: 'person-bearer',
       oxyUser: { name: { full: 'Private Person' }, username: 'private-person' },
-      recalledMemories: [{ title: 'Private recall', summary: 'a confidential remembered fact' }],
       userMemory: {
         memories: [{ title: 'Private fact', summary: 'another confidential fact' }],
         preferences: { privatePreference: 'never disclose' },
@@ -200,7 +199,6 @@ describe('a turn that belongs to an agent', () => {
     });
 
     expect(message).not.toContain('Private Person');
-    expect(message).not.toContain('Private recall');
     expect(message).not.toContain('Private fact');
     expect(message).not.toContain('privatePreference');
     expect(message).not.toContain('privateContext');
@@ -211,13 +209,11 @@ describe('a turn that belongs to an agent', () => {
       ...turn,
       linkedAgent: { ...claudio, capabilityGrants: ['memory', 'messaging', 'delegation'] },
       oxyUser: { name: { full: 'Still Private' } },
-      recalledMemories: [{ title: 'Granted recall', summary: 'may be used' }],
       userMemory: { memories: [{ title: 'Granted fact', summary: 'may also be used' }] },
     });
 
     // Memory is per actor: the `memory` grant reaches the agent's OWN memory of
     // the person, never Alia's — neither her recall nor her stored facts.
-    expect(message).not.toContain('Granted recall');
     expect(message).not.toContain('Granted fact');
     const withoutRecall = await SystemPromptBuilder.build({
       ...turn,

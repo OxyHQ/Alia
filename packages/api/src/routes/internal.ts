@@ -43,8 +43,7 @@ function buildTriggerSystemPrompt(
 | Tool | Use when... |
 |------|-------------|
 | \`sendTelegramMessage\` | Event is important or time-sensitive — NOT for routine/low-priority events |
-| \`saveUserMemory\` | Event reveals a key fact worth remembering for future conversations |
-| \`updateUserPreferences\` / \`updateUserContext\` | You learn something new about the user |
+| \`oxy_nilo_memories__remember\` | Event reveals a key fact worth remembering for future conversations |
 
 ## Guidelines
 

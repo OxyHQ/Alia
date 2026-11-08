@@ -217,7 +217,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     providerAbort.signal.throwIfAborted();
     state.resolved = ctx.resolved;
     state.modelId = ctx.modelId;
-    const { autonomyRuntime, recalledMemories } = ctx;
+    const { autonomyRuntime } = ctx;
     // A linked agent is always on its agent runtime. There is no client mode
     // switch and, critically, no second paid session launched beside this turn.
     const agentRuntimeEnabled = linkedAgent != null;
@@ -390,7 +390,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       accessToken: req.accessToken,
       oxyUser,
       userMemory,
-      recalledMemories,
       personalization,
       skills,
       linkedAgent,
