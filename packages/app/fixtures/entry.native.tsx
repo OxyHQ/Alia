@@ -12,8 +12,9 @@ merged.keys = () => [...appContext.keys(), ...fixtureKeys];
 merged.resolve = (key: string) =>
   fixtureKeys.has(key) ? fixtureContext.resolve(key) : appContext.resolve(key);
 merged.id = `${appContext.id}+native-fixtures`;
-const linking = { getInitialURL: () => 'alia663:///__fixtures/a-10' };
 
 export function FixtureApp() {
-  return <ExpoRoot context={merged} linking={linking} />;
+  // Router 58 turns location into serverUrl, which getInitialURL uses on native
+  // too. Its current useRouterConfig ignores a custom linking.getInitialURL.
+  return <ExpoRoot context={merged} location="/__fixtures/a-10" />;
 }

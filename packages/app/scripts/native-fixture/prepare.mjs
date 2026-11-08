@@ -36,9 +36,14 @@ const denied = [
   'RECORD_AUDIO',
   'CAMERA',
   'POST_NOTIFICATIONS',
+  'READ_EXTERNAL_STORAGE',
+  'WRITE_EXTERNAL_STORAGE',
+  'SYSTEM_ALERT_WINDOW',
+  'so.oxy.permission.IDENTITY',
+  'so.oxy.permission.DEVICE_SESSION',
 ];
 for (const permission of denied) {
-  const full = `android.permission.${permission}`;
+  const full = permission.startsWith('so.oxy.') ? permission : `android.permission.${permission}`;
   manifest = manifest.replace(
     new RegExp(`<uses-permission[^>]*android:name="${full.replaceAll('.', '\\.')}"[^>]*/>`, 'g'),
     '',
@@ -46,6 +51,16 @@ for (const permission of denied) {
   manifest = manifest.replace(
     '<application ',
     `<uses-permission android:name="${full}" tools:node="remove"/>\n  <application `,
+  );
+}
+for (const permission of ['so.oxy.permission.IDENTITY', 'so.oxy.permission.DEVICE_SESSION']) {
+  manifest = manifest.replace(
+    new RegExp(`<permission[^>]*android:name="${permission.replaceAll('.', '\\.')}"[^>]*/>`, 'g'),
+    '',
+  );
+  manifest = manifest.replace(
+    '<application ',
+    `<permission android:name="${permission}" tools:node="remove"/>\n  <application `,
   );
 }
 manifest = manifest.replace(
