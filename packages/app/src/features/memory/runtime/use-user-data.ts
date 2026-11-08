@@ -13,14 +13,14 @@ export const USER_MEMORY_QUERY_KEY = ['user-memory'] as const;
 export function useUserData() {
   const { isAuthenticated } = useAuth();
   const stored = useUserDataStore((s) => s.memory);
-  // Signing out must not leave the previous account's memories on screen.
+  // Signing out must not leave the previous account's profile on screen.
   const memory = isAuthenticated ? stored : null;
 
   const { isFetching, refetch } = useQuery({
     queryKey: USER_MEMORY_QUERY_KEY,
     enabled: isAuthenticated,
-    // The document is written by the assistant mid-conversation, so a cached
-    // copy is stale the moment anything else in the app talks to Alia.
+    // The profile can change from another surface, so a cached copy is stale
+    // as soon as the app asks again.
     staleTime: 0,
     queryFn: async () => {
       const epoch = currentAccountEpoch();
@@ -33,8 +33,7 @@ export function useUserData() {
     },
   });
 
-  // Only a cold read is "loading" — a background refresh (the chat just wrote a
-  // memory and invalidated this query) must not blank a screen that already has
-  // something to show.
+  // Only a cold read is "loading" — a background refresh must not blank a
+  // screen that already has something to show.
   return { memory, loading: isFetching && !memory, refetch };
 }

@@ -3,15 +3,8 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUserData } from '@/features/memory/runtime/use-user-data';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-  SettingsTextField,
-  type SettingsRowData,
-} from '@oxy.so/bloom/settings-modal';
+import { SettingsCard, SettingsRow, type SettingsRowData } from '@oxy.so/bloom/settings-modal';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
-import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useEffect, useState } from 'react';
@@ -33,43 +26,6 @@ const LANGUAGES = [
   { value: 'hi-IN', label: 'हिन्दी' },
 ];
 
-type FieldKey = 'occupation' | 'location' | 'bio' | 'interests';
-
-const FIELDS: {
-  key: FieldKey;
-  titleKey: string;
-  descriptionKey: string;
-  placeholderKey: string;
-  multiline?: boolean;
-}[] = [
-  {
-    key: 'occupation',
-    titleKey: 'settings.occupation.title',
-    descriptionKey: 'settings.occupation.description',
-    placeholderKey: 'settings.occupation.placeholder',
-  },
-  {
-    key: 'location',
-    titleKey: 'settings.location.title',
-    descriptionKey: 'settings.location.description',
-    placeholderKey: 'settings.location.placeholder',
-  },
-  {
-    key: 'bio',
-    titleKey: 'settings.aboutYou.title',
-    descriptionKey: 'settings.aboutYou.description',
-    placeholderKey: 'settings.aboutYou.placeholder',
-    multiline: true,
-  },
-  {
-    key: 'interests',
-    titleKey: 'settings.interests.title',
-    descriptionKey: 'settings.interests.description',
-    placeholderKey: 'settings.interests.placeholder',
-    multiline: true,
-  },
-];
-
 export function PersonalizationSection() {
   const { isAuthenticated, oxyServices } = useOxy();
   const { memory } = useUserData();
@@ -80,33 +36,12 @@ export function PersonalizationSection() {
   const [language, setLanguage] = useState('');
   const [tone, setTone] = useState('');
   const [voice, setVoice] = useState('');
-  const [occupation, setOccupation] = useState('');
-  const [location, setLocation] = useState('');
-  const [bio, setBio] = useState('');
-  const [interests, setInterests] = useState('');
-
-  const fieldValues: Record<FieldKey, string> = {
-    occupation,
-    location,
-    bio,
-    interests,
-  };
-  const fieldSetters: Record<FieldKey, (value: string) => void> = {
-    occupation: setOccupation,
-    location: setLocation,
-    bio: setBio,
-    interests: setInterests,
-  };
 
   useEffect(() => {
     if (memory) {
       setLanguage(memory.preferences?.language || '');
       setTone(memory.preferences?.tone || '');
       setVoice(memory.preferences?.voice || '');
-      setOccupation(memory.context?.occupation || '');
-      setLocation(memory.context?.location || '');
-      setBio(memory.context?.bio || '');
-      setInterests(memory.preferences?.interests?.join(', ') || '');
     }
   }, [memory]);
 
@@ -115,10 +50,6 @@ export function PersonalizationSection() {
       setLanguage(memory.preferences?.language || '');
       setTone(memory.preferences?.tone || '');
       setVoice(memory.preferences?.voice || '');
-      setOccupation(memory.context?.occupation || '');
-      setLocation(memory.context?.location || '');
-      setBio(memory.context?.bio || '');
-      setInterests(memory.preferences?.interests?.join(', ') || '');
     }
   };
 
@@ -133,29 +64,14 @@ export function PersonalizationSection() {
       };
       if (token) authHeaders['Authorization'] = `Bearer ${token}`;
 
-      const prefRes = await fetch(generateAPIUrl('/memory/preferences'), {
+      const response = await fetch(generateAPIUrl('/memory/preferences'), {
         method: 'PUT',
         headers: authHeaders,
-        body: JSON.stringify({
-          language,
-          tone,
-          voice,
-          interests: interests
-            .split(',')
-            .map((i) => i.trim())
-            .filter(Boolean),
-        }),
+        body: JSON.stringify({ language, tone, voice }),
       });
 
-      const contextRes = await fetch(generateAPIUrl('/memory/context'), {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify({ occupation, location, bio }),
-      });
-
-      if (prefRes.ok && contextRes.ok) {
-        const updatedMemory = await contextRes.json();
-        setMemory(updatedMemory);
+      if (response.ok) {
+        setMemory(await response.json());
         toast.success(t('settings.saveSuccess'));
       } else {
         toast.error(t('settings.saveFailed'));
@@ -207,8 +123,6 @@ export function PersonalizationSection() {
   ];
 
   return (
-    // SettingsProfilePage's own page geometry (full width, cards 24 apart),
-    // spelled out because two of its blocks are free-text sections, not rows.
     <View className="w-full gap-6">
       <SettingsCard>
         {rows.map((row) => (
@@ -217,36 +131,6 @@ export function PersonalizationSection() {
           </SettingsRow>
         ))}
       </SettingsCard>
-      <SettingsCard>
-        {FIELDS.filter((field) => !field.multiline).map(
-          ({ key, titleKey, descriptionKey, placeholderKey }) => (
-            <SettingsRow key={key} label={t(titleKey)} description={t(descriptionKey)}>
-              <SettingsTextField
-                label={t(titleKey)}
-                placeholder={t(placeholderKey)}
-                value={fieldValues[key]}
-                onCommit={fieldSetters[key]}
-                showSavedToast={false}
-              />
-            </SettingsRow>
-          ),
-        )}
-      </SettingsCard>
-      {FIELDS.filter((field) => field.multiline).map(
-        ({ key, titleKey, descriptionKey, placeholderKey }) => (
-          <SettingsSection key={key} label={t(titleKey)} description={t(descriptionKey)}>
-            <Textarea
-              accessibilityLabel={t(titleKey)}
-              placeholder={t(placeholderKey)}
-              value={fieldValues[key]}
-              onChangeText={fieldSetters[key]}
-              autoResize
-              rows={3}
-              maxRows={8}
-            />
-          </SettingsSection>
-        ),
-      )}
       <SettingsCard>
         <SettingsRow label={t('settings.saveButton')}>
           <ButtonGroup size="sm" accessibilityLabel={t('settings.saveButton')}>

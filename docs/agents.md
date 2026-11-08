@@ -655,7 +655,7 @@ never mixed:
 
 | Actor | Store | Tools | In the prompt |
 |---|---|---|---|
-| Alia | `user_memories` + `user_memory_entries` (+ embeddings) | `saveUserMemory`, `updateUserMemory`, `forgetUserMemory`, `updateUserPreferences`, `updateUserContext` | recall, facts, preferences, context, writing style |
+| Alia | Nilo's `memories` database (the person's personal workspace); `user_memories` keeps only her answer settings and writing style | `oxy_nilo_memories__recallMemories`, `__remember`, `__updateMemory`, `__forgetMemory` | answer preferences (tone, length), writing style; she recalls the rest with the tools |
 | An agent (with the `memory` grant) | `agent_memory_documents` (MEMORY.md + `memory/<topic>.md`, per agent AND person) | `memory` (`list`, `read`, `append`, `replace`, `forget`) and `searchThread` | its own MEMORY.md (`agentMemoryPromptSection`) |
 
 An agent turn never receives Alia's tools or any of her memory, whatever it was
