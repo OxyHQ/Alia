@@ -196,6 +196,7 @@ describe("one owner for the assistant's name", () => {
       'prompts/cowork-browser.md',
       'prompts/cowork.md',
       'prompts/general.md',
+      'prompts/memory.md',
       'prompts/voice.md',
     ]);
     // And the AST half specifically: a walk that returned nothing would make
