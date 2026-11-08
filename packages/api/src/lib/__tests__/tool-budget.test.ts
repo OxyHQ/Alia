@@ -282,6 +282,22 @@ describe('loadTools loads the tools asked for, from the next step', () => {
   });
 });
 
+describe("the person's memory is core: it is read before the answer", () => {
+  it('keeps Nilo’s memory tools active even when the apps are deferred', () => {
+    const memory = family('oxy_nilo_memories', 'Memories', 4);
+    const oxy = { ...productionOxyServices(), ...memory };
+    const budgeted = budgetTools({
+      tools: { ...core(24), ...oxy },
+      sources: { oxy_service: oxy, mcp: {}, integration: {} },
+    });
+    // Over the budget, so the apps are deferred…
+    expect(activeOf(budgeted).some((name) => name.startsWith('oxy_mention__'))).toBe(false);
+    // …but the memory is already in the request, with no `loadTools` step first.
+    expect(Object.keys(memory).every((name) => activeOf(budgeted).includes(name))).toBe(true);
+    expect(budgeted.appCatalogPrompt).not.toContain('oxy_nilo_memories');
+  });
+});
+
 describe('an app too big to send whole is still fully usable (the useApps loop)', () => {
   /**
    * Production 2026-10: `useApps(["mention"])` answered `didNotFit` forever.

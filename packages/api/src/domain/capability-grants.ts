@@ -185,11 +185,9 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
    */
   memory: [
     // The agent's OWN MEMORY.md and topic files about this person
-    // (`lib/agent/agent-memory-runtime.ts`). Memory is per actor: Alia's
-    // `saveUserMemory` / `updateUserMemory` / `forgetUserMemory` /
-    // `updateUserPreferences` / `updateUserContext` are her memory of the
-    // person and are never built for an agent, whatever it was granted
-    // (`lib/tool-pipeline.ts`), so they are in no agent family.
+    // (`lib/agent/agent-memory-runtime.ts`). Memory is per actor: Alia's memory of
+    // the person is Nilo's `memories` (`oxy_nilo_memories__*`, declared for `alia`
+    // only in the catalog), so it is in no agent family.
     'memory',
     'searchThread',
   ],

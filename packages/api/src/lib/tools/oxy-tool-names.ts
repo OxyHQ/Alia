@@ -25,3 +25,16 @@ export function oxyToolNamesIn(
   const base = `${identity}_${sanitizeOxyToolNamePart(appId)}__${sanitizeOxyToolNamePart(tool)}`;
   return [...names].filter((name) => name === base || name.startsWith(`${base}__`));
 }
+
+/**
+ * Alia's memory of the person is Nilo's `memories` app (`oxy_nilo_memories__*`), reached like any
+ * Oxy app but with three differences: it is core (never deferred behind `loadTools`), it is
+ * dropped when the person turned personalization off for the turn, and its use is explained in
+ * the system prompt.
+ */
+export const ALIA_MEMORY_FAMILY = 'oxy_nilo_memories';
+export const ALIA_MEMORY_RECALL_TOOL = `${ALIA_MEMORY_FAMILY}__recallMemories`;
+
+export function isAliaMemoryTool(name: string): boolean {
+  return name.startsWith(`${ALIA_MEMORY_FAMILY}__`);
+}

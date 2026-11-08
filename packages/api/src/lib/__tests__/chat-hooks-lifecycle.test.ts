@@ -35,7 +35,6 @@ const H = vi.hoisted(() => {
   /** Every analytics row the hook wrote, so its FIELDS can be asserted too. */
   const rows: Record<string, unknown>[] = [];
   const state = {
-    recalled: [] as Array<{ title: string; summary: string; score: number }>,
     /** What `proactive-hook` is told the classifier said. */
     classification: '{"category":"none"}',
   };
@@ -43,13 +42,6 @@ const H = vi.hoisted(() => {
 });
 
 // ── Stores and the model, mocked. Everything between them runs. ─────────────
-
-vi.mock('../memory/recall.js', () => ({
-  recallRelevantMemories: vi.fn(async (userId: string, query: string) => {
-    H.timeline.push(`recall:memories(${userId},${query})`);
-    return H.state.recalled;
-  }),
-}));
 
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 
@@ -198,7 +190,6 @@ async function settle(): Promise<void> {
 beforeEach(() => {
   H.timeline.length = 0;
   H.rows.length = 0;
-  H.state.recalled = [{ title: 'Roadmap', summary: 'Canvas ships before console.', score: 0.8 }];
   H.state.classification = '{"category":"none"}';
   vi.clearAllMocks();
 });
@@ -207,8 +198,8 @@ beforeEach(() => {
 // Before the run: the recall hooks are REGISTERED, not merely defined
 // ===========================================================================
 
-describe('memory recall happens because a hook is registered, not because a file exists', () => {
-  it('returns the recalled memories the route puts in the prompt', async () => {
+describe('before the run, nothing recalls memory: that is the model’s job through Nilo’s tools', () => {
+  it('registers no memory hook, whoever asks', async () => {
     const result = await runBeforeChatHooks({
       userId: 'user-ws13',
       conversationId: 'conv-ws13',
@@ -217,34 +208,6 @@ describe('memory recall happens because a hook is registered, not because a file
       platform: 'app',
       metadata: {},
     });
-
-    // The query is the LAST user message, not the first and not the whole
-    // transcript — recalling against the wrong turn is a silent quality
-    // regression rather than an error.
-    expect(H.timeline).toEqual(['recall:memories(user-ws13,remind me why we chose that ordering)']);
-    expect(result.metadata).toEqual({
-      recalledMemories: H.state.recalled,
-      memoryRecallCount: 1,
-    });
-  });
-
-  it('carries nothing when there is nothing to recall (the control)', async () => {
-    // Without this, the assertion above would also pass for a hook that returned
-    // a constant, and "recall works" would be a statement about the fixture.
-    H.state.recalled = [];
-    const result = await runBeforeChatHooks({
-      userId: 'user-ws13',
-      messages: MESSAGES,
-      model: 'acme/chat-1',
-      platform: 'app',
-      metadata: {},
-    });
-    expect(H.timeline).toHaveLength(1);
-    expect(result.metadata).toBeUndefined();
-  });
-
-  it('does not recall for an anonymous caller', async () => {
-    const result = await runBeforeChatHooks({ messages: MESSAGES, platform: 'app', metadata: {} });
     expect(H.timeline).toEqual([]);
     expect(result.metadata).toBeUndefined();
   });

@@ -142,6 +142,7 @@ vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
 const { ToolPipeline } = await import('../tool-pipeline.js');
 const { buildConsultAgentTool } = await import('../tools/consult-agent.js');
+const { buildOxyServiceTools } = await import('../tools/oxy-services.js');
 const { GRANTS_EVERYTHING, readCapabilityGrants } = await import(
   '../../domain/capability-grants.js'
 );
@@ -566,7 +567,6 @@ describe('a turn with NO agent is not partitioned', () => {
     // the instanced families, where "no agent" means every row and a granted
     // agent means the rows it named.
     expect(withoutAgent).toContain('browser');
-    expect(withoutAgent).toContain('saveUserMemory');
     expect(withoutAgent.length).toBeGreaterThan(fullyGranted.length - 5);
   });
 
@@ -638,22 +638,42 @@ describe('a host tool that awaits its result', () => {
 });
 
 describe('personalization off for one turn', () => {
-  const ALIA_MEMORY = [
-    'saveUserMemory',
-    'updateUserMemory',
-    'forgetUserMemory',
-    'updateUserPreferences',
-    'updateUserContext',
-  ];
-
-  it('offers Alia none of her memory tools', async () => {
+  it('offers Alia no memory tool of her own: they were retired for Nilo’s', async () => {
     const on = await namesFor(null);
-    const off = await namesFor(null, { personalization: false });
-    for (const name of ALIA_MEMORY) {
-      expect(on).toContain(name);
-      expect(off).not.toContain(name);
+    for (const name of [
+      'saveUserMemory',
+      'updateUserMemory',
+      'forgetUserMemory',
+      'updateUserPreferences',
+      'updateUserContext',
+    ]) {
+      expect(on).not.toContain(name);
     }
-    expect(off).toContain('webSearch');
+    expect(await namesFor(null, { personalization: false })).toContain('webSearch');
+  });
+
+  it('keeps Nilo’s memory tools only while personalization is on: they are her memory now', async () => {
+    const oxyTool = { description: 'x', execute: async () => ({}) } as unknown as ToolSet[string];
+    vi.mocked(buildOxyServiceTools).mockImplementation(
+      async () =>
+        ({
+          oxy_nilo_memories__recallMemories: oxyTool,
+          oxy_nilo_memories__remember: oxyTool,
+          oxy_inbox__searchEmails: oxyTool,
+        }) as ToolSet,
+    );
+    try {
+      const on = await namesFor(null, { requesterAccountId: 'user-1' });
+      const off = await namesFor(null, { requesterAccountId: 'user-1', personalization: false });
+      expect(on).toContain('oxy_nilo_memories__recallMemories');
+      expect(on).toContain('oxy_nilo_memories__remember');
+      expect(off).not.toContain('oxy_nilo_memories__recallMemories');
+      expect(off).not.toContain('oxy_nilo_memories__remember');
+      // Only her memory goes; the person's other apps stay.
+      expect(off).toContain('oxy_inbox__searchEmails');
+    } finally {
+      vi.mocked(buildOxyServiceTools).mockImplementation(async () => ({}) as ToolSet);
+    }
   });
 
   it('offers an agent granted memory neither its memory nor its thread search', async () => {
