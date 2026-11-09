@@ -19,7 +19,7 @@ import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { DetailSkeleton } from '@/shared/ui/skeletons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -67,7 +67,7 @@ export default function SkillDetailScreen() {
     return (
       <>
         <Stack.Screen options={{ headerBackVisible: true }} />
-        <Loading variant="spinner" />
+        <DetailSkeleton />
       </>
     );
   }

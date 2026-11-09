@@ -429,7 +429,7 @@ describe('the census reads what it claims to read', () => {
     expect(FENCE_DELIMITERS).toBeGreaterThan(200);
     expect(SOURCE_FILES).toBeGreaterThan(1_000);
     expect(COMMENTS.length).toBeGreaterThan(10_000);
-    expect(JSX_TEXT.length).toBeGreaterThan(5_000);
+    expect(JSX_TEXT.length).toBeGreaterThan(4_000);
     expect(TRANSLATIONS.length).toBeGreaterThan(1_500);
     expect(LOCALE_FILES.size).toBe(2);
     expect(IMAGE_ASSETS.length).toBeGreaterThan(30);

@@ -24,7 +24,7 @@ compatibility_date = "2026-08-24"
 workers_dev = false
 
 # The Worker hands every request to the asset binding and only touches headers
-# (`worker/index.js`): CORS on `/bloom-character/`, a year-long immutable cache
+# (`worker/index.js`): CORS on `/sdk/`, a year-long immutable cache
 # on content-hashed names. `expo export --platform web` emits ONE
 # `index.html` plus hashed assets — a client-routed SPA, not per-route static
 # HTML — so the fallback below is what makes a deep link work.
@@ -47,8 +47,3 @@ not_found_handling = "single-page-application"
 [[routes]]
 pattern = "alia.onl"
 custom_domain = true
-
-# Separate, append-only storage: old native binaries pin a full-manifest SHA.
-[[r2_buckets]]
-binding = "AVATAR_RUNTIME_RELEASES"
-bucket_name = "alia-avatar-runtime"

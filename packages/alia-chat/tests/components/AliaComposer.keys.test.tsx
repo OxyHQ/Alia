@@ -152,6 +152,8 @@ vi.mock('react-native-reanimated', async () => {
     // Bloom's scroll viewport wraps its ScrollView with the default export's factory.
     default: { View, createAnimatedComponent },
     Easing: { bezier: () => () => 0, linear: () => 0 },
+    // Bloom's scroll viewport reads its scroll events through this; the test never scrolls.
+    useAnimatedScrollHandler: () => () => undefined,
     /*
      * Stable across renders, via a ref, and that is not a detail.
      *

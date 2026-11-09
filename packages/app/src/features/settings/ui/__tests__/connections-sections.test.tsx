@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,9 +41,13 @@ const mocks = vi.hoisted(() => ({
   params: {} as Record<string, string>,
 }));
 
-vi.mock('react-native', () => ({
-  Linking: { openURL: mocks.openURL, canOpenURL: mocks.canOpenURL },
-}));
+vi.mock('react-native', async () => {
+  const ReactModule = await import('react');
+  return {
+    Linking: { openURL: mocks.openURL, canOpenURL: mocks.canOpenURL },
+    View: (props: object) => ReactModule.createElement('View', props),
+  };
+});
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) =>
@@ -68,7 +72,8 @@ vi.mock('@oxy.so/bloom/icons/RiExternalLinkLine', () => ({
 }));
 vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
-  return { Box: () => ReactModule.createElement('Skeleton') };
+  const host = (name: string) => () => ReactModule.createElement(name);
+  return { Box: host('Skeleton'), Region: host('SkeletonRegion') };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
@@ -82,6 +87,8 @@ vi.mock('@oxy.so/bloom/settings-modal', async () => {
   type Row = { key: string; label: string; description?: string; control?: React.ReactNode };
   type Section = { key: string; label?: string; description?: string; rows: Row[] };
   return {
+    SettingsCard: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('Card', null, children),
     SettingsProfilePage: ({ sections }: { sections: Section[] }) =>
       ReactModule.createElement(
         'Page',
@@ -149,7 +156,8 @@ describe('AccountsSection', () => {
   it('shows a skeleton row while loading', () => {
     mocks.accounts.loading = true;
     const r = mount(<AccountsSection />);
-    expect(r.root.findAllByType('Skeleton' as never)).toHaveLength(1);
+    // The rows hold their place as one region of placeholders, and say nothing about waiting.
+    expect(r.root.findAllByType('SkeletonRegion' as never)).toHaveLength(1);
   });
 
   it('lists accounts with their status and an empty row when there are none', () => {

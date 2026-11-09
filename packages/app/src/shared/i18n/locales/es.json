@@ -1,7 +1,6 @@
 {
   "common": {
     "or": "O",
-    "loading": "Cargando...",
     "error": "Error",
     "success": "Éxito",
     "cancel": "Cancelar",
@@ -152,6 +151,7 @@
     "saveSuccess": "Preferencias guardadas exitosamente",
     "saveFailed": "Error al guardar preferencias",
     "sections": {
+      "skills": "Skills",
       "general": "General",
       "usage": "Uso",
       "billing": "Facturación",
@@ -543,7 +543,6 @@
     "renameFolderTitle": "Renombrar carpeta",
     "folderName": "Nombre de la carpeta",
     "responding": "Alia está respondiendo",
-    "loadingConversations": "Cargando conversaciones…",
     "searchChats": "Buscar chats",
     "searchChatsPlaceholder": "Buscar chats…",
     "getTheApp": "Descargar la app",
@@ -648,7 +647,10 @@
     "today": "Hoy",
     "yesterday": "Ayer",
     "newStretch": "Conversación nueva",
-    "loadingHistory": "Cargando mensajes anteriores…",
+    "chatWith": "Chat con %{name}",
+    "reactToMessage": "Reaccionar al mensaje",
+    "replyToMessage": "Responder al mensaje",
+    "moreActions": "Más acciones del mensaje",
     "searchThreadPlaceholder": "Buscar en este hilo",
     "searchThreadHint": "Busca todo lo que le has dicho a este agente, en todas las conversaciones.",
     "searchThreadSearching": "Buscando…",
@@ -781,7 +783,6 @@
     "atMidnight": "a las 00:00",
     "totalUsage": "Uso total",
     "creditUsage": "Uso de créditos",
-    "loading": "Cargando...",
     "noUsage": "Sin uso en este periodo",
     "viewFullHistory": "Ver historial completo",
     "today": "Hoy",
@@ -899,63 +900,6 @@
       "stopFailed": "No se ha podido detener la automatización",
       "queued": "Automatización en cola",
       "runFailed": "No se ha podido ejecutar la automatización"
-    },
-    "edit": {
-      "objectiveRequired": "El objetivo es obligatorio",
-      "instructionsRequired": "Las instrucciones son obligatorias",
-      "scheduleRequired": "La programación y la zona horaria son obligatorias",
-      "eventRequired": "La app y el tipo de evento son obligatorios",
-      "eventResourceIncomplete": "El recurso del evento está incompleto",
-      "chooseAgent": "Elige un agente",
-      "chooseEligibleAgent": "Elige al menos un agente disponible",
-      "resourceIncomplete": "Todos los campos del recurso son obligatorios",
-      "limitKeyRequired": "Cada límite necesita una clave",
-      "limitDuplicated": "El límite {{key}} está duplicado",
-      "limitInvalid": "El límite {{key}} debe ser texto, un número, un booleano o una lista de textos"
-    },
-    "editor": {
-      "dayShort": {
-        "0": "D",
-        "1": "L",
-        "2": "M",
-        "3": "X",
-        "4": "J",
-        "5": "V",
-        "6": "S"
-      },
-      "dayName": {
-        "0": "Domingo",
-        "1": "Lunes",
-        "2": "Martes",
-        "3": "Miércoles",
-        "4": "Jueves",
-        "5": "Viernes",
-        "6": "Sábado"
-      },
-      "invalidSchedule": "Elige una hora válida y al menos un día",
-      "title": "Editar tarea",
-      "saving": "Guardando…",
-      "save": "Guardar",
-      "status": "Estado",
-      "pausedNotScheduled": "En pausa · Próxima ejecución: sin programar",
-      "active": "Tarea activa",
-      "titleLabel": "Título",
-      "taskTitle": "Título de la tarea",
-      "instructions": "Instrucciones",
-      "taskInstructions": "Instrucciones de la tarea",
-      "repeat": "Repetir",
-      "weekly": "Semanal",
-      "time": "Hora",
-      "taskTime": "Hora de la tarea",
-      "timezone": "Zona horaria",
-      "taskTimezone": "Zona horaria de la tarea",
-      "agent": "Responsable",
-      "agentDescription": "Alia se encarga de esta tarea salvo que elijas uno de tus agentes.",
-      "connectedWork": "Trabajo conectado: esta tarea puede usar las conexiones que aprobaste. Los identificadores exactos y los permisos siguen protegidos por Oxy y no se pueden editar aquí.",
-      "discardTitle": "¿Descartar los cambios?",
-      "discardDescription": "Se perderán los cambios de la tarea que no hayas guardado.",
-      "keepEditing": "Seguir editando",
-      "discard": "Descartar cambios"
     }
   },
   "tasks": {
@@ -1206,6 +1150,10 @@
     "failedToReset": "Error al restablecer la contraseña. Por favor, intenta de nuevo."
   },
   "chatHeader": {
+    "chatActions": "Acciones del chat",
+    "inThisConversation": "En esta conversación",
+    "editNamed": "Editar a {{name}}",
+    "startGroup": "Iniciar un chat de grupo",
     "agentTerminal": "Terminal del agente",
     "export": "Exportar",
     "settings": "Configuración",
@@ -1249,9 +1197,13 @@
     "pushNotifications": "Notificaciones push",
     "pushDescription": "Recibe alertas sobre nuevos mensajes y actualizaciones",
     "permissionDenied": "Las notificaciones están bloqueadas. Por favor habilítalas en la configuración de tu dispositivo para recibir notificaciones push.",
-    "channelDefault": "General"
+    "channelDefault": "General",
+    "open": "Abrir"
   },
   "agents": {
+    "createViaChat": "Quiero crear un agente nuevo. ¿Me ayudas?",
+    "byAuthor": "de {{name}}",
+    "viewAll": "Ver todo",
     "title": "Agentes",
     "subtitle": "Descubre agentes capaces de planificar y completar trabajo real",
     "searchPlaceholder": "Buscar agentes...",
@@ -1318,25 +1270,6 @@
     "deleteAgentConfirm": "¿Estás seguro? Esta acción no se puede deshacer.",
     "agentDeleted": "Agente eliminado",
     "agents": "Agentes",
-    "telegramBot": {
-      "title": "Bot de Telegram",
-      "connect": "Conectar un bot de Telegram",
-      "dialogTitle": "Conectar un bot de Telegram",
-      "dialogDescription": "Crea un bot con @BotFather en Telegram y pega su token aquí.",
-      "tokenLabel": "Token del bot",
-      "tokenPlaceholder": "123456:ABC-DEF...",
-      "empty": "No hay ningún bot de Telegram conectado. Los mensajes a un bot conectado los responde este agente.",
-      "remove": "Eliminar",
-      "removeTitle": "Eliminar bot de Telegram",
-      "removeDescription": "Este agente dejará de responder los mensajes enviados a este bot.",
-      "connected": "Bot de Telegram conectado",
-      "removed": "Bot de Telegram eliminado",
-      "errorAlreadyRegistered": "Este bot de Telegram ya está registrado",
-      "errorInvalidToken": "Token del bot no válido",
-      "errorGeneric": "Algo salió mal. Inténtalo de nuevo.",
-      "ownerPaysLabel": "Pagar sus respuestas con mis créditos",
-      "ownerPaysHint": "Si está activado, las respuestas de este bot se cobran de tus créditos. Si está desactivado, el bot avisa de que no está disponible."
-    },
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",
     "modelLabel": "Nivel de potencia",
@@ -1467,11 +1400,6 @@
         "description": "Ejecutar comandos y guardar archivos en un entorno Linux privado, y navegar por la web con su propio navegador, que recuerda sus sesiones"
       }
     },
-    "instancedFamily": {
-      "agent": "Tus agentes",
-      "mcp": "Conectores",
-      "integration": "Integraciones"
-    },
     "terminal": {
       "banner": "Terminal del agente",
       "initFailed": "No se ha podido iniciar el terminal",
@@ -1479,8 +1407,7 @@
       "reconnected": "Reconectado",
       "connectionLost": "Conexión perdida — reconectando…",
       "connectionError": "Error de conexión — reintentando…",
-      "unavailable": "El terminal no está disponible en este dispositivo.",
-      "loading": "Cargando terminal…"
+      "unavailable": "El terminal no está disponible en este dispositivo."
     },
     "cannotReviewOwn": "No puedes reseñar tu propio agente",
     "deleteReview": "Eliminar reseña",
@@ -1494,42 +1421,6 @@
     "writeReview": "Escribir una reseña",
     "modelPinned": "Modelo fijado (%{model})",
     "modelPinnedDescription": "Usa exactamente este modelo. Elige un nivel para que Alia elija.",
-    "featureGates": {
-      "title": "Funciones con requisitos",
-      "footer": "Pon una función detrás del plan de una app: quien use el agente la tiene solo si esa app dice que la tiene. Ninguno: es gratis.",
-      "none": "Ninguno",
-      "gateLabel": "Qué desbloquea %{feature}",
-      "unavailable": "%{app} · %{feature} (no disponible)",
-      "loadFailed": "No se han podido leer los catálogos de las apps. Inténtalo más tarde.",
-      "saveFailed": "No se han podido guardar los requisitos. No ha cambiado nada.",
-      "features": {
-        "documents": "Documentos adjuntos",
-        "images": "Imágenes adjuntas",
-        "deepResearch": "Investigación a fondo",
-        "pro": "Nivel de potencia Pro",
-        "ultra": "Nivel de potencia Ultra"
-      }
-    },
-    "primaryTools": {
-      "title": "Herramientas principales",
-      "footer": "Las herramientas de las apps con las que trabaja el agente: las tiene activas desde el primer paso, sin tener que cargarlas. Solo las que ya puede usar, hasta %{max}.",
-      "add": "Añadir herramienta",
-      "choose": "Elegir",
-      "unavailable": "%{tool} (no disponible)",
-      "full": "Ya hay %{max} herramientas principales. Quita una para añadir otra.",
-      "loadFailed": "No se han podido leer las herramientas de las apps. Inténtalo más tarde.",
-      "saveFailed": "No se han podido guardar las herramientas principales. No ha cambiado nada."
-    },
-    "starters": {
-      "title": "Sugerencias de inicio",
-      "footer": "Lo que ofrece enviar el chat vacío del agente. Hasta seis; cada una necesita un título y un mensaje.",
-      "titleLabel": "Título",
-      "titlePlaceholder": "Pisos en Gràcia",
-      "promptLabel": "Mensaje",
-      "promptPlaceholder": "Busca pisos en Gràcia por menos de 1.200 €",
-      "add": "Añadir una sugerencia",
-      "remove": "Quitar %{title}"
-    },
     "computer": {
       "open": "Ordenador",
       "title": "El ordenador de {{name}}",
@@ -1551,7 +1442,6 @@
         "urlPlaceholder": "Dirección de la página",
         "go": "Ir",
         "screenLabel": "El navegador del agente. Toca para hacer clic.",
-        "loading": "Cargando la pantalla…",
         "agentInControl": "El agente tiene el control",
         "youInControl": "Tienes el control — el agente espera",
         "takeControl": "Tomar el control",
@@ -1608,24 +1498,6 @@
           "download": "Descargó un archivo"
         }
       }
-    },
-    "templates": {
-      "title": "Empezar con una plantilla",
-      "hint": "Elige un punto de partida editable o describe tu agente abajo. Las plantillas no conceden acceso.",
-      "communication": {
-        "label": "Comunicación",
-        "description": "Prepara publicaciones para revisarlas en Schedio.",
-        "access": "Después de crearlo, elige el acceso a Schedio en Apps de Oxy. Para una organización, elige sus recursos concretos en Accounts → Agency. Tú revisas y publicas en Schedio.",
-        "prompt": "Ayúdame a preparar comunicaciones. Pregunta por el público, mensaje, tono y destinos deseados. Consulta únicamente la cuenta de Schedio delegada explícitamente y sus destinos conectados. Prepara un borrador mediante Schedio, reutilizando la clave de idempotencia al reintentar. Muestra el borrador y su enlace de revisión en Schedio. Nunca lo apruebes, programes ni publiques. Si falta acceso a una cuenta o destino, explica qué debe elegir su propietario en el editor o en Accounts Agency; nunca inventes resultados de publicación. Conserva el contenido en su aplicación de origen y utiliza referencias. Estas instrucciones se pueden editar; los permisos se eligen por separado."
-      },
-      "materials": {
-        "label": "Materiales",
-        "description": "Detecta recogidas pendientes y propone transportes para confirmar.",
-        "access": "Después de crearlo, elige Mercaria → Ver en Apps de Oxy. Para una organización, selecciona sus recursos concretos en Accounts → Agency. Confirma transporte, pagador y precio en Mercaria y Moovo.",
-        "prompt": "Ayúdame a coordinar materiales donados. Consulta listPendingMaterialPickups de Mercaria para la cuenta delegada explícitamente y recorre su paginación. Considera únicamente reservas aceptadas; las entregadas o canceladas no son recogidas pendientes. Usa referencias a reservas y ofertas; no copies direcciones privadas a publicaciones ni memoria. Si una reserva ya tiene referencia a un transporte de Moovo, pide revisar ese transporte antes de proponer otra contratación. Para las demás reservas, propone transporte o recogida personal con el enlace de Mercaria y el identificador de reserva. Los datos que falten de recogida, destino, contacto y paquete se completan en el formulario de transporte; las instrucciones libres no son coordenadas. La persona debe elegir quién paga, revisar el presupuesto vigente y autorizar y contratar explícitamente en Mercaria/Moovo. Nunca contrates, pagues ni afirmes que se ha pagado. Editar estas instrucciones no concede permisos."
-      },
-      "organizationAccess": "Elegir acceso a organizaciones y recursos",
-      "organizationAccessHint": "Abre Accounts Agency para elegir la cuenta, aplicación y recursos concretos que puede utilizar este agente."
     }
   },
   "authorize": {
@@ -1796,7 +1668,6 @@
     "failed": "Falló",
     "cancelled": "Detenido",
     "noActivity": "Aún no hay acciones registradas",
-    "loading": "Cargando esta conversación…",
     "loadFailed": "No se pudo cargar esta conversación",
     "messageGone": "Este mensaje ya no está en la conversación",
     "working": "Trabajando…",
@@ -2089,6 +1960,8 @@
     "powerLevel": "Potencia"
   },
   "panel": {
+    "editor": "Editar agente",
+    "editorProfile": "Perfil",
     "terminal": "Terminal",
     "resize": "Redimensionar el panel",
     "code": "Canvas",
@@ -2114,52 +1987,6 @@
     "deleteImageDescription": "Se eliminará de tu Biblioteca."
   },
   "pages": {
-    "automations": {
-      "heading": "¿Qué debería hacer Alia más tarde?",
-      "description": "Describe el trabajo y cuándo debe hacerse. Alia solo te preguntará los detalles que realmente falten antes de guardar la tarea.",
-      "placeholder": "Programa una tarea",
-      "startFailed": "No se pudo empezar a programar. Tu descripción sigue aquí.",
-      "suggestionsTitle": "Prueba una tarea",
-      "suggestions": {
-        "brief": {
-          "title": "Empezar el día informado",
-          "prompt": "Cada día laborable a las 8:00, dame un breve resumen de lo que importa para mi trabajo."
-        },
-        "remind": {
-          "title": "Recordar algo una vez",
-          "prompt": "Mañana a las 10:00, recuérdame hacer seguimiento del proyecto."
-        },
-        "topic": {
-          "title": "Seguir un tema",
-          "prompt": "Cada lunes a las 9:00, investiga las últimas novedades de un tema que elija y resúmelas."
-        },
-        "review": {
-          "title": "Preparar un repaso semanal",
-          "prompt": "Cada viernes por la tarde, ayúdame a repasar la semana y planificar la siguiente."
-        }
-      },
-      "notStarted": "Sin empezar",
-      "unknownTime": "Hora desconocida",
-      "historyLoadFailed": "No se pudo cargar el historial de esta automatización.",
-      "notFound": "Automatización no encontrada.",
-      "saved": "Automatización actualizada y autoridad revalidada",
-      "savedRevocationFailed": {
-        "one": "Guardado, pero no se pudo revocar 1 autorización antigua",
-        "other": "Guardado, pero no se pudieron revocar %{count} autorizaciones antiguas"
-      },
-      "saveFailed": "No se pudo actualizar la automatización",
-      "active": "Activa",
-      "stopped": "Detenida",
-      "actors": "Actores: %{actors}",
-      "usesConnectedApps": "Usa apps conectadas aprobadas",
-      "runHistory": "Historial de ejecuciones",
-      "runCount": {
-        "one": "1 ejecución",
-        "other": "%{count} ejecuciones"
-      },
-      "noRuns": "Aún no hay ejecuciones registradas.",
-      "showMore": "Mostrar más"
-    },
     "skills": {
       "installSkill": "Instalar %{name}",
       "installedSkill": "%{name} está instalada"
@@ -2167,13 +1994,6 @@
     "tasks": {
       "view": "Vista de tareas",
       "typeFilter": "Filtrar por tipo"
-    },
-    "library": {
-      "categories": "Categorías de archivos",
-      "resultCount": {
-        "one": "1 archivo",
-        "other": "{{count}} archivos"
-      }
     },
     "notifications": {
       "unread": {
@@ -2246,19 +2066,6 @@
         "found": "Encontrado: {{title}}",
         "source": "fuente"
       }
-    },
-    "workspace": {
-      "title": "Archivos del espacio de trabajo",
-      "fileCount": {
-        "one": "1 archivo",
-        "other": "{{count}} archivos"
-      },
-      "loading": "Cargando el espacio de trabajo…",
-      "loadFailed": "No se pudieron cargar los archivos. Puede que el contenedor haya caducado.",
-      "empty": "Aún no hay archivos en el espacio de trabajo.",
-      "previewFailed": "(no se pudo cargar el archivo)",
-      "truncated": "[recortado]",
-      "download": "Descargar {{name}}"
     },
     "code": {
       "copy": "Copiar código",

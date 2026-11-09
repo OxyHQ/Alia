@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ContextUsage } from '@/features/chat/model/context-usage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type RightPanel = 'credits' | 'thought' | 'canvas' | 'gallery' | 'agent' | null;
+export type RightPanel = 'credits' | 'thought' | 'canvas' | 'gallery' | 'agent' | 'editor' | null;
 
 /**
  * The agent whose terminal the code panel can show, and the route it was
@@ -42,6 +42,8 @@ interface UIState {
    * SDK's `useThoughtStore`: the thread selects, this only says the panel is on show.
    */
   rightPanel: RightPanel;
+  /** The agent the editor panel is open on; read only while `rightPanel` is `'editor'`. */
+  editedAgentId: string | null;
   /**
    * What each conversation's latest turn put in the context window, by
    * conversation id, as the `alia.context` event reported it; and the latest of
@@ -70,6 +72,8 @@ interface UIState {
   setSidebarOpen: (open: boolean) => void;
   setRightPanel: (panel: RightPanel) => void;
   toggleRightPanel: (panel: RightPanel) => void;
+  /** Open the right panel on this agent's editor. */
+  openAgentEditor: (agentId: string) => void;
   openAgentPanel: (sessionId: string, agentId: string, conversationId?: string | null) => void;
   /** Open the code panel on this agent's terminal, for the route it was asked for on. */
   openAgentTerminal: (agentId: string, route: string) => void;
@@ -114,6 +118,7 @@ export const useUIStore = create<UIState>()(
     (set, get) => ({
       sidebarOpen: true,
       rightPanel: null,
+      editedAgentId: null,
       contextUsage: {},
       lastContextUsage: null,
       setContextUsage: (conversationId, usage) =>
@@ -145,6 +150,8 @@ export const useUIStore = create<UIState>()(
 
       toggleRightPanel: (panel) =>
         set((state) => ({ rightPanel: state.rightPanel === panel ? null : panel })),
+
+      openAgentEditor: (agentId) => set({ rightPanel: 'editor', editedAgentId: agentId }),
 
       openAgentPanel: (sessionId, agentId, conversationId = null) =>
         set({

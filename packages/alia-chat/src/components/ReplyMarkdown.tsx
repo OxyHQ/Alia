@@ -327,12 +327,15 @@ export function ReplyMarkdown({
   researchSources,
   onCitationPress,
   streaming = false,
+  size = 'lg',
 }: {
   content: string;
   toolInvocations?: ToolInvocation[];
   researchSources?: Array<{ id: number; url: string; title: string }> | null;
   onCitationPress?: (source: CitationSource) => void;
   streaming?: boolean;
+  /** Bloom Markdown's size: `lg` is the roomy reading size; a chat bubble is `md`, as compact as the person's own. */
+  size?: 'sm' | 'md' | 'lg';
 }) {
   const sources = useMemo(
     () => extractCitationSources(toolInvocations, researchSources),
@@ -357,7 +360,7 @@ export function ReplyMarkdown({
           return (
             <Markdown
               key={idx}
-              size="lg"
+              size={size}
               streaming={streaming && idx === blocks.length - 1}
               renderCodeBlock={renderCodeBlock}
               onLinkPress={onLinkPress}

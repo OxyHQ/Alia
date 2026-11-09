@@ -2,7 +2,7 @@ import {
   type AliaChatChrome,
   type AliaChatState,
   AliaChatContent,
-  AliaParticipantsHeader,
+  AliaParticipants,
   type AliaSuggestion,
 } from '@alia.onl/sdk';
 import { useConversation } from '@alia.onl/sdk/runtime';
@@ -10,8 +10,10 @@ import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ShellPageHeader } from '@/shared/ui/page-chrome';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';
 import { useStore } from '@/features/chat/runtime/global-store';
+import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useAppVoiceOptions } from '@/features/chat/runtime/use-app-voice-options';
 import { useCreditWarnings } from '@/features/chat/runtime/use-credit-warnings';
@@ -26,6 +28,7 @@ import { KeyboardFrame } from '@/features/chat/ui/chat-workspace';
 import { useComposerMenu } from '@/features/chat/ui/composer/use-alia-composer';
 import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
 import { ConversationActions } from '@/features/chat/ui/conversation-actions';
+import { NotificationsBell } from '@/features/notifications/ui/notifications-bell';
 import { useLocalModelOptions } from '@/features/local-models/runtime/use-local-runtimes';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
@@ -49,6 +52,12 @@ interface ConversationScreenProps {
    * it, and on the new-chat screen.
    */
   threadHandle?: string;
+  /**
+   * The route is still resolving which conversation this is (an agent's thread is looked up by its
+   * handle). The frame, the header and the composer are drawn at once and the thread shows its
+   * skeleton, rather than a page that waits.
+   */
+  loading?: boolean;
 }
 
 /** The SDK keys a suggestion by `id` and calls a fill-in-the-blanks one a `template`. */
@@ -80,6 +89,7 @@ export const ConversationScreen = ({
   agentId,
   agentName,
   threadHandle,
+  loading = false,
 }: ConversationScreenProps) => {
   const { t } = useTranslation();
   const { isAuthenticated, signIn } = useAuth();
@@ -150,24 +160,66 @@ export const ConversationScreen = ({
   const title = conversationDetails?.title || agentName;
   // The header is the conversation's participants — its lead and the agents that joined — drawn
   // by the SDK; the app draws no title of its own there.
+  // Pressing the participants opens the agent's editor; Alia has none, so her avatar just waves.
+  const openAgentEditor = useOpenAgentEditor();
+  const openAgent = useMemo(
+    () => (agentId === undefined ? undefined : () => openAgentEditor(agentId)),
+    [agentId, openAgentEditor],
+  );
   const chrome = useCallback(
-    (chat: AliaChatState): AliaChatChrome => ({
-      header: <AliaParticipantsHeader participants={chat.participants} />,
-      title: title || t('chat.newChat'),
-      project: projectName,
+    (chat: AliaChatState): AliaChatChrome => {
       // Nothing is persisted on the new-chat screen to act on yet.
-      actions:
+      const actions =
         conversationId === undefined ? undefined : (
           <ConversationActions
             chat={chat}
             agentName={agentName}
             agentId={agentId}
             threadHandle={threadHandle}
-            shareable={!ephemeral}
+            // Only an ordinary chat is shared: an agent's thread is a view over several
+            // conversations, and a temporary chat is never stored.
+            shareable={!ephemeral && agentId === undefined}
           />
+        );
+      return {
+        // Once there is a conversation its header is Bloom's `PageHeader` as the multi-agent chat
+        // sets it: the participants centred, the actions beside them. (A container given its own
+        // header draws no breadcrumb row, so the actions travel in it.) The empty chat's mark is
+        // the greeting itself, so it keeps the container's row. An OPEN conversation has the header
+        // from its first frame, while its messages load: otherwise the container's breadcrumb shows
+        // for an instant and is replaced.
+        header:
+          chat.hasMessages || conversationId !== undefined || loading ? (
+            <ShellPageHeader
+              titleAlign="center"
+              // The lead's profile is read by the chat itself; until then the name the route knows.
+              title={
+                loading ? (
+                  agentName
+                ) : (
+                  <AliaParticipants participants={chat.participants} onPress={openAgent} />
+                )
+              }
+              actions={
+                <>
+                  {actions}
+                  <NotificationsBell />
+                </>
+              }
+            />
+          ) : undefined,
+        title: title || t('chat.newChat'),
+        project: projectName,
+        // The container's own row (the empty chat) carries the bell beside the actions.
+        actions: actions && (
+          <>
+            <NotificationsBell />
+            {actions}
+          </>
         ),
-    }),
-    [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral],
+      };
+    },
+    [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral, openAgent],
   );
 
   const agent = useMemo(() => (agentId === undefined ? undefined : { id: agentId }), [agentId]);
@@ -175,9 +227,11 @@ export const ConversationScreen = ({
   return (
     <KeyboardFrame>
       <AliaChatContent
-        surface
         conversationId={conversationId}
         agent={agent}
+        // An agent's thread is drawn as chat bubbles; Alia's own chat keeps its plain replies.
+        bubbles={agentId !== undefined}
+        loading={loading}
         threadHandle={threadHandle}
         ephemeral={ephemeral}
         model={model}

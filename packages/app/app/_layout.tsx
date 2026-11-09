@@ -19,7 +19,6 @@ import '@/shared/i18n';
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/shared/i18n';
 import { useI18nStore } from '@/shared/i18n/i18n-store';
 import { BLOOM_THEME_PERSIST_KEY, BLOOM_THEME_STORAGE } from '@/shared/platform/themePersistence';
-import { CHARACTER_RUNTIME_URL } from '@/shared/platform/character-runtime';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import 'react-native-reanimated';
 
@@ -130,7 +129,7 @@ function RootLayout() {
       persistKey={BLOOM_THEME_PERSIST_KEY}
       storage={BLOOM_THEME_STORAGE}
     >
-      <AgentAvatarProvider runtimeUrl={CHARACTER_RUNTIME_URL}>
+      <AgentAvatarProvider>
         <AppErrorBoundary>
           <OxyProvider
             baseURL={OXY_API_URL}

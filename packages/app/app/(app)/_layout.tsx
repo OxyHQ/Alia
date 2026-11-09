@@ -1,4 +1,5 @@
-import { ShellPageHeader, type PageHeaderOptions } from '@/shell/page-chrome';
+import { NotificationsBell } from '@/features/notifications/ui/notifications-bell';
+import { ShellPageHeader, type PageHeaderOptions } from '@/shared/ui/page-chrome';
 import { CommandPalette } from '@/shell/command-palette';
 import { AppErrorBoundary } from '@/shell/error-boundary';
 import { KeyboardShortcutsDialog } from '@/shell/keyboard-shortcuts-dialog';
@@ -18,6 +19,7 @@ import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
 import { useAliaSpeech } from '@/features/chat/runtime/use-alia-speech';
 import config from '@/shared/platform/config';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
+import { AgentThemeScope } from '@/features/agents/ui/agent-theme-scope';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
@@ -26,8 +28,7 @@ import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useScrollRestoration } from '@oxy.so/bloom/scroll';
-import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
+import { Navigator, Stack, useRouter, type Href } from 'expo-router';
 import type React from 'react';
 import { useEffect, useMemo } from 'react';
 import { Platform, View } from 'react-native';
@@ -44,10 +45,7 @@ const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('
 
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
-  library: 'sidebar.library',
   tasks: 'sidebar.tasks',
-  automations: 'sidebar.automations',
-  skills: 'sidebar.skills',
   shows: 'sidebar.shows',
   agents: 'sidebar.agents',
   notifications: 'sidebar.notifications',
@@ -140,7 +138,7 @@ export default function AppLayout() {
    * container themselves, because theirs carries the composer.
    *
    * The header is the PAGE's: it declares its title, its back and its actions
-   * with `<Stack.Screen options={…} />` (see `src/shell/page-chrome.tsx`),
+   * with `<Stack.Screen options={…} />` (see `src/shared/ui/page-chrome.tsx`),
    * and this reads them back. A page that declares nothing gets its section's
    * name.
    */
@@ -163,7 +161,13 @@ export default function AppLayout() {
           <ShellPageHeader
             title={title}
             onBack={onBack}
-            actions={options.headerRight?.({ canGoBack: onBack !== undefined })}
+            actions={
+              <>
+                {options.headerRight?.({ canGoBack: onBack !== undefined })}
+                {/* The bell is every page's, after the page's own actions. */}
+                <NotificationsBell />
+              </>
+            }
           />
         }
       >
@@ -174,8 +178,8 @@ export default function AppLayout() {
 
   const shell = (
     <AiChatShell
-      // The page scrolls the document, as every Oxy web app does.
-      scroll="document"
+      // Bounded (the default), as the AI chat template declares it: every panel fills the height
+      // and scrolls its own content, so the editor beside a chat stretches.
       sidebar={sidebar}
       mobileSidebar={mobileSidebar}
       labels={shellLabels}
@@ -194,9 +198,8 @@ export default function AppLayout() {
       panel={rightPanel === null ? undefined : (width) => <WorkspacePanel width={width} />}
     >
       {Platform.OS === 'web' ? (
-        // The page flows in the document, which is what scrolls on web;
-        // native-stack's web scene is absolutely positioned and would
-        // pin it to one screen.
+        // Only the focused page is mounted: native-stack's web scene would keep every
+        // visited page under it.
         <Navigator screenOptions={screenOptions}>
           <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
           <FocusedPage layout={screenLayout} />
@@ -229,29 +232,33 @@ export default function AppLayout() {
           settings pages call `useAliaSettings()`. On web both are no-ops and
           the portal goes to the document. Gate: native-portal-host.test.ts */}
         <PortalProvider>
-          <AliaSettingsProvider>
-            <ChatLabelsProvider>
-              {/* Hides the app from a screen reader while a portaled modal is up
+          {/* The agent you are with themes the whole app, dialogs included: the scope is inside the
+              portal, so what the portal draws reads it too. */}
+          <AgentThemeScope>
+            <AliaSettingsProvider>
+              <ChatLabelsProvider>
+                {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
-              <OverlayInertBoundary>
-                {Platform.OS === 'web' ? (
-                  shell
-                ) : (
-                  // Android draws the app edge to edge and Bloom's shell takes no
-                  // safe area: without this its frame, the chat header's menu button
-                  // and the drawer all start under the status bar, where the system
-                  // takes the touch (the button did nothing to a tap on its top two
-                  // thirds). The strip above shows the root's background, which is
-                  // the shell's own surface colour. The chat keeps the bottom
-                  // inset itself (`conversation-screen.tsx`).
-                  <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-                )}
-              </OverlayInertBoundary>
-              <CommandPalette />
-              <KeyboardShortcutsDialog />
-              <PortalOutlet />
-            </ChatLabelsProvider>
-          </AliaSettingsProvider>
+                <OverlayInertBoundary>
+                  {Platform.OS === 'web' ? (
+                    shell
+                  ) : (
+                    // Android draws the app edge to edge and Bloom's shell takes no
+                    // safe area: without this its frame, the chat header's menu button
+                    // and the drawer all start under the status bar, where the system
+                    // takes the touch (the button did nothing to a tap on its top two
+                    // thirds). The strip above shows the root's background, which is
+                    // the shell's own surface colour. The chat keeps the bottom
+                    // inset itself (`conversation-screen.tsx`).
+                    <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+                  )}
+                </OverlayInertBoundary>
+                <CommandPalette />
+                <KeyboardShortcutsDialog />
+                <PortalOutlet />
+              </ChatLabelsProvider>
+            </AliaSettingsProvider>
+          </AgentThemeScope>
         </PortalProvider>
       </AliaRuntimeProvider>
     </AppErrorBoundary>
@@ -269,16 +276,13 @@ interface ScreenLayoutProps {
  * wraps each screen in, so a page's header and surface do not depend on which
  * navigator shows it.
  *
- * Every page shares the one document scroll, so a page opens at the top — or
- * where the reader left it, if they have been here — instead of at whatever
- * offset the last page left. A chat opens at its newest turn, which its thread
- * does itself.
+ * Only the focused page is mounted, so a page opens at the top rather than at whatever offset
+ * the last page left; each one scrolls inside its own container (the shell is bounded). A chat
+ * opens at its newest turn, which its thread does itself.
  */
 function FocusedPage({ layout }: { layout: (props: ScreenLayoutProps) => React.ReactNode }) {
   const { state, descriptors } = Navigator.useContext();
   const descriptor = descriptors[state.routes[state.index].key];
-  const pathname = usePathname();
-  useScrollRestoration('window', { enabled: !isChatRoute(descriptor.route.name), key: pathname });
   const page = descriptor.render();
   if (page === null) return null;
   return layout({

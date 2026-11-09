@@ -59,13 +59,6 @@ export function CommandPalette() {
         onSelect: () => router.replace('/(app)'),
       },
       {
-        id: 'search-library',
-        label: t('dialogs.commandPalette.searchLibrary'),
-        group: t('dialogs.commandPalette.groupActions'),
-        icon: RiSearchLine,
-        onSelect: () => router.push('/(app)/library'),
-      },
-      {
         id: 'agents',
         label: t('dialogs.commandPalette.agents'),
         group: t('dialogs.commandPalette.groupNavigate'),
@@ -73,25 +66,11 @@ export function CommandPalette() {
         onSelect: () => router.push('/(app)/agents'),
       },
       {
-        id: 'library',
-        label: t('dialogs.commandPalette.library'),
-        group: t('dialogs.commandPalette.groupNavigate'),
-        icon: RiBookShelfLine,
-        onSelect: () => router.push('/(app)/library'),
-      },
-      {
-        id: 'automations',
-        label: t('dialogs.commandPalette.automations'),
-        group: t('dialogs.commandPalette.groupNavigate'),
-        icon: RiTimerLine,
-        onSelect: () => router.push('/(app)/automations'),
-      },
-      {
         id: 'skills',
         label: t('dialogs.commandPalette.skills'),
         group: t('dialogs.commandPalette.groupNavigate'),
         icon: RiBookOpenLine,
-        onSelect: () => router.push('/(app)/skills'),
+        onSelect: () => router.push('/(app)/settings/skills'),
       },
       {
         id: 'settings',

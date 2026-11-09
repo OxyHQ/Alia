@@ -219,7 +219,7 @@ vi.mock('@/shared/i18n/use-translation', () => {
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const { default: SkillsScreen } = await import('../skills');
+const { SkillsCatalogue } = await import('@/features/skills/ui/skills-catalogue');
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -290,7 +290,13 @@ function isHost(node: ReactTestInstance, name: string): boolean {
 function renderScreen(): ReactTestRenderer {
   let next!: ReactTestRenderer;
   act(() => {
-    next = create(React.createElement(SkillsScreen));
+    next = create(
+      React.createElement(SkillsCatalogue, {
+        onOpenSkill: () => undefined,
+        onImport: () => undefined,
+        onCreate: () => undefined,
+      }),
+    );
   });
   renderer = next;
   return next;

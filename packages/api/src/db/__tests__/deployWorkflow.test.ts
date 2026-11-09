@@ -526,13 +526,7 @@ describe('runtime secrets live in SSM only; no workflow writes one', () => {
 
   /** What CI itself spends, per workflow. Every other workflow: the job token only. */
   const CI_ONLY_SECRETS: Record<string, readonly string[]> = {
-    'deploy-frontends.yml': [
-      'CLOUDFLARE_ACCOUNT_ID',
-      'CLOUDFLARE_API_TOKEN',
-      // CI publishes append-only assets to one bucket; neither credential enters app runtime.
-      'AVATAR_R2_ACCESS_KEY_ID',
-      'AVATAR_R2_SECRET_ACCESS_KEY',
-    ],
+    'deploy-frontends.yml': ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'],
   };
 
   it('read every deploy workflow', () => {
@@ -569,18 +563,10 @@ describe('runtime secrets live in SSM only; no workflow writes one', () => {
     }
   });
 
-  it('limits avatar storage credentials to the append-only uploader step', () => {
+  it('holds no avatar storage credential: Bloom draws avatars as SVG and nothing is published for them', () => {
     const code = workflows.find((workflow) => workflow.name === 'deploy-frontends.yml')?.code;
     expect(code).toBeDefined();
-    const publisher = code?.match(
-      / {6}- name: Publish avatar runtime release\n[\s\S]*?(?=\n {6}- |$)/,
-    )?.[0];
-    expect(publisher).toContain('node packages/app/scripts/publish-avatar-runtime.mjs');
-    for (const name of ['AVATAR_R2_ACCESS_KEY_ID', 'AVATAR_R2_SECRET_ACCESS_KEY']) {
-      const reference = `secrets.${name}`;
-      expect(code?.split(reference)).toHaveLength(2);
-      expect(publisher).toContain(reference);
-    }
+    expect(code).not.toMatch(/AVATAR_R2|publish-avatar-runtime/);
   });
 
   it('reads no repo secret but the CI-only ones, and never the whole context', () => {

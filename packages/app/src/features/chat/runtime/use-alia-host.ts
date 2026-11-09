@@ -102,7 +102,6 @@ export function useAliaHost(): AliaRuntimeHost {
         ui.setRightPanel('thought');
         return true;
       },
-      openAutomation: (id) => router.push({ pathname: '/(app)/automations/[id]', params: { id } }),
       faviconUrl: resolveFaviconUrl,
       // An agent wrote into THIS conversation on its own (a result, a check-in).
       subscribeConversationMessages: (conversationId, listener) => {

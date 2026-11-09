@@ -1,12 +1,11 @@
-import { AgentCard } from '@/features/agents/ui/agent-card';
+import { AgentListingRow } from '@/features/agents/ui/agent-listing-row';
+import { catalogueItems, type CatalogueItem } from '@/features/agents/model/catalogue-items';
 import { agentCategoryLabel } from '@/features/agents/model/category';
 import { agentChatRoute, agentIdentityMatches } from '@/features/agents/model/identity';
 import { useAgentCatalogue } from '@/features/agents/runtime/use-agents';
-import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
-import { Card, CardBody } from '@oxy.so/bloom/card';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
@@ -16,9 +15,10 @@ import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
+import { useNewAgentConversation } from '@/features/agents/runtime/use-new-agent-conversation';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { RefreshControl, useWindowDimensions, View } from 'react-native';
 
 /**
  * The agent catalogue. Plain content on the layout's surface: the layout draws
@@ -32,8 +32,8 @@ export default function AgentsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
-  const isLargeScreen = useIsLargeScreen();
-  const numColumns = isLargeScreen ? 3 : 2;
+  // Rows sit two to a line where there is room (Bloom's `sm` breakpoint), one on a phone.
+  const columns = useWindowDimensions().width >= 640 ? 2 : 1;
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -68,9 +68,7 @@ export default function AgentsScreen() {
     [router],
   );
 
-  const handleCreateAgent = useCallback(() => {
-    router.push('/(app)/agents/create');
-  }, [router]);
+  const handleCreateAgent = useNewAgentConversation();
   const handleTeams = useCallback(() => router.push('/(app)/agents/teams'), [router]);
 
   const categories = useMemo(() => {
@@ -98,23 +96,6 @@ export default function AgentsScreen() {
     }
     return filtered;
   }, [agents, searchQuery, selectedCategory, t]);
-
-  const featuredAgents = useMemo(() => agents.filter((a) => a.isFeatured), [agents]);
-
-  const renderItem = useCallback(
-    ({ item: agent }: { item: (typeof filteredAgents)[0] }) => (
-      <View className="flex-1 p-1.5">
-        <AgentCard
-          agent={agent}
-          variant="grid"
-          onPress={handleSelectAgent}
-          onChat={handleChat}
-          onHire={handleHire}
-        />
-      </View>
-    ),
-    [handleSelectAgent, handleChat, handleHire],
-  );
 
   // ── Split header into smaller memos to avoid re-rendering everything ──
 
@@ -161,74 +142,79 @@ export default function AgentsScreen() {
     [categories, selectedCategory, t],
   );
 
-  const featuredSection = useMemo(() => {
-    if (searchQuery || selectedCategory || featuredAgents.length === 0) return null;
-    return (
-      <View className="gap-2 pb-4">
-        <Text variant="headline-semibold">{t('agents.featured')}</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerClassName="gap-3"
-        >
-          {featuredAgents.map((agent) => (
-            <AgentCard
-              key={agent._id}
-              agent={agent}
-              variant="featured"
-              onPress={handleSelectAgent}
-              onChat={handleChat}
-              onHire={handleHire}
-            />
-          ))}
-        </ScrollView>
-      </View>
-    );
-  }, [searchQuery, selectedCategory, featuredAgents, t, handleSelectAgent, handleChat, handleHire]);
-
-  const sectionTitle = useMemo(
-    () => (
-      <View className="pb-1.5">
-        <Text variant="headline-semibold">
-          {searchQuery || selectedCategory
-            ? `${filteredAgents.length} ${filteredAgents.length === 1 ? 'agent' : 'agents'}`
-            : t('common.all')}
-        </Text>
-      </View>
-    ),
-    [searchQuery, selectedCategory, filteredAgents.length, t],
+  /** With nothing typed and no category chosen: Featured, then a preview of every category. */
+  const overview = !searchQuery.trim() && !selectedCategory;
+  const items = useMemo(
+    () =>
+      catalogueItems({
+        agents: filteredAgents,
+        overview,
+        columns,
+        featuredLabel: t('agents.featured'),
+        categoryLabel: (category) => agentCategoryLabel(category, t),
+        matchedLabel: (count) =>
+          selectedCategory
+            ? agentCategoryLabel(selectedCategory, t)
+            : `${count} ${count === 1 ? 'agent' : 'agents'}`,
+      }),
+    [filteredAgents, overview, columns, selectedCategory, t],
   );
 
-  /** Cards shaped like `AgentCard`, while the catalogue is on its way. */
+  const renderItem = useCallback(
+    ({ item }: { item: CatalogueItem }) =>
+      item.kind === 'title' ? (
+        <View className="flex-row items-center justify-between px-3 pb-1 pt-5">
+          <Text variant="headline-semibold">{item.label}</Text>
+          {item.category === undefined ? null : (
+            <Button
+              size="sm"
+              tone="neutral"
+              appearance="plain"
+              onPress={() => setSelectedCategory(item.category ?? null)}
+            >
+              {t('agents.viewAll')}
+            </Button>
+          )}
+        </View>
+      ) : (
+        <View className="flex-row">
+          {item.agents.map((agent) => (
+            <View key={agent._id} className="min-w-0 flex-1">
+              <AgentListingRow agent={agent} onPress={handleSelectAgent} onChat={handleChat} />
+            </View>
+          ))}
+          {/* A short last row keeps its agents the width of a column. */}
+          {Array.from({ length: columns - item.agents.length }, (_, index) => (
+            <View key={`pad-${index}`} className="flex-1" />
+          ))}
+        </View>
+      ),
+    [columns, handleSelectAgent, handleChat, t],
+  );
+
+  /** Rows shaped like `AgentListingRow`, while the catalogue is on its way. */
   const loadingSkeleton = useMemo(() => {
     if (!loading || agents.length > 0) return null;
     return (
-      <View className="-m-1.5 flex-row flex-wrap">
+      <View className="pt-5">
         {Array.from({ length: 6 }).map((_, i) => (
-          <View key={i} className={isLargeScreen ? 'w-1/3 p-1.5' : 'w-1/2 p-1.5'}>
-            <Card appearance="outline">
-              <CardBody>
-                <View className="gap-2.5 py-2">
-                  <Skeleton.Circle size={40} />
-                  <Skeleton.Box width="70%" height={14} />
-                  <Skeleton.Box width="90%" height={10} />
-                  <Skeleton.Box width="50%" height={10} />
-                </View>
-              </CardBody>
-            </Card>
+          <View key={i} className="flex-row items-center gap-3 p-3">
+            <Skeleton.Circle size={32} />
+            <View className="flex-1 gap-1.5">
+              <Skeleton.Box width="45%" height={13} />
+              <Skeleton.Box width="80%" height={11} />
+            </View>
           </View>
         ))}
       </View>
     );
-  }, [loading, agents.length, isLargeScreen]);
+  }, [loading, agents.length]);
 
   const listHeader = (
     <View className="px-1.5">
       {headerTop}
       {searchBar}
       {categoryChips}
-      {featuredSection}
-      {sectionTitle}
       {loadingSkeleton}
     </View>
   );
@@ -280,9 +266,10 @@ export default function AgentsScreen() {
         }}
       />
       <FlashList
-        key={numColumns}
-        data={loading && agents.length === 0 ? [] : filteredAgents}
-        numColumns={numColumns}
+        key={columns}
+        data={filteredAgents.length === 0 ? [] : items}
+        keyExtractor={(item) => item.key}
+        getItemType={(item) => item.kind}
         renderItem={renderItem}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}

@@ -9,6 +9,7 @@ import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { ActivityGrid } from '@/features/agents/ui/detail/activity-grid';
 import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import { CAPABILITY_FAMILIES } from '@/features/chat/model/capability-families';
+import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
 import { useAgentDetailActions } from '@/features/agents/runtime/use-agent-detail-actions';
 import { useAgentThreads } from '@/features/agents/runtime/use-agent-threads';
 import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
@@ -38,6 +39,7 @@ export function grantedFamilyLabels(grants: readonly string[]): string[] {
 /** One loaded agent's page: who it is, what it has done, what people said. */
 export function AgentDetail({ agent }: { agent: Agent }) {
   const router = useRouter();
+  const openAgentEditor = useOpenAgentEditor();
   const { t } = useTranslation();
   const composerHost = useComposerHost();
   const { user } = useOxy();
@@ -60,12 +62,7 @@ export function AgentDetail({ agent }: { agent: Agent }) {
               isOwner={isOwner}
               canChat={agent.access === 'public' || isOwner}
               price={agent.price}
-              onEdit={() =>
-                router.push({
-                  pathname: '/(app)/agents/edit/[id]',
-                  params: { id: agent._id },
-                })
-              }
+              onEdit={() => openAgentEditor(agent._id)}
               onChat={actions.handleChat}
               onStartTask={actions.handleHirePress}
               onShare={actions.handleShare}

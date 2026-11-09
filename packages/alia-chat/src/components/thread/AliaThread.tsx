@@ -2,7 +2,7 @@ import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { AiChatThread, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
 import { Divider } from '@oxy.so/bloom/divider';
-import { Loading } from '@oxy.so/bloom/loading';
+import { ThreadSkeleton } from './ThreadSkeleton';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Fragment, memo, type ReactNode, type RefObject, useCallback, useMemo } from 'react';
 import {
@@ -93,6 +93,8 @@ export interface AliaThreadProps {
    */
   threadRef: RefObject<AiChatThreadHandle | null>;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** Quote a turn's words into the composer (a bubble's reply button). Omitted, the button is not drawn. */
+  onReply?: (text: string) => void;
   /** A conversation read by somebody it was shared with: no votes, no read-aloud, no regenerate. */
   readOnly?: boolean;
 }
@@ -104,28 +106,6 @@ function isSilent(message: Message | undefined): boolean {
     message.role === 'assistant' &&
     messageText(message).length === 0 &&
     (message.toolInvocations?.length ?? 0) === 0
-  );
-}
-
-function ThreadSkeleton() {
-  return (
-    <View className="gap-5 py-4">
-      <View className="items-end">
-        <Skeleton.Box width="65%" height={48} borderRadius={24} />
-      </View>
-      <View className="items-start gap-2.5">
-        <Skeleton.Box width="80%" height={14} borderRadius={8} />
-        <Skeleton.Box width="70%" height={14} borderRadius={8} />
-        <Skeleton.Box width="45%" height={14} borderRadius={8} />
-      </View>
-      <View className="items-end">
-        <Skeleton.Box width="50%" height={40} borderRadius={24} />
-      </View>
-      <View className="items-start gap-2.5">
-        <Skeleton.Box width="85%" height={14} borderRadius={8} />
-        <Skeleton.Box width="60%" height={14} borderRadius={8} />
-      </View>
-    </View>
   );
 }
 
@@ -156,6 +136,7 @@ export const AliaThread = memo(function AliaThread({
   empty,
   threadRef,
   onScroll,
+  onReply,
   readOnly = false,
 }: AliaThreadProps) {
   const { t } = useLabels();
@@ -165,13 +146,23 @@ export const AliaThread = memo(function AliaThread({
 
   useFailedTurnToast(failedTurn, onRetryTurn);
 
-  const { rows, live, history, ids, arrived, dayLabels, seamIds, lastReplyIndex, timingOf } =
-    useThreadRows({
-      messages,
-      history: pastMessages,
-      conversationId,
-      conversationLoading,
-    });
+  const {
+    rows,
+    live,
+    history,
+    ids,
+    arrived,
+    dayLabels,
+    seamIds,
+    speakers,
+    lastReplyIndex,
+    timingOf,
+  } = useThreadRows({
+    messages,
+    history: pastMessages,
+    conversationId,
+    conversationLoading,
+  });
 
   // ── The thought panel: this conversation as it reads it, and opening it on a turn ──
   const thoughtScope = useThoughtScope({
@@ -198,9 +189,10 @@ export const AliaThread = memo(function AliaThread({
       vote,
       readAloud: readAloud.toggle,
       openThought,
+      reply: onReply,
       readOnly,
     }),
-    [copy, vote, readAloud.toggle, openThought, readOnly],
+    [copy, vote, readAloud.toggle, openThought, onReply, readOnly],
   );
 
   /**
@@ -279,6 +271,12 @@ export const AliaThread = memo(function AliaThread({
       <Fragment key={message.id || `row-${index}`}>
         {seamIds.has(message.id) ? <Divider spacing={16}>{t('chat.newStretch')}</Divider> : null}
         {dayLabel === undefined ? null : <ChatDateHeader label={dayLabel} placement="inline" />}
+        {/* Where another agent comes into the conversation: whom the person is chatting with now. */}
+        {speakers.has(message.id) ? (
+          <Divider spacing={16}>
+            {t('chat.chatWith', { name: speakers.get(message.id)?.agentName ?? '' })}
+          </Divider>
+        ) : null}
         <ThreadRow
           message={message}
           // Only a message that arrived while this conversation was open animates in; none of the
@@ -345,7 +343,10 @@ export const AliaThread = memo(function AliaThread({
             {loadMore === undefined && !loadingHistory ? null : (
               <View className="h-14 items-center justify-center">
                 {loadingHistory ? (
-                  <Loading variant="inline" text={t('chat.loadingHistory')} />
+                  <Skeleton.Region className="w-full gap-2.5">
+                    <Skeleton.Box width="70%" height={14} borderRadius={8} />
+                    <Skeleton.Box width="45%" height={14} borderRadius={8} />
+                  </Skeleton.Region>
                 ) : null}
               </View>
             )}

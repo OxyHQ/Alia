@@ -50,6 +50,7 @@ import { useAttachMenu } from '../hooks/useAttachMenu';
 import { usePendingQuestions } from '../hooks/usePendingQuestions';
 import { useThreadView } from '../hooks/useThreadView';
 import { useTTS } from '../hooks/useTTS';
+import { BubblesProvider } from '../lib/bubbles';
 import type { AliaAddMenu } from '../lib/add-menu';
 import { AliaFlightsProvider } from '../lib/flights';
 import { type AliaChatParticipants, leadOf } from '../lib/participants';
@@ -201,8 +202,17 @@ export interface AliaChatContentProps {
    * there is anything to clear, whether it is a searchable thread).
    */
   chrome?: (state: AliaChatState) => AliaChatChrome;
-  /** The container draws its own surface (the card of a page), instead of leaving the fill to the frame around it. */
-  surface?: boolean;
+  /**
+   * Draw the turns as chat bubbles, as an agent's thread does: the person's in the theme's primary (the agent's colour),
+   * the replies in a neutral one. Off, a thread keeps its ordinary look (Alia's own chat).
+   */
+  bubbles?: boolean;
+  /**
+   * The host is still resolving WHICH conversation this is (an agent's thread is looked up by its
+   * handle before its conversation is known). The chat is drawn at once, with the thread's
+   * skeleton where the turns will be, and cannot send until the host says what it is talking to.
+   */
+  loading?: boolean;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /** The ambient field's shape: the whole `screen` (default) or a `sheet`'s smaller one. */
@@ -306,7 +316,8 @@ function AliaConversationView({
   onSuggestionQuery,
   onSuggestionPicked,
   chrome,
-  surface = false,
+  bubbles = false,
+  loading = false,
   isDarkMode,
   layout = 'screen',
   isFocused = true,
@@ -423,6 +434,21 @@ function AliaConversationView({
     onSuggestionPicked,
     presentedProgress,
   });
+
+  /**
+   * A bubble's reply button: the turn's words, quoted, ahead of what is already typed. Each line is
+   * prefixed `> `, so a model reads it as a quotation and a person as a reply.
+   */
+  const quoteIntoComposer = useCallback(
+    (words: string) => {
+      const quoted = words
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n');
+      composer.setText(`${quoted}\n\n${composer.text}`);
+    },
+    [composer],
+  );
   // Without a call handed down (a text-only entry), the chat is text-only whatever `voice` says.
   const VoiceCall = useContext(VoiceCallContext);
   const voice = useChatVoice({
@@ -643,7 +669,7 @@ function AliaConversationView({
           onValueChange={composer.setText}
           onSubmit={() => void composer.submit(composer.text)}
           busy={isLoading}
-          disabled={closed}
+          disabled={closed || loading}
           onStop={stop}
           emptyAction={voiceButton}
           accessory={
@@ -690,30 +716,35 @@ function AliaConversationView({
         // The thread scrolls behind the header and the composer, which fade in over it. The wave
         // is the container's background layer, between its surface and the turns.
         floatingChrome
-        // A frame that owns the fill and the shape (a sheet, a screen) leaves the surface off.
-        surface={surface}
+        // The wave is a translucent layer over the frame's own fill, so the container paints no surface
+        // of its own: the frame's fill shows through, and the composer's fade lands on that same fill
+        // rather than on a band of its own (Bloom: `surface={false}` beside a translucent `background`).
+        surface={false}
         background={background}
       >
-        <AliaThread
-          // Nothing live under a window: it is a view of the past, and the conversation being
-          // streamed into is not below it in the thread.
-          messages={showsPast ? NO_MESSAGES : messages}
-          conversationId={conversationId}
-          isLoading={isLoading}
-          conversationLoading={conversationLoading}
-          history={view.history}
-          focusCursor={view.focusCursor}
-          failedTurn={failedTurn}
-          onRetryTurn={retryFailedTurn}
-          onRegenerate={composer.regenerate}
-          onStartEdit={edit.start}
-          newConversationOffer={newConversationOffer}
-          agentActivity={agentRun === null ? null : agentActivity}
-          call={voice.isActive ? { agentState: voice.agentState } : undefined}
-          empty={welcome}
-          threadRef={threadRef}
-          onScroll={onScroll}
-        />
+        <BubblesProvider value={bubbles}>
+          <AliaThread
+            // Nothing live under a window: it is a view of the past, and the conversation being
+            // streamed into is not below it in the thread.
+            messages={showsPast ? NO_MESSAGES : messages}
+            conversationId={conversationId}
+            isLoading={isLoading}
+            conversationLoading={conversationLoading || loading}
+            history={view.history}
+            focusCursor={view.focusCursor}
+            failedTurn={failedTurn}
+            onRetryTurn={retryFailedTurn}
+            onRegenerate={composer.regenerate}
+            onStartEdit={edit.start}
+            newConversationOffer={newConversationOffer}
+            agentActivity={agentRun === null ? null : agentActivity}
+            call={voice.isActive ? { agentState: voice.agentState } : undefined}
+            empty={welcome}
+            threadRef={threadRef}
+            onScroll={onScroll}
+            onReply={quoteIntoComposer}
+          />
+        </BubblesProvider>
         {!showsPast ? null : (
           <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
             <Button appearance="outline" tone="neutral" size="sm" onPress={view.backToLatest}>

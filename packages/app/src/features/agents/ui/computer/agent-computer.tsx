@@ -3,7 +3,8 @@ import { ScrollView, View } from 'react-native';
 import { Chip } from '@oxy.so/bloom/chip';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { Muted } from '@oxy.so/bloom/typography';
 import { AgentDetailSection } from '@/features/agents/ui/detail/agent-detail-section';
 import { BrowserLiveView } from '@/features/agents/ui/computer/browser-live-view';
@@ -65,9 +66,10 @@ export function AgentComputer({ agentId }: { agentId: string }) {
 
   if (computer.isPending) {
     return (
-      <View className="flex-1 items-center justify-center">
-        <Loading variant="spinner" text={t('common.loading')} />
-      </View>
+      <Skeleton.Region className="flex-1 gap-4 p-4">
+        <Skeleton.Box width="100%" height={220} borderRadius={12} />
+        <ListRowsSkeleton rows={3} lines={1} />
+      </Skeleton.Region>
     );
   }
 

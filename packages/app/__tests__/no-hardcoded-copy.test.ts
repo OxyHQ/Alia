@@ -209,7 +209,7 @@ const FILES = DIRS.flatMap((dir) => sourceFiles(join(ROOT, dir))).filter(
 describe('user-visible copy', () => {
   it('is read from every screen and component', () => {
     // Without this the assertion below passes over nothing.
-    expect(FILES.length).toBeGreaterThan(150);
+    expect(FILES.length).toBeGreaterThan(100);
   });
 
   it('goes through t() rather than being written in English', () => {

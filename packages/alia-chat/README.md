@@ -32,18 +32,11 @@ shrink with the chat up to the shared viewport limit. Bloom coordinates the Scre
 content, safe areas and keyboard clearance. Hosts should not add window-height calculations or a second
 scroll container to make an embedded chat visible.
 
-Alia's avatar is Bloom's 3D character (`AgentAvatar`). It draws through a runtime of
-static files (loaded on demand), which the chat loads from Alia's own origin
-(`ALIA_CHARACTER_RUNTIME_URL`, served with CORS open), so the app hosts nothing and mounts
-no avatar provider. To serve your own copy instead, serve the Bloom
-package's `assets/character-runtime/` directory unchanged and pass the URL of `runtime.mjs`
-as `characterRuntimeUrl` to `AliaChatSheet` or `AliaChatScreen`; nested avatar icons
-preserve that override. Native URLs must be absolute and reachable from the device.
-For native shared GPU rendering, install the optional `@oxy.so/bloom-avatar-native@^0.1.0`
-companion with its Expo GL peer and rebuild the native app. The SDK then pins its default
-URL to the companion's full runtime manifest revision under `/bloom-character/releases/`.
-Alia retains those assets across deployments. Hosts without the companion keep the
-WebView fallback; web does not import the native companion graph.
+Alia's avatar is Bloom's character (`AgentAvatar`), drawn as SVG on web and native (Bloom
+17.22 and later). There is nothing to host, fetch or configure: the chat components mount Bloom's
+`AgentAvatarProvider` themselves, so the app mounts no avatar provider and passes no URL. The
+`ALIA_CHARACTER_RUNTIME_URL` export, the `characterRuntimeUrl` prop and the optional
+`@oxy.so/bloom-avatar-native` companion were removed in 23.0.0.
 
 A web app with a Content-Security-Policy composes the SDK's into its own instead of listing
 Alia's origins by hand: `@alia.onl/sdk/csp` exports `ALIA_SDK_CSP` and `withAliaSdkCsp(extensions)`
@@ -210,7 +203,7 @@ stays out of the app's entry bundle. The root entry exports the same two, with t
 (its provider imports the sheet statically).
 For hosts that need that exact eager behavior without the root barrel, import the provider and
 hook from `@alia.onl/sdk/ask/eager`. The character entry exports `readAgentCharacter`,
-`DEFAULT_AGENT_CHARACTER` and `ALIA_CHARACTER_RUNTIME_URL` without the chat.
+and `DEFAULT_AGENT_CHARACTER` without the chat.
 
 **On web, load the chat through ONE async boundary.** Expo's Metro serializer hoists every module
 two async chunks share into `__common.js`, which loads at first paint. The SDK draws no async chunk
@@ -255,12 +248,9 @@ const state = useAliaActivity(); // 'idle' | 'thinking' | 'working' | 'writing'
 ```
 
 `AliaAvatarIcon` is a Bloom icon component (`BloomIconComponent`): pass it as `icon` /
-`leadingIcon`. At rest it is her **still**, a picture made ahead of time and shipped in the source
-(`src/lib/alia-avatar-still.generated.ts`, Bloom `Avatar`'s `characterStill`), so a header that
-shows her fetches nothing of the 3D runtime. While she thinks or works she goes live under its own
-`AgentAvatarProvider` (`ALIA_CHARACTER_RUNTIME_URL`) and plays her working turn; reduced motion
-keeps her a still. Change `ALIA_AVATAR` and run `bun run render:avatar-still` (a test fails until
-you do); run it too when a Bloom upgrade changes how the runtime draws her.
+`leadingIcon`. Bloom draws her as SVG under its own `AgentAvatarProvider`, so a header that shows
+her fetches nothing. While she thinks or works she plays her working turn; reduced motion keeps
+her still.
 
 `useAliaActivity()` is the busiest of two sources, so a button reacts even with the sheet closed:
 

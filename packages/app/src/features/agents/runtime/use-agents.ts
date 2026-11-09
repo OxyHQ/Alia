@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { aliaQueryKeys } from '@alia.onl/sdk/runtime';
 import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
@@ -149,6 +150,9 @@ export function useUpdateAgent() {
     },
     onSuccess: (agent) => {
       queryClient.setQueryData(queryKeys.agents.detail(agent._id), agent);
+      // The chat reads the agent's profile through the SDK's own query: the header's avatar and the
+      // lead's name come from it, so an edit reaches them the way it reaches the sidebar's list.
+      void queryClient.invalidateQueries({ queryKey: aliaQueryKeys.agents.profile(agent._id) });
       return invalidateAgentLists(queryClient);
     },
   });

@@ -26,9 +26,9 @@ export interface AliaAvatarProps {
 }
 
 /**
- * Bloom's `AgentAvatar` dressed as Alia. It draws through the 3D runtime, so the host
- * app must mount `AgentAvatarProvider` with the URL of the hosted `character-runtime`;
- * without it Bloom shows its own "unavailable" state.
+ * Bloom's `AgentAvatar` dressed as Alia. Bloom draws characters as SVG, with nothing to host or
+ * fetch; the chat components mount Bloom's `AgentAvatarProvider` (the shared capability map) for
+ * the avatars they draw, and a host that draws her alone mounts it too.
  */
 export const AliaAvatar = memo(function AliaAvatar({
   size,

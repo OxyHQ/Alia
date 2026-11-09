@@ -41,15 +41,15 @@
 
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
-import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiLightbulbFlashLine } from '@oxy.so/bloom/icons/RiLightbulbFlashLine';
 import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
 import { RiShapesLine } from '@oxy.so/bloom/icons/RiShapesLine';
-import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { RiWindowLine } from '@oxy.so/bloom/icons/RiWindowLine';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
+import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 
 export interface CapabilityFamily {
   /** The grant string, exactly as it is stored and sent. */
@@ -187,22 +187,6 @@ export function capabilityIconForTool(toolName: string): BloomIconComponent | un
   if (!Object.hasOwn(RUNTIME_TOOL_FAMILIES, toolName)) return undefined;
   const family = RUNTIME_TOOL_FAMILIES[toolName];
   return CAPABILITY_FAMILIES.find((entry) => entry.id === family)?.icon;
-}
-
-/**
- * A connector the owner can grant, as `GET /agents/capability-connectors`
- * serves it.
- *
- * `grant` arrives ASSEMBLED. The client never joins a family to an id, because
- * a second place writing `family:instanceId` is a second spelling of it, and a
- * grant spelled differently is refused on write and dropped on read — silently,
- * in both directions.
- */
-export interface GrantableConnector {
-  grant: string;
-  family: string;
-  label: string;
-  detail: string;
 }
 
 /**

@@ -68,7 +68,7 @@ export function AutomationCard({
   onToggle: (automation: AutomationDefinition, enabled: boolean) => void;
   onRun: (automation: AutomationDefinition) => void;
   onStop: (automation: AutomationDefinition) => void;
-  onViewHistory: (automation: AutomationDefinition) => void;
+  onViewHistory?: (automation: AutomationDefinition) => void;
   variant?: 'full' | 'compact';
 }) {
   const { colors } = useTheme();
@@ -166,18 +166,20 @@ export function AutomationCard({
           ) : compact ? null : (
             <StatusBadge label={t('automations.card.stopped')} />
           )}
-          <Button
-            tone="neutral"
-            appearance="plain"
-            size="sm"
-            className="ml-auto"
-            accessibilityRole="button"
-            accessibilityLabel={t('automations.card.historyLabel', { title })}
-            disabled={controlsDisabled}
-            onPress={() => onViewHistory(automation)}
-          >
-            {compact ? t('automations.card.history') : t('automations.card.viewHistory')}
-          </Button>
+          {onViewHistory ? (
+            <Button
+              tone="neutral"
+              appearance="plain"
+              size="sm"
+              className="ml-auto"
+              accessibilityRole="button"
+              accessibilityLabel={t('automations.card.historyLabel', { title })}
+              disabled={controlsDisabled}
+              onPress={() => onViewHistory(automation)}
+            >
+              {compact ? t('automations.card.history') : t('automations.card.viewHistory')}
+            </Button>
+          ) : null}
         </View>
       </CardFooter>
     </Card>

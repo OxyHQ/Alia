@@ -1,7 +1,6 @@
 {
   "common": {
     "or": "OR",
-    "loading": "Loading...",
     "error": "Error",
     "success": "Success",
     "cancel": "Cancel",
@@ -171,6 +170,7 @@
       "exportShareTitle": "Alia audit export ({{format}})"
     },
     "sections": {
+      "skills": "Skills",
       "general": "General",
       "usage": "Usage",
       "billing": "Billing",
@@ -543,7 +543,6 @@
     "renameFolderTitle": "Rename folder",
     "folderName": "Folder name",
     "responding": "Alia is responding",
-    "loadingConversations": "Loading conversations…",
     "searchChats": "Search chats",
     "searchChatsPlaceholder": "Search chats…",
     "getTheApp": "Get the app",
@@ -648,7 +647,10 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "newStretch": "New conversation",
-    "loadingHistory": "Loading earlier messages…",
+    "chatWith": "Chat with %{name}",
+    "reactToMessage": "React to message",
+    "replyToMessage": "Reply to message",
+    "moreActions": "More message actions",
     "searchThreadPlaceholder": "Search this thread",
     "searchThreadHint": "Search everything you have said to this agent, across every conversation.",
     "searchThreadSearching": "Searching…",
@@ -781,7 +783,6 @@
     "atMidnight": "at 00:00",
     "totalUsage": "Total usage",
     "creditUsage": "Credit usage",
-    "loading": "Loading...",
     "noUsage": "No usage in this period",
     "viewFullHistory": "View full history",
     "today": "Today",
@@ -899,63 +900,6 @@
       "stopFailed": "Could not stop the automation",
       "queued": "Automation queued",
       "runFailed": "The automation could not run"
-    },
-    "edit": {
-      "objectiveRequired": "Objective is required",
-      "instructionsRequired": "Instructions are required",
-      "scheduleRequired": "Schedule and timezone are required",
-      "eventRequired": "Event app and type are required",
-      "eventResourceIncomplete": "The event resource is incomplete",
-      "chooseAgent": "Choose an agent",
-      "chooseEligibleAgent": "Choose at least one eligible agent",
-      "resourceIncomplete": "Every resource field is required",
-      "limitKeyRequired": "Every limit needs a key",
-      "limitDuplicated": "Limit {{key}} is duplicated",
-      "limitInvalid": "Limit {{key}} must be text, a number, a boolean, or a text list"
-    },
-    "editor": {
-      "dayShort": {
-        "0": "S",
-        "1": "M",
-        "2": "T",
-        "3": "W",
-        "4": "T",
-        "5": "F",
-        "6": "S"
-      },
-      "dayName": {
-        "0": "Sunday",
-        "1": "Monday",
-        "2": "Tuesday",
-        "3": "Wednesday",
-        "4": "Thursday",
-        "5": "Friday",
-        "6": "Saturday"
-      },
-      "invalidSchedule": "Choose a valid time and at least one day",
-      "title": "Edit task",
-      "saving": "Saving…",
-      "save": "Save",
-      "status": "Status",
-      "pausedNotScheduled": "Paused · Next run: not scheduled",
-      "active": "Task active",
-      "titleLabel": "Title",
-      "taskTitle": "Task title",
-      "instructions": "Instructions",
-      "taskInstructions": "Task instructions",
-      "repeat": "Repeat",
-      "weekly": "Weekly",
-      "time": "Time",
-      "taskTime": "Task time",
-      "timezone": "Timezone",
-      "taskTimezone": "Task timezone",
-      "agent": "Responsible",
-      "agentDescription": "Alia runs this task unless you choose one of your agents.",
-      "connectedWork": "Connected work: this task can use the connections you approved. Exact identifiers and authority remain protected by Oxy and are not editable here.",
-      "discardTitle": "Discard changes?",
-      "discardDescription": "Your unsaved task changes will be lost.",
-      "keepEditing": "Keep editing",
-      "discard": "Discard changes"
     }
   },
   "tasks": {
@@ -1206,6 +1150,10 @@
     "failedToReset": "Failed to reset password. Please try again."
   },
   "chatHeader": {
+    "chatActions": "Chat actions",
+    "inThisConversation": "In this conversation",
+    "editNamed": "Edit {{name}}",
+    "startGroup": "Start a group chat",
     "agentTerminal": "Agent terminal",
     "export": "Export",
     "settings": "Settings",
@@ -1249,9 +1197,13 @@
     "pushNotifications": "Push Notifications",
     "pushDescription": "Receive alerts about new messages and updates",
     "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications.",
-    "channelDefault": "Default"
+    "channelDefault": "Default",
+    "open": "Open"
   },
   "agents": {
+    "createViaChat": "I'd like to create a new agent. Can you help me?",
+    "byAuthor": "by {{name}}",
+    "viewAll": "View all",
     "title": "Agents",
     "subtitle": "Discover agents that can plan and complete real work",
     "searchPlaceholder": "Search agents...",
@@ -1328,25 +1280,6 @@
     "deleteAgentConfirm": "Are you sure you want to delete this agent? This cannot be undone.",
     "agentDeleted": "Agent deleted",
     "agents": "Agents",
-    "telegramBot": {
-      "title": "Telegram bot",
-      "connect": "Connect a Telegram bot",
-      "dialogTitle": "Connect a Telegram bot",
-      "dialogDescription": "Create a bot with @BotFather on Telegram and paste its token below.",
-      "tokenLabel": "Bot token",
-      "tokenPlaceholder": "123456:ABC-DEF...",
-      "empty": "No Telegram bot connected. Messages to a connected bot are answered by this agent.",
-      "remove": "Remove",
-      "removeTitle": "Remove Telegram bot",
-      "removeDescription": "This agent will stop answering messages sent to this bot.",
-      "connected": "Telegram bot connected",
-      "removed": "Telegram bot removed",
-      "errorAlreadyRegistered": "This Telegram bot is already registered",
-      "errorInvalidToken": "Invalid bot token",
-      "errorGeneric": "Something went wrong. Please try again.",
-      "ownerPaysLabel": "Pay for its replies with my credits",
-      "ownerPaysHint": "When on, replies from this bot are charged to your credits. When off, the bot tells people it isn't available instead."
-    },
     "namePlaceholder": "Agent name",
     "colorLabel": "Colour",
     "modelLabel": "Power level",
@@ -1477,11 +1410,6 @@
         "description": "Run commands and keep files on a private Linux sandbox, and browse the web with its own browser that stays signed in"
       }
     },
-    "instancedFamily": {
-      "agent": "Your agents",
-      "mcp": "Connectors",
-      "integration": "Integrations"
-    },
     "terminal": {
       "banner": "Agent terminal",
       "initFailed": "Could not start the terminal",
@@ -1489,47 +1417,10 @@
       "reconnected": "Reconnected",
       "connectionLost": "Connection lost — reconnecting…",
       "connectionError": "Connection error — retrying…",
-      "unavailable": "The terminal is not available on this device.",
-      "loading": "Loading terminal…"
+      "unavailable": "The terminal is not available on this device."
     },
     "modelPinned": "Pinned model (%{model})",
     "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose.",
-    "featureGates": {
-      "title": "Features with requirements",
-      "footer": "Put a feature behind an app's plan: whoever uses the agent gets it only if that app says they have it. None: it is free.",
-      "none": "None",
-      "gateLabel": "What unlocks %{feature}",
-      "unavailable": "%{app} · %{feature} (not available)",
-      "loadFailed": "Couldn't read the apps' catalogues. Try again later.",
-      "saveFailed": "Couldn't save the feature requirements. Nothing was changed.",
-      "features": {
-        "documents": "Attached documents",
-        "images": "Attached images",
-        "deepResearch": "Deep research",
-        "pro": "Pro power level",
-        "ultra": "Ultra power level"
-      }
-    },
-    "primaryTools": {
-      "title": "Primary tools",
-      "footer": "The app tools the agent works with: active from its first step, without loading them. Only tools it can already use, up to %{max}.",
-      "add": "Add a tool",
-      "choose": "Choose",
-      "unavailable": "%{tool} (not available)",
-      "full": "There are already %{max} primary tools. Remove one to add another.",
-      "loadFailed": "Couldn't read the apps' tools. Try again later.",
-      "saveFailed": "Couldn't save the primary tools. Nothing was changed."
-    },
-    "starters": {
-      "title": "Conversation starters",
-      "footer": "What the agent's empty chat offers to send. Up to six; a starter needs a title and a message.",
-      "titleLabel": "Title",
-      "titlePlaceholder": "Flats in Gràcia",
-      "promptLabel": "Message",
-      "promptPlaceholder": "Find flats in Gràcia under €1,200",
-      "add": "Add a starter",
-      "remove": "Remove %{title}"
-    },
     "computer": {
       "open": "Computer",
       "title": "{{name}}'s computer",
@@ -1551,7 +1442,6 @@
         "urlPlaceholder": "Page address",
         "go": "Go",
         "screenLabel": "The agent's browser. Tap to click.",
-        "loading": "Loading the screen…",
         "agentInControl": "The agent is in control",
         "youInControl": "You are in control — the agent waits",
         "takeControl": "Take control",
@@ -1608,24 +1498,6 @@
           "download": "Downloaded a file"
         }
       }
-    },
-    "templates": {
-      "title": "Start from a template",
-      "hint": "Choose an editable starting point, or describe your own agent below. Templates do not grant access.",
-      "communication": {
-        "label": "Communication",
-        "description": "Prepare publications for review in Schedio.",
-        "access": "After creating, choose Schedio access in Oxy apps. For an organization, choose its exact resources in Accounts → Agency. You review and publish in Schedio.",
-        "prompt": "Help me prepare communications. Ask for the audience, message, tone and desired destinations. Read only the explicitly delegated Schedio account and its connected destinations. Prepare a draft through Schedio, using a stable idempotency key for retries. Show the draft and its Schedio review link to the person. Never approve, schedule or publish it. If the account or destination is unavailable, explain what access the owner must choose in the agent editor or Accounts Agency; never fabricate a publication result. Keep source content in its owning application and use references. These instructions are editable; access is chosen separately."
-      },
-      "materials": {
-        "label": "Materials",
-        "description": "Find pending collections and propose transport for a person to confirm.",
-        "access": "After creating, choose Mercaria → View in Oxy apps. For an organization, select its exact resources in Accounts → Agency. Confirm transport, payer and price in Mercaria and Moovo.",
-        "prompt": "Help coordinate donated materials. Use Mercaria listPendingMaterialPickups for the exact explicitly delegated account, following pagination. Consider accepted reservations only; completed or cancelled reservations are not pending collections. Keep reservation and offer references; do not copy private addresses into posts or memory. If a reservation already has a Moovo transport reference, ask the person to review that transport rather than propose another booking. For reservations needing transport, propose collection or personal pickup with the Mercaria review link and reservation ID. Ask for missing structured pickup and dropoff addresses, contacts and parcel details in the transport form; freeform pickup instructions are not coordinates. The person must choose the payer, review the current quote and explicitly authorize and book through Mercaria/Moovo. Never book, pay or claim payment occurred. Do not treat editing these instructions as a permission grant."
-      },
-      "organizationAccess": "Choose organization and resource access",
-      "organizationAccessHint": "Open Accounts Agency to select the exact account, app and resources this agent may use."
     }
   },
   "authorize": {
@@ -1796,7 +1668,6 @@
     "failed": "Failed",
     "cancelled": "Stopped",
     "noActivity": "No actions recorded yet",
-    "loading": "Loading this conversation…",
     "loadFailed": "This conversation couldn't be loaded",
     "messageGone": "This message is no longer in the conversation",
     "working": "Working…",
@@ -2089,6 +1960,8 @@
     "powerLevel": "Power"
   },
   "panel": {
+    "editor": "Edit agent",
+    "editorProfile": "Profile",
     "terminal": "Terminal",
     "resize": "Resize panel",
     "code": "Canvas",
@@ -2114,52 +1987,6 @@
     "deleteImageDescription": "It will be removed from your Library."
   },
   "pages": {
-    "automations": {
-      "heading": "What should Alia do later?",
-      "description": "Describe the work and when it should happen. Alia will ask only for details that are genuinely missing before saving the task.",
-      "placeholder": "Schedule a task",
-      "startFailed": "Could not start scheduling. Your description is still here.",
-      "suggestionsTitle": "Try a task",
-      "suggestions": {
-        "brief": {
-          "title": "Start my day informed",
-          "prompt": "Every weekday at 8:00 AM, give me a short brief of what matters for my work."
-        },
-        "remind": {
-          "title": "Remember something once",
-          "prompt": "Tomorrow at 10:00 AM, remind me to follow up on the project."
-        },
-        "topic": {
-          "title": "Keep up with a topic",
-          "prompt": "Every Monday at 9:00 AM, research the latest developments in a topic I choose and summarize them."
-        },
-        "review": {
-          "title": "Prepare a weekly review",
-          "prompt": "Every Friday afternoon, help me review the week and plan the next one."
-        }
-      },
-      "notStarted": "Not started",
-      "unknownTime": "Unknown time",
-      "historyLoadFailed": "Could not load this automation history.",
-      "notFound": "Automation not found.",
-      "saved": "Automation updated and authority revalidated",
-      "savedRevocationFailed": {
-        "one": "Saved, but 1 old authorization could not be revoked",
-        "other": "Saved, but %{count} old authorizations could not be revoked"
-      },
-      "saveFailed": "Failed to update automation",
-      "active": "Active",
-      "stopped": "Stopped",
-      "actors": "Actors: %{actors}",
-      "usesConnectedApps": "Uses approved connected apps",
-      "runHistory": "Run history",
-      "runCount": {
-        "one": "1 run",
-        "other": "%{count} runs"
-      },
-      "noRuns": "No runs recorded yet.",
-      "showMore": "Show more"
-    },
     "skills": {
       "installSkill": "Install %{name}",
       "installedSkill": "%{name} is installed"
@@ -2167,13 +1994,6 @@
     "tasks": {
       "view": "Task view",
       "typeFilter": "Filter by type"
-    },
-    "library": {
-      "categories": "File categories",
-      "resultCount": {
-        "one": "1 file",
-        "other": "{{count}} files"
-      }
     },
     "notifications": {
       "unread": {
@@ -2246,19 +2066,6 @@
         "found": "Found: {{title}}",
         "source": "source"
       }
-    },
-    "workspace": {
-      "title": "Workspace files",
-      "fileCount": {
-        "one": "1 file",
-        "other": "{{count}} files"
-      },
-      "loading": "Loading workspace…",
-      "loadFailed": "Unable to load workspace files. The container may have expired.",
-      "empty": "No files in workspace yet.",
-      "previewFailed": "(failed to load file)",
-      "truncated": "[truncated]",
-      "download": "Download {{name}}"
     },
     "code": {
       "copy": "Copy code",
