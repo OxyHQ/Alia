@@ -72,16 +72,14 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="manifest" href="/manifest.json" />
 
         {/* Favicons */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
         <link rel="shortcut icon" href="/icon-192.png" />
 
         {/* Apple Touch Icons for iOS home screen */}
-        <link rel="apple-touch-icon" sizes="180x180" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icon-192.png" />
-        <link rel="apple-touch-icon" sizes="120x120" href="/icon-192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
         {/* Apple Mobile Web App */}
         <meta name="apple-mobile-web-app-title" content="Alia" />
