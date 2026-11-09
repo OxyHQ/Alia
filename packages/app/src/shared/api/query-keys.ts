@@ -11,9 +11,6 @@ export const queryKeys = {
     catalogue: (filters?: Record<string, string | undefined>) =>
       ['skills', 'catalogue', filters ?? {}] as const,
     installed: ['skills', 'installed'] as const,
-    mine: ['skills', 'mine'] as const,
-    /** The catalogue and the caller's own, merged: what an agent may be given. */
-    attachable: ['skills', 'attachable'] as const,
     detail: (idOrName: string) => ['skills', 'detail', idOrName] as const,
   },
   agents: {
@@ -30,12 +27,6 @@ export const queryKeys = {
     detail: (id: string) => ['agents', 'detail', id] as const,
     /** One agent's reviews, and the caller's own among them. */
     reviews: (id: string) => ['agents', 'reviews', id] as const,
-    /** What the owner could grant the agent being edited, which is left out. */
-    capabilityConnectors: (id: string) => ['agents', 'capability-connectors', id] as const,
-    /** The agent's feature gates and what each could name. */
-    featureGates: (id: string) => ['agents', 'feature-gates', id] as const,
-    /** The agent's primary tools and the app tools it reaches. */
-    primaryTools: (id: string) => ['agents', 'primary-tools', id] as const,
     /** What one agent remembers about the caller: its files, and one file's content. */
     memory: (id: string) => ['agents', 'memory', id] as const,
     memoryFile: (id: string, path: string) => ['agents', 'memory', id, path] as const,
@@ -53,16 +44,9 @@ export const queryKeys = {
      * starts, while the pages behind it are immutable and expensive to refetch.
      */
     threadMessages: (username: string) => ['agent-thread-messages', username] as const,
-    /** Keyed by the query as typed, so each one is cached and none is re-asked. */
-    threadSearch: (username: string, query: string) =>
-      ['agent-thread-search', username, query] as const,
-    /** One window of the thread, addressed by the cursor a search hit carries. */
-    threadWindow: (username: string, cursor: string) =>
-      ['agent-thread-window', username, cursor] as const,
   },
   automations: {
     overview: ['automations', 'overview'] as const,
-    history: (automationId: string) => ['automations', automationId, 'history'] as const,
   },
   conversations: {
     all: ['conversations'] as const,
@@ -82,12 +66,6 @@ export const queryKeys = {
     transactions: (limit?: number, offset?: number) => ['transactions', limit, offset] as const,
     entitlements: ['entitlements'] as const,
   },
-  organizations: {
-    all: ['organizations'] as const,
-    detail: (id: string) => ['organization', id] as const,
-    members: (orgId: string) => ['organization-members', orgId] as const,
-    agents: (orgId: string) => ['organization-agents', orgId] as const,
-  },
   referrals: {
     info: ['referral-info'] as const,
     history: ['referral-history'] as const,
@@ -95,6 +73,5 @@ export const queryKeys = {
   suggestions: {
     welcome: ['suggestions', 'welcome'] as const,
     search: (query: string) => ['suggestions', 'search', query] as const,
-    me: ['suggestions', 'me'] as const,
   },
 } as const;

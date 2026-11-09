@@ -6,39 +6,18 @@
 export const API_ROUTES = {
   // Auth routes
   auth: {
-    login: '/auth/login',
-    register: '/auth/register',
     forgotPassword: '/auth/forgot-password',
     resetPassword: '/auth/reset-password',
   },
 
-  // Folder routes
-  folders: {
-    list: '/folders',
-    create: '/folders',
-    delete: (id: string) => `/folders/${id}`,
-  },
-
   // Memory routes
   memory: {
-    get: '/memory',
-    preferences: '/memory/preferences',
     /** Every agent that remembers something about the caller (memory per actor). */
     agents: '/memory/agents',
   },
 
   /** "Avísame de emails importantes", per actor: Alia and each owned agent. */
   emailAlerts: '/notifications/email-alerts',
-
-  // Upload routes
-  upload: {
-    avatar: '/upload/avatar',
-  },
-
-  // Credits routes
-  credits: {
-    get: '/credits',
-  },
 
   /**
    * Chat routes.
@@ -58,17 +37,13 @@ export const API_ROUTES = {
   skills: {
     catalogue: '/skills',
     installed: '/skills/installed',
-    mine: '/skills/mine',
     get: (idOrName: string) => `/skills/${idOrName}`,
-    versions: (idOrName: string) => `/skills/${idOrName}/versions`,
-    file: (idOrName: string, path: string) => `/skills/${idOrName}/files/${path}`,
     create: '/skills',
     newVersion: (id: string) => `/skills/${id}/versions`,
     update: (id: string) => `/skills/${id}`,
     delete: (id: string) => `/skills/${id}`,
     generate: '/skills/generate',
     import: '/skills/import',
-    upload: '/skills/upload',
     install: (id: string) => `/skills/${id}/install`,
   },
 
@@ -79,13 +54,6 @@ export const API_ROUTES = {
     update: (id: string) => `/automations/${id}`,
     stop: (id: string) => `/automations/${id}`,
     run: (id: string) => `/automations/${id}/run`,
-  },
-
-  // Analytics routes
-  analytics: {
-    usage: '/analytics/usage',
-    models: '/analytics/models',
-    credits: '/analytics/credits',
   },
 
   // Agents routes
@@ -104,13 +72,11 @@ export const API_ROUTES = {
      * conversations it is made of. `before=<cursor>` walks backwards; the
      * cursors come from the messages themselves.
      */
-    threadMessages: (username: string) => `/agents/thread/${encodeURIComponent(username)}/messages`,
     /**
      * Everything said in the thread that matches, across every conversation in
      * it. Each hit carries the cursor that opens the window containing it,
      * which is what makes a result reachable rather than just visible.
      */
-    threadSearch: (username: string) => `/agents/thread/${encodeURIComponent(username)}/search`,
     create: '/agents',
     update: (id: string) => `/agents/${id}`,
     delete: (id: string) => `/agents/${id}`,
@@ -118,16 +84,9 @@ export const API_ROUTES = {
     threadById: (threadId: string) => `/agents/threads/${threadId}`,
     goals: (threadId: string) => `/agents/threads/${threadId}/goals`,
     teams: '/agents/teams',
-    team: (teamId: string) => `/agents/teams/${teamId}`,
-    teamImport: '/agents/teams/import',
-    teamExport: (teamId: string) => `/agents/teams/${teamId}/export`,
-    coworkDevices: '/agents/cowork/devices',
     memory: (id: string) => `/agents/${id}/memory`,
-    activity: (id: string) => `/agents/${id}/activity`,
     activityGrid: (id: string) => `/agents/${id}/activity-grid`,
-    sessions: (id: string) => `/agents/${id}/sessions`,
     status: (id: string) => `/agents/${id}/status`,
-    cancelSession: (id: string, sid: string) => `/agents/${id}/sessions/${sid}/cancel`,
     reviews: (id: string) => `/agents/${id}/reviews`,
     /** The agent's computer as the caller sees it — always the caller's own (`routes/agents/computer.ts`). */
     computer: (id: string) => `/agents/${id}/computer`,
@@ -140,38 +99,19 @@ export const API_ROUTES = {
     computerBrowserNavigate: (id: string) => `/agents/${id}/computer/browser/navigate`,
     computerBrowserInput: (id: string) => `/agents/${id}/computer/browser/input`,
     computerBrowserControl: (id: string) => `/agents/${id}/computer/browser/control`,
-    generate: '/agents/generate',
-    /**
-     * The MCP connectors, Oxy apps, integrations and agents this owner can
-     * grant. The agent being EDITED is passed so it is left out of its own
-     * list — an agent cannot be granted a conversation with itself.
-     */
-    capabilityConnectors: (excludeAgentId: string) =>
-      `/agents/capability-connectors?agent=${encodeURIComponent(excludeAgentId)}`,
-    /** The app features a gate may name, from the live catalogues (ADR 0020 §6). */
-    featureGateOptions: (id: string) => `/agents/${encodeURIComponent(id)}/feature-gate-options`,
-    /** The app tools the agent reaches, any of which may be one of its primary tools. */
-    primaryToolOptions: (id: string) => `/agents/${encodeURIComponent(id)}/primary-tool-options`,
   },
 
   // Library routes
   library: {
     list: '/library',
     upload: '/library/upload',
-    get: (id: string) => `/library/${id}`,
     delete: (id: string) => `/library/${id}`,
   },
 
   // Suggestions routes
   suggestions: {
-    list: '/suggestions/list',
     welcome: '/suggestions/welcome',
-    me: '/suggestions/me',
-    create: '/suggestions/create',
-    generate: '/suggestions/generate',
     search: '/suggestions/search',
-    update: (id: string) => `/suggestions/${id}`,
-    delete: (id: string) => `/suggestions/${id}`,
     use: (id: string) => `/suggestions/${id}/use`,
   },
 
@@ -208,13 +148,5 @@ export const API_ROUTES = {
       get: (id: string) => `/shows/episodes/${id}`,
       delete: (id: string) => `/shows/episodes/${id}`,
     },
-  },
-
-  // API v1 routes (OpenAI compatible)
-  v1: {
-    models: '/v1/models',
-    audioSpeech: '/v1/audio/speech',
-    audioGenerate: '/v1/audio/generate',
-    imagesGenerations: '/v1/images/generations',
   },
 } as const;
