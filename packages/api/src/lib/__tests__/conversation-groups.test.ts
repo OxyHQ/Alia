@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGroupMembers } from '../conversation-groups.js';
+import { parseGroupMembers } from '../../domain/conversation-groups.js';
 
 describe('parseGroupMembers', () => {
   it('accepts two to six distinct agents and keeps their order', () => {
