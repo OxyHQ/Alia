@@ -75,6 +75,7 @@ vi.mock('@oxy.so/core', () => ({ getAccountDisplayName: () => 'Nate' }));
 vi.mock('@oxy.so/bloom/toast', () => ({
   toast: { error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
+vi.mock('../../src/components/thread/AgentExchangeView', () => ({ AgentExchangeView: () => null }));
 vi.mock('@oxy.so/bloom/button', () => ({
   Button: (props: { onPress?: () => void; accessibilityLabel?: string }) => {
     if (props.accessibilityLabel === 'Start voice') world.startVoice = props.onPress ?? null;

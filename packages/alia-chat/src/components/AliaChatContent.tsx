@@ -68,6 +68,7 @@ import { type AliaRuntimeHost, AliaRuntimeProvider, useAliaRuntime } from '../ru
 import { type AliaHostTools, APP_SLUG } from '../runtime/host-tools';
 import { useCreateConversation } from '../runtime/conversations';
 import { aliaQueryKeys } from '../runtime/query-keys';
+import type { AgentExchange } from '../runtime/thread/agent-exchange';
 import type { Message } from '../runtime/types';
 import { useAgentActivity } from '../runtime/use-agent-activity';
 import { useConversationThread } from '../runtime/use-conversation-thread';
@@ -79,6 +80,7 @@ import { useParticipants } from './AliaParticipants';
 import { AliaGroupWelcome } from './AliaGroupWelcome';
 import { AliaWelcomeMessage } from './AliaWelcomeMessage';
 import { AmbientField } from './AmbientField';
+import { AgentExchangeView } from './thread/AgentExchangeView';
 import { AliaThread } from './thread/AliaThread';
 import { ThreadSearch } from './thread/ThreadSearch';
 import { VoiceModeIcon } from './VoiceModeIcon';
@@ -410,6 +412,10 @@ function AliaConversationView({
   );
   const asked = usePendingQuestions(messages, isLoading);
   const view = useThreadView(threadHandle, conversationId);
+  // The internal conversation of a consulted agent, read-only, drawn over the chat (which stays
+  // mounted under it, so its scroll and the draft are exactly as they were on the way back).
+  const [exchange, setExchange] = useState<AgentExchange | null>(null);
+  const closeExchange = useCallback(() => setExchange(null), []);
   const agentActivity = useAgentActivity(agentRun?.turnId ?? null, agentRun?.agentId);
 
   // The turn was refused for the usage limit: the composer is closed until the host's dialog is
@@ -776,6 +782,7 @@ function AliaConversationView({
             threadRef={threadRef}
             onScroll={onScroll}
             onReply={quoteIntoComposer}
+            onOpenAgentChat={setExchange}
           />
         </BubblesProvider>
         {!showsPast ? null : (
@@ -789,6 +796,9 @@ function AliaConversationView({
           <ThreadSearch handle={threadHandle} onJump={view.jump} onClose={view.closeSearch} />
         )}
       </AiChatContainer>
+      {exchange === null ? null : (
+        <AgentExchangeView exchange={exchange} lead={lead} onBack={closeExchange} />
+      )}
       {usageLimit === null ? null : renderUsageLimit?.({ error: usageLimit, dismiss: clearError })}
       {sharedFlights ? null : <AvatarFlightLayer flights={ownFlights} />}
     </AliaFlightsProvider>
