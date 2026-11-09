@@ -48,6 +48,8 @@ import { RiLightbulbFlashLine } from '@oxy.so/bloom/icons/RiLightbulbFlashLine';
 import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
 import { RiShapesLine } from '@oxy.so/bloom/icons/RiShapesLine';
 import { RiWindowLine } from '@oxy.so/bloom/icons/RiWindowLine';
+import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
+import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 
 export interface CapabilityFamily {
   /** The grant string, exactly as it is stored and sent. */
@@ -186,3 +188,32 @@ export function capabilityIconForTool(toolName: string): BloomIconComponent | un
   const family = RUNTIME_TOOL_FAMILIES[toolName];
   return CAPABILITY_FAMILIES.find((entry) => entry.id === family)?.icon;
 }
+
+/**
+ * The heading each instanced family gets in the connectors section, as an
+ * i18n key.
+ *
+ * `agent` comes first because it continues the fixed list above: "Other agents"
+ * is the last family a person reads, and "Your agents" is the same subject
+ * narrowed to the ones they already have.
+ */
+export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
+  agent: 'agents.instancedFamily.agent',
+  mcp: 'agents.instancedFamily.mcp',
+  integration: 'agents.instancedFamily.integration',
+};
+
+/**
+ * A team for `agent`, and deliberately NOT `RiRobot2Line`.
+ *
+ * That glyph is `delegation` two lists up — finding, hiring and creating agents
+ * — and this family is the other half of the same sentence: the agents you
+ * already have. Drawing both with one mark would put the two switches an owner
+ * has to tell apart under the same picture, which is the duplication #365
+ * removed rather than a consistency to preserve.
+ */
+export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, BloomIconComponent>> = {
+  agent: RiTeamLine,
+  mcp: RiPlugLine,
+  integration: RiWindowLine,
+};
