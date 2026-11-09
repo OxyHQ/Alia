@@ -83,7 +83,6 @@ export const API_ROUTES = {
     threads: (id: string) => `/agents/${id}/threads`,
     threadById: (threadId: string) => `/agents/threads/${threadId}`,
     goals: (threadId: string) => `/agents/threads/${threadId}/goals`,
-    teams: '/agents/teams',
     memory: (id: string) => `/agents/${id}/memory`,
     activityGrid: (id: string) => `/agents/${id}/activity-grid`,
     status: (id: string) => `/agents/${id}/status`,

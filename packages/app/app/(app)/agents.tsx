@@ -5,11 +5,9 @@ import { agentChatRoute, agentIdentityMatches } from '@/features/agents/model/id
 import { useAgentCatalogue } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { EmptyState } from '@/shared/stickers/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
@@ -68,7 +66,6 @@ export default function AgentsScreen() {
   );
 
   const handleCreateAgent = useNewAgentConversation();
-  const handleTeams = useCallback(() => router.push('/(app)/agents/teams'), [router]);
 
   const categories = useMemo(() => {
     const cats = new Set(agents.map((a) => a.category));
@@ -242,25 +239,17 @@ export default function AgentsScreen() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <>
-              <ButtonGroup accessibilityLabel={t('pages.agents.teams')}>
-                <ButtonGroupItem leadingIcon={RiTeamLine} onPress={handleTeams}>
-                  {t('pages.agents.teams')}
-                </ButtonGroupItem>
-              </ButtonGroup>
-              {/* "Create", as on Skills: with Teams beside it, "Create Agent"
-                  left the page's own title at "Ag…" on a phone. The page says
-                  what is created; the label for a screen reader still does. */}
-              <Button
-                size="md"
-                tone="action"
-                leadingIcon={RiAddLine}
-                onPress={handleCreateAgent}
-                accessibilityLabel={t('agents.createAgent')}
-              >
-                {t('common.create')}
-              </Button>
-            </>
+            // "Create", as on Skills: the page says what is created; the label for a screen
+            // reader still does.
+            <Button
+              size="md"
+              tone="action"
+              leadingIcon={RiAddLine}
+              onPress={handleCreateAgent}
+              accessibilityLabel={t('agents.createAgent')}
+            >
+              {t('common.create')}
+            </Button>
           ),
         }}
       />
