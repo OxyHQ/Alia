@@ -19,18 +19,23 @@ export function AgentProfileFields({
   draft,
   onEditIdentity,
   onEditDraft,
+  onClose,
 }: {
   id: string;
   identity: IdentityDraft;
   draft: Pick<AgentDraft, 'tagline' | 'description' | 'character'>;
   onEditIdentity: (patch: Partial<IdentityDraft>) => void;
   onEditDraft: (patch: Partial<AgentDraft>) => void;
+  /** The creator's own close button, when the editor is a panel. */
+  onClose?: () => void;
 }) {
   const { t } = useTranslation();
 
   return (
-    <View className="gap-3">
+    <View className="flex-1">
       <AgentCreator
+        style={{ flex: 1 }}
+        onClose={onClose}
         showPreferences={false}
         agent={{
           id,
@@ -50,16 +55,18 @@ export function AgentProfileFields({
       />
       {/* The handle was PROPOSED at creation and may carry a collision suffix
           nobody chose, so it is editable here rather than permanent. */}
-      <TextField>
-        <TextFieldIcon icon={RiAtLine} />
-        <Input
-          label={t('agents.handlePlaceholder')}
-          value={identity.handle}
-          onChangeText={(text) => onEditIdentity({ handle: text })}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </TextField>
+      <View className="px-4 pb-4 pt-2">
+        <TextField>
+          <TextFieldIcon icon={RiAtLine} />
+          <Input
+            label={t('agents.handlePlaceholder')}
+            value={identity.handle}
+            onChangeText={(text) => onEditIdentity({ handle: text })}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </TextField>
+      </View>
     </View>
   );
 }

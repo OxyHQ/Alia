@@ -1,10 +1,5 @@
 import { AgentEditorLoader } from '@/features/agents/ui/edit/agent-editor-loader';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
-import { useTranslation } from '@/shared/i18n/use-translation';
-import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
-import { Button } from '@oxy.so/bloom/button';
-import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { PageHeader } from '@oxy.so/bloom/page-header';
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 
@@ -30,39 +25,20 @@ import { View } from 'react-native';
  * (`__tests__/autosave-writes-once.test.tsx` pins it).
  */
 export function AgentEditorPanel() {
-  const shell = useAiChatShell();
   const router = useRouter();
-  const { t } = useTranslation();
   const agentId = useUIStore((s) => s.editedAgentId);
   const setRightPanel = useUIStore((s) => s.setRightPanel);
-  const content = (
-    <AgentEditorLoader
-      agentId={agentId ?? undefined}
-      onBackToList={() => {
-        setRightPanel(null);
-        router.replace('/(app)/agents');
-      }}
-    />
-  );
-
+  // The creator draws its own header, with the close button: the panel adds none.
   return (
     <View className="flex-1" testID="agent-editor-panel">
-      {shell?.compact ? null : (
-        <PageHeader
-          title={t('panel.editor')}
-          actions={
-            <Button
-              appearance="plain"
-              tone="neutral"
-              size="xs"
-              accessibilityLabel={t('common.close')}
-              onPress={() => setRightPanel(null)}
-              icon={<RiCloseLine />}
-            />
-          }
-        />
-      )}
-      {content}
+      <AgentEditorLoader
+        agentId={agentId ?? undefined}
+        onClose={() => setRightPanel(null)}
+        onBackToList={() => {
+          setRightPanel(null);
+          router.replace('/(app)/agents');
+        }}
+      />
     </View>
   );
 }
