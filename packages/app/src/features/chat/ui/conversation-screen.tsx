@@ -8,6 +8,7 @@ import {
 import { useConversation } from '@alia.onl/sdk/runtime';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services/ui/client';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';
@@ -86,6 +87,7 @@ export const ConversationScreen = ({
   const { isAuthenticated, signIn } = useAuth();
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const isFocused = useScreenOnShow();
   const { data: conversationDetails } = useConversation(conversationId);
 
@@ -151,11 +153,19 @@ export const ConversationScreen = ({
   const title = conversationDetails?.title || agentName;
   // The header is the conversation's participants — its lead and the agents that joined — drawn
   // by the SDK; the app draws no title of its own there.
+  // Pressing the participants opens the agent's page; Alia has none, so her avatar just waves.
+  const openAgent = useMemo(
+    () =>
+      agentId === undefined
+        ? undefined
+        : () => router.push({ pathname: '/(app)/agents/[id]', params: { id: agentId } }),
+    [agentId, router],
+  );
   const chrome = useCallback(
     (chat: AliaChatState): AliaChatChrome => ({
       // The lead's header is for a conversation; the empty chat's mark is the greeting itself.
       header: chat.hasMessages ? (
-        <AliaParticipantsHeader participants={chat.participants} />
+        <AliaParticipantsHeader participants={chat.participants} onPress={openAgent} />
       ) : undefined,
       title: title || t('chat.newChat'),
       project: projectName,
@@ -174,7 +184,7 @@ export const ConversationScreen = ({
           </>
         ),
     }),
-    [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral],
+    [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral, openAgent],
   );
 
   const agent = useMemo(() => (agentId === undefined ? undefined : { id: agentId }), [agentId]);
