@@ -609,7 +609,7 @@ export class ToolPipeline {
            * naming one silently did nothing on the other. The three-way spelling
            * wins, and it is the one `lib/agent/tool-router.ts` already maps.
            */
-          sendTelegramMessage: createSendTelegramTool(userId),
+          sendTelegramMessage: createSendTelegramTool(userId, runId),
         });
         // Only where a gateway exists: without one every call fails, and a tool
         // the model is shown is a tool it keeps trying.
