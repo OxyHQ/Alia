@@ -6,7 +6,7 @@
  * which can hold the person's own data, and there is nothing to vote on, play, edit or regenerate.
  */
 
-import { AliaAvatarProvider } from './AliaAvatarProvider';
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import type { AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
@@ -28,8 +28,6 @@ export interface AliaSharedConversationProps {
   apiUrl?: string;
   /** Overrides for the chat's own copy; omitted, English. */
   labels?: Partial<AliaChatLabels>;
-  /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy. */
-  characterRuntimeUrl?: string;
 }
 
 function SharedThread({ token }: { token: string }) {
@@ -68,19 +66,14 @@ function SharedThread({ token }: { token: string }) {
   );
 }
 
-export function AliaSharedConversation({
-  token,
-  apiUrl,
-  labels,
-  characterRuntimeUrl,
-}: AliaSharedConversationProps) {
+export function AliaSharedConversation({ token, apiUrl, labels }: AliaSharedConversationProps) {
   return (
-    <AliaAvatarProvider runtimeUrl={characterRuntimeUrl}>
+    <AgentAvatarProvider>
       <AliaChatLabelsProvider labels={labels}>
         <AliaRuntimeProvider apiUrl={apiUrl}>
           <SharedThread token={token} />
         </AliaRuntimeProvider>
       </AliaChatLabelsProvider>
-    </AliaAvatarProvider>
+    </AgentAvatarProvider>
   );
 }

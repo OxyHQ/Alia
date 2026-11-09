@@ -1,5 +1,16 @@
 # @alia.onl/sdk
 
+## 23.0.0
+
+- **Breaking.** Bloom 17.22 draws characters as SVG, so the hosted 3D runtime is gone from the
+  SDK. Removed: the `ALIA_CHARACTER_RUNTIME_URL` export (root and `@alia.onl/sdk/character`), the
+  `characterRuntimeUrl` prop of `AliaChatSheet`, `AliaChatScreen` and `AliaSharedConversation`
+  (and of `ask`), the pre-rendered still of `AliaAvatarIcon` (`bun run render:avatar-still` and its
+  generated file) and the optional peer `@oxy.so/bloom-avatar-native`. The chat components mount
+  Bloom's `AgentAvatarProvider` themselves. Consumers: bump to 23.0.0, delete any
+  `characterRuntimeUrl` you passed and any copy of Bloom's `assets/character-runtime` you served
+  (Bloom no longer ships it). `@oxy.so/bloom` is now `>=17.22.0`.
+
 ## 22.10.1
 
 - Admit Oxy Services 14 alongside 13. Services 14 requires Core ^7.9.1;

@@ -133,12 +133,12 @@ describe('AliaChatSheet focus', () => {
   });
 });
 
-describe('the character runtime', () => {
+describe('the avatar provider', () => {
   const screen = read('AliaChatScreen.tsx');
 
-  it('wraps the sheets AND the flight layer: an avatar drawn outside it would ask the host for /bloom-character/runtime.mjs', () => {
-    const open = source.indexOf('<AliaAvatarProvider');
-    const close = source.indexOf('</AliaAvatarProvider>');
+  it('wraps the sheets AND the flight layer: avatars share one capability map only under the same provider', () => {
+    const open = source.indexOf('<AgentAvatarProvider');
+    const close = source.indexOf('</AgentAvatarProvider>');
     expect(open).toBeGreaterThan(-1);
     expect(source.indexOf('<BottomSheet', open)).toBeGreaterThan(open);
     const flights = source.indexOf('<AvatarFlightLayer', open);
@@ -147,11 +147,10 @@ describe('the character runtime', () => {
   });
 
   it('is mounted once, by the two entry points, never by the chat they share', () => {
-    expect(screen.match(/<AliaAvatarProvider/g)).toHaveLength(1);
+    expect(screen.match(/<AgentAvatarProvider/g)).toHaveLength(1);
     expect(content).not.toMatch(/(?:Agent|Alia)AvatarProvider/);
-    const provider = read('AliaAvatarProvider.tsx');
-    expect(provider.match(/<AgentAvatarProvider/g)).toHaveLength(1);
-    expect(provider).toContain('runtimeUrl={resolved}');
+    // Bloom draws characters as SVG: there is no runtime URL to pass.
+    expect(`${screen}${source}`).not.toMatch(/runtimeUrl|characterRuntimeUrl/);
   });
 });
 

@@ -1,5 +1,5 @@
-import { AliaAvatarProvider } from './AliaAvatarProvider';
 import { AvatarFlightLayer, useAvatarFlights } from '@oxy.so/bloom/avatar-flight';
+import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { BottomSheet, type BottomSheetRef } from '@oxy.so/bloom/bottom-sheet';
 import {
   forwardRef,
@@ -81,8 +81,6 @@ export interface AliaChatSheetProps {
   voice?: AliaChatContentProps['voice'];
   /** Overrides for the chat's own copy (header, composer, plan, research…); omitted, English. */
   labels?: Partial<AliaChatLabels>;
-  /** Where the 3D avatar's runtime is served from; omitted, Alia's shared copy (`ALIA_CHARACTER_RUNTIME_URL`). */
-  characterRuntimeUrl?: string;
   /**
    * Draws the header's share button once there is a conversation; omitted, no share button.
    * Pressed, the conversation's read-only link is minted and handed here for the app to show.
@@ -136,7 +134,6 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       isDarkMode,
       voice,
       labels,
-      characterRuntimeUrl,
       onShare,
       headerMenu,
       recentConversations = true,
@@ -294,10 +291,10 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
       labels,
     };
 
-    // The provider wraps the sheets AND the flight layer: both draw avatars, and an avatar drawn
-    // outside it would fall back to the host's own `/bloom-character/runtime.mjs`.
+    // The provider wraps the sheets AND the flight layer: both draw avatars, and Bloom's avatars
+    // share one capability map only under the same provider.
     return (
-      <AliaAvatarProvider runtimeUrl={characterRuntimeUrl}>
+      <AgentAvatarProvider>
         <BottomSheet
           ref={mainRef}
           detached={detached}
@@ -363,7 +360,7 @@ const AliaChatSheetBody = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
           </View>
         </BottomSheet>
         <AvatarFlightLayer flights={flights} />
-      </AliaAvatarProvider>
+      </AgentAvatarProvider>
     );
   },
 );

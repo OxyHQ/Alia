@@ -415,113 +415,23 @@ release automation. Do not report those distributions as complete from an
 unsigned local build. Signing-in on an installed desktop app is a separate
 acceptance check from unit tests and artifact creation.
 
-## Immutable avatar runtime releases
+## Avatares: nada que publicar
 
-Native `@oxy.so/bloom-avatar-native` binaries pin the SHA256 of the exact full
-`manifest.json` bytes. Serve these independently of the current static export:
-`https://alia.onl/bloom-character/releases/<64-hex-revision>/runtime.mjs`.
-`packages/app/worker/avatar-releases.js` reads the dedicated `alia-avatar-runtime`
-R2 bucket through `AVATAR_RUNTIME_RELEASES`; flat `/bloom-character/runtime.mjs`
-continues to serve the current web export. Old releases stay available across
-Worker deployments. There is no expiration lifecycle, bucket lock or deletion
-step in this pipeline; administrative control remains available.
+Desde Bloom 17.22 los avatares se dibujan como SVG en web y nativo: ya no hay un runtime 3D que
+servir ni publicar. Se retiró todo lo que lo hacía: el script `setup-character-runtime`, el
+directorio `public/bloom-character/`, la publicación de releases inmutables a R2
+(`publish-avatar-runtime.mjs`, el binding `AVATAR_RUNTIME_RELEASES` y las credenciales
+`AVATAR_R2_ACCESS_KEY_ID` y `AVATAR_R2_SECRET_ACCESS_KEY` del workflow), la verificación
+posterior al despliegue y las rutas `/bloom-character/` del Worker de `alia.onl`.
 
-Before deploying the app, `publish-avatar-runtime.mjs` validates every file against
-the installed Bloom manifest, then creates missing objects through the S3 API with
-`IfNoneMatch: '*'`. Existing objects must have identical bytes. Every new object is
-read back and hashed; `manifest.json` is uploaded last. A partial failed upload can
-be resumed. Never use the Cloudflare REST object PUT for this operation: a real
-probe on 2026-10-31 showed it ignored `If-None-Match` and overwrote the probe;
-the S3 control returned412 and retained the original bytes. Only owned probes were
-removed. Runtime revisions have not been overwritten.
+El Worker de `packages/app/worker/index.js` conserva lo que sí sigue haciendo: CORS abierto en
+`/sdk/` (los worklets de voz que cargan las apps que incrustan el SDK), caché inmutable de un año
+en los nombres con hash (`/sdk/voice-worklets/`, `/_expo/static/` y `/assets/`), un 404 sin caché
+cuando falta un nombre con hash y `X-Robots-Tag` en `/shared/`. Sus pruebas son
+`node --test scripts/asset-worker.test.mjs`.
 
-The CI secrets `AVATAR_R2_ACCESS_KEY_ID` and `AVATAR_R2_SECRET_ACCESS_KEY` belong to
-an account token with object read/write permission limited to this single bucket.
-The existing `CLOUDFLARE_ACCOUNT_ID` selects its endpoint. Token values are never
-written to repository files or logs. `CLOUDFLARE_API_TOKEN` still deploys the Worker;
-it is not the runtime uploader's credential. Native asset bytes and manifest hashes
-are unmodified. Responses have explicit MIME, CORS, immutable caching, ETag and
-`nosniff`; missing/invalid release paths are404, never the SPA shell. Successful
-GETs use the Worker Cache API so repeated readers do not require R2 reads.
-
-Check an installed release without network writes with
-`node packages/app/scripts/publish-avatar-runtime.mjs --check`; optionally pass an
-artifact directory and `AVATAR_RUNTIME_REVISION` for an explicit revision. By
-default it requires the installed companion revision, preventing a mismatched
-web/native package pair from deploying. Gates: `node --test scripts/avatar-runtime-release.test.mjs scripts/asset-worker.test.mjs`.
-
-Initial verified release (2026-10-31): companion0.1.0 pins
-`7e44cfec2bd9e1490fb90270028fd84b12fcbc019f09709af9a1b9187b36b577`;
-436 objects including the manifest,164,467,312 bytes in the entire catalog, uploaded
-with conditional S3 writes and verified by reading each back. This is the whole
-release inventory, not an avatar's startup download. The native final packed smoke
-is recorded in Bloom's `docs/benchmarks/avatar-native-final-smoke-2026-10-31.json`.
-After deployment run `node packages/app/scripts/verify-avatar-release.mjs`: it checks
-the installed companion revision, public manifest, entry, base geometry, lazy work,
-CORS/MIME/cache, byte hashes and a true404 for a missing asset.
-
-Binary compression preserves all decoded bytes and URLs. The uploader creates
-append-only gzip sidecars for each binary under its revision and under a shared
-hashed-name namespace for the existing web `/bloom-character/assets/*.bin` URLs.
-The Worker negotiates `Accept-Encoding` (including `gzip;q=0`), sends
-`Vary: Accept-Encoding`, and separates cache keys and ETags by representation.
-A missing sidecar falls back to raw bytes without caching that fallback as gzip.
-Original files and the manifest remain unchanged. No redirects or per-asset
-manifest lookup are required.
-
-For this release,168 binary files contain159,276,364 raw bytes; their gzip(level6)
-representations total57,647,194 bytes (-63.8% for the full binary inventory, not
-an avatar startup claim). Both namespaces contain verified copies of these168
-sidecars. Real workerd HTTP tests exercise cache miss/hit, HEAD and q=0. Chromium
-on a physical Pixel8a and React Native/Hermes fetch both decoded a representative
-2,663,968-byte binary to its original SHA256 through both URL families. Its gzip
-payload is1,476,356 bytes. Native networking transparently removes the encoding
-header; the fixture recorded gzip on the actual response. Public deployment
-verification remains separate from these local HTTP tests.
-
-**Cache API encoding hazard:** `Response.clone()` and a cached response do not
-retain `encodeBody: 'manual'` in workerd. Reconstruct both the cached write and
-returned hit with this option or gzip is applied twice. Node Response mocks do
-not reveal the failure. Run
-`node --test scripts/avatar-runtime-http.test.mjs` against the installed runtime;
-`AVATAR_RUNTIME_DIR` can select an explicit built artifact for a local check.
-
-**CDN representation hazard:** the first public gzip canary returned the original
-2,663,968-byte binary with no `Content-Encoding`, while its weakened ETag still
-identified the1,476,356-byte gzip sidecar. Fresh misses served gzip; subsequent
-hits served identity in both URL families, despite workerd's miss/hit tests passing. Binary responses therefore
-also carry `Cache-Control: no-transform`, including old cache hits and raw/q=0
-responses. This is scoped to negotiated `.bin` assets: JavaScript, CSS, runtime
-entries and manifests retain normal CDN compression. Cloudflare documents that
-[compression rules respect no-transform](https://developers.cloudflare.com/rules/compression-rules/).
-The synthetic binary cache Request also explicitly selects gzip or identity and
-uses a new internal key version to avoid older transformed entries. The previous
-Request omitted Accept-Encoding; negotiation inside the production Cache API is
-a possible cause, rather than a claim established by the local emulator. Public
-URLs and stored assets remain unchanged.
-The public canary requires gzip as well as exact decoded hashes, so a raw response
-cannot silently count as the expected transfer saving.
-
-The subsequent public check exposed a narrower Cache API failure: with
-`no-transform` and explicit encoding, a hit retained `Content-Encoding: gzip`
-but returned decoded bytes (1,718,304 bytes beginning with the binary magic,
-not the237,142-byte gzip object). A fresh physical Chromium download was correct;
-the repeated wire check caught the broken representation. Binary cache entries
-now store gzip payloads without Content-Encoding, with an internal encoding
-marker removed before delivery. The public response restores gzip and manual
-encoding. The binary-v3 key bypasses the preceding entries; bytes, public URLs,
-ETags, raw fallback, and nonbinary caching are unchanged. An adversarial cache
-unit test reproduces body decoding with retained headers; workerd and public
-miss/hit checks remain required independently.
-
-**Conditional request correction:** the observed weak-ETag conditional200 was
-not attributable solely to edge behavior. Both owned R2 and cache-hit paths had
-compared `If-None-Match` with strict string equality.
-[RFC9110§13.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2) requires weak
-comparison for GET/HEAD, including entity-tag lists and `*` for an existing
-resource. The Worker now parses quoted tags (commas inside tags are not list
-separators), ignores weakness when comparing the same opaque value, and leaves
-different representations' tags distinct. Missing resources still return404;
-malformed conditions do not produce a false304. Node routing tests and actual
-workerd HTTP cover strong/weak/list/wildcard requests on both R2 misses and cache
-hits. Gzip bytes, cache keys, stored objects and public URLs are unchanged.
+El bucket `alia-avatar-runtime` de R2 no se borra desde aquí: ya no está enlazado al Worker, pero
+conserva las releases publicadas. Un binario nativo antiguo, compilado con un Bloom anterior a
+17.22, que pida `https://alia.onl/bloom-character/releases/<revision>/runtime.mjs` recibe ahora la
+aplicación (404 sin caché) y no dibuja su avatar. Los secretos de CI del uploader pueden revocarse
+en GitHub y Cloudflare cuando se confirme que ningún binario antiguo sigue en circulación.

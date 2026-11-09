@@ -51,7 +51,6 @@ export interface AliaAskProviderProps
     | 'onShare'
     | 'model'
     | 'apiUrl'
-    | 'characterRuntimeUrl'
     | 'headerMenu'
     | 'recentConversations'
   > {
