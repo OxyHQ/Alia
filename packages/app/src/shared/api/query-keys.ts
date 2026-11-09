@@ -48,6 +48,9 @@ export const queryKeys = {
     /** What one agent remembers about the caller: its files, and one file's content. */
     memory: (id: string) => ['agents', 'memory', id] as const,
     memoryFile: (id: string, path: string) => ['agents', 'memory', id, path] as const,
+    /** What one agent subscribes to, and what waits in its inbox (ADR 0026). */
+    subscriptions: (id: string) => ['agents', 'subscriptions', id] as const,
+    inbox: (id: string) => ['agents', 'inbox', id] as const,
     /** The agents that remember something about the caller. */
     remembering: ['agents', 'remembering'] as const,
     /**

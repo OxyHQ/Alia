@@ -128,6 +128,8 @@ export interface Agent {
    * not send it.
    */
   modelId?: string | null;
+  /** Minutes between heartbeats (ADR 0026); `null` or absent means the agent has none. */
+  scheduleInterval?: number | null;
   archetype?: AgentArchetype;
   archetypeConfig?: ArchetypeConfig;
   /** What its empty chat offers to send, at most {@link MAX_AGENT_STARTERS} (ADR 0020 §6). */
