@@ -5,7 +5,7 @@
     "slug": "alia",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/icon-512.png",
+    "icon": "./assets/icon-1024.png",
     "scheme": "alia",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -18,6 +18,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon-512-maskable.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png",
         "backgroundColor": "#42005C"
       },
       "googleServicesFile": "./google-services.json",
