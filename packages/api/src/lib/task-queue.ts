@@ -325,3 +325,12 @@ export async function shutdownTaskQueue(): Promise<void> {
 export function isQueueActive(): boolean {
   return redisAvailable;
 }
+
+/**
+ * Jobs by state, for the operational metrics (`lib/observability/operational-metrics.ts`). Null without
+ * Redis, where there is no queue to count.
+ */
+export async function agentSessionQueueCounts(): Promise<Record<string, number> | null> {
+  if (!queue) return null;
+  return queue.getJobCounts('waiting', 'active', 'delayed', 'failed');
+}

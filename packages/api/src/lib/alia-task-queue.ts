@@ -156,3 +156,12 @@ export async function shutdownAliaTaskQueue(): Promise<void> {
   }
   redisAvailable = false;
 }
+
+/**
+ * Jobs by state, for the operational metrics (`lib/observability/operational-metrics.ts`). Null without
+ * Redis, where there is no queue to count.
+ */
+export async function aliaTaskQueueCounts(): Promise<Record<string, number> | null> {
+  if (!queue) return null;
+  return queue.getJobCounts('waiting', 'active', 'delayed', 'failed');
+}

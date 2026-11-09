@@ -129,6 +129,16 @@ and finished from the store:
 - Redis is required in production: the API refuses to boot without `REDIS_URL`
   (`lib/boot-guards.ts`), because without it every queue runs jobs inline and a restart loses them.
 
+## Seeing that it flows
+
+`GET /internal/metrics` (authenticated as an Oxy service, like `/internal/trigger`) answers Prometheus
+text: what the process counted plus gauges read from the stores
+(`lib/observability/operational-metrics.ts`) — `alia_automation_events_stalled` and
+`alia_channel_inbound_stalled` (anything above zero for more than a minute means a sweep is not taking
+them), `alia_channel_inbound_failed_total`, `alia_agent_inbox_pending`,
+`alia_background_paused_people` and `alia_queue_jobs{queue,state}` for the agent-session and Alia-task
+queues. A queue that cannot be counted is left out so the rest still answers. Nothing scrapes it yet.
+
 ## An agent that notices things (ADR 0026)
 
 Events an agent asked to hear about land in its **inbox** (`agent_inbox_items`) instead of each starting
@@ -203,7 +213,9 @@ Oxy calls use Oxy's agent-run authorizations ([agents](./agents.md#oxy-apps-for-
 
 - `schedule` — a five-field `cron` and an IANA `timezone`. `lib/trigger-engine.ts`
   is the one elected scheduler (leader election, a 30-second reconcile, and a
-  30-minute catch-up window for an occurrence missed during a deploy). A
+  catch-up for an occurrence missed during a deploy or an outage: the latest one
+  inside a window of a quarter of the schedule's own gap, between 30 minutes and
+  6 hours — `catchUpWindowMs` — and never more than one run per schedule). A
   recurring schedule may not fire more often than every five minutes
   (`automationScheduleTooFrequent`: the closest pair of the next twelve
   occurrences is compared, so `0,2 * * * *` is refused too); a one-off is exempt.

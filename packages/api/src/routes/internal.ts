@@ -21,6 +21,10 @@ import { getDb } from '../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
 import { log } from '../lib/logger.js';
+import { exportMetrics } from '../lib/observability/metrics.js';
+import { renderOperationalMetrics } from '../lib/observability/operational-metrics.js';
+import { aliaTaskQueueCounts } from '../lib/alia-task-queue.js';
+import { agentSessionQueueCounts } from '../lib/task-queue.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 import { isInvalidToolCall } from '../lib/chat/tool-calls.js';
 
@@ -71,6 +75,30 @@ function buildTriggerSystemPrompt(
  *     instructions?: string,  // Optional custom instructions for the AI
  *   }
  */
+/**
+ * GET /internal/metrics
+ *
+ * Prometheus text: what this process counted (`lib/observability/metrics.ts`) plus the operational
+ * gauges read from the stores (`operational-metrics.ts`): stuck events and messages, waiting inboxes,
+ * pauses, queue depths. Authenticated as an Oxy service, like `/trigger`; nothing in it names a person.
+ */
+router.get('/metrics', oxyServiceAuth, async (_req, res) => {
+  try {
+    const body = await renderOperationalMetrics({
+      db: getDb(),
+      processMetrics: exportMetrics,
+      queues: [
+        { queue: 'agent-sessions', counts: agentSessionQueueCounts },
+        { queue: 'alia-tasks', counts: aliaTaskQueueCounts },
+      ],
+    });
+    res.type('text/plain; version=0.0.4').send(body);
+  } catch (error: unknown) {
+    log.general.error({ err: error }, 'Could not render the metrics');
+    res.status(500).json({ error: 'Could not render the metrics' });
+  }
+});
+
 router.post('/trigger', oxyServiceAuth, async (req, res) => {
   const startTime = Date.now();
 
