@@ -30,6 +30,9 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 }));
 vi.mock('../../lib/automation-dispatcher.js', () => ({ dispatchStructuredAutomation: vi.fn() }));
 vi.mock('../../lib/notification-service.js', () => ({ sendNotification: vi.fn() }));
+vi.mock('../../lib/agent/inbox-router.js', () => ({
+  routeEventToAgentInboxes: vi.fn(() => Promise.resolve(0)),
+}));
 vi.mock('../../lib/proactive/email-outreach.js', () => ({ handleInboxEmailEvent: vi.fn() }));
 import { OxyServer } from '@oxy.so/core/server';
 import router from '../oxy-service-events.js';

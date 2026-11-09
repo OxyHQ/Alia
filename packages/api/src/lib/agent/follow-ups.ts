@@ -19,6 +19,17 @@ import {
 } from '../structured-automation-creation.js';
 
 export const AGENT_FOLLOW_UP_ORIGIN = 'agent_follow_up';
+/** A wake-up the heartbeat scheduled to hand the agent its inbox (`heartbeat.ts`). */
+export const AGENT_HEARTBEAT_ORIGIN = 'agent_heartbeat';
+
+/**
+ * Runs an agent started on its own initiative. Their result is not posted: the agent tells the person
+ * through the budgeted `sendMessageToUser` if, and only if, it found something worth saying.
+ */
+export const AGENT_SELF_STARTED_ORIGINS: readonly string[] = [
+  AGENT_FOLLOW_UP_ORIGIN,
+  AGENT_HEARTBEAT_ORIGIN,
+];
 
 /** Follow-ups one agent may have pending for one person. */
 export const PENDING_FOLLOW_UP_LIMIT = 5;
@@ -37,23 +48,47 @@ export async function scheduleAgentFollowUp(input: {
   readonly note: string;
   readonly now?: Date;
 }): Promise<FollowUpOutcome> {
+  const note = input.note.trim();
+  if (!note) return { scheduled: false, reason: 'empty_note' };
+  return scheduleAgentWake({
+    ownerAccountId: input.ownerAccountId,
+    agentId: input.agentId,
+    at: input.at,
+    origin: AGENT_FOLLOW_UP_ORIGIN,
+    pendingLimit: PENDING_FOLLOW_UP_LIMIT,
+    objective: `Follow-up you scheduled for yourself: ${note}\nIf there is something worth telling the person, tell them with sendMessageToUser. If not, finish without messaging them.`,
+    ...(input.now ? { now: input.now } : {}),
+  });
+}
+
+/**
+ * One scheduled, one-off run of an agent for a person: the machinery a follow-up and a heartbeat share.
+ * `origin` marks it (the pending limit counts by it, and `AGENT_SELF_STARTED_ORIGINS` keeps its result
+ * from being posted).
+ */
+export async function scheduleAgentWake(input: {
+  readonly ownerAccountId: string;
+  readonly agentId: string;
+  readonly at: Date;
+  readonly objective: string;
+  readonly origin: string;
+  readonly pendingLimit: number;
+  readonly now?: Date;
+}): Promise<FollowUpOutcome> {
   const now = input.now ?? new Date();
   const lead = input.at.getTime() - now.getTime();
   if (Number.isNaN(lead)) return { scheduled: false, reason: 'invalid_time' };
   if (lead < MIN_LEAD_MS) return { scheduled: false, reason: 'too_soon' };
   if (lead > MAX_LEAD_MS) return { scheduled: false, reason: 'too_far' };
-  const note = input.note.trim();
-  if (!note) return { scheduled: false, reason: 'empty_note' };
 
   const pending = (await listAutomationDefinitions(getDb(), input.ownerAccountId)).filter(
     (automation) =>
       automation.enabled &&
-      automation.inputs.origin === AGENT_FOLLOW_UP_ORIGIN &&
+      automation.inputs.origin === input.origin &&
       automation.actorSelection.mode === 'fixed' &&
       automation.actorSelection.agentId === input.agentId,
   );
-  if (pending.length >= PENDING_FOLLOW_UP_LIMIT)
-    return { scheduled: false, reason: 'too_many_pending' };
+  if (pending.length >= input.pendingLimit) return { scheduled: false, reason: 'too_many_pending' };
 
   // One exact minute, in UTC: a five-field cron has no year, and `runOnce`
   // disables it when that occurrence is claimed, so it cannot fire again.
@@ -63,12 +98,12 @@ export async function scheduleAgentFollowUp(input: {
     const created = await createStructuredAutomation({
       ownerAccountId: input.ownerAccountId,
       definition: {
-        objective: `Follow-up you scheduled for yourself: ${note}\nIf there is something worth telling the person, tell them with sendMessageToUser. If not, finish without messaging them.`,
+        objective: input.objective,
         trigger: { type: 'schedule', cron, timezone: 'UTC' },
         actorSelection: { mode: 'fixed', agentId: input.agentId },
         executionMode: 'execute',
         actions: [],
-        inputs: { runOnce: true, origin: AGENT_FOLLOW_UP_ORIGIN },
+        inputs: { runOnce: true, origin: input.origin },
         resources: [],
         dataFlow: { sources: [], destinations: [] },
         maximumAutonomy: 'autonomous',

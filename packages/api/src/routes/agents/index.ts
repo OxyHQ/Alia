@@ -12,6 +12,7 @@ import teamsRouter from './teams.js';
 import coworkDevicesRouter from './cowork-devices.js';
 import featureGatesRouter from './feature-gates.js';
 import primaryToolsRouter from './primary-tools.js';
+import inboxRouter from './inbox.js';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.use('/', teamsRouter);
 router.use('/', coworkDevicesRouter);
 router.use('/', featureGatesRouter);
 router.use('/', primaryToolsRouter);
+router.use('/', inboxRouter);
 
 // Session-specific routes (sessions/:sid/...) before parameterized /:id routes
 router.use('/', sessionsRouter);

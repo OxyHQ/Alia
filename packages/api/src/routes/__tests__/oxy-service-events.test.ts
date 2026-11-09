@@ -21,6 +21,9 @@ vi.mock('../../lib/automation-dispatcher.js', () => ({
   dispatchStructuredAutomation: state.dispatch,
 }));
 vi.mock('../../lib/notification-service.js', () => ({ sendNotification: vi.fn() }));
+vi.mock('../../lib/agent/inbox-router.js', () => ({
+  routeEventToAgentInboxes: vi.fn(() => Promise.resolve(0)),
+}));
 vi.mock('../../lib/proactive/email-outreach.js', () => ({
   handleInboxEmailEvent: state.emailOutreach,
 }));

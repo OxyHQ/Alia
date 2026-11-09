@@ -74,3 +74,4 @@ ADR 0021 is the owner's decision of 2026-10-16 that an Oxy application's own age
 ADR 0019 applies Oxy ADR 0043 to Alia: who owns each kind of stored bytes, how every use reaches Oxy (a transactional reference outbox, nightly reconciliation, file events), why show covers move out of Syra into Alia's own Oxy files, and how private content moves through one module on Oxy stage 4c (consent read-back, large uploads, a legacy fallback). The runbook is [Alia on Oxy Files](../oxy-files.md).
 
 - [0022 — Own platform authority and original-requester tasks](./0022-first-party-platform-authority.md).
+- [0026 — An agent has an inbox and a heartbeat](./0026-agent-inbox-and-heartbeat.md).

@@ -34,6 +34,7 @@ import { reclaimOrphanedAgentSessions } from './session-handoff.js';
 import { reapAbandonedAliaRuns } from '../alia-task-reaper.js';
 import { reapStalledAutomationEvents } from '../automation-event-dispatch.js';
 import { reapStalledChannelInbound } from '../channels/inbound-sweep.js';
+import { runAgentHeartbeats } from './heartbeat.js';
 
 const REAP_EVERY_MS = 60_000;
 
@@ -112,6 +113,10 @@ async function sweep(): Promise<void> {
   // instance died (`channels/inbound-sweep.ts`).
   await reapStalledChannelInbound().catch((err: unknown) =>
     log.webhook.error({ err }, '[ChannelInbound] Reap error'),
+  );
+  // Agents with something waiting in their inbox whose heartbeat is due (`heartbeat.ts`).
+  await runAgentHeartbeats().catch((err: unknown) =>
+    log.agents.error({ err }, '[AgentHeartbeat] Error'),
   );
 }
 

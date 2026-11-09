@@ -99,7 +99,8 @@ async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> 
 }
 
 /**
- * Whether this run is a follow-up the agent scheduled for ITSELF. Its result
+ * Whether this run is one the agent started on its OWN initiative (a follow-up it scheduled, or its
+ * heartbeat waking it for its inbox). Its result
  * is not posted: the agent tells the person through the budgeted
  * `sendMessageToUser` if, and only if, it found something worth saying.
  */
@@ -109,9 +110,9 @@ async function isAgentFollowUp(automationRunId: string | null | undefined): Prom
   const { findAutomationInputsForRun } = await import(
     '../db/automation/automationDefinitionRepository.js'
   );
-  const { AGENT_FOLLOW_UP_ORIGIN } = await import('./agent/follow-ups.js');
+  const { AGENT_SELF_STARTED_ORIGINS } = await import('./agent/follow-ups.js');
   const inputs = await findAutomationInputsForRun(getDb(), automationRunId);
-  return inputs?.origin === AGENT_FOLLOW_UP_ORIGIN;
+  return typeof inputs?.origin === 'string' && AGENT_SELF_STARTED_ORIGINS.includes(inputs.origin);
 }
 
 /**

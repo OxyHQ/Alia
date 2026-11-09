@@ -18,6 +18,7 @@ import {
   type NormalizedAutomationEventInput,
 } from '../db/automation/automationDefinitionRepository.js';
 import { getDb } from '../db/index.js';
+import { routeEventToAgentInboxes } from './agent/inbox-router.js';
 import { dispatchStructuredAutomation } from './automation-dispatcher.js';
 import { getErrorMessage } from './errors/index.js';
 import { log } from './logger.js';
@@ -30,6 +31,9 @@ export const STALLED_MAX_AGE_MS = 24 * 60 * 60_000;
 const SWEEP_BATCH = 50;
 
 export async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<void> {
+  // Agents that subscribed to this event hear about it through their inbox, whether or not any
+  // automation also matches (ADR 0026). Idempotent, so a re-dispatch adds nothing.
+  await routeEventToAgentInboxes(event);
   const definitions = await matchingEventAutomations(getDb(), event);
   if (definitions.length === 0) {
     await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'processed');
