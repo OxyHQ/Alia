@@ -12,15 +12,11 @@ import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import {
   claimAutomationEvent,
-  markAutomationEventStatus,
-  matchingEventAutomations,
   type NormalizedAutomationEventInput,
 } from '../db/automation/automationDefinitionRepository.js';
-import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
-import { getErrorMessage } from '../lib/errors/index.js';
+import { dispatchEventReportingFailure } from '../lib/automation-event-dispatch.js';
 import { log } from '../lib/logger.js';
 import { oxy } from '../lib/oxy.js';
-import { sendNotification } from '../lib/notification-service.js';
 import { handleInboxEmailEvent } from '../lib/proactive/email-outreach.js';
 
 const resourceSchema = z
@@ -51,28 +47,6 @@ const publisherCatalogSchema = z.object({
   active: z.literal(true),
   catalog: z.object({ events: z.array(z.object({ type: z.string().min(1) })) }),
 });
-
-async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<void> {
-  const definitions = await matchingEventAutomations(getDb(), event);
-  if (definitions.length === 0) {
-    await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'processed');
-    return;
-  }
-  await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'matched');
-
-  for (const automation of definitions) {
-    await dispatchStructuredAutomation(automation, {
-      kind: 'event',
-      id: event.eventId,
-      occurredAt: event.occurredAt,
-      resource: event.resource,
-      appId: event.appId,
-      eventType: event.eventType,
-      data: event.data,
-    });
-  }
-  await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'processed');
-}
 
 /**
  * Fields an event may carry that Alia uses in passing and never stores.
@@ -178,24 +152,7 @@ async function acceptVerifiedEvent(
         log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
       });
     }
-    void dispatchEvent(event).catch(async (error: unknown) => {
-      log.triggers.error(
-        { err: error, eventId: event.eventId, appId: event.appId },
-        'Normalized Oxy event failed',
-      );
-      await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'failed').catch(
-        () => undefined,
-      );
-      await sendNotification({
-        userId: event.accountId,
-        type: 'oxy_service',
-        title: `${event.appId} automation failed`,
-        body: `Event processing failed: ${getErrorMessage(error).slice(0, 200)}`,
-        priority: 'normal',
-        channels: ['in_app', 'push'],
-        data: { eventId: event.eventId, appId: event.appId, eventType: event.eventType },
-      }).catch(() => undefined);
-    });
+    void dispatchEventReportingFailure(event);
     return response.status(202).json({ accepted: true, duplicate: false });
   } catch (error: unknown) {
     log.triggers.error(
