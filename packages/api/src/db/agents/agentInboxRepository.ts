@@ -5,7 +5,7 @@
  * never double-deliver an item or wake it twice in one interval.
  */
 
-import { and, asc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { agentInboxItems, agentSubscriptions } from '../schema/agent-runtime';
 import { agents } from '../schema/agents';
@@ -116,7 +116,11 @@ export async function countPendingInboxItems(db: Executor, agentId: string): Pro
   return row?.n ?? 0;
 }
 
-/** The agent's pending items, oldest first, for the owner to read. */
+/**
+ * The agent's items, NEWEST first, for the owner to read: with a cap, what is cut is the oldest, not
+ * what just arrived. (Delivery to the agent is the other way round: `takeInboxItems` hands the
+ * oldest first.)
+ */
 export async function listInboxItems(
   db: Executor,
   agentId: string,
@@ -131,7 +135,7 @@ export async function listInboxItems(
         ...(options.status ? [eq(agentInboxItems.status, options.status)] : []),
       ),
     )
-    .orderBy(asc(agentInboxItems.receivedAt))
+    .orderBy(desc(agentInboxItems.receivedAt))
     .limit(options.limit ?? 100);
   return rows as AgentInboxItemRow[];
 }

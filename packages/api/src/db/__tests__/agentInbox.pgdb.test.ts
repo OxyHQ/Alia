@@ -145,6 +145,15 @@ describe('the inbox', () => {
     expect(await countPendingInboxItems(db, id)).toBe(1);
   });
 
+  it('lists newest first and, past the limit, drops the oldest', async () => {
+    const id = await agent();
+    for (let i = 0; i < 4; i += 1) await addInboxItem(db, item(id, `inbox:l-${unique()}`, at(i)));
+    const listed = await listInboxItems(db, id, { limit: 3 });
+    expect(listed.map((row) => row.receivedAt.getTime())).toEqual(
+      [at(3), at(2), at(1)].map((d) => d.getTime()),
+    );
+  });
+
   it('keeps a summary within its cap, whole fields only', async () => {
     const id = await agent();
     await addInboxItem(db, {
