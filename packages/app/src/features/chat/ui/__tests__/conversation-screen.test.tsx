@@ -26,8 +26,10 @@ const world = vi.hoisted(() => ({
   setGhostMode: vi.fn(),
 }));
 
-const push = vi.hoisted(() => vi.fn());
-vi.mock('expo-router', () => ({ useRouter: () => ({ push }) }));
+const openAgentEditor = vi.hoisted(() => vi.fn());
+vi.mock('@/features/chat/runtime/use-open-agent-editor', () => ({
+  useOpenAgentEditor: () => openAgentEditor,
+}));
 vi.mock('@/features/notifications/ui/notifications-bell', () => ({
   NotificationsBell: () => null,
 }));
@@ -250,13 +252,13 @@ describe('the breadcrumb', () => {
     expect(header.props).toMatchObject({ participants });
   });
 
-  it('opens the agent’s page from the header avatar, and leaves Alia’s to wave', () => {
+  it('opens the agent’s editor panel from the header avatar, and leaves Alia’s to wave', () => {
     const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
     mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' });
     const header = content().chrome({ participants, hasMessages: true })
       .header as React.ReactElement<{ onPress?: () => void }>;
     header.props.onPress?.();
-    expect(push).toHaveBeenCalledWith({ pathname: '/(app)/agents/[id]', params: { id: 'a1' } });
+    expect(openAgentEditor).toHaveBeenCalledWith('a1');
 
     mount({ conversationId: 'c1' });
     const alia = content().chrome({ participants, hasMessages: true })

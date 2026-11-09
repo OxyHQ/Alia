@@ -13,21 +13,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  */
 
 const getRequest = vi.hoisted(() => vi.fn(async () => ({ data: {} })));
-const loadFiles = vi.hoisted(() => vi.fn(async () => undefined));
 const auth = vi.hoisted(() => ({ isAuthenticated: false }));
 
 vi.mock('@/shared/api/client', () => ({
   default: { get: getRequest, post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => auth }));
-vi.mock('@/features/library/runtime/library-store', () => {
-  const state = { files: [], loadFiles };
-  return { useLibraryStore: (select: (s: typeof state) => unknown) => select(state) };
-});
 
-const { useAttachableSkills, useGrantableConnectors, useKnowledgeLibrary } = await import(
-  '../use-agent-editor-options'
-);
 const { useAgentThreads } = await import('../use-agent-threads');
 const { useAgentTeams } = await import('../use-agent-teams');
 
@@ -59,12 +51,9 @@ afterEach(() => {
   if (renderer !== null) act(() => renderer?.unmount());
   renderer = null;
   getRequest.mockClear();
-  loadFiles.mockClear();
 });
 
 const hooks: [string, () => unknown][] = [
-  ['useAttachableSkills', () => useAttachableSkills()],
-  ['useGrantableConnectors', () => useGrantableConnectors('agent-1')],
   ['useAgentThreads', () => useAgentThreads('agent-1')],
   ['useAgentTeams', () => useAgentTeams()],
 ];
@@ -83,16 +72,4 @@ describe('signed out, the account’s own lists are not asked for', () => {
       expect(getRequest).toHaveBeenCalled();
     });
   }
-
-  it('useKnowledgeLibrary loads the library only for an account', async () => {
-    auth.isAuthenticated = false;
-    await mount(() => useKnowledgeLibrary());
-    expect(loadFiles).not.toHaveBeenCalled();
-    act(() => renderer?.unmount());
-    renderer = null;
-
-    auth.isAuthenticated = true;
-    await mount(() => useKnowledgeLibrary());
-    expect(loadFiles).toHaveBeenCalledTimes(1);
-  });
 });

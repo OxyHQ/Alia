@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { deliverMarkdownFile, deliverShareLink } from '@/features/chat/runtime/conversation-share';
+import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
 import { queryKeys } from '@/shared/api/query-keys';
@@ -158,10 +159,10 @@ export function ConversationActions({
       useUIStore.getState().openAgentTerminal(terminalAgentId, pathname);
   }, [terminalAgentId, pathname]);
 
+  const openAgentEditor = useOpenAgentEditor();
   const handleEditAgent = useCallback(() => {
-    if (agentId !== undefined)
-      router.push({ pathname: '/(app)/agents/edit/[id]', params: { id: agentId } });
-  }, [agentId, router]);
+    if (agentId !== undefined) openAgentEditor(agentId);
+  }, [agentId, openAgentEditor]);
 
   return (
     <ChatHeaderActions

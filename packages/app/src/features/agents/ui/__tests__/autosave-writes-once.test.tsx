@@ -364,7 +364,9 @@ vi.mock('@/features/library/runtime/library-store', () => {
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const { default: EditAgentScreen } = await import('../[id]');
+const { AgentEditorLoader } = await import('../edit/agent-editor-loader');
+const EditAgentScreen = () =>
+  React.createElement(AgentEditorLoader, { agentId: 'agent-1', onBackToList: () => undefined });
 
 /**
  * The id the screen reuses, read off its own first pending toast.
@@ -505,16 +507,22 @@ async function letTimePass(seconds: number): Promise<void> {
   }
 }
 
-/** The system-prompt box: the one editable field on the screen's main column. */
+/**
+ * The description field of Bloom's `AgentCreator`, the editable field the editor's body holds. It
+ * is routed to the agent row's `description`, the same draft write as any other field of it.
+ */
 function systemPromptBox(renderer: ReactTestRenderer): {
   onChangeText: (text: string) => void;
 } {
-  // Bloom's `Textarea`, like the other multiline fields on the screen; the
-  // testID is how this one stays findable among them.
-  const boxes = renderer.root.findAllByType('Textarea' as unknown as React.ComponentType);
-  const box = boxes.find((node) => node.props.testID === 'agent-system-prompt');
-  if (box === undefined) throw new Error('the system prompt box is not on the screen');
-  return box.props as { onChangeText: (text: string) => void };
+  const creator = renderer.root.findAllByType('AgentCreator' as unknown as React.ComponentType)[0];
+  if (creator === undefined) throw new Error('the agent creator is not on the screen');
+  const props = creator.props as {
+    agent: Record<string, unknown>;
+    onChange: (next: Record<string, unknown>) => void;
+  };
+  return {
+    onChangeText: (text) => props.onChange({ ...props.agent, description: text }),
+  };
 }
 
 /** What the screen sent, as the route would have received it. */
@@ -571,7 +579,7 @@ describe('a burst of typing is one write', () => {
       `the editor kept writing with nobody typing: ${patchBodies().length} PATCHes`,
     ).toHaveBeenCalledTimes(1);
 
-    expect(patchBodies()[0].systemPrompt).toBe('you a');
+    expect(patchBodies()[0].description).toBe('you a');
     await act(async () => {
       renderer.unmount();
     });

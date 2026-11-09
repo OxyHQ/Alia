@@ -357,7 +357,12 @@ function isHost(node: ReactTestInstance, name: string): boolean {
   return node.type === name;
 }
 
-const { default: EditAgentScreen } = await import('../[id]');
+const { AgentEditorLoader } = await import('../edit/agent-editor-loader');
+const EditAgentScreen = () =>
+  React.createElement(AgentEditorLoader, {
+    agentId: 'agent-1',
+    onBackToList: () => replace('/(app)/agents'),
+  });
 const { useAgent } = await import('@/features/agents/runtime/use-agents');
 
 const AGENT_URL = '/agents/agent-1';
@@ -457,14 +462,8 @@ function buttonLabelled(root: ReactTestInstance, label: string): ReactTestInstan
 }
 
 function editorIsOpen(root: ReactTestInstance): boolean {
-  // The system-prompt box is the one field that is always on the editor's
-  // main column, whatever tab or archetype is selected. It is Bloom's
-  // `Textarea`, found by its testID rather than by being the only Textarea on
-  // the screen.
-  return (
-    root.findAll((node) => isHost(node, 'Textarea') && node.props.testID === 'agent-system-prompt')
-      .length > 0
-  );
+  // Bloom's `AgentCreator` is the editor's body once an agent has loaded.
+  return root.findAll((node) => isHost(node, 'AgentCreator')).length > 0;
 }
 
 beforeEach(() => {

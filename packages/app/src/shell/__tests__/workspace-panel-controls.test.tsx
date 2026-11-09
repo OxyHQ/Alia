@@ -92,6 +92,7 @@ vi.mock('@/features/chat/ui/workspace/agent-terminal', async () => {
   return { AgentTerminal: host('AgentTerminal') };
 });
 vi.mock('@/features/chat/ui/workspace/agent-panel', () => ({ AgentPanel: () => null }));
+vi.mock('@/features/agents/ui/agent-editor-panel', () => ({ AgentEditorPanel: () => null }));
 vi.mock('@alia.onl/sdk', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
   return { CanvasComponent: host('CanvasPreview'), ThoughtPanel: () => null };

@@ -3,7 +3,6 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import { Stack } from 'expo-router';
 import { View } from 'react-native';
 
 /**
@@ -28,7 +27,6 @@ export function AgentEditorLoadFailed({
 
   return (
     <View className="flex-1 items-center justify-center gap-3 p-6">
-      <Stack.Screen options={{ headerBackVisible: true }} />
       <Text className="text-center text-base font-semibold leading-[22px] text-foreground">
         {notFound ? t('agents.notFound') : t('agents.loadFailed')}
       </Text>
@@ -69,7 +67,6 @@ export function AgentEditorLoading() {
   const { t } = useTranslation();
   return (
     <View className="flex-1 items-center justify-center">
-      <Stack.Screen options={{ headerBackVisible: true }} />
       <Loading variant="spinner" text={t('common.loading')} />
     </View>
   );

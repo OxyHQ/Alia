@@ -60,6 +60,7 @@ vi.mock('@oxy.so/bloom/loading', async () => {
 });
 for (const icon of [
   'RiCodeSLine',
+  'RiEditLine',
   'RiGalleryLine',
   'RiLightbulbLine',
   'RiQuillPenLine',
@@ -75,6 +76,7 @@ vi.mock('@/features/chat/ui/workspace/agent-terminal', async () => {
   return { AgentTerminal: host('AgentTerminal') };
 });
 vi.mock('@/features/chat/ui/workspace/agent-panel', () => ({ AgentPanel: () => null }));
+vi.mock('@/features/agents/ui/agent-editor-panel', () => ({ AgentEditorPanel: () => null }));
 vi.mock('@alia.onl/sdk', () => ({ CanvasComponent: () => null, ThoughtPanel: () => null }));
 vi.mock('@/features/chat/ui/workspace/credits-limits', () => ({ CreditsLimits: () => null }));
 vi.mock('@/features/library/runtime/library-store', () => ({

@@ -2098,6 +2098,8 @@
     "powerLevel": "Power"
   },
   "panel": {
+    "editor": "Edit agent",
+    "editorProfile": "Profile",
     "terminal": "Terminal",
     "resize": "Resize panel",
     "code": "Canvas",

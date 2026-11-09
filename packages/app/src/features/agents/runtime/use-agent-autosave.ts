@@ -41,7 +41,7 @@ const SAVE_DELAY_MS = 1000;
  * A DRAFT, not a cache of the record: the moment somebody types, this and the
  * server's copy disagree, and the whole point of the screen is that this one
  * wins until it is written. Which is why nothing re-seeds it — the editor is
- * keyed on the agent, see `app/(app)/agents/edit/[id].tsx`.
+ * keyed on the agent, see `ui/agent-editor-panel.tsx`.
  *
  * `price` is the string the field holds rather than the number the API takes:
  * `"12."` is a legitimate thing to be halfway through typing and is not a
@@ -134,7 +134,7 @@ function useDebouncedWrite<T>(write: (next: T) => Promise<void>) {
  * `editDraft` is the ONLY way the draft changes, and each call schedules its
  * own write. Nothing observes state in order to write, so no amount of
  * re-rendering can produce a request — which is the property
- * `app/(app)/agents/edit/__tests__/autosave-writes-once.test.tsx` pins.
+ * `ui/__tests__/autosave-writes-once.test.tsx` pins.
  *
  * The merged draft is computed at the edit and handed to the timer, so the
  * write carries what was on screen when it was scheduled rather than reading

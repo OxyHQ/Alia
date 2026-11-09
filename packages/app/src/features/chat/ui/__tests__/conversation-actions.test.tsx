@@ -84,6 +84,9 @@ vi.mock('@/features/chat/runtime/conversation-share', () => ({
     return world.linkOutcome;
   },
 }));
+vi.mock('@/features/chat/runtime/use-open-agent-editor', () => ({
+  useOpenAgentEditor: () => vi.fn(),
+}));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
   useUIStore: Object.assign((select: (s: typeof world.ui) => unknown) => select(world.ui), {
     getState: () => world.ui,

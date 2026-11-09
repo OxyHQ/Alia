@@ -83,7 +83,6 @@ vi.mock('@oxy.so/bloom/textarea', async () => hosts('Textarea'));
 vi.mock('@oxy.so/bloom/typography', async () => hosts('Text', 'Muted'));
 
 import { AgentHeaderActions } from '@/features/agents/ui/detail/agent-header-actions';
-import { ArchetypeConfigSection } from '@/features/agents/ui/edit/archetype-config';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -148,48 +147,5 @@ describe('the agent header', () => {
     const root = render(<AgentHeaderActions {...props} />);
     expect(all(root, 'DropdownMenuItem')).toHaveLength(0);
     expect(texts(root).join(' ')).not.toMatch(/report|bookmark/i);
-  });
-});
-
-describe('an agent’s kind-specific settings', () => {
-  it('for a status update: the template and the comparison, no schedule and no delivery channels', () => {
-    const onChange = vi.fn();
-    const root = render(
-      <ArchetypeConfigSection archetype="status_update" config={{}} onChange={onChange} />,
-    );
-    const words = texts(root).join(' ');
-    expect(words).toContain('Report template');
-    expect(words).toContain('Compare with previous report');
-    // Stored in `archetypeConfig` and read by nothing on the server.
-    expect(words).not.toMatch(/Schedule|Daily|Interval|Delivery/);
-    expect(all(root, 'SegmentedControl')).toHaveLength(0);
-    expect(all(root, 'Chip')).toHaveLength(0);
-  });
-
-  it('for a router: channels and rules, no escalation timeout', () => {
-    const root = render(
-      <ArchetypeConfigSection
-        archetype="task_router"
-        config={{
-          routingRules: [
-            {
-              condition: 'billing',
-              priority: 'high',
-              assignTo: { type: 'team', id: 't1', name: 'Finance' },
-            },
-          ],
-        }}
-        onChange={vi.fn()}
-      />,
-    );
-    const words = texts(root).join(' ');
-    expect(words).toContain('Inbound channels');
-    expect(words).toContain('Routing rules');
-    expect(words).not.toMatch(/Escalation/);
-    // The two inputs left are the rule's condition and its target.
-    expect(all(root, 'TextFieldInput').map((input) => input.props.value)).toEqual([
-      'billing',
-      'Finance',
-    ]);
   });
 });

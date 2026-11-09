@@ -55,7 +55,7 @@ const ALLOWED: Record<string, readonly string[]> = {
   ],
   settings: ['billing', 'chat', 'connections', 'library', 'local-models', 'memory', 'skills'],
   automations: ['agents'],
-  agents: ['chat', 'library'],
+  agents: ['chat'],
   chat: [
     'billing',
     'connections',

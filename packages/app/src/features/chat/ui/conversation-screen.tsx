@@ -8,11 +8,11 @@ import {
 import { useConversation } from '@alia.onl/sdk/runtime';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services/ui/client';
-import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';
 import { useStore } from '@/features/chat/runtime/global-store';
+import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useAppVoiceOptions } from '@/features/chat/runtime/use-app-voice-options';
 import { useCreditWarnings } from '@/features/chat/runtime/use-credit-warnings';
@@ -87,7 +87,6 @@ export const ConversationScreen = ({
   const { isAuthenticated, signIn } = useAuth();
   const { isDarkColorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const isFocused = useScreenOnShow();
   const { data: conversationDetails } = useConversation(conversationId);
 
@@ -153,13 +152,11 @@ export const ConversationScreen = ({
   const title = conversationDetails?.title || agentName;
   // The header is the conversation's participants — its lead and the agents that joined — drawn
   // by the SDK; the app draws no title of its own there.
-  // Pressing the participants opens the agent's page; Alia has none, so her avatar just waves.
+  // Pressing the participants opens the agent's editor; Alia has none, so her avatar just waves.
+  const openAgentEditor = useOpenAgentEditor();
   const openAgent = useMemo(
-    () =>
-      agentId === undefined
-        ? undefined
-        : () => router.push({ pathname: '/(app)/agents/[id]', params: { id: agentId } }),
-    [agentId, router],
+    () => (agentId === undefined ? undefined : () => openAgentEditor(agentId)),
+    [agentId, openAgentEditor],
   );
   const chrome = useCallback(
     (chat: AliaChatState): AliaChatChrome => ({

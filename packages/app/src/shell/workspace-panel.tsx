@@ -1,3 +1,4 @@
+import { AgentEditorPanel } from '@/features/agents/ui/agent-editor-panel';
 import { AgentPanel } from '@/features/chat/ui/workspace/agent-panel';
 import { CreditsLimits } from '@/features/chat/ui/workspace/credits-limits';
 import { CanvasComponent, type OutputActions, ThoughtPanel } from '@alia.onl/sdk';
@@ -24,6 +25,7 @@ import {
 } from '@oxy.so/bloom/ai-chat';
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { RiCodeSLine } from '@oxy.so/bloom/icons/RiCodeSLine';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
 import { RiLightbulbLine } from '@oxy.so/bloom/icons/RiLightbulbLine';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
@@ -65,6 +67,7 @@ const PANEL_ICON: Record<WorkspacePanelKind, BloomIconComponent> = {
   thought: RiLightbulbLine,
   credits: RiQuillPenLine,
   agent: RiRobot2Line,
+  editor: RiEditLine,
 };
 
 /** The label and glyph the shell shows for the panel (drawer header, open button). */
@@ -94,12 +97,15 @@ export function WorkspacePanel({ width }: { width: number | '100%' }) {
     case 'thought':
     case 'credits':
     case 'agent':
+    case 'editor':
       return (
         <View className="h-full min-h-0" style={{ width }}>
           {kind === 'thought' ? (
             <ThoughtPanelSlot />
           ) : kind === 'credits' ? (
             <CreditsLimits />
+          ) : kind === 'editor' ? (
+            <AgentEditorPanel />
           ) : (
             <AgentPanel />
           )}
