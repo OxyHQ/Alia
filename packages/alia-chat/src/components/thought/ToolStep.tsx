@@ -9,7 +9,6 @@ import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted } from '@oxy.so/bloom/typography';
-import * as Clipboard from 'expo-clipboard';
 import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -46,10 +45,6 @@ export interface ToolStepProps {
 
 /** How many domain chips a search step shows before it counts the rest. */
 const CHIP_LIMIT = 3;
-
-async function copy(code: string) {
-  await Clipboard.setStringAsync(code);
-}
 
 export function ToolStep({
   title,
@@ -108,7 +103,6 @@ export function ToolStep({
                   filename={t('thought.input')}
                   lineNumbers={false}
                   wrap
-                  onCopy={copy}
                   labels={labels}
                 />
               ) : null}
@@ -118,7 +112,6 @@ export function ToolStep({
                   filename={t('thought.output')}
                   lineNumbers={false}
                   wrap
-                  onCopy={copy}
                   labels={labels}
                 />
               ) : null}

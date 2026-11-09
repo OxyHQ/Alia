@@ -7,6 +7,7 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
 import { EmptyState } from '@/shared/stickers/empty-state';
+import { useWindowBreakpoint } from '@oxy.so/bloom/hooks';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -15,7 +16,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useNewAgentConversation } from '@/features/agents/runtime/use-new-agent-conversation';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { RefreshControl, useWindowDimensions, View } from 'react-native';
+import { RefreshControl, View } from 'react-native';
 
 /**
  * The agent catalogue. Plain content on the layout's surface: the layout draws
@@ -30,7 +31,7 @@ export default function AgentsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
   // Rows sit two to a line where there is room (Bloom's `sm` breakpoint), one on a phone.
-  const columns = useWindowDimensions().width >= 640 ? 2 : 1;
+  const columns = useWindowBreakpoint() === 'base' ? 1 : 2;
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
