@@ -1254,6 +1254,7 @@
     "open": "Open"
   },
   "agents": {
+    "createViaChat": "I'd like to create a new agent. Can you help me?",
     "byAuthor": "by {{name}}",
     "viewAll": "View all",
     "title": "Agents",

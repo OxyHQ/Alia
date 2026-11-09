@@ -15,6 +15,7 @@ import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
+import { useNewAgentConversation } from '@/features/agents/runtime/use-new-agent-conversation';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, useWindowDimensions, View } from 'react-native';
@@ -67,9 +68,7 @@ export default function AgentsScreen() {
     [router],
   );
 
-  const handleCreateAgent = useCallback(() => {
-    router.push('/(app)/agents/create');
-  }, [router]);
+  const handleCreateAgent = useNewAgentConversation();
   const handleTeams = useCallback(() => router.push('/(app)/agents/teams'), [router]);
 
   const categories = useMemo(() => {
