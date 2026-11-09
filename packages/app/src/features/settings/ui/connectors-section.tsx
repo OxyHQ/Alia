@@ -1,4 +1,5 @@
 import { errorStatus } from '@/shared/api/error-utils';
+import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import {
   useMcpServers,
   type InstalledMcpServer,
@@ -20,7 +21,6 @@ import {
   type SettingsServerTone,
 } from '@oxy.so/bloom/settings-modal';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
@@ -536,11 +536,7 @@ export function ConnectorsSection() {
     return (
       <View className="w-full gap-6">
         <SettingsSection label={t('connectors.installed')} inset={8}>
-          <SettingsCard>
-            <SettingsRow label={t('common.loading')}>
-              <Skeleton.Box width={202} height={32} borderRadius={10} />
-            </SettingsRow>
-          </SettingsCard>
+          <SettingsRowsSkeleton rows={3} />
         </SettingsSection>
       </View>
     );

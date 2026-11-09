@@ -395,14 +395,11 @@ describe('the sidebar list', () => {
     expect(renderer.root.findAllByType('SkeletonBox' as any).length).toBeGreaterThan(0);
   });
 
-  it("shows Bloom's spinner, not a line of text, while the next page of chats loads", async () => {
+  it('shows two more ghost rows, not a spinner or a line of text, while the next page of chats loads', async () => {
     state.isFetchingNextPage = true;
     await mount();
-    const spinners = renderer.root.findAll((node) => is(node, 'Loading'));
-    expect(spinners).toHaveLength(1);
-    expect(spinners[0]!.props.variant).toBe('spinner');
-    // What it says is its accessible name.
-    expect(spinners[0]!.props.accessibilityLabel).toBe('sidebar.loadingConversations');
+    expect(renderer.root.findAll((node) => is(node, 'Loading'))).toHaveLength(0);
+    expect(renderer.root.findAllByType('SkeletonBox' as any)).toHaveLength(2);
   });
 
   it('lists the agents as contacts in the flat list, each opening its thread by handle', async () => {

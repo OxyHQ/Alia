@@ -32,7 +32,7 @@ import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiSideBarLine } from '@oxy.so/bloom/icons/RiSideBarLine';
 import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { LinesSkeleton } from '@/shared/ui/skeletons';
 import { alert, confirm, type AlertButton } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
@@ -237,7 +237,7 @@ function CodePanel({
    */
   const second = showTerminal ? (
     <View className="min-h-0 flex-1" testID="agent-terminal-slot">
-      <Suspense fallback={<Loading />}>
+      <Suspense fallback={<LinesSkeleton className="bg-[#0d0d0d]" />}>
         <AgentTerminal agentId={terminalAgentId} />
       </Suspense>
     </View>

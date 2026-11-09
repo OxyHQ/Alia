@@ -135,7 +135,10 @@ vi.mock('@oxy.so/bloom/task-list', async () => ({ TaskList: await stub('TaskList
 vi.mock('@oxy.so/bloom/web-search', async () => ({ WebSearch: await stub('WebSearch')() }));
 vi.mock('@oxy.so/bloom/agent-thinking', async () => ({ AgentThinking: await stub('Thinking')() }));
 vi.mock('@oxy.so/bloom/loading', async () => ({ Loading: await stub('Loading')() }));
-vi.mock('@oxy.so/bloom/skeleton', async () => ({ Box: await stub('Skeleton')() }));
+vi.mock('@oxy.so/bloom/skeleton', async () => ({
+  Box: await stub('Skeleton')(),
+  Region: await stub('SkeletonRegion')(),
+}));
 vi.mock('@oxy.so/bloom/typography', async () => ({ Text: await stub('Text')() }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { success: () => {}, error: () => {} } }));
 vi.mock('../../../src/lib/work-log', () => ({

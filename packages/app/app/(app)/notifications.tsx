@@ -17,7 +17,7 @@ import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { RiNotificationOffLine } from '@oxy.so/bloom/icons/RiNotificationOffLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { Item } from '@oxy.so/bloom/item';
-import { Loading } from '@oxy.so/bloom/loading';
+import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import type { AccentTone } from '@oxy.so/bloom/theme';
@@ -191,7 +191,7 @@ export default function NotificationsScreen() {
 
       {/* Notification feed */}
       {isLoading ? (
-        <Loading text={t('common.loading')} />
+        <ListRowsSkeleton rows={5} mark="tile" />
       ) : notifications.length === 0 ? (
         <EmptyState
           icon={RiNotification3Line}

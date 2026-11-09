@@ -8,7 +8,6 @@
 
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import type { AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
-import { Loading } from '@oxy.so/bloom/loading';
 import { Text } from '@oxy.so/bloom/typography';
 import { useMemo, useRef } from 'react';
 import { View } from 'react-native';
@@ -20,6 +19,7 @@ import {
   useSharedConversation,
 } from '../runtime/sharing';
 import { AliaThread } from './thread/AliaThread';
+import { ThreadSkeleton } from './thread/ThreadSkeleton';
 
 export interface AliaSharedConversationProps {
   /** The share link's token. */
@@ -38,8 +38,8 @@ function SharedThread({ token }: { token: string }) {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center">
-        <Loading />
+      <View className="w-full max-w-4xl flex-1 self-center px-4">
+        <ThreadSkeleton />
       </View>
     );
   }

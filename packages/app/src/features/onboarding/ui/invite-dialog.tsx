@@ -15,7 +15,8 @@ import { RiHandHeartLine } from '@oxy.so/bloom/icons/RiHandHeartLine';
 import { RiShareLine } from '@oxy.so/bloom/icons/RiShareLine';
 import { RiUserHeartLine } from '@oxy.so/bloom/icons/RiUserHeartLine';
 import { InputGroup, InputGroupAddon } from '@oxy.so/bloom/input-group';
-import { Loading } from '@oxy.so/bloom/loading';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import {
   SegmentedControl,
   SegmentedControlItem,
@@ -131,27 +132,31 @@ function ShareTab() {
 
   return (
     <View className="gap-4">
-      <InputGroup>
-        <TextFieldInput
-          label={t('dialogs.invite.linkLabel')}
-          value={inviteUrl}
-          placeholder={t('common.loading')}
-          editable={false}
-          selectTextOnFocus
-        />
-        <InputGroupAddon noPadding>
-          <Button
-            size="sm"
-            appearance="subtle"
-            tone="neutral"
-            leadingIcon={RiFileCopyLine}
-            onPress={copy}
-            disabled={!inviteUrl}
-          >
-            {t(copied ? 'dialogs.invite.copied' : 'dialogs.invite.copy')}
-          </Button>
-        </InputGroupAddon>
-      </InputGroup>
+      {/* The link is a field's height of placeholder until it is read; the buttons wait disabled. */}
+      {inviteUrl ? (
+        <InputGroup>
+          <TextFieldInput
+            label={t('dialogs.invite.linkLabel')}
+            value={inviteUrl}
+            editable={false}
+            selectTextOnFocus
+          />
+          <InputGroupAddon noPadding>
+            <Button
+              size="sm"
+              appearance="subtle"
+              tone="neutral"
+              leadingIcon={RiFileCopyLine}
+              onPress={copy}
+              disabled={!inviteUrl}
+            >
+              {t(copied ? 'dialogs.invite.copied' : 'dialogs.invite.copy')}
+            </Button>
+          </InputGroupAddon>
+        </InputGroup>
+      ) : (
+        <Skeleton.Box width="100%" height={40} borderRadius={10} />
+      )}
       <ChipRow role="group" accessibilityLabel={t('dialogs.invite.shareOn')}>
         {SHARE_TARGETS.map((target) => (
           <Chip
@@ -233,7 +238,7 @@ function HistoryTab() {
   const { t } = useTranslation();
   const { data, isLoading } = useReferralHistory();
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <ListRowsSkeleton rows={3} lines={1} />;
   if (!data?.referrals?.length) {
     return (
       <EmptyState

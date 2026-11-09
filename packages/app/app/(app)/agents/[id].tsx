@@ -5,7 +5,7 @@ import { useAgent } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
-import { Loading } from '@oxy.so/bloom/loading';
+import { DetailSkeleton } from '@/shared/ui/skeletons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
@@ -33,9 +33,9 @@ export default function AgentDetailScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center">
+      <View className="flex-1">
         <Stack.Screen options={{ headerBackVisible: true }} />
-        <Loading variant="spinner" text={t('common.loading')} />
+        <DetailSkeleton />
       </View>
     );
   }

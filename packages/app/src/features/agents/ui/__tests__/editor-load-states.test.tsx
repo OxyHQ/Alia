@@ -242,11 +242,14 @@ vi.mock('@oxy.so/bloom/divider', async () => {
     Divider: (props: Record<string, unknown>) => ReactModule.createElement('Divider', props),
   };
 });
-vi.mock('@oxy.so/bloom/loading', async () => {
+vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
-  // The label as a Text node, so "what the screen says" reads it like any other.
+  const host = (name: string) => (props: Record<string, unknown>) =>
+    ReactModule.createElement(name, props);
   return {
-    Loading: ({ text }: { text?: string }) => ReactModule.createElement('Text', null, text),
+    Region: host('SkeletonRegion'),
+    Circle: host('SkeletonShape'),
+    Box: host('SkeletonShape'),
   };
 });
 vi.mock('@oxy.so/bloom/segmented-control', async () => {
@@ -486,13 +489,13 @@ afterEach(() => {
 });
 
 describe('before the session can sign the request', () => {
-  it('asks for nothing, shows Loading, and fetches exactly once when the token lands', async () => {
+  it('asks for nothing, shows the placeholder, and fetches exactly once when the token lands', async () => {
     session.isPrivateApiPending = true;
     const { renderer: screen, client } = await renderScreen();
     await letTimePass(2);
 
     expect(agentRequests(), 'a request before the bearer exists is the 404 itself').toBe(0);
-    expect(texts(screen.root)).toContain('common.loading');
+    expect(screen.root.findAllByType('SkeletonRegion' as never)).toHaveLength(1);
     expect(editorIsOpen(screen.root)).toBe(false);
 
     // The session hands over its token. Nothing else changes.

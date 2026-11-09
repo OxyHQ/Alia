@@ -2,7 +2,7 @@ import { useAgentTeams } from '@/features/agents/runtime/use-agent-teams';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Muted } from '@oxy.so/bloom/typography';
 import { Stack } from 'expo-router';
@@ -23,7 +23,7 @@ export default function AgentTeamsScreen() {
       <ScrollView contentContainerClassName="gap-4 p-4">
         <Muted>{t('pages.agents.teamsDescription')}</Muted>
         {isLoading ? (
-          <Loading variant="spinner" />
+          <ListRowsSkeleton rows={4} mark="tile" />
         ) : teams.length === 0 ? (
           <EmptyState
             icon={RiTeamLine}

@@ -11,7 +11,7 @@ import { Chip } from '@oxy.so/bloom/chip';
 import { RiArrowDownLine } from '@oxy.so/bloom/icons/RiArrowDownLine';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import {
@@ -201,9 +201,7 @@ export function BrowserLiveView({
             resizeMode="contain"
           />
         ) : (
-          <View className="flex-1 items-center justify-center">
-            <Loading variant="spinner" text={t('agents.computer.browser.loading')} />
-          </View>
+          <Skeleton.Box width="100%" height="100%" borderRadius={12} />
         )}
       </Pressable>
       {screenshotFailed ? <Muted>{t('agents.computer.browser.disconnected')}</Muted> : null}

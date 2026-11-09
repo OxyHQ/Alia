@@ -5,7 +5,7 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { Divider } from '@oxy.so/bloom/divider';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiHistoryLine } from '@oxy.so/bloom/icons/RiHistoryLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
@@ -47,9 +47,7 @@ export default function SessionActivityScreen() {
 
       {/* Activity timeline */}
       {activity.isPending ? (
-        <View className="flex-1 items-center justify-center">
-          <Loading variant="spinner" />
-        </View>
+        <ListRowsSkeleton rows={6} mark="tile" />
       ) : (
         <FlatList
           data={entries}

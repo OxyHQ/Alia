@@ -22,7 +22,7 @@ import {
 import type { Agent } from '@/shared/contracts/agents';
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { queryKeys } from '@/shared/api/query-keys';
-import { ALIA_AVATAR, AliaAvatar, readAgentCharacter } from '@alia.onl/sdk';
+import { AliaAvatar, readAgentCharacter } from '@alia.onl/sdk';
 import type { Conversation } from '@alia.onl/sdk/model';
 import {
   useConversationStore,
@@ -43,7 +43,6 @@ import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { ConversationSidebar } from '@oxy.so/bloom/conversation-sidebar';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
-import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
@@ -52,14 +51,12 @@ import { RiMicLine } from '@oxy.so/bloom/icons/RiMicLine';
 import { RiSettings4Line } from '@oxy.so/bloom/icons/RiSettings4Line';
 import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
-import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import type {
   SidebarNavItem,
   SidebarTree,
   SidebarTreeFolder,
   SidebarTreeItem,
 } from '@oxy.so/bloom/sidebar';
-import { Loading } from '@oxy.so/bloom/loading';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { ProfileButton, useAuth, useOxy } from '@oxy.so/services/ui/client';
@@ -629,14 +626,11 @@ function useSidebarProps() {
     }
   }, [searchQuery, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
-  /** While the first page loads, ghost rows; while a later one does, a line saying so. */
+  /** While the first page loads, ghost rows; while a later one does, two more at the foot. */
   const content = isLoading ? (
     <HistorySkeleton />
   ) : isFetchingNextPage ? (
-    // Bloom's spinner; what it is for is the accessible name, not a line of text in the list.
-    <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-      <Loading variant="spinner" accessibilityLabel={t('sidebar.loadingConversations')} />
-    </View>
+    <HistorySkeleton rows={2} />
   ) : undefined;
 
   const selectedAgentKey = selectedTreeItemForPath(pathname, myAgents);
@@ -723,10 +717,10 @@ function selectedTreeItemForPath(pathname: string, agents?: Agent[]): string | u
 }
 
 /** Ghost rows while the first page of history loads; uneven, so they read as titles. */
-function HistorySkeleton() {
+function HistorySkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <View style={{ gap: 12, paddingHorizontal: 8, paddingVertical: 4 }}>
-      {Array.from({ length: 6 }, (_, i) => (
+      {Array.from({ length: rows }, (_, i) => (
         <Skeleton.Box key={i} height={14} borderRadius={4} width={`${60 + (i % 3) * 15}%`} />
       ))}
     </View>

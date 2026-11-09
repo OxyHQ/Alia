@@ -248,11 +248,14 @@ vi.mock('@oxy.so/bloom/divider', async () => {
     Divider: (props: Record<string, unknown>) => ReactModule.createElement('Divider', props),
   };
 });
-vi.mock('@oxy.so/bloom/loading', async () => {
+vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
-  // The label as a Text node, so "what the screen says" reads it like any other.
+  const host = (name: string) => (props: Record<string, unknown>) =>
+    ReactModule.createElement(name, props);
   return {
-    Loading: ({ text }: { text?: string }) => ReactModule.createElement('Text', null, text),
+    Region: host('SkeletonRegion'),
+    Circle: host('SkeletonShape'),
+    Box: host('SkeletonShape'),
   };
 });
 vi.mock('@oxy.so/bloom/segmented-control', async () => {

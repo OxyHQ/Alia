@@ -3,11 +3,10 @@ import { createApiSocketSession } from '@/shared/api/socket-session';
 import apiClient from '@/shared/api/client';
 import i18n from '@/shared/i18n';
 import config from '@/shared/platform/config';
-import { useTranslation } from '@/shared/i18n/use-translation';
-import { useColorScheme } from '@/shared/platform/useColorScheme';
+import { LinesSkeleton } from '@/shared/ui/skeletons';
 import { Text } from '@oxy.so/bloom/typography';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { io as socketIO, type Socket } from 'socket.io-client';
 import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 interface AgentTerminalProps {
@@ -73,8 +72,6 @@ export function AgentTerminal({ agentId }: AgentTerminalProps) {
 // ---------------------------------------------------------------------------
 
 function WebTerminal({ agentId }: AgentTerminalProps) {
-  const { colors } = useColorScheme();
-  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<any>(null);
   const fitAddonRef = useRef<any>(null);
@@ -268,12 +265,7 @@ function WebTerminal({ agentId }: AgentTerminalProps) {
 
   return (
     <View className="flex-1 bg-[#0d0d0d] overflow-hidden rounded-lg border border-border">
-      {!ready && (
-        <View className="absolute inset-0 items-center justify-center z-10">
-          <ActivityIndicator size="small" color={colors.mutedForeground} />
-          <Text className="text-muted-foreground text-xs mt-2">{t('agents.terminal.loading')}</Text>
-        </View>
-      )}
+      {!ready && <LinesSkeleton className="absolute inset-0 z-10" />}
       <div
         ref={containerRef}
         style={{
@@ -400,8 +392,6 @@ const TERMINAL_HTML = `
 `;
 
 function NativeTerminal({ agentId }: AgentTerminalProps) {
-  const { colors } = useColorScheme();
-  const { t } = useTranslation();
   const webViewRef = useRef<any>(null);
   const socketRef = useRef<Socket | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
@@ -525,9 +515,8 @@ function NativeTerminal({ agentId }: AgentTerminalProps) {
 
   if (!WebViewComponent) {
     return (
-      <View className="flex-1 bg-[#0d0d0d] items-center justify-center">
-        <ActivityIndicator size="small" color={colors.mutedForeground} />
-        <Text className="text-muted-foreground text-xs mt-2">{t('agents.terminal.loading')}</Text>
+      <View className="flex-1 bg-[#0d0d0d]">
+        <LinesSkeleton />
       </View>
     );
   }

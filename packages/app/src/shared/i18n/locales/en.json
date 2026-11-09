@@ -1,7 +1,6 @@
 {
   "common": {
     "or": "OR",
-    "loading": "Loading...",
     "error": "Error",
     "success": "Success",
     "cancel": "Cancel",
@@ -544,7 +543,6 @@
     "renameFolderTitle": "Rename folder",
     "folderName": "Folder name",
     "responding": "Alia is responding",
-    "loadingConversations": "Loading conversations…",
     "searchChats": "Search chats",
     "searchChatsPlaceholder": "Search chats…",
     "getTheApp": "Get the app",
@@ -653,7 +651,6 @@
     "reactToMessage": "React to message",
     "replyToMessage": "Reply to message",
     "moreActions": "More message actions",
-    "loadingHistory": "Loading earlier messages…",
     "searchThreadPlaceholder": "Search this thread",
     "searchThreadHint": "Search everything you have said to this agent, across every conversation.",
     "searchThreadSearching": "Searching…",
@@ -786,7 +783,6 @@
     "atMidnight": "at 00:00",
     "totalUsage": "Total usage",
     "creditUsage": "Credit usage",
-    "loading": "Loading...",
     "noUsage": "No usage in this period",
     "viewFullHistory": "View full history",
     "today": "Today",
@@ -1502,8 +1498,7 @@
       "reconnected": "Reconnected",
       "connectionLost": "Connection lost — reconnecting…",
       "connectionError": "Connection error — retrying…",
-      "unavailable": "The terminal is not available on this device.",
-      "loading": "Loading terminal…"
+      "unavailable": "The terminal is not available on this device."
     },
     "modelPinned": "Pinned model (%{model})",
     "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose.",
@@ -1564,7 +1559,6 @@
         "urlPlaceholder": "Page address",
         "go": "Go",
         "screenLabel": "The agent's browser. Tap to click.",
-        "loading": "Loading the screen…",
         "agentInControl": "The agent is in control",
         "youInControl": "You are in control — the agent waits",
         "takeControl": "Take control",
@@ -1809,7 +1803,6 @@
     "failed": "Failed",
     "cancelled": "Stopped",
     "noActivity": "No actions recorded yet",
-    "loading": "Loading this conversation…",
     "loadFailed": "This conversation couldn't be loaded",
     "messageGone": "This message is no longer in the conversation",
     "working": "Working…",
@@ -2268,7 +2261,6 @@
         "one": "1 file",
         "other": "{{count}} files"
       },
-      "loading": "Loading workspace…",
       "loadFailed": "Unable to load workspace files. The container may have expired.",
       "empty": "No files in workspace yet.",
       "previewFailed": "(failed to load file)",

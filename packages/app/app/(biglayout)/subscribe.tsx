@@ -23,7 +23,7 @@ import {
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { CardsSkeleton } from '@/shared/ui/skeletons';
 import { Text } from '@oxy.so/bloom/typography';
 import { Screen, ScreenScrollView } from '@oxy.so/bloom/screen';
 import { confirm } from '@oxy.so/bloom/surfaces';
@@ -267,9 +267,7 @@ function SubscribeContent() {
           )}
 
           {plansLoading && tiers.length === 0 ? (
-            <View className="py-16">
-              <Loading size="lg" />
-            </View>
+            <CardsSkeleton />
           ) : plansError ? (
             <EmptyState
               variant="compact"

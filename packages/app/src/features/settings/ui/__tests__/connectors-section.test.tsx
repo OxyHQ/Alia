@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -73,7 +73,8 @@ vi.mock('@oxy.so/bloom/icons/RiArrowRightSLine', () => ({ RiArrowRightSLine: () 
 vi.mock('@oxy.so/bloom/icons/RiCheckLine', () => ({ RiCheckLine: () => null }));
 vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
-  return { Box: () => ReactModule.createElement('Skeleton') };
+  const host = (name: string) => () => ReactModule.createElement(name);
+  return { Box: host('Skeleton'), Region: host('SkeletonRegion') };
 });
 vi.mock('@oxy.so/bloom/button', async () => {
   const ReactModule = await import('react');
@@ -220,7 +221,8 @@ describe('ConnectorsSection', () => {
   it('shows a skeleton row while loading', () => {
     mocks.hook.loading = true;
     const r = mount();
-    expect(r.root.findAllByType('Skeleton' as never)).toHaveLength(1);
+    // The rows hold their place as one region of placeholders, and say nothing about waiting.
+    expect(r.root.findAllByType('SkeletonRegion' as never)).toHaveLength(1);
   });
 
   it('hands connected servers to the server list with status and tools', () => {
