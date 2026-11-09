@@ -36,8 +36,6 @@ export interface AliaUsageFrame {
 
 /** What the request carries that the host's own controls decide, read at send time. */
 export interface AliaTurnRequest {
-  /** Only `false` is sent: `true` is the server's default. */
-  webSearch?: boolean;
   deepResearch?: boolean;
   /**
    * `false` turns personalization off for this turn: Alia reads no memory of the person, recalls

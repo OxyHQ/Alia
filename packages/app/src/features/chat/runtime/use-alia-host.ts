@@ -52,7 +52,6 @@ export function useAliaHost(): AliaRuntimeHost {
     () => ({
       deviceInfo: collectDeviceInfo,
       turnRequest: () => ({
-        webSearch: useModelStore.getState().webSearch,
         deepResearch: useStore.getState().deepResearchMode,
       }),
       onTurnStart: () => useStore.getState().setBottomChatHeightHandler(true),

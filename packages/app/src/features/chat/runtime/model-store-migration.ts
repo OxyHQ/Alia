@@ -9,7 +9,6 @@ import {
 export interface PersistedModelState {
   /** A power level, or a model on one of the person's own devices (`local/…`). */
   selectedLevel: PowerLevel | string;
-  webSearch: boolean;
 }
 
 /**
@@ -50,14 +49,12 @@ export function migrateModelState(persisted: unknown, version: number): Persiste
     string,
     unknown
   >;
-  const webSearch = typeof state.webSearch === 'boolean' ? state.webSearch : true;
-
   if (version >= 4 && (isPowerLevel(state.selectedLevel) || isDeviceModelId(state.selectedLevel))) {
-    return { selectedLevel: state.selectedLevel, webSearch };
+    return { selectedLevel: state.selectedLevel };
   }
   if (isDeviceModelId(state.selectedModel)) {
-    return { selectedLevel: state.selectedModel, webSearch };
+    return { selectedLevel: state.selectedModel };
   }
   const fromEffort = version < 3 ? levelOfRetiredEffort(state.reasoningEffort) : null;
-  return { selectedLevel: fromEffort ?? DEFAULT_POWER_LEVEL, webSearch };
+  return { selectedLevel: fromEffort ?? DEFAULT_POWER_LEVEL };
 }

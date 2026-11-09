@@ -1537,13 +1537,10 @@
     "failedToSaveSettings": "Error al guardar configuración"
   },
   "modes": {
-    "searchOn": "Búsqueda web activada",
-    "searchOff": "Búsqueda web desactivada — Alia responderá sin la web",
     "ghostOn": "Las conversaciones no se guardarán",
     "ghostOff": "Las conversaciones se guardarán normalmente",
     "deepResearchOn": "Investigación profunda activada",
     "deepResearchOff": "Investigación profunda desactivada",
-    "searchLabel": "Búsqueda",
     "ghostLabel": "Fantasma",
     "deepResearchLabel": "Investigación profunda",
     "voiceMode": "Modo de voz"
@@ -1961,7 +1958,6 @@
     "appsGroup": "Apps",
     "canvas": "Lienzo",
     "connectorTools": "%{count} herramientas",
-    "searchDescription": "Buscar en la web",
     "deepResearchDescription": "A fondo en un tema",
     "ghostDescription": "No guardar este chat",
     "canvasDescription": "Escribir y editar archivos",
