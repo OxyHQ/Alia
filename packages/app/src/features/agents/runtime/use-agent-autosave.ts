@@ -4,6 +4,7 @@ import { queryKeys } from '@/shared/api/query-keys';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { errorStatus, errorMessage as getErrorMessage } from '@/shared/api/error-utils';
+import { useAgentLivePreview } from '@/features/agents/runtime/use-agent-live-preview';
 import { useUpdateAgent } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import {
@@ -147,6 +148,7 @@ function useDebouncedWrite<T>(write: (next: T) => Promise<void>) {
 export function useAgentDraftAutosave(agent: Agent) {
   const { t } = useTranslation();
   const updateAgent = useUpdateAgent();
+  const look = useAgentLivePreview(agent._id);
   const [draft, setDraft] = useState<AgentDraft>(() => agentDraftFrom(agent));
 
   /**
@@ -189,9 +191,11 @@ export function useAgentDraftAutosave(agent: Agent) {
         // there spinning next to the failure it is contradicting.
         toast.dismiss(SAVE_TOAST_ID);
         toast.error(getErrorMessage(error, t('agents.saveFailed')));
+        // What was shown ahead of the save is not what the server holds.
+        look.revert();
       }
     },
-    [agent._id, updateAgent.mutateAsync, t],
+    [agent._id, updateAgent.mutateAsync, look, t],
   );
 
   const scheduleSave = useDebouncedWrite(saveDraft);
@@ -200,6 +204,10 @@ export function useAgentDraftAutosave(agent: Agent) {
   const editDraft = (patch: Partial<AgentDraft>): void => {
     const next = { ...draft, ...patch };
     setDraft(next);
+    // The look reaches every screen at once; the save, a pause later, only confirms it.
+    if (patch.tagline !== undefined || patch.character !== undefined) {
+      look.show({ tagline: patch.tagline, character: patch.character });
+    }
     scheduleSave(next);
   };
 
@@ -221,6 +229,7 @@ export function useAgentIdentityAutosave(agent: Agent) {
   const { t } = useTranslation();
   const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
+  const look = useAgentLivePreview(agent._id);
   const [identity, setIdentity] = useState<IdentityDraft>(() => ({
     name: agent.name ?? '',
     handle: agent.handle ?? '',
@@ -277,6 +286,7 @@ export function useAgentIdentityAutosave(agent: Agent) {
           // not schedule a write of its own.
           setIdentity((prev) => ({ ...prev, handle: savedHandle.current }));
           toast.error(t('agents.handleTaken'));
+          look.revert();
           return;
         }
       }
@@ -317,9 +327,11 @@ export function useAgentIdentityAutosave(agent: Agent) {
           // neutral: the "Saving…" would simply vanish, which reads as saved.
           toast.error(getErrorMessage(error, t('agents.saveFailed')));
         }
+        // The name was shown ahead of the save: put back what Oxy holds.
+        look.revert();
       }
     },
-    [agent._id, agent.oxyAccountId, oxyServices, queryClient, t],
+    [agent._id, agent.oxyAccountId, oxyServices, queryClient, look, t],
   );
 
   const scheduleSave = useDebouncedWrite(saveIdentity);
@@ -327,6 +339,8 @@ export function useAgentIdentityAutosave(agent: Agent) {
   const editIdentity = (patch: Partial<IdentityDraft>): void => {
     const next = { ...identity, ...patch };
     setIdentity(next);
+    // The name reaches every screen at once. The handle does not: it is checked against Oxy first.
+    if (patch.name !== undefined) look.show({ name: patch.name });
     scheduleSave(next);
   };
 
