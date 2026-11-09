@@ -283,42 +283,6 @@ vi.mock('@oxy.so/bloom/icons', () => {
     RiSettings3Line: glyph,
   };
 });
-vi.mock('@/features/agents/ui/agent-capability-toggles', async () => {
-  const ReactModule = await import('react');
-  return {
-    AgentCapabilityToggles: (props: Record<string, unknown>) =>
-      ReactModule.createElement('AgentCapabilityToggles', props),
-  };
-});
-// Its Bloom select reaches native modules this suite does not stub; it has its own suite.
-vi.mock('@/features/agents/ui/edit/agent-feature-gates-section', async () => {
-  const ReactModule = await import('react');
-  return {
-    AgentFeatureGatesSection: (props: Record<string, unknown>) =>
-      ReactModule.createElement('AgentFeatureGatesSection', props),
-  };
-});
-vi.mock('@/features/agents/ui/edit/agent-primary-tools-section', async () => {
-  const ReactModule = await import('react');
-  return {
-    AgentPrimaryToolsSection: (props: Record<string, unknown>) =>
-      ReactModule.createElement('AgentPrimaryToolsSection', props),
-  };
-});
-vi.mock('@/features/agents/ui/agent-model-field', async () => {
-  const ReactModule = await import('react');
-  return {
-    AgentModelField: (props: Record<string, unknown>) =>
-      ReactModule.createElement('AgentModelField', props),
-  };
-});
-vi.mock('@/features/agents/ui/agent-connector-grants', async () => {
-  const ReactModule = await import('react');
-  return {
-    AgentConnectorGrants: (props: Record<string, unknown>) =>
-      ReactModule.createElement('AgentConnectorGrants', props),
-  };
-});
 vi.mock('@oxy.so/bloom/agent-creator', async () => {
   const ReactModule = await import('react');
   return {
@@ -331,9 +295,6 @@ vi.mock('@/shared/platform/useColorScheme', () => ({
 }));
 vi.mock('@/shared/platform/use-is-large-screen', () => ({
   useIsLargeScreen: () => true,
-}));
-vi.mock('@/features/agents/runtime/use-agent-bots', () => ({
-  useAgentBots: () => ({ bots: [], registerBot: vi.fn(), removeBot: vi.fn() }),
 }));
 vi.mock('@/shared/i18n/use-translation', () => {
   const t = (key: string) => key;

@@ -54,7 +54,6 @@ vi.mock('../tools/mcp.js', () => ({
   }),
 }));
 vi.mock('../tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));
-vi.mock('../tools/ask-agent.js', () => ({ buildAskAgentTool: vi.fn(async () => ({})) }));
 
 const { budgetTools, stickyToolsFrom, appsOf, coversOf, sentToolBytes, LOAD_TOOLS_TOOL } =
   await import('../tool-budget.js');
