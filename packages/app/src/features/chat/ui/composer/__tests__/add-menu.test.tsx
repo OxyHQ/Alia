@@ -7,7 +7,7 @@ import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
  *
  * ## What this is guarding
  *
- * Seven of the composer's rows are SWITCHES — web search, deep research,
+ * Seven of the composer's rows are SWITCHES — deep research,
  * ghost, every installed skill and every connected app — and the
  * composer is where their state is read. Bloom's `AddMenu` draws a tick from
  * `ComposerPanelAddMenuRow.checked` and nothing else, so a row that forgets to
@@ -108,8 +108,6 @@ function base(over: Partial<ComposerAddMenuOptions> = {}): ComposerAddMenuOption
     canAttach: true,
     modes: { ghost: false, deepResearch: false },
     toggleMode: vi.fn(),
-    webSearch: false,
-    onToggleWebSearch: vi.fn(),
     onOpenCanvas: vi.fn(),
     offerGhost: true,
     turnSelection: EMPTY_SELECTION,
@@ -150,13 +148,13 @@ function row(groups: readonly ComposerPanelAddMenuGroup[], id: string) {
 
 describe('every switch says which way it is', () => {
   it('ticks a capability that is on and holds the space for one that is not', () => {
-    const on = run(base({ webSearch: true, modes: { ghost: true, deepResearch: false } }));
-    expect(row(on.groups, 'cap:web-search').checked).toBe(true);
+    const on = run(base({ modes: { ghost: true, deepResearch: true } }));
+    expect(row(on.groups, 'cap:deep-research').checked).toBe(true);
     expect(row(on.groups, 'cap:ghost').checked).toBe(true);
     // `false`, NOT undefined: the difference is a tick column the row keeps
     // when it is off against a row that never had one.
-    const off = run(base({ webSearch: false }));
-    expect(row(off.groups, 'cap:web-search').checked).toBe(false);
+    const off = run(base({ modes: { ghost: false, deepResearch: false } }));
+    expect(row(off.groups, 'cap:deep-research').checked).toBe(false);
   });
 
   it('offers deep research as a switch, and no agent mode: the mode pill is the power level', () => {
@@ -303,9 +301,6 @@ describe('a press reaches the thing it names', () => {
     const options = base();
     const menu = run(options);
 
-    menu.onSelect('cap:web-search');
-    expect(options.onToggleWebSearch).toHaveBeenCalledTimes(1);
-
     menu.onSelect('cap:ghost');
     expect(options.toggleMode).toHaveBeenLastCalledWith('ghost');
 
@@ -352,9 +347,9 @@ describe('a press reaches the thing it names', () => {
     // the model chip beside it was already exempt on exactly that reasoning.
     const options = base({ canAttach: false });
     const menu = run(options);
-    expect(rows(menu.groups).map((r) => r.id)).toContain('cap:web-search');
-    menu.onSelect('cap:web-search');
-    expect(options.onToggleWebSearch).toHaveBeenCalledTimes(1);
+    expect(rows(menu.groups).map((r) => r.id)).toContain('cap:deep-research');
+    menu.onSelect('cap:deep-research');
+    expect(options.toggleMode).toHaveBeenLastCalledWith('deepResearch');
   });
 
   it('opens the picker each add row names', () => {

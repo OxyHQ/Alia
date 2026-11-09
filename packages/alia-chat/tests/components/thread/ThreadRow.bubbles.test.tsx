@@ -37,9 +37,9 @@ describe('the bubbles of an agent thread', () => {
     );
   });
 
-  it("reacts on the person's own turn too, and never on a read-only thread", () => {
-    expect(row).toMatch(/reactions=\{questionReactions\}\s+onReact=\{onQuestionReact\}/);
-    expect(row).toMatch(/actions\.readOnly \|\| text\.length === 0\s*\?\s*undefined/);
+  it("never reacts on the person's own turn: a reaction is a vote on a reply, and the bubble has no react button", () => {
+    expect(row).not.toMatch(/questionReactions|onQuestionReact/);
+    expect(row).toMatch(/<ChatBubble\s+side="user"\s+menu=\{questionActions\}/);
   });
 
   it("turns Bloom's feedback row off when the icons are beside the bubble", () => {

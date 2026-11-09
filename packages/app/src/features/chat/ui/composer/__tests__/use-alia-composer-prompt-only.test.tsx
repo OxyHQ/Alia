@@ -68,8 +68,6 @@ vi.mock('@/features/chat/runtime/model-store', () => {
   const state = {
     selectedModel: 'm',
     setSelectedModel: () => {},
-    webSearch: false,
-    setWebSearch: () => {},
   };
   return { useModelStore: (selector: (s: typeof state) => unknown) => selector(state) };
 });

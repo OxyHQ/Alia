@@ -5,7 +5,6 @@ import { Image } from '@/shared/ui/image';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { RiAttachment2 } from '@oxy.so/bloom/icons/RiAttachment2';
-import { RiEarthLine } from '@oxy.so/bloom/icons/RiEarthLine';
 import { RiEyeOffLine } from '@oxy.so/bloom/icons/RiEyeOffLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
@@ -64,7 +63,6 @@ const ROW = {
   camera: 'add:camera',
   photos: 'add:photos',
   files: 'add:files',
-  webSearch: 'cap:web-search',
   deepResearch: 'cap:deep-research',
   ghost: 'cap:ghost',
   canvas: 'cap:canvas',
@@ -110,8 +108,6 @@ export interface ComposerAddMenuOptions {
   /** The three persistent capability axes, as they stand. */
   modes: { ghost: boolean; deepResearch: boolean };
   toggleMode: (mode: 'ghost' | 'deepResearch') => void;
-  webSearch: boolean;
-  onToggleWebSearch: () => void;
   onOpenCanvas: () => void;
   /**
    * Ghost mode is offered on an empty conversation only — it decides whether
@@ -140,8 +136,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     canAttach,
     modes,
     toggleMode,
-    webSearch,
-    onToggleWebSearch,
     onOpenCanvas,
     offerGhost,
     turnSelection,
@@ -164,13 +158,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
                 { id: ROW.files, label: t('composer.files'), icon: RiAttachment2 },
               ]
             : []),
-          {
-            id: ROW.webSearch,
-            label: t('modes.searchLabel'),
-            description: t('composer.searchDescription'),
-            icon: RiEarthLine,
-            checked: webSearch,
-          },
           // A tool the turn may use, at the level the mode pill shows — not a
           // level and not a mode.
           {
@@ -248,7 +235,7 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     }
 
     return built;
-  }, [t, canAttach, webSearch, modes, offerGhost, turnSelection]);
+  }, [t, canAttach, modes, offerGhost, turnSelection]);
 
   const addImages = useCallback(
     (assets: ImagePickerAsset[] | undefined) => {
@@ -324,9 +311,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
             });
           });
           return;
-        case ROW.webSearch:
-          onToggleWebSearch();
-          return;
         case ROW.deepResearch:
           toggleMode('deepResearch');
           return;
@@ -352,7 +336,6 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
       onOpenCanvas,
       onToggleConnector,
       onToggleSkill,
-      onToggleWebSearch,
       pickDocument,
       pickImage,
       takePhoto,

@@ -66,7 +66,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const host = {
   deviceInfo: vi.fn(async () => ({ platformOS: 'test' })),
-  turnRequest: vi.fn(() => ({ webSearch: false, deepResearch: true })),
+  turnRequest: vi.fn(() => ({ deepResearch: true })),
   onOutput: vi.fn(),
   onToolResult: vi.fn(),
   onArtifact: vi.fn(),
@@ -136,8 +136,7 @@ describe('the request a turn makes', () => {
       conversationId: 'c1',
       agentId: 'a1',
       model: 'high',
-      // Only OFF is sent for web search; the other modes only when on.
-      webSearch: false,
+      // Deep research only when on.
       deepResearch: true,
       mcpServerId: 'm1',
       skillIds: ['s'],

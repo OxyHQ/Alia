@@ -1537,13 +1537,10 @@
     "failedToSaveSettings": "Failed to save settings"
   },
   "modes": {
-    "searchOn": "Web search enabled",
-    "searchOff": "Web search off — Alia will answer without the web",
     "ghostOn": "Conversations will not be saved",
     "ghostOff": "Conversations will be saved normally",
     "deepResearchOn": "Deep research mode activated",
     "deepResearchOff": "Deep research disabled",
-    "searchLabel": "Search",
     "ghostLabel": "Ghost",
     "deepResearchLabel": "Deep research",
     "voiceMode": "Voice mode"
@@ -1961,7 +1958,6 @@
     "appsGroup": "Apps",
     "canvas": "Canvas",
     "connectorTools": "%{count} tools",
-    "searchDescription": "Look things up on the web",
     "deepResearchDescription": "Go deep on a topic",
     "ghostDescription": "Don't save this chat",
     "canvasDescription": "Write and edit files",
