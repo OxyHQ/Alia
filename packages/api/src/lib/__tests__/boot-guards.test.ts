@@ -182,6 +182,41 @@ describe('the database is required, and its absence stops everything after it', 
   });
 });
 
+describe('production refuses to run without Redis', () => {
+  it('terminates, names the variable, and never reaches the egress policy', async () => {
+    const { trace, exits, egressInstalls } = await run({
+      ...HEALTHY_ENV,
+      ...BOOTABLE_OXY_INFERENCE,
+      NODE_ENV: 'production',
+    });
+
+    expect(exits).toEqual([1]);
+    expect(trace).toEqual([
+      'info: Postgres connected',
+      'fatal: REDIS_URL is required in production — without it queued work runs inline and is lost on restart',
+      'exit(1)',
+    ]);
+    expect(egressInstalls).toBe(0);
+  });
+
+  it('boots in production when Redis is configured', async () => {
+    const { exits } = await run({
+      ...HEALTHY_ENV,
+      ...BOOTABLE_OXY_INFERENCE,
+      NODE_ENV: 'production',
+      REDIS_URL: 'rediss://cache.example:6379',
+    });
+    expect(exits).toEqual([]);
+  });
+
+  it('does not ask for it in development or test', async () => {
+    for (const NODE_ENV of ['development', 'test']) {
+      const { exits } = await run({ ...HEALTHY_ENV, ...BOOTABLE_OXY_INFERENCE, NODE_ENV });
+      expect(exits).toEqual([]);
+    }
+  });
+});
+
 describe('Oxy inference configuration is checked after the database and before the rest', () => {
   it('terminates when the service credential is incomplete', async () => {
     const { trace, exits, egressInstalls } = await run({ ...HEALTHY_ENV });

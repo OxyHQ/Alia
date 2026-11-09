@@ -104,6 +104,17 @@ export function runBootGuards(deps: BootGuardDeps): void {
   }
   deps.reportInfo('Postgres connected');
 
+  // Durable work lives in BullMQ. Without Redis every queue runs its jobs inline in the process that
+  // took them, so a restart loses them and N instances no longer share one lock or one queue: group
+  // rooms, agent runs, scheduled tasks. Development and tests may run without it; production may not.
+  if (env.NODE_ENV === 'production' && !env.REDIS_URL) {
+    deps.reportFatal(
+      'REDIS_URL is required in production — without it queued work runs inline and is lost on restart',
+    );
+    terminate();
+    return;
+  }
+
   // Kaana is mandatory: a partial configuration refuses before the listener.
   const inferenceFailure = oxyInferenceBootConfigurationFailure(env);
   if (inferenceFailure !== null) {

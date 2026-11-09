@@ -32,6 +32,7 @@ SERVER_ARGS=(
   --network host
   --add-host api.oxy.so:127.0.0.1
   -e DATABASE_URL
+  -e REDIS_URL
   -e PORT="$PORT"
   -e OXY_API_URL=https://api.oxy.so
 )
@@ -51,6 +52,20 @@ if [ "$refused" = 0 ] || [ "$refused" = 124 ]; then
   exit 1
 fi
 echo "Refused boot exited $refused."
+
+# 1b. The image runs as production (NODE_ENV=production), where queued work must survive a restart:
+# a boot with a database and no REDIS_URL must refuse, and say why.
+no_redis_log=$(mktemp)
+set +e
+timeout 60 docker run --rm --network host -e DATABASE_URL "$IMAGE" >"$no_redis_log" 2>&1
+no_redis=$?
+set -e
+if [ "$no_redis" = 0 ] || [ "$no_redis" = 124 ] || ! grep -q "REDIS_URL is required in production" "$no_redis_log"; then
+  cat "$no_redis_log" || true
+  echo "::error::a production boot without REDIS_URL exited $no_redis; it must refuse, naming REDIS_URL"
+  exit 1
+fi
+echo "Boot without REDIS_URL refused ($no_redis)."
 
 # 2. Migrations and the seeder, as the deploy runs them.
 for phase in all pre post; do
