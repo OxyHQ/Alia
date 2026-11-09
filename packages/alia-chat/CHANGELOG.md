@@ -1,5 +1,31 @@
 # @alia.onl/sdk
 
+## 24.0.0
+
+- **Breaking.** The web search switch is gone: Alia can always search the web, so
+  `AliaTurnRequest.webSearch` (what `AliaRuntimeHost.turnRequest` returned) is removed. Hosts that
+  returned it from `turnRequest`: delete it. The server still accepts `webSearch: false` from
+  other clients on `/v1`.
+- **Group chats.** A conversation of several agents (`memberAgentIds`, the `group` prop of
+  `AliaChatContent`) gets its own welcome (`AliaGroupWelcome`, the members' avatars together), and
+  the members' avatars fly out of it with the first message. Its members speak as themselves: no
+  "chat with" line is drawn at each change of speaker.
+- **Group rooms in real time.** The members of a group talk to each other past the request. The
+  host gets a new optional hook, `AliaRuntimeHost.subscribeRoomEvents(conversationId, listener)`,
+  fed from the `group:event` socket event; the thread draws a member typing, streams what the
+  members write and stores their replies as they land. A host that does not implement it keeps
+  today's behaviour (the request's own first round).
+- **Agent threads read as a chat.** In a chat with an agent (or a group) the thread shows the
+  conversation only: no "Worked for" line, task list or search trail, and the agent's tools do not
+  open the thought panel on their own. Alia's own chat is unchanged.
+- **"Chatted with …"** (before "Chat with …") is a button: it opens, read-only and without the
+  composer, the conversation the agents had between themselves (what the calling agent asked and
+  what the consulted agent answered), rebuilt from the loaded messages. The chat under it stays
+  mounted and inert, so its scroll and draft survive.
+- **Bubbles.** The person's own bubble has no react button (a reaction is a vote on a reply); the
+  react, reply and more icons and the reaction pill are the chat reference's own.
+- Built and tested against Bloom 17.39.0. The peer range stays `@oxy.so/bloom >=17.22.0`.
+
 ## 23.1.0
 
 - Reactions in the chat bubbles: Bloom's emoji bar on a message, the person's reactions as pills
