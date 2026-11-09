@@ -33,7 +33,7 @@ same way; its workspace image (actors' computers and the browser worker) stays o
 - **PostgreSQL, reachable.** `DATABASE_URL` is required. `packages/api/src/index.ts:411`
   calls `connectPostgresOrExit()` before the server listens; without it the process exits.
 - **Oxy identity service reachable** at `OXY_API_URL` for token verification.
-- **Redis or Valkey, optional.** Without `REDIS_URL`, BullMQ tasks run inline and rate
+- **Redis or Valkey, required in production** (the API refuses to boot without `REDIS_URL` when `NODE_ENV=production`; `lib/boot-guards.ts`). Without `REDIS_URL` in development, BullMQ tasks run inline and rate
   limiting fails open.
 
 PostgreSQL is the only database precondition. See *Database* below.
