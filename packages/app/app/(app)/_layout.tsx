@@ -186,6 +186,8 @@ export default function AppLayout() {
       // Bounded (the default), as the AI chat template declares it: every panel fills the height
       // and scrolls its own content, so the editor beside a chat stretches.
       sidebar={sidebar}
+      // The raised panel the sidebar draws: the shell lays out its gutters by what it is told.
+      sidebarSurface="card"
       mobileSidebar={mobileSidebar}
       labels={shellLabels}
       defaultPanelWidth={rightPanel === 'editor' ? EDITOR_PANEL_WIDTH : rightPanelWidth}
