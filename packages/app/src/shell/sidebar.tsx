@@ -36,6 +36,7 @@ import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
 import { usePrefetchAgentThread } from '@/features/agents/runtime/use-agent-thread';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { flatConversations, selectedItemForPath, sidebarSections } from '@/shell/sidebar-history';
+import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore, type Folder } from '@/features/projects/runtime/folders-store';
 import { useStore } from '@/features/chat/runtime/global-store';
@@ -43,7 +44,12 @@ import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
-import { ConversationSidebar } from '@oxy.so/bloom/conversation-sidebar';
+import { AgentStack } from '@oxy.so/bloom/agent-reply';
+import {
+  ConversationSidebar,
+  type ConversationSidebarCreateOption,
+} from '@oxy.so/bloom/conversation-sidebar';
+import { useNewAgentConversation } from '@/features/agents/runtime/use-new-agent-conversation';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
@@ -79,6 +85,8 @@ const TERMS_URL = 'https://oxy.so/legal/terms';
 
 /** Tree keys of agent rows: `agent:<handle>`. Chat rows are keyed by conversation id. */
 const AGENT_KEY = 'agent:';
+/** The look drawn for "New agent" in the create menu, as Bloom's own chat draws a new bot. */
+const NEW_AGENT_CHARACTER = { preset: 'blue_beret', color: 'violet' } as const;
 
 /**
  * Alia's sidebar is Bloom's `ConversationSidebar`, the one the multi-agent chat
@@ -650,6 +658,52 @@ function useSidebarProps() {
 
   const selectedAgentKey = selectedTreeItemForPath(pathname, myAgents);
 
+  const newAgent = useNewAgentConversation();
+  const createOptions = React.useMemo<ConversationSidebarCreateOption[]>(
+    () => [
+      {
+        key: 'chat',
+        label: t('sidebar.create.chat'),
+        description: t('sidebar.create.chatHint'),
+        leading: <AliaAvatar size={32} portrait />,
+        onPress: () => {
+          closeNav?.();
+          router.replace('/(app)');
+        },
+      },
+      {
+        key: 'agent',
+        label: t('sidebar.create.agent'),
+        description: t('sidebar.create.agentHint'),
+        leading: <AgentAvatar character={NEW_AGENT_CHARACTER} size={32} portrait />,
+        onPress: () => {
+          closeNav?.();
+          newAgent();
+        },
+      },
+      {
+        key: 'group',
+        label: t('sidebar.create.group'),
+        description: t('sidebar.create.groupHint'),
+        leading: (
+          <AgentStack
+            size={32}
+            agents={(myAgents ?? []).slice(0, 3).map((agent) => ({
+              id: agent._id,
+              name: agentDisplayName(agent),
+              avatar: readAgentCharacter(agent.character),
+            }))}
+          />
+        ),
+        onPress: () => {
+          closeNav?.();
+          useUIStore.getState().setGroupPickerOpen(true);
+        },
+      },
+    ],
+    [t, closeNav, router, newAgent, myAgents],
+  );
+
   const props = {
     // The panel's own header stays above the tools: the mark and name (home), and the collapse control.
     logo: {
@@ -676,11 +730,9 @@ function useSidebarProps() {
       // A visitor has no chats to find: say "no results" only for a search that found none.
       empty: searchQuery.trim() ? t('common.noResults') : '',
     },
-    // The "+" is a new conversation, directly.
-    onCreate: () => {
-      closeNav?.();
-      router.replace('/(app)');
-    },
+    // The "+" opens Bloom's create menu, as the multi-agent chat does: a chat with Alia, a new
+    // agent (made by talking to her), and a group chat of the person's agents.
+    createOptions,
     after: content,
     items,
     secondaryItems,

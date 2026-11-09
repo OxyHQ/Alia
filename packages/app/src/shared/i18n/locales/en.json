@@ -505,6 +505,14 @@
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
     "noAgentMessages": "No messages yet",
+    "create": {
+      "chat": "New chat",
+      "chatHint": "Talk to Alia",
+      "agent": "New agent",
+      "agentHint": "Customize a new teammate",
+      "group": "Group chat",
+      "groupHint": "Bring your agents into one chat"
+    },
     "chats": "Chats",
     "support": "Support",
     "tasks": "Tasks",

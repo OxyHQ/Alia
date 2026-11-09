@@ -505,6 +505,14 @@
     "collapse": "Contraer barra lateral",
     "expand": "Expandir barra lateral",
     "noAgentMessages": "Sin mensajes todavía",
+    "create": {
+      "chat": "Chat nuevo",
+      "chatHint": "Habla con Alia",
+      "agent": "Agente nuevo",
+      "agentHint": "Personaliza a un nuevo compañero",
+      "group": "Chat de grupo",
+      "groupHint": "Reúne a tus agentes en un solo chat"
+    },
     "chats": "Chats",
     "support": "Soporte",
     "tasks": "Tareas",
