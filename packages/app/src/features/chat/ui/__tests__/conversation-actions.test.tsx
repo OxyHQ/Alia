@@ -84,6 +84,9 @@ vi.mock('@/features/chat/runtime/conversation-share', () => ({
     return world.linkOutcome;
   },
 }));
+vi.mock('@/features/chat/runtime/use-open-agent-editor', () => ({
+  useOpenAgentEditor: () => vi.fn(),
+}));
 vi.mock('@/features/chat/runtime/ui-store', () => ({
   useUIStore: Object.assign((select: (s: typeof world.ui) => unknown) => select(world.ui), {
     getState: () => world.ui,
@@ -110,7 +113,7 @@ const chat = (over: Record<string, unknown> = {}) =>
     startOver: vi.fn(),
     clearMessages: vi.fn(async () => true),
     markState: 'idle',
-    agents: [],
+    participants: { lead: { id: 'alia', isAlia: true, name: 'Alia' }, joined: [] },
     openSearch: undefined,
     getMessages: () => [{ id: 'm1', role: 'user', content: 'hi' }],
     ...over,

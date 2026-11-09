@@ -12,10 +12,8 @@ describe('selectedItemForPath', () => {
   it.each([
     ['/agents', 'agents'],
     ['/agents/abc', 'agents'],
-    ['/library', 'library'],
     ['/tasks', 'tasks'],
-    ['/automations/123', 'automations'],
-    ['/skills/create', 'skills'],
+    ['/skills/create', undefined],
     ['/shows/9', 'shows'],
     ['/notifications', 'notifications'],
   ])('%s selects %s', (path, key) => {

@@ -12,6 +12,7 @@ import { useLabels } from '../lib/labels';
 import { type AliaApi, useAliaApi } from './api';
 import { type OfflineConversationStore, useAliaRuntime } from './config';
 import { errorMessage as getErrorMessage, errorStatus } from './error-utils';
+import { reviveConversationDates } from './conversation-dates';
 import { normalizeConversationMessages } from './message-history';
 import { aliaQueryKeys, type ConversationsFilter } from './query-keys';
 import { API_ROUTES } from './routes';
@@ -185,6 +186,7 @@ export function useConversations({ agentId, app }: ConversationsFilter = {}) {
       fetchConversationsPage(client, pageParam, { agentId, app }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    select: reviveConversationDates,
     staleTime: FIVE_MINUTES,
     retry: 2,
     enabled: isAuthenticated,

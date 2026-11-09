@@ -13,7 +13,33 @@ const { accountQueryOwnership, createAccountQueryPersistence } = require(
 
 afterEach(() => onlineManager.setOnline(true));
 
-it('changes ownership only for the email-alert mutation key', () => {
+it('persists the lists a returning person sees first, and nothing that holds messages or money', () => {
+  const client = new QueryClient();
+  const policy = accountQueryOwnership(ALIA_ACCOUNT_QUERIES);
+  const persisted = (queryKey: readonly unknown[]) =>
+    policy.persistsQuery(client.getQueryCache().build(client, { queryKey: [...queryKey] }));
+  for (const queryKey of [
+    ['agents', 'mine'],
+    ['agent-thread', 'pepe', 'default'],
+    ['conversations', { agentId: undefined, app: undefined }],
+    ['alia-agent-profile', 'a1'],
+    ['skills', 'installed'],
+  ]) {
+    expect(persisted(queryKey), JSON.stringify(queryKey)).toBe(true);
+  }
+  for (const queryKey of [
+    ['conversation', 'c1'],
+    ['agent-thread-messages', 'pepe'],
+    ['billing', 'subscription', 'u1'],
+    ['credits'],
+    ['alia-shared-conversation', 'token'],
+  ]) {
+    expect(persisted(queryKey), JSON.stringify(queryKey)).toBe(false);
+  }
+  client.clear();
+});
+
+it('changes ownership only for the declared roots and the email-alert mutation key', () => {
   const client = new QueryClient();
   const before = accountQueryOwnership();
   const after = accountQueryOwnership(ALIA_ACCOUNT_QUERIES);

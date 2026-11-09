@@ -33,7 +33,9 @@ import { accountCategoryChoices, isOfferedAccountCategory } from '../account-cat
 export const createAgentTool = (userId: string, accessToken: string | undefined) =>
   tool({
     description:
-      'Create an AI agent when the user asks to create, build or make a custom agent, assistant or specialist. Create at once with defaults inferred from the request; do not ask clarifying questions.',
+      'Create an AI agent when the user asks to create, build or make a custom agent, assistant or specialist. ' +
+      'If they have not said what it is for, ask ONE short question about its purpose first, in their language. ' +
+      'Once you know the purpose, create it at once with defaults inferred from the request; do not ask a list of clarifying questions.',
 
     inputSchema: z.object({
       /**

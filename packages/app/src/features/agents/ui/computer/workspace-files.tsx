@@ -3,7 +3,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { RiArrowUpLine } from '@oxy.so/bloom/icons/RiArrowUpLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiFolderLine } from '@oxy.so/bloom/icons/RiFolderLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { formatBytes, parentPath, type WorkspaceListing } from '@/features/agents/model/computer';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -64,7 +64,7 @@ export function WorkspaceFiles({
           </Button>
         ) : null}
       </View>
-      {loading && !listing ? <Loading variant="spinner" /> : null}
+      {loading && !listing ? <ListRowsSkeleton rows={4} mark="tile" lines={1} /> : null}
       {listing && listing.entries.length === 0 ? (
         <Muted>{t('agents.computer.files.empty')}</Muted>
       ) : null}

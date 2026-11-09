@@ -1,9 +1,8 @@
 import { errorStatus, errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
-import { Loading } from '@oxy.so/bloom/loading';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
-import { Stack } from 'expo-router';
 import { View } from 'react-native';
 
 /**
@@ -28,7 +27,6 @@ export function AgentEditorLoadFailed({
 
   return (
     <View className="flex-1 items-center justify-center gap-3 p-6">
-      <Stack.Screen options={{ headerBackVisible: true }} />
       <Text className="text-center text-base font-semibold leading-[22px] text-foreground">
         {notFound ? t('agents.notFound') : t('agents.loadFailed')}
       </Text>
@@ -66,11 +64,19 @@ export function AgentEditorLoadFailed({
  * and the same one to the person looking at it.
  */
 export function AgentEditorLoading() {
-  const { t } = useTranslation();
+  // The editor's own shape: the avatar's stage, its colours, then the fields.
   return (
-    <View className="flex-1 items-center justify-center">
-      <Stack.Screen options={{ headerBackVisible: true }} />
-      <Loading variant="spinner" text={t('common.loading')} />
-    </View>
+    <Skeleton.Region className="flex-1 items-center gap-6 p-4">
+      <Skeleton.Circle size={160} />
+      <Skeleton.Box width={260} height={32} borderRadius={16} />
+      <View className="w-full gap-3">
+        {[0, 1, 2].map((row) => (
+          <View key={row} className="flex-row items-center justify-between gap-4">
+            <Skeleton.Box width={80} height={14} />
+            <Skeleton.Box width={220} height={32} borderRadius={10} />
+          </View>
+        ))}
+      </View>
+    </Skeleton.Region>
   );
 }

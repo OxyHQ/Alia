@@ -10,7 +10,7 @@ import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { Field } from '@oxy.so/bloom/field';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import { DetailSkeleton } from '@/shared/ui/skeletons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -85,7 +85,7 @@ export default function EditSkillScreen() {
     return (
       <>
         <Stack.Screen options={{ headerBackVisible: true }} />
-        <Loading variant="spinner" />
+        <DetailSkeleton paragraphs={2} />
       </>
     );
   }

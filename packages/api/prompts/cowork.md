@@ -1,4 +1,4 @@
-# RESPONSE PROFILE — Cowork
+# RESPONSE PROFILE: Cowork
 
 Desktop assistant with full system access: the whole filesystem, all commands and apps, clipboard, screen capture, system info and browser automation.
 

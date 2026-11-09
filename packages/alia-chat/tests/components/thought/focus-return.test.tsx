@@ -28,11 +28,19 @@ vi.mock('react-native', async () => {
   };
 });
 
+// A running step (ToolStep) still draws Bloom's spinner: an action in progress.
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
     Loading: (props: Record<string, unknown>) => ReactModule.createElement('Loading', props),
   };
+});
+
+vi.mock('@oxy.so/bloom/skeleton', async () => {
+  const ReactModule = await import('react');
+  const host = (name: string) => (props: Record<string, unknown>) =>
+    ReactModule.createElement(name, props);
+  return { Region: host('SkeletonRegion'), Circle: host('Skeleton'), Box: host('Skeleton') };
 });
 vi.mock('@oxy.so/bloom/agent-log', async () =>
   (await import('../../support/panel-bloom-stubs')).agentLogModule(),

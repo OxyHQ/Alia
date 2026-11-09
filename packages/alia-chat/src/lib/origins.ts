@@ -13,9 +13,8 @@ declare const process: { readonly env: { readonly EXPO_PUBLIC_ALIA_API_URL?: str
 export const ALIA_API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
 /**
- * Alia's web app, which serves the files the SDK shares with every host: Bloom's character
- * runtime (`/bloom-character/`) and the voice call's worklets (`/sdk/voice-worklets/`), both
- * with CORS open (`packages/app/worker/index.js`).
+ * Alia's web app, which serves the files the SDK shares with every host: the voice call's
+ * worklets (`/sdk/voice-worklets/`), with CORS open (`packages/app/worker/index.js`).
  */
 export const ALIA_WEB_ORIGIN = 'https://alia.onl';
 

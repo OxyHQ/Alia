@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   sidebarProps: null as null | Record<string, any>,
   conversations: [] as any[],
   isLoading: false,
+  isFetchingNextPage: false,
   agents: [] as any[],
   push: vi.fn(),
   replace: vi.fn(),
@@ -90,7 +91,7 @@ vi.mock('@alia.onl/sdk/runtime', async () => ({
     data: state.isLoading ? undefined : { pages: [{ conversations: state.conversations }] },
     fetchNextPage: vi.fn(),
     hasNextPage: false,
-    isFetchingNextPage: false,
+    isFetchingNextPage: state.isFetchingNextPage,
     isFetchNextPageError: false,
     isLoading: state.isLoading,
   }),
@@ -133,22 +134,22 @@ vi.mock('@oxy.so/bloom/conversation-sidebar', () => ({
   ConversationSidebar: (props: Record<string, any>) => {
     state.sidebarProps = props;
     const React = require('react');
-    // The tree's own actions and every folder's and row's actions, mounted so their menus can be
-    // pressed, and what sits under the flat list.
+    // Every tree row (a section's own rows and a folder's) and every folder's and section's actions,
+    // mounted so their menus can be pressed, and what sits under the flat list.
+    const trees: any[] = [props.tree ?? []].flat();
+    const row = (key: string, item: any) =>
+      React.createElement('Row', { key, rowKey: item.key }, item.actions);
     return React.createElement(
       'Sidebar',
       null,
-      props.tree?.actions,
+      trees.map((tree) => tree.actions),
       props.after,
-      ...(props.tree?.folders ?? []).flatMap((folder: any) => [
-        React.createElement('Folder', { key: folder.key, folderKey: folder.key }, folder.actions),
-        ...folder.items.map((item: any) =>
-          React.createElement(
-            'Row',
-            { key: `${folder.key}/${item.key}`, rowKey: item.key },
-            item.actions,
-          ),
-        ),
+      trees.flatMap((tree) => [
+        ...(tree.items ?? []).map((item: any) => row(`${tree.key}/${item.key}`, item)),
+        ...(tree.folders ?? []).flatMap((folder: any) => [
+          React.createElement('Folder', { key: folder.key, folderKey: folder.key }, folder.actions),
+          ...folder.items.map((item: any) => row(`${folder.key}/${item.key}`, item)),
+        ]),
       ]),
     );
   },
@@ -209,6 +210,12 @@ vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return { Loading: () => ReactModule.createElement('Spinner') };
 });
+vi.mock('@oxy.so/bloom/loading', async () => {
+  const ReactModule = await import('react');
+  return {
+    Loading: (props: Record<string, unknown>) => ReactModule.createElement('Loading', props),
+  };
+});
 vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
   return { Box: () => ReactModule.createElement('SkeletonBox') };
@@ -252,20 +259,32 @@ async function settle() {
 
 const folderItems = () =>
   Object.fromEntries(
-    ((state.sidebarProps!.tree?.folders ?? []) as any[]).map((folder) => [
+    (sections().flatMap((section) => section.folders ?? []) as any[]).map((folder) => [
       folder.key,
       folder.items.map((item: any) => item.key),
     ]),
   );
 
-/** The flat list: what the sidebar draws as rows, in order. */
+/** The tree's sections, in the order the sidebar draws them: Alia's chats (when any), then projects. */
+const sections = (): any[] => [state.sidebarProps!.tree ?? []].flat();
+
+/** The flat list: what the sidebar draws as rows, in order. It holds the agents (contacts). */
 const flat = () => (state.sidebarProps!.conversations as { id: string }[]).map((row) => row.id);
 const flatRow = (id: string) =>
   (state.sidebarProps!.conversations as any[]).find((row) => row.id === id);
-/** Runs a context-menu action of a chat of the flat list. */
-const act_ = (id: string, key: string) => state.sidebarProps!.onAction(flatRow(id), key);
-const actionKeys = (id: string) =>
-  (state.sidebarProps!.actions(flatRow(id)) as { key: string }[]).map((a) => a.key);
+/** Alia's chats: the title-only rows of the chats section. */
+const chatItems = (): any[] => sections().find((section) => section.key === 'chats')?.items ?? [];
+const chatIds = () => chatItems().map((item) => item.key);
+/** The rendered row of a chat, whose menu is the row's own. */
+const chatRowNode = (scope: ReactTestInstance, id: string) =>
+  scope.find((node) => is(node, 'Row') && node.props.rowKey === id);
+/** Presses one item of a chat's own menu. */
+async function pressChatMenu(id: string, label: string) {
+  await act(async () => {
+    menuItem(chatRowNode(renderer.root, id), label).props.onPress();
+  });
+  await settle();
+}
 
 /** Whether a node is the host-element stand-in `name`. */
 const is = (node: ReactTestInstance, name: string) => (node.type as unknown) === name;
@@ -280,6 +299,7 @@ beforeEach(async () => {
   state.sidebarProps = null;
   state.conversations = [chat('alpha'), chat('beta')];
   state.isLoading = false;
+  state.isFetchingNextPage = false;
   state.agents = [];
   useStore.setState({ chatId: null });
   useConversationStore.setState({ streamingConversationId: null });
@@ -294,54 +314,39 @@ afterEach(() => {
 });
 
 describe('the sidebar list', () => {
-  it('lists the chats filed nowhere as one flat list, with no folders of its own', async () => {
+  it("lists Alia's chats as title-only rows in their own section, with no folders of their own", async () => {
     await mount();
-    expect(flat()).toEqual(['alpha', 'beta']);
+    expect(flat()).toEqual([]);
+    expect(sections()[0]).toMatchObject({ key: 'chats', label: 'sidebar.chats' });
+    expect(chatIds()).toEqual(['alpha', 'beta']);
+    // Title only: a chat row draws no avatar.
+    expect(chatItems().every((item) => item.leading === undefined)).toBe(true);
     // Projects and folders are the tree's; with none, it stands empty (it holds "new project").
     expect(folderItems()).toEqual({});
-    expect(state.sidebarProps!.tree.label).toBe('sidebar.projects');
+    expect(sections()[1]!.key).toBe('projects');
   });
 
   it('puts a pinned chat first and keeps the pin for this account', async () => {
     await mount();
-    expect(actionKeys('beta')).toContain('pin');
-    await act(async () => {
-      act_('beta', 'pin');
-    });
-    await settle();
-
-    expect(flat()).toEqual(['beta', 'alpha']);
-    expect(flatRow('beta').pinned).toBe(true);
+    await pressChatMenu('beta', 'sidebar.pin');
+    expect(chatIds()).toEqual(['beta', 'alpha']);
+    expect(chatItems()[0].icon).toBeDefined();
     expect(JSON.parse(state.storage.get('alia-pinned-conversations:user-a')!)).toEqual(['beta']);
     // The same menu now offers the way back: the label says unpin.
-    const labels = (state.sidebarProps!.actions(flatRow('beta')) as { label: string }[]).map(
-      (a) => a.label,
-    );
-    expect(labels).toContain('sidebar.unpin');
-    await act(async () => {
-      act_('beta', 'pin');
-    });
-    await settle();
-    expect(flat()).toEqual(['alpha', 'beta']);
+    await pressChatMenu('beta', 'sidebar.unpin');
+    expect(chatIds()).toEqual(['alpha', 'beta']);
   });
 
   it('puts a favourite before the rest and takes it back out', async () => {
     await mount();
-    await act(async () => {
-      act_('beta', 'favorite');
-    });
-    await settle();
-    expect(flat()).toEqual(['beta', 'alpha']);
+    await pressChatMenu('beta', 'sidebar.addFavorite');
+    expect(chatIds()).toEqual(['beta', 'alpha']);
     expect(JSON.parse(state.storage.get('alia-favorite-conversations:user-a')!)).toEqual(['beta']);
-
-    await act(async () => {
-      act_('beta', 'favorite');
-    });
-    await settle();
-    expect(flat()).toEqual(['alpha', 'beta']);
+    await pressChatMenu('beta', 'sidebar.removeFavorite');
+    expect(chatIds()).toEqual(['alpha', 'beta']);
   });
 
-  it('creates a folder from the tree\'s "+" and files a chat in it, out of the flat list', async () => {
+  it('creates a folder from the tree\'s "+" and files a chat in it, out of the chats section', async () => {
     await mount();
     await act(async () => {
       menuItem(renderer.root, 'sidebar.newFolder').props.onPress();
@@ -356,46 +361,69 @@ describe('the sidebar list', () => {
         .props.onPress();
     });
     await settle();
-
     const [folder] = useFoldersStore.getState().folders;
     expect(folder?.name).toBe('Work');
     expect(state.storage.get('alia-folders:user-a')).toContain('"Work"');
-    expect(state.sidebarProps!.tree.folders.map((f: any) => [f.key, f.label])).toContainEqual([
-      `folder:${folder!.id}`,
-      'Work',
-    ]);
-
-    // The chat's menu offers the folder; filing it moves it from the list into the folder.
-    expect(actionKeys('alpha')).toContain(`folder:${folder!.id}`);
+    expect(
+      sections()
+        .flatMap((s) => s.folders ?? [])
+        .map((f: any) => [f.key, f.label]),
+    ).toContainEqual([`folder:${folder!.id}`, 'Work']);
+    // The chat's menu offers the folder; filing it moves it from the chats section into the folder.
+    // The chat's folder submenu is a radio group; choosing the folder files the chat in it.
     await act(async () => {
-      act_('alpha', `folder:${folder!.id}`);
+      chatRowNode(renderer.root, 'alpha')
+        .find((node) => typeof node.props.onValueChange === 'function')
+        .props.onValueChange(folder!.id);
     });
     await settle();
     expect(folderItems()).toEqual({ [`folder:${folder!.id}`]: ['alpha'] });
-    expect(flat()).toEqual(['beta']);
+    expect(chatIds()).toEqual(['beta']);
   });
 
   it('marks the chat being answered, and shows ghost rows while history loads', async () => {
     useConversationStore.setState({ streamingConversationId: 'beta' });
     await mount();
-    expect(flatRow('beta').description).toBe('…');
-    expect(flatRow('alpha').description).not.toBe('…');
+    expect(
+      chatRowNode(renderer.root, 'beta').findAll(
+        (node) => typeof node.type === 'function' && node.type.name === 'StreamingIndicator',
+      ).length,
+    ).toBe(1);
     act(() => renderer.unmount());
-
     state.isLoading = true;
     await mount();
     expect(renderer.root.findAllByType('SkeletonBox' as any).length).toBeGreaterThan(0);
   });
 
-  it('lists the agents in the same list, each opening its thread by handle', async () => {
-    state.agents = [{ _id: 'a1', name: 'Pepe', handle: 'pepe', lastMessageAt: null }];
+  it('shows two more ghost rows, not a spinner or a line of text, while the next page of chats loads', async () => {
+    state.isFetchingNextPage = true;
     await mount();
-    expect(flat()).toEqual(['agent:a1', 'alpha', 'beta']);
-    expect(flatRow('agent:a1').title).toBe('Pepe');
-    // An agent has no chat menu.
-    expect(actionKeys('agent:a1')).toEqual([]);
+    expect(renderer.root.findAll((node) => is(node, 'Loading'))).toHaveLength(0);
+    expect(renderer.root.findAllByType('SkeletonBox' as any)).toHaveLength(2);
+  });
+
+  it('lists the agents as contacts in the flat list, each opening its thread by handle', async () => {
+    state.agents = [
+      {
+        _id: 'a1',
+        name: 'Pepe',
+        handle: 'pepe',
+        lastMessageAt: null,
+        lastMessage: 'Sent the notes',
+      },
+    ];
+    await mount();
+    // The agents are the first titled section, with their avatars; Alia's chats follow in theirs.
+    expect(flat()).toEqual([]);
+    expect(sections()[0]).toMatchObject({ key: 'agents', label: 'sidebar.agents' });
+    expect(sections()[0]!.items.map((item: { key: string }) => item.key)).toEqual(['agent:a1']);
+    expect(sections()[0]!.items[0].label).toBe('Pepe');
+    // Under the name, the last line of the thread.
+    expect(sections()[0]!.items[0].description).toBe('Sent the notes');
+    expect(sections()[1]).toMatchObject({ key: 'chats', label: 'sidebar.chats' });
+    expect(chatIds()).toEqual(['alpha', 'beta']);
     act(() => {
-      state.sidebarProps!.onSelect('agent:a1');
+      state.sidebarProps!.onTreeItemPress({ key: 'agent:a1' });
     });
     expect(state.push).toHaveBeenCalledWith({
       pathname: '/(app)/[username]',
@@ -419,17 +447,19 @@ describe('the sidebar list', () => {
     expect(state.replace).toHaveBeenCalledWith('/(app)');
   });
 
-  it('filters the list by what is typed', async () => {
+  it('filters the chats and the agents by what is typed', async () => {
     state.agents = [{ _id: 'a1', name: 'Pepe', handle: 'pepe', lastMessageAt: null }];
     await mount();
     await act(async () => {
       state.sidebarProps!.onQueryChange('alp');
     });
-    expect(flat()).toEqual(['alpha']);
+    expect(chatIds()).toEqual(['alpha']);
+    expect(sections().find((section) => section.key === 'agents')).toBeUndefined();
     await act(async () => {
       state.sidebarProps!.onQueryChange('pep');
     });
-    expect(flat()).toEqual(['agent:a1']);
+    expect(chatIds()).toEqual([]);
+    expect(sections()[0]!.items.map((item: { key: string }) => item.key)).toEqual(['agent:a1']);
   });
 
   it('keeps the links in the account menu signed in, so only Settings is a row under the history', async () => {

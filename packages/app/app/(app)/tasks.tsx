@@ -1,6 +1,5 @@
 import { WorkItemRow } from '@/features/automations/ui/work-item-row';
 import { WorkListHeader } from '@/features/automations/ui/work-list-header';
-import type { AutomationDefinition } from '@/shared/contracts/automations';
 import type { WorkItem } from '@/features/automations/model/work-items';
 import { useAgentNames } from '@/features/agents/runtime/use-agent-names';
 import { useAutomationControls } from '@/features/automations/runtime/use-automation-controls';
@@ -11,7 +10,7 @@ import { Button } from '@oxy.so/bloom/button';
 import { Divider } from '@oxy.so/bloom/divider';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiInbox2Line } from '@oxy.so/bloom/icons/RiInbox2Line';
-import { Loading } from '@oxy.so/bloom/loading';
+import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
@@ -50,16 +49,6 @@ export default function TasksPage() {
     [router],
   );
 
-  const handleViewHistory = useCallback(
-    (automation: AutomationDefinition) => {
-      router.push({
-        pathname: '/(app)/automations/[id]',
-        params: { id: automation.id },
-      });
-    },
-    [router],
-  );
-
   const renderItem = useCallback(
     ({ item }: { item: WorkItem }) => (
       <WorkItemRow
@@ -70,7 +59,6 @@ export default function TasksPage() {
         onToggleAutomation={controls.toggleEnabled}
         onRunAutomation={controls.runNow}
         onStopAutomation={controls.stop}
-        onViewAutomationHistory={handleViewHistory}
       />
     ),
     [
@@ -80,16 +68,13 @@ export default function TasksPage() {
       controls.stop,
       controls.toggleEnabled,
       handleTaskPress,
-      handleViewHistory,
     ],
   );
 
   const keyExtractor = useCallback((item: WorkItem) => `${item.kind}:${item.id}`, []);
 
   const ListEmpty = work.isLoading ? (
-    <View className="py-12">
-      <Loading variant="spinner" size="sm" />
-    </View>
+    <ListRowsSkeleton rows={4} mark="tile" />
   ) : work.isError && work.items.length === 0 ? undefined : (
     <EmptyState
       icon={RiInbox2Line}

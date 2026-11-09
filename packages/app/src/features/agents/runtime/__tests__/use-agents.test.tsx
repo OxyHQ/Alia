@@ -55,6 +55,10 @@ vi.mock('@/shared/api/client', () => ({
 }));
 
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+// The SDK's runtime is a native-module barrel: only the key of the chat's agent profile is read.
+vi.mock('@alia.onl/sdk/runtime', () => ({
+  aliaQueryKeys: { agents: { profile: (id: string) => ['alia-agent-profile', id] as const } },
+}));
 
 import { useCreateAgent, useDeleteAgent, useUpdateAgent } from '../use-agents';
 import { useMyAgents } from '../use-my-agents';
@@ -80,6 +84,7 @@ async function settle(): Promise<void> {
 }
 
 type Harness = {
+  client: QueryClient;
   names: () => string[];
   create: ReturnType<typeof useCreateAgent>;
   update: ReturnType<typeof useUpdateAgent>;
@@ -90,7 +95,7 @@ async function mount(): Promise<Harness> {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  let latest: (Omit<Harness, 'names'> & { list: { name: string }[] }) | undefined;
+  let latest: (Omit<Harness, 'names' | 'client'> & { list: { name: string }[] }) | undefined;
 
   function Probe() {
     const mine = useMyAgents();
@@ -114,6 +119,7 @@ async function mount(): Promise<Harness> {
   await settle();
 
   return {
+    client,
     names: () => (latest?.list ?? []).map((agent) => agent.name),
     get create() {
       if (latest === undefined) throw new Error('no render');
@@ -183,6 +189,19 @@ describe('the sidebar’s list, after a write', () => {
     await settle();
 
     expect(harness.names()).toEqual(['New name']);
+  });
+
+  it('makes the open chat read the agent again, so its header follows the edit', async () => {
+    // The header's avatar and name come from the SDK's profile query, not from the list.
+    server.mine = [{ _id: 'a1', name: 'One' }];
+    const harness = await mount();
+    harness.client.setQueryData(['alia-agent-profile', 'a1'], { id: 'a1' });
+
+    await act(async () => {
+      await harness.update.mutateAsync({ id: 'a1', updates: { name: 'Two' } as never });
+    });
+
+    expect(harness.client.getQueryState(['alia-agent-profile', 'a1'])?.isInvalidated).toBe(true);
   });
 
   it('asks the server again rather than patching a copy by hand', async () => {

@@ -1,4 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { usePrefetchConversation } from '@alia.onl/sdk/runtime';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 import { queryKeys } from '@/shared/api/query-keys';
@@ -45,9 +47,16 @@ export interface AgentThread {
   threadId?: string;
 }
 
-export function useAgentThread(username: string | undefined, threadId?: string) {
-  return useQuery({
-    queryKey: [...queryKeys.agents.thread(username ?? ''), threadId ?? 'default'],
+/** How long a thread's identity and conversation are good: they change when the person starts a stretch. */
+const THREAD_STALE_MS = 5 * 60 * 1000;
+
+/**
+ * The thread's query, as a value: what `useAgentThread` runs and what a prefetch runs, so the two
+ * are one question under one key and a prefetched thread is the one the screen reads.
+ */
+function agentThreadQuery(username: string, threadId?: string) {
+  return {
+    queryKey: [...queryKeys.agents.thread(username), threadId ?? 'default'] as const,
     queryFn: async (): Promise<AgentThread> => {
       if (threadId) {
         const response = await apiClient.get<{
@@ -56,23 +65,55 @@ export function useAgentThread(username: string | undefined, threadId?: string) 
         }>(API_ROUTES.agents.threadById(threadId));
         if (!response.data.conversationId)
           throw new Error('Agent thread has no active conversation');
-        const identity = await apiClient.get<AgentThread>(API_ROUTES.agents.thread(username ?? ''));
+        const identity = await apiClient.get<AgentThread>(API_ROUTES.agents.thread(username));
         return {
           agent: identity.data.agent,
           conversationId: response.data.conversationId,
           threadId: response.data.thread.id,
         };
       }
-      const response = await apiClient.get<AgentThread>(API_ROUTES.agents.thread(username ?? ''));
+      const response = await apiClient.get<AgentThread>(API_ROUTES.agents.thread(username));
       return response.data;
     },
-    enabled: typeof username === 'string' && username.length > 0,
+    // Fresh for a while, so opening a thread that was read a moment ago (or prefetched on the way
+    // to it) paints from the cache and does not ask again.
+    staleTime: THREAD_STALE_MS,
     /**
      * A 404 is an ANSWER here, not a failure to get one: the agent does not
      * exist, or this person cannot reach it. Retrying re-asks a question that
      * has already been answered, and does it three times before the screen is
      * allowed to say so.
      */
-    retry: (failureCount, error) => errorStatus(error) !== 404 && failureCount < 2,
+    retry: (failureCount: number, error: unknown) => errorStatus(error) !== 404 && failureCount < 2,
+  };
+}
+
+export function useAgentThread(username: string | undefined, threadId?: string) {
+  return useQuery({
+    ...agentThreadQuery(username ?? '', threadId),
+    enabled: typeof username === 'string' && username.length > 0,
   });
+}
+
+/**
+ * Read an agent's thread ahead of the press that opens it, and the conversation behind it.
+ *
+ * ONLY for an agent the person has already talked to: `GET /agents/thread/:username` CREATES the
+ * thread the first time it is asked, so asking it for an agent never opened would make threads
+ * nobody started. The caller says so with `hasThread`.
+ */
+export function usePrefetchAgentThread(): (username: string, hasThread: boolean) => void {
+  const queryClient = useQueryClient();
+  const prefetchConversation = usePrefetchConversation();
+  return useCallback(
+    (username, hasThread) => {
+      if (!hasThread || username === '') return;
+      const query = agentThreadQuery(username);
+      void queryClient.prefetchQuery(query).then(() => {
+        const thread = queryClient.getQueryData<AgentThread>(query.queryKey);
+        if (thread) prefetchConversation(thread.conversationId);
+      });
+    },
+    [queryClient, prefetchConversation],
+  );
 }

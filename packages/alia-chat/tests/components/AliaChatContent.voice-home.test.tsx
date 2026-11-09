@@ -43,6 +43,11 @@ vi.mock('../../src/runtime/agents', async (importOriginal) => ({
   useAgentFeatures: () => ({ data: undefined, isLoading: false }),
 }));
 vi.mock('../../src/runtime/oxy-files', () => ({ useDocumentUpload: () => async () => 'file-1' }));
+vi.mock('@oxy.so/bloom/agent-avatar', () => ({
+  AgentAvatar: () => null,
+  avatarBodyHex: () => '#00c972',
+  resolveAvatarCharacter: (character: unknown) => character,
+}));
 vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: () => null }));
 vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ user: { id: 'u1' }, isAuthenticated: true }),

@@ -4,10 +4,10 @@ import {
   type IntegrationEntry,
 } from '@/features/connections/runtime/use-integrations';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import { Button } from '@oxy.so/bloom/button';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { SettingsProfilePage, type SettingsPageSection } from '@oxy.so/bloom/settings-modal';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -105,22 +105,7 @@ export function IntegrationsSection() {
       : status;
 
   if (loading) {
-    return (
-      <SettingsProfilePage
-        sections={[
-          {
-            key: 'loading',
-            rows: [
-              {
-                key: 'loading',
-                label: t('common.loading'),
-                control: <Skeleton.Box width={202} height={32} borderRadius={10} />,
-              },
-            ],
-          },
-        ]}
-      />
-    );
+    return <SettingsRowsSkeleton rows={2} />;
   }
 
   const connectedSection: SettingsPageSection = {

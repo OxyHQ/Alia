@@ -18,6 +18,7 @@ import { ProactiveSection } from './proactive-section';
 import { ProfileSection } from './profile-section';
 import { SETTINGS_GROUPS } from './sections';
 import { SecuritySection } from './security-section';
+import { SkillsSection } from './skills-section';
 import { StorageSection } from './storage-section';
 import { UsageSection } from './usage-section';
 import { AliaSettingsContext } from './settings-context';
@@ -39,6 +40,7 @@ const CONTENT: Record<string, ReactNode> = {
   memory: <MemorySection />,
   proactive: <ProactiveSection />,
   'writing-style': <WritingStyleSection />,
+  skills: <SkillsSection />,
 };
 export function AliaSettingsProvider({ children }: { children: ReactNode }) {
   const control = useDialogControl();

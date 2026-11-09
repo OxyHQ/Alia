@@ -34,15 +34,6 @@ export type ConsultEvent =
       content?: string;
       errorCode?: string;
     };
-
-/** The consult frames' names, the retired `alia.agent` not among them. */
-export const CONSULT_EVENTS = [
-  'alia.agent_start',
-  'alia.agent_delta',
-  'alia.agent_tool',
-  'alia.agent_end',
-] as const;
-
 type Raw = Record<string, unknown>;
 
 const isObject = (value: unknown): value is Raw =>

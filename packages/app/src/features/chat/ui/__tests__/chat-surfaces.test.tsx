@@ -19,6 +19,10 @@ const ui = vi.hoisted(() => ({
     ui.rightPanel = panel;
   },
 }));
+vi.mock('@/features/notifications/ui/notifications-bell', () => ({
+  NotificationsBell: () => null,
+}));
+vi.mock('@oxy.so/bloom/icons/RiEditLine', () => ({ RiEditLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiSideBarLine', () => ({ RiSideBarLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiDashboardLine', () => ({ RiDashboardLine: () => null }));
 vi.mock('@/features/chat/runtime/ui-store', () => {
@@ -56,8 +60,10 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
     DropdownMenuContent: host('Content'),
     DropdownMenuItem: host('MenuItem'),
     DropdownMenuSeparator: host('Separator'),
+    DropdownMenuLabel: host('MenuLabel'),
   };
 });
+vi.mock('@oxy.so/bloom/agent-avatar', () => ({ AgentAvatar: () => null }));
 vi.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 const surfaces = vi.hoisted(() => ({
   confirm: vi.fn(async (_options: Record<string, unknown>) => true),
@@ -72,6 +78,8 @@ for (const icon of [
   'RiSearchLine',
   'RiMenuLine',
   'RiShareLine',
+  'RiShare2Line',
+  'RiGroupLine',
   'RiEyeOffLine',
 ]) {
   vi.doMock(`@oxy.so/bloom/icons/${icon}`, () => ({ [icon]: () => null }));
@@ -96,7 +104,7 @@ vi.mock('@oxy.so/bloom/page-header', async () => {
 });
 
 const { ChatHeaderActions } = await import('@/features/chat/ui/chat-header-actions');
-const { ShellPageHeader } = await import('@/shell/page-chrome');
+const { ShellPageHeader } = await import('@/shared/ui/page-chrome');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -172,13 +180,16 @@ describe('ChatHeaderActions', () => {
     const r = render(
       <ChatHeaderActions onShare={vi.fn()} onStopSharing={vi.fn()} onExport={vi.fn()} />,
     );
+    // Sharing is the group's own button, as in the multi-agent chat; the menu keeps ending it.
     expect(labels(r)).toEqual([
       'chatHeader.showPanel',
       'chatHeader.usage',
-      'chatHeader.share',
       'chatHeader.stopSharing',
       'chat.exportMarkdown',
     ]);
+    expect(all(r, 'ButtonGroupItem').map((node) => node.props.accessibilityLabel)).toContain(
+      'chatHeader.share',
+    );
   });
 
   it('mints one link per press, however fast the second press comes', async () => {
@@ -190,7 +201,9 @@ describe('ChatHeaderActions', () => {
         }),
     );
     const r = render(<ChatHeaderActions onShare={onShare} onExport={vi.fn()} />);
-    const item = all(r, 'MenuItem').find((node) => node.props.children === 'chatHeader.share');
+    const item = all(r, 'ButtonGroupItem').find(
+      (node) => node.props.accessibilityLabel === 'chatHeader.share',
+    );
     await act(async () => {
       item?.props.onPress();
       item?.props.onPress();

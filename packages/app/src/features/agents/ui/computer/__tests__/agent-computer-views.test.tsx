@@ -48,9 +48,14 @@ vi.mock('@oxy.so/bloom/chip', async () => {
       ReactModule.createElement('Chip', null, children),
   };
 });
-vi.mock('@oxy.so/bloom/loading', async () => {
+vi.mock('@/shared/ui/skeletons', async () => {
   const ReactModule = await import('react');
-  return { Loading: () => ReactModule.createElement('Loading') };
+  return { ListRowsSkeleton: () => ReactModule.createElement('Skeleton') };
+});
+vi.mock('@oxy.so/bloom/skeleton', async () => {
+  const ReactModule = await import('react');
+  const host = (name: string) => () => ReactModule.createElement(name);
+  return { Region: host('Skeleton'), Box: host('Skeleton') };
 });
 vi.mock('@oxy.so/bloom/text-field', async () => {
   const ReactModule = await import('react');

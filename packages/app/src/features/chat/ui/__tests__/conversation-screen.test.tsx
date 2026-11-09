@@ -26,6 +26,13 @@ const world = vi.hoisted(() => ({
   setGhostMode: vi.fn(),
 }));
 
+const openAgentEditor = vi.hoisted(() => vi.fn());
+vi.mock('@/features/chat/runtime/use-open-agent-editor', () => ({
+  useOpenAgentEditor: () => openAgentEditor,
+}));
+vi.mock('@/features/notifications/ui/notifications-bell', () => ({
+  NotificationsBell: () => null,
+}));
 vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
@@ -33,8 +40,13 @@ vi.mock('@alia.onl/sdk', async () => {
       world.props = props;
       return ReactModule.createElement('AliaChatContent', null);
     },
-    AliaParticipantsHeader: (props: object) =>
-      ReactModule.createElement('ParticipantsHeader', props),
+    AliaParticipants: (props: object) => ReactModule.createElement('Participants', props),
+  };
+});
+vi.mock('@/shared/ui/page-chrome', async () => {
+  const ReactModule = await import('react');
+  return {
+    ShellPageHeader: (props: object) => ReactModule.createElement('ShellPageHeader', props),
   };
 });
 vi.mock('@alia.onl/sdk/model', () => ({
@@ -237,13 +249,62 @@ describe('the breadcrumb', () => {
     expect(content().chrome({}).title).toBe('chat.newChat');
   });
 
-  it('puts the SDK’s participants in the header, and draws no title of its own there', () => {
+  it('puts the SDK’s participants in the header once there is a conversation, and draws no title of its own there', () => {
     mount({ conversationId: 'c1', agentName: 'Atlas' });
     const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
-    const header = content().chrome({ participants }).header as React.ReactElement<
-      Record<string, unknown>
-    >;
-    expect(header.props).toEqual({ participants });
+    const header = content().chrome({ participants, hasMessages: true })
+      .header as React.ReactElement<{ title: React.ReactElement<Record<string, unknown>> }>;
+    expect(header.props.title.props).toMatchObject({ participants });
+    // The actions travel in the header: a container given its own draws no breadcrumb row.
+    expect(header.props).toHaveProperty('actions');
+  });
+
+  it('opens the agent’s editor panel from the header avatar, and leaves Alia’s to wave', () => {
+    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' });
+    const header = content().chrome({ participants, hasMessages: true })
+      .header as React.ReactElement<{ title: React.ReactElement<{ onPress?: () => void }> }>;
+    header.props.title.props.onPress?.();
+    expect(openAgentEditor).toHaveBeenCalledWith('a1');
+
+    mount({ conversationId: 'c1' });
+    const alia = content().chrome({ participants, hasMessages: true })
+      .header as React.ReactElement<{ title: React.ReactElement<{ onPress?: () => void }> }>;
+    expect(alia.props.title.props.onPress).toBeUndefined();
+  });
+
+  it('is drawn at once while the route resolves the conversation: its header, the chat told to wait', () => {
+    mount({ agentId: 'a1', agentName: 'Atlas', loading: true });
+    expect(content().loading).toBe(true);
+    const header = content().chrome({ hasMessages: false }).header as React.ReactElement<{
+      title: unknown;
+    }>;
+    // The name the route knows, not the lead's profile (the chat is still reading it).
+    expect(header.props.title).toBe('Atlas');
+  });
+
+  it('offers sharing on an ordinary chat only, never on an agent’s thread', () => {
+    const shareableOf = (props: Parameters<typeof mount>[0]) => {
+      mount(props);
+      const actions = content().chrome({ hasMessages: true }).actions as React.ReactElement<{
+        children: React.ReactElement<{ shareable: boolean }>[];
+      }>;
+      return actions.props.children[1].props.shareable;
+    };
+    expect(shareableOf({ conversationId: 'c1' })).toBe(true);
+    expect(shareableOf({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' })).toBe(false);
+  });
+
+  it('has no participants header on the empty chat: its greeting carries the mark', () => {
+    mount({ agentName: 'Atlas' });
+    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    expect(content().chrome({ participants, hasMessages: false }).header).toBeUndefined();
+  });
+
+  it('has the header from the first frame of an open conversation, before its messages load', () => {
+    mount({ conversationId: 'c1', agentName: 'Atlas' });
+    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    expect(content().chrome({ participants, hasMessages: false }).header).toBeDefined();
   });
 
   it('files a chat under the project that holds it, else its folder, else the tree', () => {
@@ -271,8 +332,15 @@ describe('the breadcrumb', () => {
   it('wires the actions to what the chat tells it, once there is a conversation', () => {
     mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas', threadHandle: 'pepe' });
     const chat = { conversationId: 'c1' };
-    const actions = content().chrome(chat).actions as React.ReactElement<Record<string, unknown>>;
-    expect(actions.props).toMatchObject({
+    // The actions are the bell and the chat's own menu; the menu is the child that carries the chat.
+    const actions = content().chrome(chat).actions as React.ReactElement<{
+      children: React.ReactNode;
+    }>;
+    const menu = React.Children.toArray(actions.props.children).find(
+      (child): child is React.ReactElement<Record<string, unknown>> =>
+        React.isValidElement(child) && 'chat' in (child.props as object),
+    );
+    expect(menu?.props).toMatchObject({
       chat,
       agentName: 'Atlas',
       agentId: 'a1',
@@ -316,10 +384,16 @@ describe('what the account decides', () => {
 });
 
 describe('the frame', () => {
-  it('stands the chat on the screen’s surface, in the safe area, running only while on show', () => {
+  it('draws an agent’s thread as chat bubbles, and Alia’s own chat plain', () => {
+    mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' });
+    expect(content()).toMatchObject({ bubbles: true });
+    mount({ conversationId: 'c1' });
+    expect(content()).toMatchObject({ bubbles: false });
+  });
+
+  it('stands the chat in the safe area, running only while on show', () => {
     mount();
     expect(content()).toMatchObject({
-      surface: true,
       bottomInset: 34,
       isFocused: true,
       isDarkMode: true,

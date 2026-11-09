@@ -40,8 +40,7 @@ const { deliverShareLink } = await import('../conversation-share');
 
 const URL_ = 'https://alia.onl/shared/t1';
 
-function browser(touch: boolean, share?: (data: unknown) => Promise<void>) {
-  vi.stubGlobal('window', { matchMedia: () => ({ matches: touch }) });
+function browser(share?: (data: unknown) => Promise<void>) {
   vi.stubGlobal('navigator', share ? { share } : {});
 }
 
@@ -67,27 +66,30 @@ describe('deliverShareLink', () => {
     expect(world.sheets).toEqual([{ message: `A conversation\n${URL_}`, title: 'Trip' }]);
   });
 
-  it('copies the link on a desktop browser, even one with a share sheet', async () => {
+  it('opens the browser’s own share sheet, desktop or touch, instead of copying', async () => {
     const share = vi.fn(async () => {});
-    browser(false, share);
+    browser(share);
+    expect(await deliverShareLink(URL_, 'Trip', 'A conversation')).toBe('shared');
+    expect(share).toHaveBeenCalledWith({ url: URL_, title: 'Trip', text: 'A conversation' });
+    expect(world.copied).toEqual([]);
+  });
+
+  it('copies the link only in a browser with no share sheet', async () => {
+    browser();
     expect(await deliverShareLink(URL_, 'Trip', 'A conversation')).toBe('copied');
-    expect(share).not.toHaveBeenCalled();
     expect(world.copied).toEqual([URL_]);
   });
 
-  it('uses a touch browser’s own sheet, and a closed one is dismissed, not copied', async () => {
-    browser(true, async () => {});
-    expect(await deliverShareLink(URL_, 'Trip', 'A conversation')).toBe('shared');
-
-    browser(true, async () => {
+  it('a closed browser sheet is dismissed, not copied', async () => {
+    browser(async () => {
       throw Object.assign(new Error('closed'), { name: 'AbortError' });
     });
     expect(await deliverShareLink(URL_, 'Trip', 'A conversation')).toBe('dismissed');
     expect(world.copied).toEqual([]);
   });
 
-  it('copies instead when the touch browser’s sheet cannot open', async () => {
-    browser(true, async () => {
+  it('copies instead when the browser’s sheet cannot open', async () => {
+    browser(async () => {
       throw Object.assign(new Error('blocked'), { name: 'NotAllowedError' });
     });
     expect(await deliverShareLink(URL_, 'Trip', 'A conversation')).toBe('copied');

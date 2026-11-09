@@ -34,7 +34,7 @@ vi.mock('@oxy.so/bloom/typography', () => ({
 }));
 vi.mock('@oxy.so/bloom/empty-state', () => ({ EmptyState: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiErrorWarningLine', () => ({ RiErrorWarningLine: () => null }));
-vi.mock('@oxy.so/bloom/loading', () => ({ Loading: () => null }));
+vi.mock('@/shared/ui/skeletons', () => ({ CardsSkeleton: () => null }));
 vi.mock('@oxy.so/bloom/screen', () => ({
   Screen: ({ children }: { children: ReactNode }) => <>{children}</>,
   ScreenScrollView: ({ children }: { children: ReactNode }) => <>{children}</>,

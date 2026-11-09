@@ -87,7 +87,7 @@ describe('the thread renders Bloom AI Chat turns', () => {
     expect(code).toContain(
       'const hasFeedback = !message.isStreaming && text.length > 0 && !readOnly;',
     );
-    expect(code).toContain('feedback={hasFeedback}');
+    expect(code).toContain('feedback={hasFeedback && !bubbled}');
     expect(code).toMatch(/actions: replyActions,/);
     expect(code).toMatch(/feedbackProps=\{\{\s*onLike:/);
     expect(code).not.toContain('ACTION_BAR');

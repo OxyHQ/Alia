@@ -9,8 +9,6 @@
  */
 
 import type { AudioRequestAuthentication } from './audio-request-auth';
-import { createAudioLevelMeter } from './audio-level';
-import { loadExpoAudio } from './deferred/expo-audio';
 
 export type ProductVoice = 'male' | 'female';
 
@@ -155,66 +153,4 @@ export async function requestSpeechClip(request: SpeechClipRequest): Promise<str
   if (typeof data.audioUrl !== 'string' || data.audioUrl === '')
     throw new SpeechClipError('TTS failed', { status: response.status, code: null });
   return data.audioUrl;
-}
-
-export interface PlayClipOptions {
-  readonly signal: AbortSignal;
-  /** The clip's live level, 0..1, where the platform lets playback be sampled. */
-  readonly onLevel?: (level: number) => void;
-}
-
-/**
- * Play one clip to its end.
- *
- * Resolves when it finishes or when `signal` aborts (the player is released
- * either way — an interrupted answer stops at once), and rejects if the player
- * reports an error. `crossOrigin` and sampling are set as `useTTS` sets them;
- * its comments explain why.
- */
-export async function playSpeechClip(uri: string, options: PlayClipOptions): Promise<void> {
-  const { signal, onLevel } = options;
-  if (signal.aborted) return;
-  const { createAudioPlayer } = await loadExpoAudio();
-  if (signal.aborted) return;
-
-  const player = createAudioPlayer({ uri }, { crossOrigin: 'anonymous' });
-  const release = (): void => {
-    try {
-      player.remove();
-    } catch {
-      // Already removed.
-    }
-  };
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const onAbort = (): void => resolve();
-      signal.addEventListener('abort', onAbort, { once: true });
-      const settle = (settleWith: () => void): void => {
-        signal.removeEventListener('abort', onAbort);
-        settleWith();
-      };
-
-      if (onLevel !== undefined) {
-        player.setAudioSamplingEnabled(true);
-        const meter = createAudioLevelMeter();
-        player.addListener('audioSampleUpdate', (sample) => {
-          const frames = sample.channels[0]?.frames;
-          if (frames === undefined) return;
-          onLevel(meter.push(frames, Date.now()));
-        });
-      }
-      player.addListener('playbackStatusUpdate', (status) => {
-        if (status.error) {
-          settle(() => reject(new Error(String(status.error))));
-          return;
-        }
-        if (status.didJustFinish) settle(resolve);
-      });
-      player.play();
-    });
-  } finally {
-    release();
-    onLevel?.(0);
-  }
 }

@@ -22,8 +22,8 @@ import {
 import type { Agent } from '@/shared/contracts/agents';
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { queryKeys } from '@/shared/api/query-keys';
-import { ALIA_AVATAR, AliaAvatar, readAgentCharacter } from '@alia.onl/sdk';
-import { type Conversation } from '@alia.onl/sdk/model';
+import { AliaAvatar, readAgentCharacter } from '@alia.onl/sdk';
+import type { Conversation } from '@alia.onl/sdk/model';
 import {
   useConversationStore,
   useConversations,
@@ -32,7 +32,7 @@ import {
   useRenameConversation,
 } from '@alia.onl/sdk/runtime';
 import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
-import { useUnreadCount } from '@/features/notifications/runtime/use-notifications';
+import { usePrefetchAgentThread } from '@/features/agents/runtime/use-agent-thread';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { flatConversations, selectedItemForPath, sidebarSections } from '@/shell/sidebar-history';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
@@ -40,29 +40,18 @@ import { useFoldersStore, type Folder } from '@/features/projects/runtime/folder
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
+import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
-import {
-  ConversationSidebar,
-  type ConversationSidebarAction,
-  type ConversationSidebarItem,
-} from '@oxy.so/bloom/conversation-sidebar';
-import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
-import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
-import { RiFolderLine } from '@oxy.so/bloom/icons/RiFolderLine';
+import { ConversationSidebar } from '@oxy.so/bloom/conversation-sidebar';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
-import { RiStarLine } from '@oxy.so/bloom/icons/RiStarLine';
-import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
 import { RiListCheck3 } from '@oxy.so/bloom/icons/RiListCheck3';
 import { RiMicLine } from '@oxy.so/bloom/icons/RiMicLine';
-import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { RiSettings4Line } from '@oxy.so/bloom/icons/RiSettings4Line';
 import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
-import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
-import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import type {
   SidebarNavItem,
   SidebarTree,
@@ -71,7 +60,6 @@ import type {
 } from '@oxy.so/bloom/sidebar';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
-import { Text } from '@oxy.so/bloom/typography';
 import { ProfileButton, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'expo-router';
@@ -126,6 +114,7 @@ function useSidebarProps() {
   const settings = useAliaSettings();
   const queryClient = useQueryClient();
   const prefetchConversation = usePrefetchConversation();
+  const prefetchAgentThread = usePrefetchAgentThread();
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
   const streamingChatId = useConversationStore((state) => state.streamingConversationId);
@@ -156,7 +145,6 @@ function useSidebarProps() {
   const togglePin = usePinnedStore((state) => state.togglePin);
   const favoriteIds = useFavoritesStore((state) => state.favoriteConversationIds);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
-  const { data: unread } = useUnreadCount();
   // `mutateAsync` is stable across renders; the mutation object is not, and the
   // tree's rows (and their memoised menus) depend on this.
   const { mutateAsync: deleteConversation } = useDeleteConversation();
@@ -355,6 +343,8 @@ function useSidebarProps() {
       return {
         key: conv.id,
         label: conv.title || t('sidebar.newConversation'),
+        // A pinned chat says so with its glyph; the rest are title-only.
+        icon: pinnedIds.includes(conv.id) ? RiPushpinLine : undefined,
         meta: shortTime(conv.updatedAt),
         onPrefetch: () => prefetchConversation(conv.id),
         actions:
@@ -392,9 +382,39 @@ function useSidebarProps() {
     [conversations, projects, folders, pinnedIds, favoriteIds],
   );
 
-  // Projects and folders, for the chats filed in them. The chats that are filed nowhere are the
-  // sidebar's own flat list, not a folder of this tree.
-  const tree = React.useMemo<SidebarTree | undefined>(() => {
+  // Agents are contacts, each with its own thread: a section of their own, one row per agent with its
+  // avatar and the time of the last thing said there. Their threads are not in the history.
+  const agentSection = React.useMemo<SidebarTree | undefined>(() => {
+    if (!isAuthenticated) return undefined;
+    const query = searchQuery.trim();
+    const rows = (myAgents ?? [])
+      .filter((agent) => !query || agentIdentityMatches(agent, query))
+      .map((agent) => ({
+        // Handles may be unresolved or missing; the database id is stable and unique.
+        key: `${AGENT_KEY}${agent._id}`,
+        label: agentDisplayName(agent),
+        // The agent's own character, drawn as a still portrait: a row is not a live renderer.
+        leading: <AgentAvatar character={readAgentCharacter(agent.character)} size={24} portrait />,
+        // The last line of the thread, under the name; before anything was said, the invitation.
+        description: agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
+        // Ahead of the press: its thread and conversation, when there is a conversation to read.
+        onPrefetch: () =>
+          prefetchAgentThread(agentHandle(agent), Boolean(agent.lastMessage?.trim())),
+      }));
+    return rows.length ? { key: 'agents', label: t('sidebar.agents'), items: rows } : undefined;
+  }, [isAuthenticated, myAgents, searchQuery, t, prefetchAgentThread]);
+
+  // Alia's own chats: a section of title-only rows, the ones filed nowhere, pinned and favourites first.
+  const chatSection = React.useMemo<SidebarTree | undefined>(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const rows = flatConversations({ conversations, projects, folders, pinnedIds, favoriteIds })
+      .filter((conv) => !query || (conv.title || '').toLowerCase().includes(query))
+      .map(row);
+    return rows.length ? { key: 'chats', label: t('sidebar.chats'), items: rows } : undefined;
+  }, [conversations, projects, folders, pinnedIds, favoriteIds, searchQuery, row, t]);
+
+  // Projects and folders, for the chats filed in them, and the chats section above them.
+  const tree = React.useMemo<SidebarTree[] | undefined>(() => {
     const treeFolders: SidebarTreeFolder[] = [
       ...sections.projects.map(({ project, conversations: rows }) => ({
         key: `project:${project.id}`,
@@ -422,8 +442,13 @@ function useSidebarProps() {
       })),
     ];
     // Signed in, the tree stands even while empty: it holds "new project/folder".
-    if (!treeFolders.length && !isAuthenticated) return undefined;
-    return {
+    const sectionsAbove = [agentSection, chatSection].filter(
+      (s): s is SidebarTree => s !== undefined,
+    );
+    if (!treeFolders.length && !isAuthenticated)
+      return sectionsAbove.length ? sectionsAbove : undefined;
+    const projectsTree: SidebarTree = {
+      key: 'projects',
       label: t('sidebar.projects'),
       folders: treeFolders,
       actions: isAuthenticated ? (
@@ -433,8 +458,11 @@ function useSidebarProps() {
         />
       ) : undefined,
     };
+    return [...sectionsAbove, projectsTree];
   }, [
     sections,
+    agentSection,
+    chatSection,
     toggleProject,
     toggleFolder,
     row,
@@ -446,136 +474,15 @@ function useSidebarProps() {
     askDeleteFolder,
   ]);
 
-  // The flat list: the agents, then the chats filed nowhere (pinned, favourites, the rest by recency).
-  const agentRows = React.useMemo<ConversationSidebarItem[]>(
-    () =>
-      (isAuthenticated ? (myAgents ?? []) : [])
-        .filter((agent) => !searchQuery.trim() || agentIdentityMatches(agent, searchQuery.trim()))
-        .map((agent) => ({
-          // Handles may be unresolved or temporarily missing. The database id
-          // is stable and unique, so rows and their navigation must use it.
-          id: `${AGENT_KEY}${agent._id}`,
-          title: agentDisplayName(agent),
-          description: agent.lastMessageAt
-            ? shortTime(new Date(agent.lastMessageAt))
-            : t('sidebar.noAgentMessages'),
-          agents: [
-            {
-              id: agent._id,
-              name: agentDisplayName(agent),
-              avatar: readAgentCharacter(agent.character),
-            },
-          ],
-        })),
-    [isAuthenticated, myAgents, searchQuery, t],
-  );
-  const chatRows = React.useMemo<ConversationSidebarItem[]>(
-    () =>
-      flatConversations({ conversations, projects, folders, pinnedIds, favoriteIds })
-        .filter(
-          (conv) =>
-            !searchQuery.trim() ||
-            (conv.title || '').toLowerCase().includes(searchQuery.trim().toLowerCase()),
-        )
-        .map((conv) => ({
-          id: conv.id,
-          title: conv.title || t('sidebar.newConversation'),
-          description:
-            streamingChatId === conv.id ? '…' : (conv.lastMessage ?? shortTime(conv.updatedAt)),
-          agents: [{ id: 'alia', name: 'Alia', avatar: ALIA_AVATAR }],
-          pinned: pinnedIds.includes(conv.id),
-        })),
-    [conversations, projects, folders, pinnedIds, favoriteIds, searchQuery, streamingChatId, t],
-  );
-
-  /** What a chat's context menu offers: pin, favourite, rename, file it, delete. */
-  const chatActions = React.useCallback(
-    (item: ConversationSidebarItem): ConversationSidebarAction[] => {
-      if (item.id.startsWith(AGENT_KEY) || !isAuthenticated) return [];
-      const pinned = pinnedIds.includes(item.id);
-      const favorite = favoriteIds.includes(item.id);
-      return [
-        { key: 'pin', label: pinned ? t('sidebar.unpin') : t('sidebar.pin'), icon: RiPushpinLine },
-        {
-          key: 'favorite',
-          label: favorite ? t('sidebar.removeFavorite') : t('sidebar.addFavorite'),
-          icon: RiStarLine,
-        },
-        { key: 'rename', label: t('sidebar.rename'), icon: RiEditLine },
-        ...projects.map((project) => ({
-          key: `project:${project.id}`,
-          label: `${t('sidebar.moveToProject')}: ${project.name}`,
-          icon: RiFolderLine,
-        })),
-        ...folders.map((folder) => ({
-          key: `folder:${folder.id}`,
-          label: `${t('sidebar.moveToFolder')}: ${folder.name}`,
-          icon: RiFolderLine,
-        })),
-        { key: 'delete', label: t('sidebar.deleteChat'), icon: RiDeleteBinLine, destructive: true },
-      ];
-    },
-    [isAuthenticated, pinnedIds, favoriteIds, projects, folders, t],
-  );
-  const onChatAction = React.useCallback(
-    (item: ConversationSidebarItem, key: string) => {
-      const conv = conversations.find((c) => c.id === item.id);
-      if (!conv) return;
-      if (key === 'pin') void togglePin(conv.id);
-      else if (key === 'favorite') void toggleFavorite(conv.id);
-      else if (key === 'rename') setRenaming(conv);
-      else if (key === 'delete') void askDeleteConversation(conv);
-      else if (key.startsWith('project:')) void moveConversation(conv.id, key.slice(8));
-      else if (key.startsWith('folder:')) void moveConversationToFolder(conv.id, key.slice(7));
-    },
-    [
-      conversations,
-      togglePin,
-      toggleFavorite,
-      askDeleteConversation,
-      moveConversation,
-      moveConversationToFolder,
-    ],
-  );
-
   // New chat and Agents are the toolbar's "+" and store button, not rows.
   const items: SidebarNavItem[] = [
-    {
-      key: 'library',
-      label: t('sidebar.library'),
-      icon: RiBookOpenLine,
-      onPress: () => go('/(app)/library'),
-    },
     {
       key: 'tasks',
       label: t('sidebar.tasks'),
       icon: RiListCheck3,
       onPress: () => go('/(app)/tasks'),
     },
-    {
-      key: 'automations',
-      label: t('sidebar.automations'),
-      icon: RiTimeLine,
-      onPress: () => go('/(app)/automations'),
-    },
-    {
-      key: 'skills',
-      label: t('sidebar.skills'),
-      icon: RiSparklingLine,
-      onPress: () => go('/(app)/skills'),
-    },
     { key: 'shows', label: t('sidebar.shows'), icon: RiMicLine, onPress: () => go('/(app)/shows') },
-    ...(isAuthenticated
-      ? [
-          {
-            key: 'notifications',
-            label: t('sidebar.notifications'),
-            icon: RiNotification3Line,
-            badge: unread?.count ? unread.count : undefined,
-            onPress: () => go('/(app)/notifications'),
-          },
-        ]
-      : []),
   ];
 
   /**
@@ -724,14 +631,14 @@ function useSidebarProps() {
     }
   }, [searchQuery, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
-  /** While the first page loads, ghost rows; while a later one does, a line saying so. */
+  /** While the first page loads, ghost rows; while a later one does, two more at the foot. */
   const content = isLoading ? (
     <HistorySkeleton />
   ) : isFetchingNextPage ? (
-    <Text variant="caption-1-regular" style={{ paddingHorizontal: 8 }}>
-      {t('sidebar.loadingConversations')}
-    </Text>
+    <HistorySkeleton rows={2} />
   ) : undefined;
+
+  const selectedAgentKey = selectedTreeItemForPath(pathname, myAgents);
 
   const props = {
     // The panel's own header stays above the tools: the mark and name (home), and the collapse control.
@@ -744,14 +651,10 @@ function useSidebarProps() {
         router.replace('/(app)');
       },
     },
-    conversations: [...agentRows, ...chatRows],
-    activeId: selectedTreeItemForPath(pathname, myAgents) ?? chatId?.id,
-    onSelect: (id: string) => {
-      if (!id.startsWith(AGENT_KEY)) return openConversation(id);
-      const agentId = id.slice(AGENT_KEY.length);
-      const agent = myAgents?.find((candidate) => candidate._id === agentId);
-      if (agent) openAgent(agent);
-    },
+    // The agents and Alia's chats are both titled tree sections; the flat list holds nothing.
+    conversations: [],
+    activeId: undefined,
+    onSelect: () => undefined,
     query: searchQuery,
     onQueryChange: setSearchQuery,
     // The store button is the agents' catalogue.
@@ -768,15 +671,17 @@ function useSidebarProps() {
       closeNav?.();
       router.replace('/(app)');
     },
-    actions: chatActions,
-    onAction: onChatAction,
     after: content,
     items,
     secondaryItems,
     selected: selectedItemForPath(pathname),
     tree,
-    selectedTreeItem: chatId?.id,
-    onTreeItemPress: (item: { key: string }) => openConversation(item.key),
+    selectedTreeItem: selectedAgentKey ?? chatId?.id,
+    onTreeItemPress: (item: { key: string }) => {
+      if (!item.key.startsWith(AGENT_KEY)) return openConversation(item.key);
+      const agent = myAgents?.find((candidate) => `${AGENT_KEY}${candidate._id}` === item.key);
+      if (agent) openAgent(agent);
+    },
     footer,
     onScroll,
     onClose: closeNav,
@@ -817,10 +722,10 @@ function selectedTreeItemForPath(pathname: string, agents?: Agent[]): string | u
 }
 
 /** Ghost rows while the first page of history loads; uneven, so they read as titles. */
-function HistorySkeleton() {
+function HistorySkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <View style={{ gap: 12, paddingHorizontal: 8, paddingVertical: 4 }}>
-      {Array.from({ length: 6 }, (_, i) => (
+      {Array.from({ length: rows }, (_, i) => (
         <Skeleton.Box key={i} height={14} borderRadius={4} width={`${60 + (i % 3) * 15}%`} />
       ))}
     </View>

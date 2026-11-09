@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../tools/mcp.js', () => ({ buildMcpTools: async () => ({}) }));
 vi.mock('../tools/integrations.js', () => ({ buildIntegrationTools: async () => ({}) }));
-vi.mock('../tools/ask-agent.js', () => ({ buildAskAgentTool: async () => ({}) }));
 vi.mock('../tools/oxy-services.js', () => ({
   buildOxyServiceTools: async () => ({}),
   getOxyServicePromptFragment: () => '',
@@ -18,8 +17,8 @@ const BUDGET: Record<string, number> = {
   '1 chat (all tools)': 5900,
   '2 voice': 5900,
   '3 telegram': 580,
-  '4 dev-key codea': 1620,
-  '4 dev-key cowork': 1550,
+  '4 dev-key codea': 1700,
+  '4 dev-key cowork': 1630,
   '5 agent run (browser only)': 990,
 };
 

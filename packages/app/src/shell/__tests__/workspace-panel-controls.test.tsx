@@ -82,16 +82,15 @@ vi.mock('@oxy.so/bloom/surfaces', () => ({
   },
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { success: () => {}, error: () => {} } }));
-vi.mock('@oxy.so/bloom/loading', async () => {
-  const { host } = await import('@/shared/testing/panel-bloom-stubs');
-  return { Loading: host('Loading') };
-});
+// The terminal's placeholder is Bloom's skeleton: nothing to run here.
+vi.mock('@/shared/ui/skeletons', () => ({ LinesSkeleton: () => null }));
 
 vi.mock('@/features/chat/ui/workspace/agent-terminal', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
   return { AgentTerminal: host('AgentTerminal') };
 });
 vi.mock('@/features/chat/ui/workspace/agent-panel', () => ({ AgentPanel: () => null }));
+vi.mock('@/features/agents/ui/agent-editor-panel', () => ({ AgentEditorPanel: () => null }));
 vi.mock('@alia.onl/sdk', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
   return { CanvasComponent: host('CanvasPreview'), ThoughtPanel: () => null };

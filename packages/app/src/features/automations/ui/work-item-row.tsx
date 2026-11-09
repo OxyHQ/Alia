@@ -36,7 +36,7 @@ export function WorkItemRow({
   onToggleAutomation: (automation: AutomationDefinition, enabled: boolean) => void;
   onRunAutomation: (automation: AutomationDefinition) => void;
   onStopAutomation: (automation: AutomationDefinition) => void;
-  onViewAutomationHistory: (automation: AutomationDefinition) => void;
+  onViewAutomationHistory?: (automation: AutomationDefinition) => void;
 }) {
   if (item.kind === 'task') {
     return item.task.status === 'running' || item.task.status === 'queued' ? (

@@ -3,12 +3,12 @@ import { AuthLogo } from '@/features/onboarding/ui/auth-logo';
 import { errorMessage } from '@/shared/api/error-utils';
 import { useRedeemInviteCode } from '@/features/onboarding/runtime/use-referrals';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { StatusSkeleton } from '@/shared/ui/skeletons';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
 import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
 import { RiLoginBoxLine } from '@oxy.so/bloom/icons/RiLoginBoxLine';
 import { RiUserHeartLine } from '@oxy.so/bloom/icons/RiUserHeartLine';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
@@ -52,7 +52,7 @@ export default function InviteScreen() {
     return (
       <AuthContainer>
         <AuthLogo />
-        <Loading text={t('common.loading')} />
+        <StatusSkeleton />
       </AuthContainer>
     );
   }

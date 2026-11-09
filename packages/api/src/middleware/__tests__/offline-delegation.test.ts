@@ -41,11 +41,6 @@ vi.mock('../../lib/logger.js', () => {
 });
 vi.mock('../../lib/channels/registry.js', () => ({ getConfiguredChannels: () => [] }));
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
-vi.mock('../../db/developers/developerRepository.js', () => ({
-  findKeyByHash: vi.fn(),
-  findAppById: vi.fn(),
-  touchKeyLastUsed: vi.fn(),
-}));
 vi.mock('../../db/telemetry/apiKeyUsageRepository.js', () => ({ recordApiKeyUsage: vi.fn() }));
 
 const OXY_BASE_URL = 'https://api.oxy.test';

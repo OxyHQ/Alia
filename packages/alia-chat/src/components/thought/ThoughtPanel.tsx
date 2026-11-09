@@ -36,7 +36,7 @@ import { RiCheckboxCircleLine } from '@oxy.so/bloom/icons/RiCheckboxCircleLine';
 import { RiCloseCircleLine } from '@oxy.so/bloom/icons/RiCloseCircleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
 import { RiForbidLine } from '@oxy.so/bloom/icons/RiForbidLine';
-import { Loading } from '@oxy.so/bloom/loading';
+import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Tabs, TabsTrigger } from '@oxy.so/bloom/tabs';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
@@ -239,17 +239,26 @@ function ActivityTab({ entries }: { entries: AuditEntry[] }) {
  */
 function SelectionState({ status }: { status: 'loading' | 'failed' | 'gone' }) {
   const { t } = useLabels();
-  const key =
-    status === 'loading'
-      ? 'thought.loading'
-      : status === 'failed'
-        ? 'thought.loadFailed'
-        : 'thought.messageGone';
+  if (status === 'loading') {
+    // The steps are on their way: rows shaped like them, not a word about waiting.
+    return (
+      <Skeleton.Region className="gap-4 p-3" testID="thought-loading">
+        {[0, 1, 2].map((row) => (
+          <View key={row} className="flex-row items-center gap-3">
+            <Skeleton.Circle size={20} />
+            <View className="flex-1 gap-1.5">
+              <Skeleton.Box width={row === 1 ? '55%' : '75%'} height={13} borderRadius={6} />
+              <Skeleton.Box width="40%" height={11} borderRadius={6} />
+            </View>
+          </View>
+        ))}
+      </Skeleton.Region>
+    );
+  }
   return (
     <EmptyState
       variant="compact"
-      illustration={status === 'loading' ? <Loading size="sm" iconSize={24} /> : undefined}
-      description={t(key)}
+      description={t(status === 'failed' ? 'thought.loadFailed' : 'thought.messageGone')}
     />
   );
 }

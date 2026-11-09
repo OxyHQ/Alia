@@ -1,4 +1,4 @@
-import { type Conversation } from '@alia.onl/sdk/model';
+import type { Conversation } from '@alia.onl/sdk/model';
 
 /**
  * What the sidebar's History lists: everything not already shown somewhere else.
@@ -54,15 +54,7 @@ export function flatConversations({
 }
 
 /** The primary sidebar rows that are routes, keyed by the first path segment they own. */
-const ROUTE_ITEMS = [
-  'agents',
-  'library',
-  'tasks',
-  'automations',
-  'skills',
-  'shows',
-  'notifications',
-] as const;
+const ROUTE_ITEMS = ['agents', 'tasks', 'shows', 'notifications'] as const;
 
 /**
  * The sidebar's selected primary row for a pathname: its first segment, when
