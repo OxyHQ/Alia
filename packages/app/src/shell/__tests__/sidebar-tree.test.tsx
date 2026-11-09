@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   sidebarProps: null as null | Record<string, any>,
   conversations: [] as any[],
   isLoading: false,
+  isFetchingNextPage: false,
   agents: [] as any[],
   push: vi.fn(),
   replace: vi.fn(),
@@ -90,7 +91,7 @@ vi.mock('@alia.onl/sdk/runtime', async () => ({
     data: state.isLoading ? undefined : { pages: [{ conversations: state.conversations }] },
     fetchNextPage: vi.fn(),
     hasNextPage: false,
-    isFetchingNextPage: false,
+    isFetchingNextPage: state.isFetchingNextPage,
     isFetchNextPageError: false,
     isLoading: state.isLoading,
   }),
@@ -209,6 +210,12 @@ vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return { Loading: () => ReactModule.createElement('Spinner') };
 });
+vi.mock('@oxy.so/bloom/loading', async () => {
+  const ReactModule = await import('react');
+  return {
+    Loading: (props: Record<string, unknown>) => ReactModule.createElement('Loading', props),
+  };
+});
 vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
   return { Box: () => ReactModule.createElement('SkeletonBox') };
@@ -292,6 +299,7 @@ beforeEach(async () => {
   state.sidebarProps = null;
   state.conversations = [chat('alpha'), chat('beta')];
   state.isLoading = false;
+  state.isFetchingNextPage = false;
   state.agents = [];
   useStore.setState({ chatId: null });
   useConversationStore.setState({ streamingConversationId: null });
@@ -385,6 +393,16 @@ describe('the sidebar list', () => {
     state.isLoading = true;
     await mount();
     expect(renderer.root.findAllByType('SkeletonBox' as any).length).toBeGreaterThan(0);
+  });
+
+  it("shows Bloom's spinner, not a line of text, while the next page of chats loads", async () => {
+    state.isFetchingNextPage = true;
+    await mount();
+    const spinners = renderer.root.findAll((node) => is(node, 'Loading'));
+    expect(spinners).toHaveLength(1);
+    expect(spinners[0]!.props.variant).toBe('spinner');
+    // What it says is its accessible name.
+    expect(spinners[0]!.props.accessibilityLabel).toBe('sidebar.loadingConversations');
   });
 
   it('lists the agents as contacts in the flat list, each opening its thread by handle', async () => {

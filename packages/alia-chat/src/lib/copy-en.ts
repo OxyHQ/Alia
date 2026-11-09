@@ -84,6 +84,7 @@ export const COPY_EN: Readonly<Record<string, CopyEntry>> = {
   'chat.newConversationDismiss': 'Not now',
   'chat.newConversationOffer': 'Start a new conversation?',
   'chat.newStretch': 'New conversation',
+  'chat.chatWith': 'Chat with %{name}',
   'chat.readAloud': 'Read Aloud',
   'chat.readAloudFailed': "Couldn't read this aloud",
   'chat.regenerate': 'Regenerate',

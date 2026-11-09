@@ -649,6 +649,7 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "newStretch": "New conversation",
+    "chatWith": "Chat with %{name}",
     "loadingHistory": "Loading earlier messages…",
     "searchThreadPlaceholder": "Search this thread",
     "searchThreadHint": "Search everything you have said to this agent, across every conversation.",

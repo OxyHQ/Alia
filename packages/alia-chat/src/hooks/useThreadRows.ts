@@ -8,6 +8,7 @@ import {
   threadSeamIds,
   turnTimings,
 } from '../runtime/model';
+import { speakerChanges } from '../runtime/thread/speaker-changes';
 import { useTimelineShape } from './useTimelineWindow';
 
 /** The history of a conversation that has none, as ONE array: a fresh `[]` per render would break every memo. */
@@ -121,6 +122,9 @@ export function useThreadRows({
     [history, liveShape, conversationId],
   );
 
+  /** The turns where a consulted agent comes into the conversation: a line says whom the person is chatting with. */
+  const speakers = useMemo(() => speakerChanges(shape), [shape]);
+
   const timingOf = useCallback(
     (messageId: string) => timings.get(messageId) ?? EMPTY_TIMING,
     [timings],
@@ -139,6 +143,7 @@ export function useThreadRows({
     arrived,
     dayLabels,
     seamIds,
+    speakers,
     lastReplyIndex,
     timingOf,
   };

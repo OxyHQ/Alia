@@ -59,9 +59,9 @@ import type {
   SidebarTreeFolder,
   SidebarTreeItem,
 } from '@oxy.so/bloom/sidebar';
+import { Loading } from '@oxy.so/bloom/loading';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
-import { Text } from '@oxy.so/bloom/typography';
 import { ProfileButton, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'expo-router';
@@ -633,9 +633,10 @@ function useSidebarProps() {
   const content = isLoading ? (
     <HistorySkeleton />
   ) : isFetchingNextPage ? (
-    <Text variant="caption-1-regular" style={{ paddingHorizontal: 8 }}>
-      {t('sidebar.loadingConversations')}
-    </Text>
+    // Bloom's spinner; what it is for is the accessible name, not a line of text in the list.
+    <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+      <Loading variant="spinner" accessibilityLabel={t('sidebar.loadingConversations')} />
+    </View>
   ) : undefined;
 
   const selectedAgentKey = selectedTreeItemForPath(pathname, myAgents);

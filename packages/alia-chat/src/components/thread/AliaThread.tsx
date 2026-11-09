@@ -165,13 +165,23 @@ export const AliaThread = memo(function AliaThread({
 
   useFailedTurnToast(failedTurn, onRetryTurn);
 
-  const { rows, live, history, ids, arrived, dayLabels, seamIds, lastReplyIndex, timingOf } =
-    useThreadRows({
-      messages,
-      history: pastMessages,
-      conversationId,
-      conversationLoading,
-    });
+  const {
+    rows,
+    live,
+    history,
+    ids,
+    arrived,
+    dayLabels,
+    seamIds,
+    speakers,
+    lastReplyIndex,
+    timingOf,
+  } = useThreadRows({
+    messages,
+    history: pastMessages,
+    conversationId,
+    conversationLoading,
+  });
 
   // ── The thought panel: this conversation as it reads it, and opening it on a turn ──
   const thoughtScope = useThoughtScope({
@@ -279,6 +289,12 @@ export const AliaThread = memo(function AliaThread({
       <Fragment key={message.id || `row-${index}`}>
         {seamIds.has(message.id) ? <Divider spacing={16}>{t('chat.newStretch')}</Divider> : null}
         {dayLabel === undefined ? null : <ChatDateHeader label={dayLabel} placement="inline" />}
+        {/* Where another agent comes into the conversation: whom the person is chatting with now. */}
+        {speakers.has(message.id) ? (
+          <Divider spacing={16}>
+            {t('chat.chatWith', { name: speakers.get(message.id)?.agentName ?? '' })}
+          </Divider>
+        ) : null}
         <ThreadRow
           message={message}
           // Only a message that arrived while this conversation was open animates in; none of the
