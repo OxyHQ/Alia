@@ -87,6 +87,10 @@ const TERMS_URL = 'https://oxy.so/legal/terms';
 
 /** Tree keys of agent rows: `agent:<handle>`. Chat rows are keyed by conversation id. */
 const AGENT_KEY = 'agent:';
+
+/** A conversation of several agents (a group chat), as opposed to a chat with Alia or with one agent. */
+const isGroupConversation = (conversation: Conversation): boolean =>
+  (conversation.memberAgentIds?.length ?? 0) > 1;
 /** The look drawn for "New agent" in the create menu, as Bloom's own chat draws a new bot. */
 const NEW_AGENT_CHARACTER = { preset: 'blue_beret', color: 'violet' } as const;
 
@@ -397,17 +401,68 @@ function useSidebarProps() {
     ],
   );
 
+  // A group chat is a contact like an agent, not a chat of Alia's: it lives with the agents.
+  const { chatConversations, groupConversations } = React.useMemo(() => {
+    const groups: Conversation[] = [];
+    const chats: Conversation[] = [];
+    for (const conv of conversations) (isGroupConversation(conv) ? groups : chats).push(conv);
+    return { chatConversations: chats, groupConversations: groups };
+  }, [conversations]);
+
   const sections = React.useMemo(
-    () => sidebarSections({ conversations, projects, folders, pinnedIds, favoriteIds }),
-    [conversations, projects, folders, pinnedIds, favoriteIds],
+    () =>
+      sidebarSections({
+        conversations: chatConversations,
+        projects,
+        folders,
+        pinnedIds,
+        favoriteIds,
+      }),
+    [chatConversations, projects, folders, pinnedIds, favoriteIds],
   );
 
   // Agents are contacts, each with its own thread: a section of their own, one row per agent with its
-  // avatar and the time of the last thing said there. Their threads are not in the history.
+  // avatar and the time of the last thing said there. Their threads are not in the history. The group
+  // chats the person has with several of them are contacts too, and stand first, as one row each: the
+  // members' avatars together, the group's name and the last thing said.
   const agentSection = React.useMemo<SidebarTree | undefined>(() => {
     if (!isAuthenticated) return undefined;
     const query = searchQuery.trim();
-    const rows = (myAgents ?? [])
+    const agentsById = new Map((myAgents ?? []).map((agent) => [agent._id, agent]));
+    const groupRows = groupConversations.flatMap((conv) => {
+      const members = (conv.memberAgentIds ?? []).flatMap((id) => {
+        const agent = agentsById.get(id);
+        return agent === undefined
+          ? []
+          : [
+              {
+                id,
+                name: agentDisplayName(agent),
+                avatar: readAgentCharacter(agent.character),
+              },
+            ];
+      });
+      const label = conv.title?.trim() || members.map((member) => member.name).join(', ');
+      if (
+        query &&
+        !`${label} ${members.map((member) => member.name).join(' ')}`
+          .toLowerCase()
+          .includes(query.toLowerCase())
+      )
+        return [];
+      return [
+        {
+          ...row(conv),
+          label: label || t('sidebar.newConversation'),
+          // Not a chat of Alia's: no pin glyph, no time chip; the avatars and the last line say it.
+          icon: undefined,
+          meta: undefined,
+          leading: <AgentStack size={AGENT_ROW_AVATAR} agents={members.slice(0, 3)} />,
+          description: conv.lastMessage?.trim() || t('sidebar.noAgentMessages'),
+        },
+      ];
+    });
+    const agentRows = (myAgents ?? [])
       .filter((agent) => !query || agentIdentityMatches(agent, query))
       .map((agent) => ({
         // Handles may be unresolved or missing; the database id is stable and unique.
@@ -428,17 +483,24 @@ function useSidebarProps() {
         onPrefetch: () =>
           prefetchAgentThread(agentHandle(agent), Boolean(agent.lastMessage?.trim())),
       }));
+    const rows = [...groupRows, ...agentRows];
     return rows.length ? { key: 'agents', label: t('sidebar.agents'), items: rows } : undefined;
-  }, [isAuthenticated, myAgents, searchQuery, t, prefetchAgentThread]);
+  }, [isAuthenticated, myAgents, groupConversations, row, searchQuery, t, prefetchAgentThread]);
 
   // Alia's own chats: a section of title-only rows, the ones filed nowhere, pinned and favourites first.
   const chatSection = React.useMemo<SidebarTree | undefined>(() => {
     const query = searchQuery.trim().toLowerCase();
-    const rows = flatConversations({ conversations, projects, folders, pinnedIds, favoriteIds })
+    const rows = flatConversations({
+      conversations: chatConversations,
+      projects,
+      folders,
+      pinnedIds,
+      favoriteIds,
+    })
       .filter((conv) => !query || (conv.title || '').toLowerCase().includes(query))
       .map(row);
     return rows.length ? { key: 'chats', label: t('sidebar.chats'), items: rows } : undefined;
-  }, [conversations, projects, folders, pinnedIds, favoriteIds, searchQuery, row, t]);
+  }, [chatConversations, projects, folders, pinnedIds, favoriteIds, searchQuery, row, t]);
 
   // Projects and folders, for the chats filed in them, and the chats section above them.
   const tree = React.useMemo<SidebarTree[] | undefined>(() => {

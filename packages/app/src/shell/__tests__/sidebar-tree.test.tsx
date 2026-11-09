@@ -407,6 +407,36 @@ describe('the sidebar list', () => {
     expect(renderer.root.findAllByType('SkeletonBox' as any)).toHaveLength(2);
   });
 
+  it('lists a group chat with the agents, first, and not among Alia’s chats', async () => {
+    state.agents = [
+      { _id: 'a1', name: 'Pepe', handle: 'pepe', lastMessageAt: null },
+      { _id: 'a2', name: 'Ana', handle: 'ana', lastMessageAt: null },
+    ];
+    state.conversations = [
+      chat('alpha'),
+      {
+        ...chat('g1'),
+        title: 'Los tres',
+        lastMessage: 'Hola a todos',
+        memberAgentIds: ['a1', 'a2'],
+      },
+    ];
+    await mount();
+    const agents = sections().find((section) => section.key === 'agents')!;
+    // The group stands first among the contacts, a row of its own that opens the conversation.
+    expect(agents.items.map((item: { key: string }) => item.key)).toEqual([
+      'g1',
+      'agent:a1',
+      'agent:a2',
+    ]);
+    expect(agents.items[0]).toMatchObject({ label: 'Los tres', description: 'Hola a todos' });
+    expect(chatIds()).toEqual(['alpha']);
+    act(() => {
+      state.sidebarProps!.onTreeItemPress({ key: 'g1' });
+    });
+    expect(state.replace).toHaveBeenCalledWith('/(app)/c/g1');
+  });
+
   it('lists the agents as contacts in the flat list, each opening its thread by handle', async () => {
     state.agents = [
       {
