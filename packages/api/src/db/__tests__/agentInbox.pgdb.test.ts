@@ -46,7 +46,13 @@ const unique = () => `${Date.now()}-${(n += 1)}`;
 const T0 = new Date('2026-11-09T12:00:00Z');
 const at = (min: number) => new Date(T0.getTime() + min * 60_000);
 
-async function agent(overrides: { scheduleInterval?: number; isPublished?: boolean } = {}) {
+async function agent(
+  overrides: {
+    scheduleInterval?: number;
+    isPublished?: boolean;
+    status?: 'active' | 'idle' | 'offline';
+  } = {},
+) {
   const created = await createAgent(db, {
     oxyAccountId: `inbox-bot-${unique()}`,
     ownerOxyAccountId: OWNER,
@@ -57,10 +63,15 @@ async function agent(overrides: { scheduleInterval?: number; isPublished?: boole
     category: 'research',
     isPublished: overrides.isPublished ?? true,
   });
-  if (overrides.scheduleInterval !== undefined) {
+  if (overrides.scheduleInterval !== undefined || overrides.status !== undefined) {
     await db
       .update(agents)
-      .set({ scheduleInterval: overrides.scheduleInterval })
+      .set({
+        ...(overrides.scheduleInterval !== undefined && {
+          scheduleInterval: overrides.scheduleInterval,
+        }),
+        ...(overrides.status !== undefined && { status: overrides.status }),
+      })
       .where(eq(agents.id, created._id));
   }
   return created._id;
@@ -203,13 +214,20 @@ describe('the heartbeat', () => {
     const empty = await agent({ scheduleInterval: 15 });
     const noInterval = await agent();
     const unpublished = await agent({ scheduleInterval: 15, isPublished: false });
-    for (const id of [due, noInterval, unpublished]) await addInboxItem(db, item(id));
+    const paused = await agent({ scheduleInterval: 15, status: 'idle' });
+    const offline = await agent({ scheduleInterval: 15, status: 'offline' });
+    for (const id of [due, noInterval, unpublished, paused, offline]) {
+      await addInboxItem(db, item(id));
+    }
 
     const ids = (await dueHeartbeats(db, T0)).map((c) => c.agentId);
     expect(ids).toContain(due);
     expect(ids).not.toContain(empty);
     expect(ids).not.toContain(noInterval);
     expect(ids).not.toContain(unpublished);
+    // `idle` and `offline` are how an owner pauses an agent: it is not woken, and its items wait.
+    expect(ids).not.toContain(paused);
+    expect(ids).not.toContain(offline);
   });
 
   it('waits out its interval after a wake-up', async () => {

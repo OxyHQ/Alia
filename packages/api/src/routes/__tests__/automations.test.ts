@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   revoke: vi.fn(),
   reload: vi.fn(),
   scheduleError: vi.fn(),
+  tooFrequent: vi.fn(() => false),
+  enabledCount: vi.fn(async () => 0),
   oxyMap: vi.fn(),
   list: vi.fn(),
   provisionAlia: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock('../../db/agents/agentRepository.js', () => ({
   })),
 }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
+  countEnabledAutomationDefinitions: state.enabledCount,
   createAutomationDefinition: state.create,
   findAutomationDefinition: state.find,
   listActiveAutomationAuthorizations: state.listActive,
@@ -86,6 +89,7 @@ vi.mock('../../lib/tools/oxy-services.js', () => ({
 }));
 vi.mock('../../lib/trigger-engine.js', () => ({
   automationScheduleError: state.scheduleError,
+  automationScheduleTooFrequent: state.tooFrequent,
   reloadAutomationSchedule: state.reload,
 }));
 vi.mock('../../lib/logger.js', () => {
@@ -231,6 +235,8 @@ beforeEach(() => {
   state.markRevoked.mockResolvedValue(undefined);
   state.reload.mockResolvedValue(undefined);
   state.scheduleError.mockReturnValue(null);
+  state.tooFrequent.mockReturnValue(false);
+  state.enabledCount.mockResolvedValue(0);
   state.oxyMap.mockResolvedValue([
     {
       resource,
@@ -338,6 +344,28 @@ describe('structured automation control plane', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('invalid_timezone');
     expect(state.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a schedule that would fire more often than every five minutes', async () => {
+    state.tooFrequent.mockReturnValueOnce(true);
+    const response = await send('POST', '/automations', {
+      ...payload,
+      trigger: { type: 'schedule', cron: '* * * * *', timezone: 'UTC' },
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('automation_schedule_too_frequent');
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
+  it('stops at the limit of enabled automations, and still lets a disabled one be saved', async () => {
+    state.enabledCount.mockResolvedValue(100);
+    const refused = await send('POST', '/automations', payload);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toBe('too_many_automations');
+    expect(state.create).not.toHaveBeenCalled();
+
+    const saved = await send('POST', '/automations', { ...payload, enabled: false });
+    expect(saved.status).toBe(201);
   });
 
   it('persists only opaque authorization references for execute mode', async () => {

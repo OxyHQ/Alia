@@ -2,6 +2,7 @@ import { uuidv7 } from '@oxy.so/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   automationHasActiveAuthorizationCoverage,
+  countEnabledAutomationDefinitions,
   automationRunProgressForSession,
   claimAutomationConversation,
   claimAutomationRunPlan,
@@ -628,5 +629,37 @@ describe('tasks Alia is responsible for', () => {
     const stored = await findAutomationDefinitionById(db, automation.id);
     expect(stored?.conversationId).toBe('conversation-first');
     expect(stored?.updatedAt.getTime()).toBe(automation.updatedAt.getTime());
+  });
+});
+
+describe('countEnabledAutomationDefinitions', () => {
+  const define = (ownerAccountId: string, enabled: boolean) =>
+    createAutomationDefinition(db, {
+      id: uuidv7(),
+      ownerAccountId,
+      objective: 'Look at the news',
+      triggerKind: 'schedule',
+      scheduleCron: '0 9 * * *',
+      scheduleTimezone: 'UTC',
+      actorMode: 'alia',
+      eligibleAgentIds: [],
+      executionMode: 'execute',
+      actions: [],
+      inputs: {},
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      enabled,
+    });
+
+  it('counts a person’s enabled automations, not the stopped ones and not anyone else’s', async () => {
+    const owner = `count-owner-${uuidv7()}`;
+    await define(owner, true);
+    await define(owner, true);
+    await define(owner, false);
+    await define(`count-other-${uuidv7()}`, true);
+    expect(await countEnabledAutomationDefinitions(db, owner)).toBe(2);
+    expect(await countEnabledAutomationDefinitions(db, `nobody-${uuidv7()}`)).toBe(0);
   });
 });

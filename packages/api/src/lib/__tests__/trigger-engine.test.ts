@@ -28,6 +28,7 @@ import {
 } from '../../db/automation/automationDefinitionRepository.js';
 import { dispatchStructuredAutomation } from '../automation-dispatcher.js';
 import {
+  automationScheduleTooFrequent,
   missedOccurrence,
   startTriggerScheduler,
   stopAllScheduledTasks,
@@ -201,5 +202,38 @@ describe('an occurrence missed while nobody led the scheduler', () => {
     await startTriggerScheduler();
     expect(dispatchAutomation).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+});
+
+describe('automationScheduleTooFrequent', () => {
+  const from = new Date('2026-11-09T12:00:00Z');
+  const tooFrequent = (expression: string) =>
+    automationScheduleTooFrequent(expression, 'UTC', from);
+
+  it('refuses a schedule that can fire more often than every five minutes', () => {
+    expect(tooFrequent('* * * * *')).toBe(true);
+    expect(tooFrequent('*/2 * * * *')).toBe(true);
+    expect(tooFrequent('*/4 * * * *')).toBe(true);
+  });
+
+  it('sees the closest pair of an uneven schedule, not just the average gap', () => {
+    // Every hour on average, but two occurrences 2 minutes apart.
+    expect(tooFrequent('0,2 * * * *')).toBe(true);
+  });
+
+  it('allows every five minutes and anything slower', () => {
+    expect(tooFrequent('*/5 * * * *')).toBe(false);
+    expect(tooFrequent('0,30 * * * *')).toBe(false);
+    expect(tooFrequent('0 * * * *')).toBe(false);
+    expect(tooFrequent('0 9 * * 1-5')).toBe(false);
+  });
+
+  it('allows a one-off: the exact minute a follow-up or a heartbeat is scheduled for', () => {
+    expect(tooFrequent('30 14 9 11 *')).toBe(false);
+  });
+
+  it('leaves an invalid expression to the validator that already reports it', () => {
+    cronMock.validate.mockReturnValueOnce(false);
+    expect(tooFrequent('not a cron')).toBe(false);
   });
 });
