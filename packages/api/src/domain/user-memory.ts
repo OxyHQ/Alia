@@ -1,43 +1,10 @@
 /**
- * Closed value sets and plan limits for `user-memory`.
+ * Closed value sets for the person's Alia profile.
  *
- * The value sets live OUTSIDE `models/` because the drizzle schema renders its
- * CHECK constraints from these exact tuples — so the Postgres schema depends on
- * them at runtime.
- *
- * The LIMITS and the `MemoryType` alias live here too. They are not storage
- * concerns: `getMemoryLimit` reads a subscription plan name and
- * `MAX_MEMORY_TITLE_LENGTH` bounds a request body (`lib/validators/memory-validators.ts`,
- * `lib/tools/user-memory.ts`, `routes/memory.ts`).
+ * They live OUTSIDE `models/` because the drizzle schema renders its CHECK constraint from
+ * this exact tuple, so the Postgres schema depends on it at runtime. What Alia remembers about
+ * a person is Nilo's, with Nilo's own limits.
  */
 
-export const MEMORY_TYPES = ['profile', 'topic', 'person'] as const;
 export const MEMORY_RESPONSE_LENGTHS = ['short', 'medium', 'long'] as const;
 export type MemoryResponseLength = (typeof MEMORY_RESPONSE_LENGTHS)[number];
-
-/** Memory grouping shown in the settings UI (You / Topics / People). */
-export type MemoryType = (typeof MEMORY_TYPES)[number];
-
-// How many memories a plan allows.
-export const MAX_MEMORIES_FREE = 100;
-export const MAX_MEMORIES_PRO = 1000;
-export const MAX_MEMORIES_BUSINESS = -1; // Unlimited
-
-// Bounds on one memory's fields, enforced by `lib/validators/memory-validators.ts`.
-export const MAX_MEMORY_TITLE_LENGTH = 200;
-export const MAX_MEMORY_SUMMARY_LENGTH = 10000;
-
-/** The memory allowance for a plan, by name. `-1` means unlimited. */
-export const getMemoryLimit = (planName?: string): number => {
-  if (!planName) return MAX_MEMORIES_FREE;
-
-  const plan = planName.toLowerCase();
-  if (plan.includes('business') || plan.includes('enterprise')) {
-    return MAX_MEMORIES_BUSINESS; // Unlimited
-  }
-  if (plan.includes('pro')) {
-    return MAX_MEMORIES_PRO;
-  }
-
-  return MAX_MEMORIES_FREE;
-};
