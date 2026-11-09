@@ -100,7 +100,7 @@ vi.mock('@oxy.so/bloom/page-header', async () => {
 });
 
 const { ChatHeaderActions } = await import('@/features/chat/ui/chat-header-actions');
-const { ShellPageHeader } = await import('@/shell/page-chrome');
+const { ShellPageHeader } = await import('@/shared/ui/page-chrome');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

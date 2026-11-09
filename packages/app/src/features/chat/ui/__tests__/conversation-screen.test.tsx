@@ -40,8 +40,13 @@ vi.mock('@alia.onl/sdk', async () => {
       world.props = props;
       return ReactModule.createElement('AliaChatContent', null);
     },
-    AliaParticipantsHeader: (props: object) =>
-      ReactModule.createElement('ParticipantsHeader', props),
+    AliaParticipants: (props: object) => ReactModule.createElement('Participants', props),
+  };
+});
+vi.mock('@/shared/ui/page-chrome', async () => {
+  const ReactModule = await import('react');
+  return {
+    ShellPageHeader: (props: object) => ReactModule.createElement('ShellPageHeader', props),
   };
 });
 vi.mock('@alia.onl/sdk/model', () => ({
@@ -248,22 +253,24 @@ describe('the breadcrumb', () => {
     mount({ conversationId: 'c1', agentName: 'Atlas' });
     const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
     const header = content().chrome({ participants, hasMessages: true })
-      .header as React.ReactElement<Record<string, unknown>>;
-    expect(header.props).toMatchObject({ participants });
+      .header as React.ReactElement<{ title: React.ReactElement<Record<string, unknown>> }>;
+    expect(header.props.title.props).toMatchObject({ participants });
+    // The actions travel in the header: a container given its own draws no breadcrumb row.
+    expect(header.props).toHaveProperty('actions');
   });
 
   it('opens the agent’s editor panel from the header avatar, and leaves Alia’s to wave', () => {
     const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
     mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' });
     const header = content().chrome({ participants, hasMessages: true })
-      .header as React.ReactElement<{ onPress?: () => void }>;
-    header.props.onPress?.();
+      .header as React.ReactElement<{ title: React.ReactElement<{ onPress?: () => void }> }>;
+    header.props.title.props.onPress?.();
     expect(openAgentEditor).toHaveBeenCalledWith('a1');
 
     mount({ conversationId: 'c1' });
     const alia = content().chrome({ participants, hasMessages: true })
-      .header as React.ReactElement<{ onPress?: () => void }>;
-    expect(alia.props.onPress).toBeUndefined();
+      .header as React.ReactElement<{ title: React.ReactElement<{ onPress?: () => void }> }>;
+    expect(alia.props.title.props.onPress).toBeUndefined();
   });
 
   it('has no participants header on the empty chat: its greeting carries the mark', () => {

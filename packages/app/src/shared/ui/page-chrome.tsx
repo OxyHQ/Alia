@@ -1,4 +1,3 @@
-import { NotificationsBell } from '@/features/notifications/ui/notifications-bell';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
@@ -31,7 +30,10 @@ export interface PageHeaderOptions {
 }
 
 export interface ShellPageHeaderProps {
-  title?: string;
+  /** The heading: text, or a node (a conversation's participants). */
+  title?: React.ReactNode;
+  /** `center` for a conversation's participants, as Bloom's multi-agent chat sets it. */
+  titleAlign?: 'start' | 'center';
   /** Draws the back capsule when set. */
   onBack?: () => void;
   /** The page's own actions, grouped by the page into `ButtonGroup` islands. */
@@ -50,7 +52,7 @@ export interface ShellPageHeaderProps {
  * of the layout's container, which already pads the top inset, and nothing
  * scrolls under it — so there is no edge to fade and no offset to read.
  */
-export function ShellPageHeader({ title, onBack, actions }: ShellPageHeaderProps) {
+export function ShellPageHeader({ title, titleAlign, onBack, actions }: ShellPageHeaderProps) {
   const { t } = useTranslation();
   const shell = useAiChatShell();
   const showMenu = shell !== null && shell.navCollapsed && shell.hasNav;
@@ -59,6 +61,7 @@ export function ShellPageHeader({ title, onBack, actions }: ShellPageHeaderProps
   return (
     <PageHeader
       title={title}
+      titleAlign={titleAlign}
       onBack={onBack}
       backLabel={t('common.back')}
       leading={
@@ -74,10 +77,8 @@ export function ShellPageHeader({ title, onBack, actions }: ShellPageHeaderProps
         ) : undefined
       }
       actions={
-        // The bell is every page's, after the page's own actions and before the panel's button.
         <>
           {actions}
-          <NotificationsBell />
           {showPanel ? (
             <ButtonGroup accessibilityLabel={shell.labels.openPanel(shell.panelLabel)}>
               <ButtonGroupItem

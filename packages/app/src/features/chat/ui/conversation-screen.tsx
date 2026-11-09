@@ -2,7 +2,7 @@ import {
   type AliaChatChrome,
   type AliaChatState,
   AliaChatContent,
-  AliaParticipantsHeader,
+  AliaParticipants,
   type AliaSuggestion,
 } from '@alia.onl/sdk';
 import { useConversation } from '@alia.onl/sdk/runtime';
@@ -10,6 +10,7 @@ import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ShellPageHeader } from '@/shared/ui/page-chrome';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
@@ -159,28 +160,46 @@ export const ConversationScreen = ({
     [agentId, openAgentEditor],
   );
   const chrome = useCallback(
-    (chat: AliaChatState): AliaChatChrome => ({
-      // The lead's header is for a conversation; the empty chat's mark is the greeting itself.
-      header: chat.hasMessages ? (
-        <AliaParticipantsHeader participants={chat.participants} onPress={openAgent} />
-      ) : undefined,
-      title: title || t('chat.newChat'),
-      project: projectName,
+    (chat: AliaChatState): AliaChatChrome => {
       // Nothing is persisted on the new-chat screen to act on yet.
-      actions:
+      const actions =
         conversationId === undefined ? undefined : (
+          <ConversationActions
+            chat={chat}
+            agentName={agentName}
+            agentId={agentId}
+            threadHandle={threadHandle}
+            shareable={!ephemeral}
+          />
+        );
+      return {
+        // Once there is a conversation its header is Bloom's `PageHeader` as the multi-agent chat
+        // sets it: the participants centred, the actions beside them. (A container given its own
+        // header draws no breadcrumb row, so the actions travel in it.) The empty chat's mark is
+        // the greeting itself, so it keeps the container's row.
+        header: chat.hasMessages ? (
+          <ShellPageHeader
+            titleAlign="center"
+            title={<AliaParticipants participants={chat.participants} onPress={openAgent} />}
+            actions={
+              <>
+                {actions}
+                <NotificationsBell />
+              </>
+            }
+          />
+        ) : undefined,
+        title: title || t('chat.newChat'),
+        project: projectName,
+        // The container's own row (the empty chat) carries the bell beside the actions.
+        actions: actions && (
           <>
             <NotificationsBell />
-            <ConversationActions
-              chat={chat}
-              agentName={agentName}
-              agentId={agentId}
-              threadHandle={threadHandle}
-              shareable={!ephemeral}
-            />
+            {actions}
           </>
         ),
-    }),
+      };
+    },
     [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral, openAgent],
   );
 

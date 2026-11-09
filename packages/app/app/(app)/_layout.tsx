@@ -1,4 +1,5 @@
-import { ShellPageHeader, type PageHeaderOptions } from '@/shell/page-chrome';
+import { NotificationsBell } from '@/features/notifications/ui/notifications-bell';
+import { ShellPageHeader, type PageHeaderOptions } from '@/shared/ui/page-chrome';
 import { CommandPalette } from '@/shell/command-palette';
 import { AppErrorBoundary } from '@/shell/error-boundary';
 import { KeyboardShortcutsDialog } from '@/shell/keyboard-shortcuts-dialog';
@@ -138,7 +139,7 @@ export default function AppLayout() {
    * container themselves, because theirs carries the composer.
    *
    * The header is the PAGE's: it declares its title, its back and its actions
-   * with `<Stack.Screen options={…} />` (see `src/shell/page-chrome.tsx`),
+   * with `<Stack.Screen options={…} />` (see `src/shared/ui/page-chrome.tsx`),
    * and this reads them back. A page that declares nothing gets its section's
    * name.
    */
@@ -161,7 +162,13 @@ export default function AppLayout() {
           <ShellPageHeader
             title={title}
             onBack={onBack}
-            actions={options.headerRight?.({ canGoBack: onBack !== undefined })}
+            actions={
+              <>
+                {options.headerRight?.({ canGoBack: onBack !== undefined })}
+                {/* The bell is every page's, after the page's own actions. */}
+                <NotificationsBell />
+              </>
+            }
           />
         }
       >

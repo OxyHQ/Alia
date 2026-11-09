@@ -47,7 +47,6 @@ const ALLOWED: Record<string, readonly string[]> = {
     'chat',
     'library',
     'memory',
-    'notifications',
     'onboarding',
     'projects',
     'settings',

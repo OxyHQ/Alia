@@ -1,7 +1,7 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { workspacePanelKind } from '@/features/chat/model/workspace-panel-kind';
-import { Button } from '@oxy.so/bloom/button';
+import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,83 +113,82 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
       setRightPanel(workspacePanelKind(null, canvasArtifacts) === 'gallery' ? 'gallery' : 'canvas');
   };
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild label={t('chatHeader.moreOptions')}>
-        <Button
-          size="xs"
-          appearance="plain"
-          tone="neutral"
-          iconOnly
-          leadingIcon={RiMoreFill}
-          accessibilityLabel={t('chatHeader.moreOptions')}
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {onSearch === undefined ? null : (
-          <DropdownMenuItem onPress={onSearch} leading={<RiSearchLine size="sm" />}>
-            {t('chatHeader.searchThread')}
+    <ButtonGroup accessibilityLabel={t('chatHeader.moreOptions')}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild label={t('chatHeader.moreOptions')}>
+          <ButtonGroupItem
+            iconOnly
+            leadingIcon={RiMoreFill}
+            accessibilityLabel={t('chatHeader.moreOptions')}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {onSearch === undefined ? null : (
+            <DropdownMenuItem onPress={onSearch} leading={<RiSearchLine size="sm" />}>
+              {t('chatHeader.searchThread')}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onPress={togglePanel} leading={<RiSideBarLine size="sm" />}>
+            {panelOpen ? t('chatHeader.hidePanel') : t('chatHeader.showPanel')}
           </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onPress={togglePanel} leading={<RiSideBarLine size="sm" />}>
-          {panelOpen ? t('chatHeader.hidePanel') : t('chatHeader.showPanel')}
-        </DropdownMenuItem>
-        {onEditAgent === undefined ? null : (
-          <DropdownMenuItem onPress={onEditAgent} leading={<RiEditLine size="sm" />}>
-            {t('agents.editAgent')}
-          </DropdownMenuItem>
-        )}
-        {onOpenTerminal === undefined ? null : (
-          <DropdownMenuItem onPress={onOpenTerminal} leading={<RiTerminalBoxLine size="sm" />}>
-            {t('chatHeader.agentTerminal')}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem
-          onPress={() => useUIStore.getState().setRightPanel('credits')}
-          leading={<RiDashboardLine size="sm" />}
-        >
-          {t('chatHeader.usage')}
-        </DropdownMenuItem>
-        {onShare === undefined ? null : (
+          {onEditAgent === undefined ? null : (
+            <DropdownMenuItem onPress={onEditAgent} leading={<RiEditLine size="sm" />}>
+              {t('agents.editAgent')}
+            </DropdownMenuItem>
+          )}
+          {onOpenTerminal === undefined ? null : (
+            <DropdownMenuItem onPress={onOpenTerminal} leading={<RiTerminalBoxLine size="sm" />}>
+              {t('chatHeader.agentTerminal')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
-            onPress={() => void once(onShare)()}
-            leading={<RiShareLine size="sm" />}
+            onPress={() => useUIStore.getState().setRightPanel('credits')}
+            leading={<RiDashboardLine size="sm" />}
           >
-            {t('chatHeader.share')}
+            {t('chatHeader.usage')}
           </DropdownMenuItem>
-        )}
-        {onStopSharing === undefined ? null : (
-          <DropdownMenuItem
-            onPress={() => void once(onStopSharing)()}
-            leading={<RiEyeOffLine size="sm" />}
-          >
-            {t('chatHeader.stopSharing')}
+          {onShare === undefined ? null : (
+            <DropdownMenuItem
+              onPress={() => void once(onShare)()}
+              leading={<RiShareLine size="sm" />}
+            >
+              {t('chatHeader.share')}
+            </DropdownMenuItem>
+          )}
+          {onStopSharing === undefined ? null : (
+            <DropdownMenuItem
+              onPress={() => void once(onStopSharing)()}
+              leading={<RiEyeOffLine size="sm" />}
+            >
+              {t('chatHeader.stopSharing')}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onPress={onExport} leading={<RiDownloadLine size="sm" />}>
+            {t('chat.exportMarkdown')}
           </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onPress={onExport} leading={<RiDownloadLine size="sm" />}>
-          {t('chat.exportMarkdown')}
-        </DropdownMenuItem>
-        {onClear === undefined && onDelete === undefined ? null : <DropdownMenuSeparator />}
-        {onClear === undefined ? null : (
-          <DropdownMenuItem
-            tone="danger"
-            onPress={() => void handleClear()}
-            leading={<RiDeleteBin6Line size="sm" />}
-          >
-            {t('chatHeader.clearConversation')}
-          </DropdownMenuItem>
-        )}
-        {onDelete === undefined ? null : (
-          <>
+          {onClear === undefined && onDelete === undefined ? null : <DropdownMenuSeparator />}
+          {onClear === undefined ? null : (
             <DropdownMenuItem
               tone="danger"
-              onPress={onDelete}
-              leading={<RiDeleteBinLine size="sm" />}
+              onPress={() => void handleClear()}
+              leading={<RiDeleteBin6Line size="sm" />}
             >
-              {t('chat.deleteConversation')}
+              {t('chatHeader.clearConversation')}
             </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          )}
+          {onDelete === undefined ? null : (
+            <>
+              <DropdownMenuItem
+                tone="danger"
+                onPress={onDelete}
+                leading={<RiDeleteBinLine size="sm" />}
+              >
+                {t('chat.deleteConversation')}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </ButtonGroup>
   );
 });
