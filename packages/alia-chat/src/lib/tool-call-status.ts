@@ -20,7 +20,7 @@ export function toolCallStatus(
     result !== null &&
     typeof result === 'object' &&
     'error' in result &&
-    Boolean((result as { error?: unknown }).error)
+    (result as { error?: unknown }).error
   ) {
     return 'error';
   }

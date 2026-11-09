@@ -17,16 +17,15 @@ const row = readFileSync(join(HERE, '../../../src/components/thread/ThreadRow.ts
 
 describe('the bubbles of an agent thread', () => {
   it("always draws the person's turn as a ChatBubble in a bubbles thread, never Bloom's larger default", () => {
-    expect(row).toMatch(/bubbles !== null \? \(\s*[\s\S]*?<ChatBubble\s+side="user"/);
-    // The agent's colour; until it is known ChatBubble falls back to the theme's own.
-    expect(row).toMatch(/colors=\{bubbles\.colors\}/);
+    expect(row).toMatch(/bubbles \? \(\s*[\s\S]*?<ChatBubble\s+side="user"/);
+    // No colour of its own: the theme is seeded by the agent's, and ChatBubble reads the theme's.
   });
 
   it('puts the words of a reply in a bubble, and leaves the work log and the cards whole', () => {
     expect(row).toMatch(
       /\{bubbled \? \(\s*<ChatBubble side="reply" react=\{reactActions\} menu=\{moreActions\} onReply=\{onReply\}>\s*\{replyBody\}/,
     );
-    expect(row).toMatch(/const bubbled = useBubbles\(\) !== null \|\| agent !== undefined;/);
+    expect(row).toMatch(/const bubbled = useBubbles\(\) \|\| agent !== undefined;/);
   });
 
   it("splits a reply's actions as the chat it is modelled on does: the vote under react, the rest under more", () => {
@@ -46,7 +45,7 @@ describe('the bubbles of an agent thread', () => {
 });
 
 describe('useBubbles', () => {
-  function read(value: Parameters<typeof BubblesProvider>[0]['value'] | 'none') {
+  function read(value: boolean | 'none') {
     let seen: unknown = 'unset';
     function Probe() {
       seen = useBubbles();
@@ -66,12 +65,12 @@ describe('useBubbles', () => {
     return seen;
   }
 
-  it('is null outside a thread that asked for bubbles', () => {
-    expect(read('none')).toBeNull();
+  it('is false outside a thread that asked for bubbles', () => {
+    expect(read('none')).toBe(false);
   });
 
-  it('carries the colours the thread gave', () => {
-    const colors = { background: '#009957', foreground: '#ffffff' };
-    expect(read({ colors })).toEqual({ colors });
+  it('carries what the thread gave', () => {
+    expect(read(true)).toBe(true);
+    expect(read(false)).toBe(false);
   });
 });

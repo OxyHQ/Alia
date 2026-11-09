@@ -1,4 +1,7 @@
 import { readAgentCharacter } from '@alia.onl/sdk';
+import { aliaQueryKeys } from '@alia.onl/sdk/runtime';
+import { queryKeys } from '@/shared/api/query-keys';
+import { useQueryClient } from '@tanstack/react-query';
 import type { AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { errorStatus, errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useUpdateAgent } from '@/features/agents/runtime/use-agents';
@@ -217,6 +220,7 @@ export function useAgentDraftAutosave(agent: Agent) {
 export function useAgentIdentityAutosave(agent: Agent) {
   const { t } = useTranslation();
   const { oxyServices } = useOxy();
+  const queryClient = useQueryClient();
   const [identity, setIdentity] = useState<IdentityDraft>(() => ({
     name: agent.name ?? '',
     handle: agent.handle ?? '',
@@ -286,6 +290,13 @@ export function useAgentIdentityAutosave(agent: Agent) {
           ...(handleChanged && { username: trimmed }),
         });
         savedHandle.current = trimmed;
+        // The name and the handle are the account's: everything that shows them (the sidebar's
+        // list, the open chat's header through the SDK's profile) reads them again.
+        void Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.agents.mine }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent._id) }),
+          queryClient.invalidateQueries({ queryKey: aliaQueryKeys.agents.profile(agent._id) }),
+        ]);
         toast.success(t('agents.autoSaved'), { id: SAVE_TOAST_ID });
       } catch (error: unknown) {
         toast.dismiss(SAVE_TOAST_ID);
@@ -308,7 +319,7 @@ export function useAgentIdentityAutosave(agent: Agent) {
         }
       }
     },
-    [agent.oxyAccountId, oxyServices, t],
+    [agent._id, agent.oxyAccountId, oxyServices, queryClient, t],
   );
 
   const scheduleSave = useDebouncedWrite(saveIdentity);

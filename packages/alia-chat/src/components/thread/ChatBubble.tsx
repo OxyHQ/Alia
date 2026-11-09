@@ -11,7 +11,6 @@ import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { type ComponentProps, type ReactNode, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
-import type { BubbleColors } from '../../lib/bubble-colors';
 import { useLabels } from '../../lib/labels';
 import { RiReplyLine } from '../icons/RiReplyLine';
 
@@ -23,29 +22,26 @@ type Glyph = (props: { width?: number; height?: number; fill?: string }) => Reac
  * The row is a line with an 8px gap: the person's bubble hugs the end with its icons on the side
  * facing the thread, a reply hugs the start with its icons after it. A bubble is 24px round, up to
  * 80% of the column and 16px in from its sides; the person's is 12px tall at both ends and in the
- * agent's colour, a reply's is 8px and neutral. The icons are the three of that chat, 24px round
+ * theme's primary (the agent's colour: the app is themed by it), a reply's is 8px and neutral. The icons are the three of that chat, 24px round
  * buttons holding a 16px glyph: react (a reply's only: it is a vote), reply (quotes the turn into
  * the composer) and more (the rest of the turn's actions). They show while the row is hovered or a
  * menu of theirs is open, and always on a touch screen, which has no hover to reveal them.
  */
 export function ChatBubble({
   side,
-  colors,
   react = [],
   menu = [],
   onReply,
   children,
 }: {
   side: 'user' | 'reply';
-  /** The person's bubble colours; a reply's are always the neutral ones. */
-  colors?: BubbleColors | null;
   /** What "react" offers: a vote up and a vote down. */
   react?: ReadonlyArray<AiChatTurnAction>;
   /** What "more" offers: every other action of the turn. */
   menu?: ReadonlyArray<AiChatTurnAction>;
   /** Quote this turn into the composer. */
   onReply?: () => void;
-  /** The words. A function is handed the colour text takes on the person's bubble. */
+  /** The words. A function is handed the colour text takes on the person's bubble (the theme's). */
   children: ReactNode | ((foreground: string | undefined) => ReactNode);
 }) {
   const { t } = useLabels();
@@ -53,10 +49,11 @@ export function ChatBubble({
   const { state: hovered, onIn, onOut } = useInteractionState();
   const [pinned, setPinned] = useState(false);
   const mine = side === 'user';
-  // The person's bubble is the agent's colour, or the theme's own until the agent's is known.
-  const mineColors = !mine
-    ? null
-    : (colors ?? { background: theme.colors.primary, foreground: theme.colors.primaryForeground });
+  // The person's bubble is the theme's primary: Bloom's theme is seeded from the agent's colour, and
+  // Bloom picks the text that reads on it.
+  const mineColors = mine
+    ? { background: theme.colors.primary, foreground: theme.colors.primaryForeground }
+    : null;
   const shown = Platform.OS !== 'web' || hovered || pinned;
   const hasIcons = react.length > 0 || onReply !== undefined || menu.length > 0;
   const icons = !hasIcons ? null : (

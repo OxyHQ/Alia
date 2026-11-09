@@ -48,7 +48,13 @@ vi.mock('@oxy.so/bloom/hooks', async () => {
 });
 vi.mock('@oxy.so/bloom/theme', () => ({
   useTheme: () => ({
-    colors: { backgroundSecondary: '#eee', text: '#111', textSecondary: '#666' },
+    colors: {
+      backgroundSecondary: '#eee',
+      text: '#111',
+      textSecondary: '#666',
+      primary: '#009957',
+      primaryForeground: '#ffffff',
+    },
   }),
 }));
 vi.mock('@oxy.so/bloom/icons/RiEmotionLine', () => ({ RiEmotionLine: () => null }));
@@ -67,7 +73,6 @@ const action = (key: string, onPress = vi.fn()) => ({
   icon: Glyph as never,
   onPress,
 });
-const COLORS = { background: '#009957', foreground: '#ffffff' };
 const is = (node: ReactTestInstance, name: string) => (node.type as unknown) === name;
 const styleOf = (node: ReactTestInstance) =>
   node.props.style as Record<string, unknown> | undefined;
@@ -83,7 +88,7 @@ function mount(
   let renderer!: ReturnType<typeof create>;
   act(() => {
     renderer = create(
-      <ChatBubble side={side} colors={side === 'user' ? COLORS : null} {...extra}>
+      <ChatBubble side={side} {...extra}>
         {createElement('View', { testID: 'words' })}
       </ChatBubble>,
     );
@@ -97,7 +102,7 @@ const labels = (root: ReactTestInstance) =>
   root.findAll((n) => is(n, 'Pressable')).map((b) => b.props.accessibilityLabel);
 
 describe('ChatBubble', () => {
-  it("puts the person's bubble at the end in the agent's colour, icons first", () => {
+  it("puts the person's bubble at the end in the theme's primary, icons first", () => {
     const root = mount('user', { onReply: vi.fn() });
     expect(row(root).props.className).toContain('justify-end');
     const children = row(root).children as ReactTestInstance[];

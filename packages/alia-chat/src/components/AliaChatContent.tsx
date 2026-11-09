@@ -19,7 +19,6 @@
 
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { avatarBodyHex, resolveAvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { AiChatContainer, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import {
   AvatarFlightLayer,
@@ -51,8 +50,7 @@ import { useAttachMenu } from '../hooks/useAttachMenu';
 import { usePendingQuestions } from '../hooks/usePendingQuestions';
 import { useThreadView } from '../hooks/useThreadView';
 import { useTTS } from '../hooks/useTTS';
-import { bubbleColors } from '../lib/bubble-colors';
-import { BubblesProvider, type BubblesValue } from '../lib/bubbles';
+import { BubblesProvider } from '../lib/bubbles';
 import type { AliaAddMenu } from '../lib/add-menu';
 import { AliaFlightsProvider } from '../lib/flights';
 import { type AliaChatParticipants, leadOf } from '../lib/participants';
@@ -205,7 +203,7 @@ export interface AliaChatContentProps {
    */
   chrome?: (state: AliaChatState) => AliaChatChrome;
   /**
-   * Draw the turns as chat bubbles, as an agent's thread does: the person's in the agent's colour,
+   * Draw the turns as chat bubbles, as an agent's thread does: the person's in the theme's primary (the agent's colour),
    * the replies in a neutral one. Off, a thread keeps its ordinary look (Alia's own chat).
    */
   bubbles?: boolean;
@@ -341,18 +339,6 @@ function AliaConversationView({
   // ── Who leads: the agent the chat was opened on, or Alia ──
   const { data: profile, isLoading: profileLoading } = useAgentProfile(agentId);
   const lead = useMemo(() => leadOf(profile), [profile]);
-  /** The bubbles' colours are the lead's own: an agent's body colour; Alia has none to lend. */
-  const bubblesValue = useMemo<BubblesValue | null>(
-    () =>
-      bubbles
-        ? {
-            colors: lead.isAlia
-              ? null
-              : bubbleColors(avatarBodyHex(resolveAvatarCharacter(lead.character))),
-          }
-        : null,
-    [bubbles, lead],
-  );
   const { data: features } = useAgentFeatures(agentId);
 
   // A failure reaches the host's handler when it has one, and Bloom's toast otherwise.
@@ -729,7 +715,7 @@ function AliaConversationView({
         surface={false}
         background={background}
       >
-        <BubblesProvider value={bubblesValue}>
+        <BubblesProvider value={bubbles}>
           <AliaThread
             // Nothing live under a window: it is a view of the past, and the conversation being
             // streamed into is not below it in the thread.

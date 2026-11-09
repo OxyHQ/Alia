@@ -151,15 +151,10 @@ export const ThreadRow = memo(function ThreadRow({
           // Bloom's user turn, with the breathing room above it the thread has always had.
           <View className="mt-2 w-full flex-col items-end">
             <TurnMenu actions={questionActions} label={t('chat.turnActions')}>
-              {bubbles !== null ? (
-                // An agent's thread: the person's turn is a bubble in the agent's colour, or in the
-                // theme's own until the agent's is known, never Bloom's larger default.
-                <ChatBubble
-                  side="user"
-                  colors={bubbles.colors}
-                  menu={questionActions}
-                  onReply={onQuestionReply}
-                >
+              {bubbles ? (
+                // An agent's thread: the person's turn is a bubble in the theme's primary, never Bloom's
+                // larger default.
+                <ChatBubble side="user" menu={questionActions} onReply={onQuestionReply}>
                   {(foreground) => (
                     <>
                       {images.length > 0 && (
@@ -267,7 +262,7 @@ function ReplyTurn({
   const agent = message.agentInfo;
   const { readOnly = false } = actions;
   /** In an agent's thread every reply is a bubble, and so is a consulted agent's anywhere. */
-  const bubbled = useBubbles() !== null || agent !== undefined;
+  const bubbled = useBubbles() || agent !== undefined;
 
   // A host's own drawing of a catalogue tool's result, before any generic card: keyed by the
   // tool's canonical name (`oxy_<app>__<tool>`), never by anything the model wrote.
