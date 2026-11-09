@@ -78,7 +78,10 @@ export function automationScheduleTooFrequent(
 ): boolean {
   if (automationScheduleError(cronExpression, timezone)) return false;
   try {
-    const iterator = cronParser.parseExpression(cronExpression, { currentDate: from, tz: timezone });
+    const iterator = cronParser.parseExpression(cronExpression, {
+      currentDate: from,
+      tz: timezone,
+    });
     let previous = iterator.next().toDate().getTime();
     for (let i = 1; i < SCHEDULE_PROBE_OCCURRENCES; i += 1) {
       const next = iterator.next().toDate().getTime();
