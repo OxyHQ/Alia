@@ -45,7 +45,7 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  *
  * ## Where it is used
  *
- * `processAgentBotMessage` (`routes/webhooks.ts`): an agent answering a stranger
+ * `processAgentBotMessage` (`lib/channels/inbound-handlers.ts`): an agent answering a stranger
  * on its own bot, the one turn nobody present chose to pay for. The agent
  * account is `agents.oxy_account_id`, the owner is the bot's `user_id`, and the
  * permission is `bots.owner_pays_agent_turns`, which only that owner can write.

@@ -32,6 +32,7 @@
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
+import type { ChannelInboundMessage } from '../../lib/channels/types';
 import { checkOneOf, encryptedText } from './columns';
 
 export const BOT_STATUSES = ['active', 'inactive', 'error'] as const;
@@ -166,5 +167,58 @@ export const botUsers = pgTable(
       .on(t.authToken, t.authTokenExpiry)
       .where(sql`${t.authToken} is not null`),
     checkOneOf('bot_users_auth_token_mode_check', t.authTokenMode, BOT_USER_AUTH_TOKEN_MODES),
+  ],
+);
+
+export const CHANNEL_INBOUND_KINDS = ['system', 'agent_bot'] as const;
+export const CHANNEL_INBOUND_STATUSES = ['received', 'processing', 'done', 'failed'] as const;
+
+/**
+ * A message a messaging platform delivered, from acceptance until it is
+ * answered.
+ *
+ * Telegram, Slack and the rest are acked with a 200 before the reply is made,
+ * and never redeliver an acked update. Without a durable record, a process that
+ * died between the ack and the reply lost the message and the person heard
+ * nothing. This row is that record: written BEFORE the ack, claimed by whoever
+ * processes it, and swept by `lib/channels/inbound-sweep.ts` if its worker died.
+ *
+ * `dedupe_key` replaces the old per-instance in-memory 60-second set, so a
+ * platform's retry reaching a DIFFERENT instance (or the same one after a
+ * restart) is recognised. An old key is taken over by a new message, which is
+ * what the 60-second window meant.
+ *
+ * `message` is the person's text, so it exists only while the row is pending
+ * and is cleared the moment the row settles.
+ */
+export const channelInbound = pgTable(
+  'channel_inbound',
+  {
+    id: generatedId(),
+    dedupeKey: text().notNull(),
+    kind: text({ enum: CHANNEL_INBOUND_KINDS as unknown as [string, ...string[]] }).notNull(),
+    channelType: text().notNull(),
+    botId: text()
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    botUserId: text()
+      .notNull()
+      .references(() => botUsers.id, { onDelete: 'cascade' }),
+    message: jsonb().$type<ChannelInboundMessage>(),
+    status: text({ enum: CHANNEL_INBOUND_STATUSES as unknown as [string, ...string[]] })
+      .notNull()
+      .default('received'),
+    attempts: integer().notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex('channel_inbound_dedupe_key').on(t.dedupeKey),
+    // The sweep's lookup: only unfinished rows, oldest activity first.
+    index('channel_inbound_pending_idx')
+      .on(t.updatedAt)
+      .where(sql`${t.status} in ('received', 'processing')`),
+    checkOneOf('channel_inbound_kind_check', t.kind, CHANNEL_INBOUND_KINDS),
+    checkOneOf('channel_inbound_status_check', t.status, CHANNEL_INBOUND_STATUSES),
   ],
 );
