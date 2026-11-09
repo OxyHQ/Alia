@@ -211,8 +211,11 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     );
 
     if (turnSelection.skills.length > 0) {
+      // A person's skills can be many: one row that opens them, not a heading over a long list.
       built.push({
         label: t('skills.composerLabel'),
+        submenu: true,
+        icon: RiBookOpenLine,
         rows: turnSelection.skills.map((skill) => ({
           id: `${SKILL_PREFIX}${skill.name}`,
           label: skill.label,
@@ -224,8 +227,11 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
     }
 
     if (turnSelection.connectors.length > 0) {
+      // The same for the connected apps.
       built.push({
         label: t('composer.appsGroup'),
+        submenu: true,
+        icon: RiPlugLine,
         rows: turnSelection.connectors.map((connector) => ({
           id: `${CONNECTOR_PREFIX}${connector.id}`,
           label: connector.label,
