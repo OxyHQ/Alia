@@ -51,6 +51,14 @@ export interface ThreadActions {
   /** Copy a turn's words; resolves whether they really reached the clipboard. */
   copy: (text: string) => Promise<boolean>;
   vote: (messageId: string, vote: Vote, conversationId: string | undefined) => void;
+  /** The emoji left on a message: what this screen holds for it, and the tap that leaves or takes one. */
+  reactionsOf: (messageId: string, stored?: readonly string[]) => readonly string[];
+  react: (
+    messageId: string,
+    emoji: string,
+    stored: readonly string[] | undefined,
+    conversationId: string | undefined,
+  ) => void;
   readAloud: (messageId: string, text: string, conversationId: string | undefined) => void;
   /** Absent where the host has no thought panel: the "worked for" line is then plain text. */
   openThought?: OpenThought;
@@ -128,6 +136,11 @@ export const ThreadRow = memo(function ThreadRow({
     : null;
 
   const bubbles = useBubbles();
+  const questionReactions = actions.reactionsOf(message.id, message.reactions);
+  const onQuestionReact =
+    actions.readOnly || text.length === 0
+      ? undefined
+      : (emoji: string) => actions.react(message.id, emoji, message.reactions, storedIn);
   const questionQuote = actions.reply;
   const onQuestionReply =
     questionQuote !== undefined && !actions.readOnly && text.length > 0
@@ -154,7 +167,13 @@ export const ThreadRow = memo(function ThreadRow({
               {bubbles ? (
                 // An agent's thread: the person's turn is a bubble in the theme's primary, never Bloom's
                 // larger default.
-                <ChatBubble side="user" menu={questionActions} onReply={onQuestionReply}>
+                <ChatBubble
+                  side="user"
+                  reactions={questionReactions}
+                  onReact={onQuestionReact}
+                  menu={questionActions}
+                  onReply={onQuestionReply}
+                >
                   {(foreground) => (
                     <>
                       {images.length > 0 && (
@@ -365,11 +384,15 @@ function ReplyTurn({
   const menuActions: AiChatTurnAction[] = hasFeedback
     ? [readAloudAction, copyAction, regenerateAction, likeAction, dislikeAction].filter(isPresent)
     : [];
-  /** In a bubble: "react" is the vote, "more" is the rest of what the turn offers. */
-  const reactActions = hasFeedback ? [likeAction, dislikeAction] : [];
+  /** In a bubble: "react" is the emoji bar, "more" is the rest of what the turn offers, the votes included. */
   const moreActions = hasFeedback
-    ? [readAloudAction, copyAction, regenerateAction].filter(isPresent)
+    ? [readAloudAction, copyAction, regenerateAction, likeAction, dislikeAction].filter(isPresent)
     : [];
+  const reactions = actions.reactionsOf(message.id, message.reactions);
+  const onReact =
+    readOnly || message.isStreaming || text.length === 0
+      ? undefined
+      : (emoji: string) => actions.react(message.id, emoji, message.reactions, storedIn);
   const quote = actions.reply;
   const onReply =
     quote !== undefined && !readOnly && text.length > 0 ? () => quote(text) : undefined;
@@ -531,7 +554,13 @@ function ReplyTurn({
               {bubbled ? (
                 // Only the words are the bubble: the work log and the cards stay above it, whole.
                 // Its turn actions are the icons beside it, so Bloom's own row under it is off.
-                <ChatBubble side="reply" react={reactActions} menu={moreActions} onReply={onReply}>
+                <ChatBubble
+                  side="reply"
+                  reactions={reactions}
+                  onReact={onReact}
+                  menu={moreActions}
+                  onReply={onReply}
+                >
                   {replyBody}
                 </ChatBubble>
               ) : (

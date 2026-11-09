@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { AT_BOTTOM_THRESHOLD } from '../../hooks/useAtBottom';
 import { useMessageVote } from '../../hooks/useMessageVote';
+import { useMessageReactions } from '../../hooks/useMessageReactions';
 import { useOpenThought } from '../../hooks/useOpenThought';
 import { useReadAloud } from '../../hooks/useReadAloud';
 import { useThoughtScope } from '../../hooks/useThoughtScope';
@@ -181,18 +182,30 @@ export const AliaThread = memo(function AliaThread({
 
   // ── What a row can do ──
   const vote = useMessageVote();
+  const reactions = useMessageReactions();
   const readAloud = useReadAloud(callActive);
   const copy = useCallback((text: string) => copyText(text, t), [t]);
   const actions = useMemo<ThreadActions>(
     () => ({
       copy,
       vote,
+      reactionsOf: reactions.reactionsOf,
+      react: reactions.toggle,
       readAloud: readAloud.toggle,
       openThought,
       reply: onReply,
       readOnly,
     }),
-    [copy, vote, readAloud.toggle, openThought, onReply, readOnly],
+    [
+      copy,
+      vote,
+      reactions.reactionsOf,
+      reactions.toggle,
+      readAloud.toggle,
+      openThought,
+      onReply,
+      readOnly,
+    ],
   );
 
   /**

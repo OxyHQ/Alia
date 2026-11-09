@@ -649,6 +649,8 @@
     "newStretch": "New conversation",
     "chatWith": "Chat with %{name}",
     "reactToMessage": "React to message",
+    "reaction": "Reacted with {{emoji}}",
+    "reactionFailed": "Your reaction couldn't be saved.",
     "replyToMessage": "Reply to message",
     "moreActions": "More message actions",
     "searchThreadPlaceholder": "Search this thread",
