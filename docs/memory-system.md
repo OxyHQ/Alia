@@ -5,8 +5,8 @@ Last updated: 2026-10-06
 Alia keeps three kinds of memory, and none of them is shared between actors
 ([actors](./actors.mdx#memory-is-per-actor)):
 
-1. **Alia's memory of the person** — preferences, long-term facts, context and
-   writing style (`user_memories`, `user_memory_entries` and their embeddings).
+1. **Alia's memory of the person** — preferences, long-term facts and context, in Nilo
+   (below); her learned writing style stays in `user_memories`.
 2. **Each agent's memory of the person** — MEMORY.md plus `memory/<topic>.md`
    files, per agent AND person (`agent_memory_documents`). Documented in
    [Agents → Memory is per actor](./agents.md#memory-is-per-actor); an agent turn
@@ -22,33 +22,35 @@ Every memory block in a prompt goes through `memoryDataBlock`
 (`lib/memory/memory-prompt.ts`): it is data that informs the answer, never an
 instruction.
 
-## 1) Alia's memory of the person
+## 1) Alia's memory of the person (Nilo)
 
-Service: `lib/memory/user-memory-service.ts`; recall: `lib/memory/recall.ts`.
+Alia's memory of the person lives in **Nilo**, in the `memories` system database of the
+person's personal workspace, where they read, edit and delete it
+(`Nilo/docs/memories.md`). Alia uses it as a first-party app, like Inbox or Mention: the
+catalog `nilo-memories` is registered with Oxy and Alia lists its tools with her other app
+tools, calling them with an Oxy capability ticket and no consent screen.
 
-Stores:
+Chat tools (Alia only, `actors: ['alia']` in the catalog): `oxy_nilo_memories__recallMemories`,
+`__remember`, `__updateMemory`, `__forgetMemory`. They are **core** (`lib/tool-budget.ts`,
+never deferred behind `loadTools`), and `prompts/memory.md` tells her to recall before
+answering anything personal and to save durable facts as atomic memories. Nothing is
+recalled automatically before the turn: recalling is the model's call.
 
-- memory entries (`key`, `value`, `category`), each with an embedding for recall
-- `preferences` (language, tone, response length, interests)
-- `context` (occupation, location, timezone, bio)
-- `settings` (including `recallEnabled`, "Use in AI responses")
+`personalization: false` on a turn drops these tools and the memory prompt
+(`lib/tool-pipeline.ts`). An agent never gets them: it keeps its own memory (§ below).
 
-Chat tools (Alia only): `saveUserMemory`, `updateUserMemory`, `forgetUserMemory`
-("olvida esto": the entry and its embedding), `updateUserPreferences`,
-`updateUserContext`.
+What was retired from Alia: `saveUserMemory`, `updateUserMemory`, `forgetUserMemory`,
+`updateUserPreferences`, `updateUserContext`, the `memory-recall` before-chat hook, the
+facts, preferences and context blocks of the system prompt, the embeddings and vector
+search, the `/memory/*` routes to add, edit, search, import and export memories, and the
+Settings → Memory list (it now explains where memories live and opens Nilo). The canvas
+`memory` node reads and writes a Nilo memory by key (`lib/canvas/nilo-memory.ts`).
 
-Main routes (`routes/memory.ts`):
-
-- `GET /memory`, `GET /memory/stats`
-- `GET /memory/agents` — every agent that remembers something about the caller
-  (their files are `GET|PUT|DELETE /agents/:id/memory`, `routes/agents/memory.ts`)
-- `POST /memory/add`, `PUT /memory/:memoryId`, `DELETE /memory/:memoryId`
-- `PUT /memory/preferences`, `PUT /memory/context`, `PUT /memory/settings`
-- `GET /memory/search`, `GET /memory/semantic-search`, `GET /memory/duplicates`
-- `GET /memory/export/preview`, `GET /memory/export/json`, `GET /memory/export/csv`
-- `POST /memory/import/validate`, `POST /memory/import`, `POST /memory/import/from-text`
-
-The app shows both Alia's memory and every agent's under Settings → Memory.
+What Alia keeps (`user_memories`, `GET /memory`, `PUT /memory/preferences|settings`): the
+answer preferences the person chose (language, tone, response length), the
+"Use in AI responses" toggle, and the learned writing style. Those are settings, not
+memories. Language, tone and response length still reach the prompt; nothing else about
+the person does.
 
 ### Writing style
 

@@ -7,6 +7,7 @@
 
 import { buildIdentityGuard } from './identity-guard.js';
 import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-services.js';
+import { ALIA_MEMORY_RECALL_TOOL } from './tools/oxy-tool-names.js';
 import { agentRemitPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
 import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
@@ -38,6 +39,7 @@ const SPOKEN_ANSWER_PROMPT = 'voice';
 
 /** The rule for asking the person through `askUserQuestion`; see `SystemPromptOptions.askUserQuestion`. */
 const ASK_USER_QUESTION_PROMPT = 'ask-user-question';
+const MEMORY_PROMPT = 'memory';
 
 /**
  * Cowork's rules for its own `browser_action` client tool. The client names the
@@ -51,19 +53,16 @@ import { readCapabilityGrants } from '../domain/capability-grants.js';
 import type { IWritingStyleProfile } from '../domain/writing-style.js';
 import { formatStyleForPrompt } from './style/style-prompt.js';
 import { agentMemoryPromptSection } from './agent/agent-memory-runtime.js';
-import { memoryDataBlock, memoryFactLines } from './memory/memory-prompt.js';
 
 /** How many recent memories stand in for recall when recall returned nothing. */
-const KNOWN_FACTS_WITHOUT_RECALL = 20;
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface UserMemoryData {
-  memories?: Array<{ title: string; summary: string }>;
-  preferences?: Record<string, any>;
-  context?: Record<string, any>;
+  /** What the person set in Alia: tone and response length reach the prompt (language does not). */
+  preferences?: { tone?: string; responseLength?: string };
   /**
    * The person's memory settings. Only `recallEnabled` is read here — the
    * switch the app labels "Use in AI responses" — and only for the writing
@@ -103,10 +102,8 @@ export interface SystemPromptOptions {
   accessToken?: string;
   /** User profile from OxyHQ */
   oxyUser?: OxyUserProfile | null;
-  /** User's persistent memory */
+  /** The person's profile row: only its learned writing style reaches the prompt. Memory proper is in Nilo. */
   userMemory?: UserMemoryData | null;
-  /** Recalled memories from before-chat hooks */
-  recalledMemories?: Array<{ title: string; summary: string }>;
   /** `false`: the person turned personalization off for this turn, so no memory of any actor is read. */
   personalization?: boolean;
   /**
@@ -188,7 +185,7 @@ export class SystemPromptBuilder {
    * they are added rather than guessed afterwards.
    */
   static async buildMeasured(opts: SystemPromptOptions): Promise<SystemPromptParts> {
-    let memoryChars = 0;
+    const memoryChars = 0;
     let skillsChars = 0;
     const {
       surface = 'chat',
@@ -199,7 +196,6 @@ export class SystemPromptBuilder {
       accessToken,
       oxyUser,
       userMemory,
-      recalledMemories,
       personalization = true,
       skills,
       linkedAgent,
@@ -259,6 +255,13 @@ export class SystemPromptBuilder {
     if ((askUserQuestion || toolNames?.includes('askUserQuestion')) && responseMode !== 'voice') {
       const ask = await loadPrompt(ASK_USER_QUESTION_PROMPT);
       if (ask !== '') systemMessage += `\n\n---\n\n${ask}`;
+    }
+
+    // 1d. How to use the person's memory, when its tools are in this turn's tool set
+    // (Alia's turns only: an agent keeps its own memory, and personalization can be off).
+    if (mayReadAliaMemory && toolNames?.includes(ALIA_MEMORY_RECALL_TOOL)) {
+      const memory = await loadPrompt(MEMORY_PROMPT);
+      if (memory !== '') systemMessage += `\n\n---\n\n${memory}`;
     }
 
     /**
@@ -321,16 +324,6 @@ export class SystemPromptBuilder {
       systemMessage += buildAutonomyPromptFragment(autonomyRuntime);
     }
 
-    // 7. Recalled memories from hooks
-    if (mayReadAliaMemory && recalledMemories?.length) {
-      const recalled = memoryDataBlock(
-        'Recalled Memories',
-        memoryFactLines(recalledMemories.slice(0, 12)),
-      );
-      systemMessage += recalled;
-      memoryChars += recalled.length;
-    }
-
     // 8. The person (direct sessions only).
     if (isDirectUserSession) {
       const userName = oxyUser?.name?.full || oxyUser?.name?.first || oxyUser?.username;
@@ -340,40 +333,17 @@ export class SystemPromptBuilder {
       if (oxyServiceCtx) systemMessage += oxyServiceCtx;
     }
 
-    // 9. User memory (direct sessions only) — Alia's, as labelled data.
-    if (mayReadAliaMemory && userMemory && isDirectUserSession) {
-      // Recall chose the relevant memories above; dumping every one here as
-      // well defeated it and grew the prompt with the person's whole history.
-      // Without a recall result, the most recent few stand in for it. A person
-      // who switched recall off gets neither.
-      const recallOff = userMemory.settings?.recallEnabled === false;
-      const knownFacts =
-        recallOff || recalledMemories?.length
-          ? []
-          : (userMemory.memories ?? []).slice(-KNOWN_FACTS_WITHOUT_RECALL);
-      const parts: string[] = [];
-      if (knownFacts.length > 0) {
-        parts.push('### Known Facts:\n' + memoryFactLines(knownFacts));
+    // 9. The answer settings the person chose in Alia (direct sessions only). Settings, not
+    // memories: what Alia remembers about them is Nilo's, recalled by the model.
+    if (mayReadAliaMemory && userMemory?.preferences && isDirectUserSession) {
+      const { tone, responseLength } = userMemory.preferences;
+      const chosen = [
+        tone ? `tone: ${tone}` : '',
+        responseLength ? `response length: ${responseLength}` : '',
+      ].filter(Boolean);
+      if (chosen.length > 0) {
+        systemMessage += `\n\nAnswer preferences the person set (${chosen.join('; ')}).`;
       }
-      if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
-        const prefs = Object.entries(userMemory.preferences)
-          .filter(([k, v]) => v !== undefined && v !== null && k !== 'language')
-          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
-        if (prefs.length > 0) {
-          parts.push('### User Preferences:\n' + prefs.join('\n'));
-        }
-      }
-      if (userMemory.context && Object.keys(userMemory.context).length > 0) {
-        const ctx = Object.entries(userMemory.context)
-          .filter(([_, v]) => v !== undefined && v !== null)
-          .map(([k, v]) => `- ${k}: ${v}`);
-        if (ctx.length > 0) {
-          parts.push('### Context:\n' + ctx.join('\n'));
-        }
-      }
-      const block = memoryDataBlock('User Information', parts.join('\n'));
-      systemMessage += block;
-      memoryChars += block.length;
     }
 
     /**

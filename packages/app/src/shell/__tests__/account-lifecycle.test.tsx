@@ -67,7 +67,9 @@ function seedAccountA(client: QueryClient) {
     },
   });
   useStore.setState({ ghostMode: true });
-  useUserDataStore.setState({ memory: { memories: [{ _id: 'x' }] } as never });
+  useUserDataStore.setState({
+    memory: { settings: { recallEnabled: false }, preferences: { voice: 'male' } },
+  });
   useLibraryStore.setState({ files: [{ _id: 'f1' } as never] });
   useShowStore.setState({ series: [{ id: 's1' } as never] });
   client.setQueryData(['conversations'], { pages: [{ conversations: [{ id: 'c1' }] }] });

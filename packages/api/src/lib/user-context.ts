@@ -2,16 +2,14 @@
  * User Context Builder
  *
  * The `# USER CONTEXT` block a background prompt opens with (Alia's tasks,
- * `routes/internal.ts`). What Alia REMEMBERS is in it as labelled data
- * (`lib/memory/memory-prompt.ts`), never as bare lines a remembered sentence
- * could pose as an instruction in.
+ * `routes/internal.ts`). What Alia remembers about the person is not in it: that is Nilo's
+ * (`oxy_nilo_memories__*`), recalled by the model. Only the settings the person chose in Alia
+ * (language, tone) are.
  *
  * `buildUserContext`, the fetching half that once lived here, had no caller
  * left and appended the person's memory unlabelled; it is gone rather than
  * fixed.
  */
-
-import { memoryDataBlock, memoryFactLines } from './memory/memory-prompt.js';
 
 /**
  * The `# USER CONTEXT` block a background prompt opens with, from data the
@@ -41,8 +39,6 @@ export function formatUserContextLines(
   } | null,
   memory?: {
     preferences?: { language?: string; tone?: string };
-    context?: { occupation?: string; location?: string };
-    memories?: Array<{ title: string; summary: string }>;
   } | null,
 ): string[] {
   const lines: string[] = [];
@@ -62,14 +58,7 @@ export function formatUserContextLines(
     if (memory.preferences?.language) {
       lines.push(`User's preferred language: ${memory.preferences.language}.`);
     }
-    const remembered: string[] = [];
-    if (memory.context?.occupation) remembered.push(`- occupation: ${memory.context.occupation}`);
-    if (memory.context?.location && !oxyUser?.location)
-      remembered.push(`- location: ${memory.context.location}`);
-    if (memory.preferences?.tone) remembered.push(`- preferred tone: ${memory.preferences.tone}`);
-    if (memory.memories?.length) remembered.push(memoryFactLines(memory.memories));
-    const block = memoryDataBlock('What you remember about the user', remembered.join('\n'));
-    if (block !== '') lines.push(block.trimStart());
+    if (memory.preferences?.tone) lines.push(`User's preferred tone: ${memory.preferences.tone}.`);
   }
 
   return lines;

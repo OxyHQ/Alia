@@ -301,37 +301,11 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
             (word) => context.has(word.toLowerCase()),
           ).length * 4;
 
-    // If authenticated, try to personalize scoring
-    if (req.user?.id && pool.length > 0) {
-      try {
-        const memory = await findUserMemory(getDb(), req.user.id);
-
-        if (memory) {
-          const userInterests = memory.preferences.interests;
-          const userOccupation = memory.context.occupation || '';
-
-          // Score by relevance to user profile
-          pool = pool
-            .map((s) => {
-              let score = (s.priority || 0) + Math.random() * 3;
-              for (const interest of userInterests) {
-                if (s.tags?.includes(interest) || s.interests?.includes(interest)) score += 5;
-              }
-              if (userOccupation && s.occupations?.includes(userOccupation)) score += 3;
-              return { ...s, _score: score };
-            })
-            .sort((a: any, b: any) => b._score - a._score)
-            .map(({ _score, ...rest }: any) => rest);
-        }
-      } catch {
-        // Personalization is best-effort
-      }
-    } else {
-      // Unauthenticated: shuffle the pool randomly
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
+    // The pool is shuffled so the same few suggestions do not lead every time. What Alia
+    // knows about the person lives in Nilo, so nothing in it personalizes this list.
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     if (context !== null) {
       // The context first; stable, so the order above stands among suggestions it scores alike.
@@ -438,23 +412,12 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     const memory = await findUserMemory(getDb(), userId);
 
     const language = memory?.preferences.language || 'en-US';
-    const interests = memory?.preferences.interests ?? [];
     const tone = memory?.preferences.tone || 'friendly';
-    const occupation = memory?.context.occupation || '';
-    const location = memory?.context.location || '';
 
     const deadline = AbortSignal.timeout(SUGGESTION_BUDGET_MS);
 
     // Build compact user profile string (only non-empty fields)
-    const profileParts = [
-      `lang:${language}`,
-      interests.length ? `interests:${interests.join(',')}` : '',
-      occupation ? `job:${occupation}` : '',
-      location ? `loc:${location}` : '',
-      `tone:${tone}`,
-    ]
-      .filter(Boolean)
-      .join(' | ');
+    const profileParts = [`lang:${language}`, `tone:${tone}`].filter(Boolean).join(' | ');
 
     const prompt = suggestionPrompt({ count, profileParts, language, types });
 

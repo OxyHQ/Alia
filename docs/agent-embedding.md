@@ -140,7 +140,7 @@ The API receiver ships first: migration `0109_chat_host_results` (pre-deploy, ad
 
 ### Personalization off for one turn
 
-`"personalization": false` on `POST /v1/chat/completions` (and `/alia/chat`, the same handler) turns personalization off for that turn: Alia reads no memory profile of the person and recalls no memories, an agent reads none of its own memory of them, the model is offered no memory tools (`saveUserMemory`, `updateUserMemory`, `forgetUserMemory`, `updateUserPreferences`, `updateUserContext`, an agent's `memory` and `searchThread`), and nothing is learned from the turn (writing style, proactive suggestions). The conversation is stored as usual. Absent or `true` changes nothing; any other value is refused `400` with `param: "personalization"`. The SDK sends it from `AliaTurnRequest.personalization` (`host.turnRequest()`), only when `false`.
+`"personalization": false` on `POST /v1/chat/completions` (and `/alia/chat`, the same handler) turns personalization off for that turn: Alia reads no profile of the person, the model is offered no memory tools (Alia's `oxy_nilo_memories__*`, an agent's `memory` and `searchThread`) and an agent reads none of its own memory of them, and nothing is learned from the turn (writing style, proactive suggestions). The conversation is stored as usual. Absent or `true` changes nothing; any other value is refused `400` with `param: "personalization"`. The SDK sends it from `AliaTurnRequest.personalization` (`host.turnRequest()`), only when `false`.
 
 ## 3. Tool results and renderers
 

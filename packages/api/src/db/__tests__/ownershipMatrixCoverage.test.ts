@@ -256,8 +256,12 @@ interface MatrixRow {
  * uniqueness map read against it. The required uniquenesses moved to
  * `db/__tests__/uniqueConstraints.pgdb.test.ts`, and the ledger row's file
  * went with the directory.
+ *
+ * `lib/memory/embeddings.ts` went with the rest of Alia's own memory (embeddings, recall,
+ * the memory tools): her memory of a person is Nilo's now, so the two embeddings rows
+ * are `alia-memory-moved-to-nilo`.
  */
-const REMOVED_ROW_COUNT = 171;
+const REMOVED_ROW_COUNT = 173;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
@@ -376,9 +380,10 @@ describe('the ownership matrix still describes this repository', () => {
      * day, so ordinary consolidation does not fail the build — lowered to 200
      * by the owner's clean cut of the dormant tables and the `alia_sk_*` key
      * path, which removed whole files rather than consolidating them — and to
-     * 190 by ADR 0012, which deleted the routing-profile catalogue outright.
+     * 190 by ADR 0012, which deleted the routing-profile catalogue outright — and to
+     * 185 by Alia's memory moving to Nilo, which deleted the embeddings module.
      */
-    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(190);
+    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(185);
     expect(new Set(matrix.map((r) => r.currentPath)).size).toBeGreaterThanOrEqual(150);
   });
 

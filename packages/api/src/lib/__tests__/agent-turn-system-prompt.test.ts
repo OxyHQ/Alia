@@ -187,12 +187,7 @@ describe('a turn that belongs to an agent', () => {
       userId: 'person-1',
       accessToken: 'person-bearer',
       oxyUser: { name: { full: 'Private Person' }, username: 'private-person' },
-      recalledMemories: [{ title: 'Private recall', summary: 'a confidential remembered fact' }],
-      userMemory: {
-        memories: [{ title: 'Private fact', summary: 'another confidential fact' }],
-        preferences: { privatePreference: 'never disclose' },
-        context: { privateContext: 'personal workspace' },
-      },
+      userMemory: { preferences: { tone: 'private-tone-zq', responseLength: 'long' } },
       skills: {
         index: '\n\n## Skills\n- private-skill: user-only instructions',
         active: '# ACTIVE SKILLS\n\nDo the private thing.',
@@ -200,10 +195,7 @@ describe('a turn that belongs to an agent', () => {
     });
 
     expect(message).not.toContain('Private Person');
-    expect(message).not.toContain('Private recall');
-    expect(message).not.toContain('Private fact');
-    expect(message).not.toContain('privatePreference');
-    expect(message).not.toContain('privateContext');
+    expect(message).not.toContain('private-tone-zq');
   });
 
   it('discloses only the prompt families the owner explicitly granted, and memory as its own', async () => {
@@ -211,20 +203,18 @@ describe('a turn that belongs to an agent', () => {
       ...turn,
       linkedAgent: { ...claudio, capabilityGrants: ['memory', 'messaging', 'delegation'] },
       oxyUser: { name: { full: 'Still Private' } },
-      recalledMemories: [{ title: 'Granted recall', summary: 'may be used' }],
-      userMemory: { memories: [{ title: 'Granted fact', summary: 'may also be used' }] },
+      userMemory: { preferences: { tone: 'granted-tone-zq' } },
     });
 
     // Memory is per actor: the `memory` grant reaches the agent's OWN memory of
-    // the person, never Alia's — neither her recall nor her stored facts.
-    expect(message).not.toContain('Granted recall');
-    expect(message).not.toContain('Granted fact');
+    // the person, never Alia's — neither her recall nor her settings.
+    expect(message).not.toContain('granted-tone-zq');
     const withoutRecall = await SystemPromptBuilder.build({
       ...turn,
       linkedAgent: { ...claudio, capabilityGrants: ['memory'] },
-      userMemory: { memories: [{ title: 'Granted fact', summary: 'may also be used' }] },
+      userMemory: { preferences: { tone: 'granted-tone-zq' } },
     });
-    expect(withoutRecall).not.toContain('Granted fact');
+    expect(withoutRecall).not.toContain('granted-tone-zq');
     // A profile/name is not one of Alia's grant families. It remains withheld
     // until a resource-specific delegation authority exists for it.
     expect(message).not.toContain('Still Private');

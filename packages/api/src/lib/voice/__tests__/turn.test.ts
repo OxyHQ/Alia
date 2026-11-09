@@ -31,7 +31,6 @@ vi.mock('../../chat/turn-inputs.js', () => ({
     activated: () => [],
   },
   buildTurnSkills: vi.fn(async () => null),
-  recallTurnMemories: vi.fn(async () => [{ title: 'Likes', summary: 'tea' }]),
 }));
 vi.mock('../../tool-pipeline.js', () => ({ ToolPipeline: { forUser: H.forUser } }));
 vi.mock('../../system-prompt-builder.js', () => ({
@@ -145,8 +144,7 @@ describe('the call’s tools', () => {
     const text = await turn.instructions([{ role: 'user', content: 'hola' }]);
     expect(text).toContain('PROMPT responseMode=voice ask=false');
     expect(text).toContain('Person: hola');
-    expect(H.buildMeasured).toHaveBeenLastCalledWith(
-      expect.objectContaining({ recalledMemories: [{ title: 'Likes', summary: 'tea' }] }),
-    );
+    // Memory is the model's to recall (Nilo's tools); the builder is handed none.
+    expect(H.buildMeasured.mock.lastCall?.[0]).not.toHaveProperty('recalledMemories');
   });
 });

@@ -55,9 +55,15 @@ export const PRODUCTION_ORIGINS: readonly string[] = [
  * the hazard this list is documented against. CORS is enforced by a BROWSER; a
  * native client is not subject to it and reads the response whatever this list
  * says, so `packages/app` on iOS, Android or Expo Go never needed an entry.
- * React Native's networking layer sends no `Origin` header at all (nothing
- * under `react-native/Libraries/Network/` sets one), and `exp://localhost:8150`
- * is the Expo Go DEEP LINK for the Metro server, not an HTTP origin —
+ * React Native's `fetch`/XHR sends no `Origin` header at all (nothing under
+ * `react-native/Libraries/Network/` sets one). Its WebSocket does send one: the
+ * socket URL's own origin, `https://api.alia.onl` for `wss://api.alia.onl/…`
+ * (Android's WebSocketModule adds it when the caller gives none, iOS's
+ * SocketRocket does the same, and OxyOS follows Android). `createOxySocketCors`
+ * admits a handshake whose `Origin` is the server's own origin as same-origin
+ * (`@oxy.so/core` 7.47.1), so that needs no entry here either. And
+ * `exp://localhost:8150` is the Expo Go DEEP LINK for the Metro server, not an
+ * HTTP origin —
  * `packages/app/src/shared/api/generate-api-url.ts` rewrites its `exp://` prefix to
  * `http://` before using it as a base URL. On web, `expo start --web` serves
  * from `http://localhost:8150`, which is its own entry below.

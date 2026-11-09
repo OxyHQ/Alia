@@ -40,18 +40,7 @@ const READ_ONLY_TOOLS = new Set([
   'readSharePointFile',
 ]);
 
-const REVERSIBLE_WRITE_TOOLS = new Set([
-  'write_file',
-  'edit_file',
-  'createAutomation',
-  'saveUserMemory',
-  'updateUserMemory',
-  // Forgetting is the person's own request ("olvida esto"); the same tier as
-  // the edit it is, and as the delete button on the memory screen.
-  'forgetUserMemory',
-  'updateUserPreferences',
-  'updateUserContext',
-]);
+const REVERSIBLE_WRITE_TOOLS = new Set(['write_file', 'edit_file', 'createAutomation']);
 
 const EXTERNAL_IMPACT_TOOLS = new Set([
   // ONE name. `sendTelegram` was the second spelling of this same factory on

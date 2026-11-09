@@ -27,7 +27,6 @@ const HOSTED_RUNTIME_FILES = [
   'lib/gateway-client.ts',
   'lib/image-generation.ts',
   'lib/synthesize-speech.ts',
-  'lib/memory/embeddings.ts',
   'routes/v1/audio.ts',
   'routes/v1/chat-completions.ts',
   'routes/v1/images.ts',

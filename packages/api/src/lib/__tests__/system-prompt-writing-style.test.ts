@@ -49,9 +49,7 @@ function profile(overrides: Partial<IWritingStyleProfile> = {}): IWritingStylePr
 
 function memory(overrides: Partial<UserMemoryData> = {}): UserMemoryData {
   return {
-    memories: [],
     preferences: {},
-    context: {},
     settings: { recallEnabled: true },
     writingStyle: profile(),
     ...overrides,
@@ -63,7 +61,6 @@ async function build(opts: {
   isDirectUserSession?: boolean;
   linkedAgent?: HydratedAgent | null;
   personalization?: boolean;
-  recalledMemories?: Array<{ title: string; summary: string }>;
 }): Promise<string> {
   return SystemPromptBuilder.build({
     surface: 'chat',
@@ -71,7 +68,6 @@ async function build(opts: {
     userMemory: opts.userMemory,
     linkedAgent: opts.linkedAgent ?? null,
     ...(opts.personalization === undefined ? {} : { personalization: opts.personalization }),
-    ...(opts.recalledMemories ? { recalledMemories: opts.recalledMemories } : {}),
   });
 }
 
@@ -117,20 +113,25 @@ describe("the person's writing style in the system message", () => {
     expect(prompt).not.toContain(HEADER);
   });
 
-  it('is absent, with every other memory, when the person turned personalization off for the turn', async () => {
-    const userMemory = memory({
-      memories: [{ key: 'pet', value: 'a cat named Mochi', category: 'fact' }] as never,
-      preferences: { tone: 'sardonic-zq' } as never,
-    });
-    const recalledMemories = [{ title: 'pet', summary: 'a cat named Mochi' }];
-    const on = await build({ userMemory, recalledMemories });
-    const off = await build({ userMemory, recalledMemories, personalization: false });
-    expect(on).toContain('Mochi');
+  it('is absent when the person turned personalization off for the turn', async () => {
+    const userMemory = memory({});
+    const on = await build({ userMemory });
+    const off = await build({ userMemory, personalization: false });
     expect(on).toContain(HEADER);
-    expect(off).not.toContain('Mochi');
-    expect(on).toContain('sardonic-zq');
-    expect(off).not.toContain('sardonic-zq');
     expect(off).not.toContain(HEADER);
+  });
+
+  it('carries the tone and length the person set, as settings; what she remembers is Nilo’s', async () => {
+    const prompt = await build({
+      userMemory: memory({ preferences: { tone: 'sardonic-zq', responseLength: 'short' } }),
+    });
+    expect(prompt).toContain('tone: sardonic-zq');
+    expect(prompt).toContain('response length: short');
+    const off = await build({
+      userMemory: memory({ preferences: { tone: 'sardonic-zq' } }),
+      personalization: false,
+    });
+    expect(off).not.toContain('sardonic-zq');
   });
 
   it('is absent when the person turned off "Use in AI responses"', async () => {

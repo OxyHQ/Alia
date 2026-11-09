@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@oxy.so/core": "7.23.0",
+    "@oxy.so/core": "7.47.1",
     "@oxy.so/db": "^1.4.0",
     "@whiskeysockets/baileys": "~6.7.23",
     "discord.js": "^14.26.5",

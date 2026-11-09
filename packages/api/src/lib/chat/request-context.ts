@@ -47,12 +47,7 @@ import type { UserMemoryProfile } from '../../db/memory/userMemoryRepository.js'
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { reserveCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
-import {
-  buildTurnSkills,
-  EMPTY_SKILL_RUNTIME,
-  prefetchTurnInputs,
-  recallTurnMemories,
-} from './turn-inputs.js';
+import { buildTurnSkills, EMPTY_SKILL_RUNTIME, prefetchTurnInputs } from './turn-inputs.js';
 import { readUsageWindow, secondsUntilReset, type UsageWindow } from '../usage-window.js';
 import {
   PROMPT_SURFACES,
@@ -205,7 +200,6 @@ export interface ChatRequestContext {
   /** The model this turn runs on: `publisher/model`, or the local runtime id. */
   modelId: string;
   autonomyRuntime: AutonomyRuntimeContext | null;
-  recalledMemories: Array<{ title: string; summary: string }> | undefined;
 }
 
 export async function buildChatRequestContext(
@@ -1165,19 +1159,6 @@ export async function buildChatRequestContext(
 
     log.v1.info({ provider: resolved.provider, modelId }, 'Using provider');
 
-    // An agent's memory is its own (`agent_memory_documents`): Alia's recall is
-    // for Alia's turns only.
-    const recalledMemories =
-      localAccountId && linkedAgent === null && personalization
-        ? await recallTurnMemories({
-            oxyUserId: localAccountId,
-            conversationId,
-            messages,
-            modelId,
-            selectedSkillNames,
-          })
-        : undefined;
-
     return {
       body,
       messages,
@@ -1209,7 +1190,6 @@ export async function buildChatRequestContext(
       resolved,
       modelId,
       autonomyRuntime,
-      recalledMemories,
     };
   } catch (error) {
     // Everything below can throw (a skills lookup, a memory recall). Whatever

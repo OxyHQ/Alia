@@ -73,6 +73,7 @@ import { asSchema, tool, type Tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 import { declareReadOnly } from './agent/tool-effects.js';
+import { isAliaMemoryTool } from './tools/oxy-tool-names.js';
 import {
   requestInputBudgetBytes,
   toolDefinitionBytes,
@@ -324,6 +325,8 @@ export function appsOf(
   for (const source of ['oxy_service', 'mcp', 'integration'] as const) {
     for (const [name, built] of Object.entries(sources[source])) {
       if (tools[name] !== built) continue;
+      // The person's memory is core, never deferred: it is read before the answer.
+      if (source === 'oxy_service' && isAliaMemoryTool(name)) continue;
       const label = bracketLabel(built.description);
       let key: string;
       let id: string;

@@ -181,7 +181,7 @@ describe('the instructions fit the contract’s 32 768 characters', () => {
     expect(text).toContain('The person is speaking es-ES');
   });
 
-  it('shrink the history first, then drop recalled memories, then refuse', async () => {
+  it('shrinks the history to fit, then refuses', async () => {
     const shrunk = await composeVoiceInstructions({
       base: async () => 'B'.repeat(30_000),
       history,
@@ -190,13 +190,6 @@ describe('the instructions fit the contract’s 32 768 characters', () => {
     expect(shrunk.length).toBeLessThanOrEqual(32_768);
     expect(shrunk).toContain('mensaje 39');
     expect(shrunk).not.toContain('mensaje 0 ');
-
-    const base = vi.fn(async (withRecalled: boolean) =>
-      withRecalled ? 'M'.repeat(40_000) : 'BASE',
-    );
-    const withoutMemories = await composeVoiceInstructions({ base, history, language: 'es' });
-    expect(withoutMemories.startsWith('BASE')).toBe(true);
-    expect(base).toHaveBeenCalledWith(false);
 
     await expect(
       composeVoiceInstructions({ base: async () => 'B'.repeat(40_000), history, language: 'es' }),
