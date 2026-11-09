@@ -14,6 +14,7 @@ import {
   MAX_SUBSCRIPTIONS_PER_AGENT,
   countAgentSubscriptions,
   deleteAgentSubscription,
+  findHeartbeatState,
   listAgentSubscriptions,
   listInboxItems,
   upsertAgentSubscription,
@@ -132,12 +133,19 @@ router.get('/:id/inbox', authenticateToken, async (req: Request, res: Response) 
     const agent = await agentForOwnerSurface(req, res);
     if (!agent) return;
     const status = z.enum(['pending', 'delivered', 'dismissed']).safeParse(req.query.status);
-    const items = await listInboxItems(
-      getDb(),
-      agent._id,
-      status.success ? { status: status.data } : {},
-    );
-    res.json({ items });
+    const [items, heartbeat] = await Promise.all([
+      listInboxItems(getDb(), agent._id, status.success ? { status: status.data } : {}),
+      findHeartbeatState(getDb(), agent._id),
+    ]);
+    // `heartbeat`: how often the agent looks and when it last did, so an empty inbox next to an old
+    // timestamp reads as "nothing happened", not "it is not working".
+    res.json({
+      items,
+      heartbeat: {
+        intervalMinutes: heartbeat?.intervalMinutes ?? null,
+        lastHeartbeatAt: heartbeat?.lastHeartbeatAt?.toISOString() ?? null,
+      },
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Could not list an agent inbox');
     res.status(500).json({ error: 'Could not list the inbox' });

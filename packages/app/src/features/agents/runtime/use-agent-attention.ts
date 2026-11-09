@@ -41,6 +41,13 @@ export interface AgentInboxItem {
   receivedAt: string;
 }
 
+/** What waits for the agent, and how often it looks (`GET /agents/:id/inbox`). */
+export interface AgentInbox {
+  items: AgentInboxItem[];
+  /** The heartbeat in minutes (null: none) and when it last woke the agent (null: never). */
+  heartbeat: { intervalMinutes: number | null; lastHeartbeatAt: string | null };
+}
+
 export function useAgentSubscriptions(agentId: string) {
   const { isAuthenticated } = useOxy();
   return useQuery({
@@ -56,17 +63,23 @@ export function useAgentSubscriptions(agentId: string) {
   });
 }
 
-/** The pending items, newest first (the route's order; nothing here re-sorts it). */
+/** The pending items, newest first (the route's order; nothing here re-sorts it), and the heartbeat. */
 export function useAgentInbox(agentId: string) {
   const { isAuthenticated } = useOxy();
   return useQuery({
     queryKey: queryKeys.agents.inbox(agentId),
-    queryFn: async (): Promise<AgentInboxItem[]> => {
-      const response = await apiClient.get<{ items: AgentInboxItem[] }>(
-        API_ROUTES.agents.inbox(agentId),
-        { params: { status: 'pending' } },
-      );
-      return response.data.items ?? [];
+    queryFn: async (): Promise<AgentInbox> => {
+      const response = await apiClient.get<{
+        items?: AgentInboxItem[];
+        heartbeat?: Partial<AgentInbox['heartbeat']>;
+      }>(API_ROUTES.agents.inbox(agentId), { params: { status: 'pending' } });
+      return {
+        items: response.data.items ?? [],
+        heartbeat: {
+          intervalMinutes: response.data.heartbeat?.intervalMinutes ?? null,
+          lastHeartbeatAt: response.data.heartbeat?.lastHeartbeatAt ?? null,
+        },
+      };
     },
     enabled: isAuthenticated && agentId !== '',
     retry: false,

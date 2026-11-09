@@ -588,7 +588,7 @@ export class ToolPipeline {
           aliaTools.memory = buildAgentMemoryTool({
             oxyUserId: userId,
             agentId: agent._id,
-            actorOxyAccountId: agent._id,
+            actorOxyAccountId: agent.oxyAccountId,
           });
           /**
            * Only for a turn that HAS an agent, because a thread is a (person,

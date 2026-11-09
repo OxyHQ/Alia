@@ -467,6 +467,8 @@
         "remove": "Remove",
         "inboxTitle": "Waiting in its inbox",
         "inboxEmpty": "Nothing is waiting for {{name}}.",
+        "lastLooked": "Last looked at its inbox: {{when}}",
+        "neverLooked": "{{name}} hasn't looked at its inbox yet.",
         "loadFailed": "Could not load this. Try again.",
         "limitReached": "This agent already hears about as many things as it can (25). Remove one first.",
         "subscribeFailed": "Could not change what it hears about. Try again.",

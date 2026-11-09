@@ -277,18 +277,26 @@ function SubscriptionsCard({ agentId, name }: { agentId: string; name: string })
 /** What is waiting for the agent's next look. Read-only; every word of it is someone else's. */
 function InboxCard({ agentId, name }: { agentId: string; name: string }) {
   const { t } = useTranslation();
-  const { data: items, isPending, isError } = useAgentInbox(agentId);
+  const { data: inbox, isPending, isError } = useAgentInbox(agentId);
 
   if (isPending) return <SettingsRowsSkeleton control="none" rows={2} />;
-  if (isError || !items) {
+  if (isError || !inbox) {
     return (
       <SettingsCard>
         <SettingsRow label={t(`${K}.loadFailed`)} />
       </SettingsCard>
     );
   }
+  const { items, heartbeat } = inbox;
   return (
     <SettingsCard>
+      <SettingsRow
+        label={
+          heartbeat.lastHeartbeatAt
+            ? t(`${K}.lastLooked`, { when: new Date(heartbeat.lastHeartbeatAt).toLocaleString() })
+            : t(`${K}.neverLooked`, { name })
+        }
+      />
       {items.length === 0 ? (
         <SettingsRow label={t(`${K}.inboxEmpty`, { name })} />
       ) : (

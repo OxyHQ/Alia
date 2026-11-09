@@ -4,6 +4,11 @@
 
 Proposed
 
+> **Note (2026-11-10), extended by ADR 0026:** what this record left out — how an agent notices things
+> between turns and decides to look — is the inbox and heartbeat of
+> [ADR 0026](./0026-agent-inbox-and-heartbeat.md). The decisions below are implemented; the status is
+> left as written because acceptance is the owner's call.
+
 > **Note (2026-10-16), amended by ADR 0020 §3:** no agent asks for approval, so approvals, their rows and their events are deleted (`0098_retire_agent_approvals`). Decision 3 no longer holds: a background run never files an approval either — an R2 call runs, flagged, and an R3 call is blocked.
 
 > **Note (2026-10-06):** the six decisions below are implemented in code (the

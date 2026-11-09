@@ -484,6 +484,7 @@ async function driveAgentSession(
     },
     runtime: {
       session,
+      agentAccountId: agent.oxyAccountId,
       onComplete,
       onHireAgent,
       // A child run (delegated, orchestrated) reports to its parent, not to
