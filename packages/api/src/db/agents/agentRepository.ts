@@ -62,6 +62,13 @@ import { and, asc, desc, eq, getTableColumns, inArray, max, sql, type SQL } from
 import { sqlColumnName } from '@oxy.so/db';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { ApiDatabase, Executor } from '../index';
+import { automationDefinitions } from '../schema/agency';
+import {
+  agentInboxItems,
+  agentMemoryDocuments,
+  agentMemoryJournal,
+  agentSubscriptions,
+} from '../schema/agent-runtime';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
@@ -964,17 +971,43 @@ export async function updateAgent(
 }
 
 /**
- * Delete an agent.
+ * Delete an agent, and the state that has no meaning without it.
  *
  * No ownership predicate, for the reason {@link updateAgent} gives.
  *
- * Under the schema's foreign keys, reviews and team memberships go with the
- * agent. Sessions SURVIVE (somebody's
- * history and their credits) and a container template survives with `agent_id`
- * nulled — see CONVENTIONS §"One parent, four children". Returns the matched
- * count; `0` means nothing was deleted.
+ * Under the schema's foreign keys, reviews and team memberships go with the agent. Sessions SURVIVE
+ * (somebody's history and their credits), and so do threads and goals; a container template
+ * survives with `agent_id` nulled — see CONVENTIONS §"One parent, four children".
+ *
+ * The runtime tables below have no foreign key to `agents`, so nothing removed their rows:
+ *
+ *  - the agent's inbox and subscriptions: a subscription left behind keeps filling an inbox nobody
+ *    will ever read;
+ *  - its memory and the journal of what it wrote: it is what the agent learned about people, and a
+ *    person who deletes the agent expects it to go with it;
+ *  - the automations that name it as their fixed actor are DISABLED, not deleted: each run would fail
+ *    and tell the person so, on every occurrence. The person still sees them and can re-assign or
+ *    remove them.
+ *
+ * Done before the row goes and each step idempotent, so a failure part-way is retried by deleting
+ * again rather than leaving a deleted agent half there. Returns the matched count; `0` means nothing
+ * was deleted.
  */
 export async function deleteAgent(db: Executor, id: string): Promise<number> {
+  await db.delete(agentSubscriptions).where(eq(agentSubscriptions.agentId, id));
+  await db.delete(agentInboxItems).where(eq(agentInboxItems.agentId, id));
+  await db.delete(agentMemoryDocuments).where(eq(agentMemoryDocuments.agentId, id));
+  await db.delete(agentMemoryJournal).where(eq(agentMemoryJournal.agentId, id));
+  await db
+    .update(automationDefinitions)
+    .set({ enabled: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(automationDefinitions.actorMode, 'fixed'),
+        eq(automationDefinitions.fixedAgentId, id),
+        eq(automationDefinitions.enabled, true),
+      ),
+    );
   const deleted = await db.delete(agents).where(eq(agents.id, id)).returning({ id: agents.id });
   return deleted.length;
 }
@@ -982,9 +1015,10 @@ export async function deleteAgent(db: Executor, id: string): Promise<number> {
 /**
  * `$inc: { hireCount: 1, usageCount: 1 }` — one statement, not read-modify-write.
  *
- * `routes/v1/chat-completions.ts:160` increments both on every linked-agent
- * turn. Doing it in JavaScript would lose concurrent increments; the source did
- * not, and neither does this.
+ * Called only by `startAgentSession` (`lib/agent/session-handoff.ts`): a hired or
+ * delegated background run counts, a chat turn with the agent does not. Doing it
+ * in JavaScript would lose concurrent increments; the source did not, and
+ * neither does this.
  */
 export async function incrementAgentCounters(
   db: Executor,
