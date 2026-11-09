@@ -173,18 +173,20 @@ export function ConversationActions({
     [lead, joined],
   );
 
+  // What needs a stored conversation is offered once there is one.
+  const stored = conversationId !== undefined;
   return (
     <ChatHeaderActions
-      onSearch={openSearch}
+      onSearch={stored ? openSearch : undefined}
       agents={agents}
       onEditAgent={openAgentEditor}
       onStartGroup={startGroup}
-      onShare={shareable ? handleShare : undefined}
-      onStopSharing={shareable ? handleStopSharing : undefined}
-      onExport={handleExport}
-      onClear={clearMessages}
+      onShare={stored && shareable ? handleShare : undefined}
+      onStopSharing={stored && shareable ? handleStopSharing : undefined}
+      onExport={stored ? handleExport : undefined}
+      onClear={stored ? clearMessages : undefined}
       onOpenTerminal={terminalAgentId === undefined ? undefined : handleOpenTerminal}
-      onDelete={threadHandle === undefined ? handleDelete : undefined}
+      onDelete={stored && threadHandle === undefined ? handleDelete : undefined}
     />
   );
 }

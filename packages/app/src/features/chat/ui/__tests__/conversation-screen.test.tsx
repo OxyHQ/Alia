@@ -335,10 +335,10 @@ describe('the breadcrumb', () => {
     expect(content().chrome({}).project).toBe('sidebar.chats');
   });
 
-  it('files the new-chat screen under nothing, and offers it no actions: nothing is stored yet', () => {
+  it('files the new-chat screen under nothing, and still offers it the menu: starting a group needs no stored chat', () => {
     mount();
     expect(content().chrome({}).project).toBeUndefined();
-    expect(content().chrome({}).actions).toBeUndefined();
+    expect(content().chrome({}).actions).toBeDefined();
     expect(content().composerStatus).toBeUndefined();
   });
 

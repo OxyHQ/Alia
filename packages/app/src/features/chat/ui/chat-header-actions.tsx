@@ -32,8 +32,8 @@ export interface ChatHeaderActionsProps {
   onShare?: () => Promise<unknown>;
   /** End the conversation's share link. Offered wherever sharing is. */
   onStopSharing?: () => Promise<unknown>;
-  /** Export the conversation as a Markdown document. */
-  onExport: () => void;
+  /** Export the conversation as a Markdown document. Absent where there is no thread yet. */
+  onExport?: () => void;
   /** Delete the conversation (the caller confirms). Absent where it cannot be. */
   onDelete?: () => void;
   /**
@@ -192,9 +192,11 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
               {t('chatHeader.stopSharing')}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onPress={onExport} leading={<RiDownloadLine size="sm" />}>
-            {t('chat.exportMarkdown')}
-          </DropdownMenuItem>
+          {onExport === undefined ? null : (
+            <DropdownMenuItem onPress={onExport} leading={<RiDownloadLine size="sm" />}>
+              {t('chat.exportMarkdown')}
+            </DropdownMenuItem>
+          )}
           {onClear === undefined && onDelete === undefined ? null : <DropdownMenuSeparator />}
           {onClear === undefined ? null : (
             <DropdownMenuItem
