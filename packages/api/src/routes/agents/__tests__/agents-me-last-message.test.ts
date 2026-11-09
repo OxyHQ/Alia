@@ -68,7 +68,6 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({
   updateAgent: vi.fn(),
   deleteAgent: vi.fn(),
   searchAgents: vi.fn(async () => []),
-  listAgentsWithHeartbeat: vi.fn(async () => []),
   setAgentCatalogueFlags: vi.fn(),
   incrementAgentUsage: vi.fn(),
   withoutSystemPrompt: <T>(agent: T) => agent,
