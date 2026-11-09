@@ -33,6 +33,7 @@ export { webScraperTool } from './web-scraper.js';
 export { generateFileTool } from './file-generator.js';
 export { createSearchAgentsTool } from './agent-search.js';
 export { createAgentTool } from './agent-create.js';
+export { listMyAgentsTool, updateAgentTool } from './agent-manage.js';
 
 // Deep research tool (AI-callable)
 export { createDeepResearchTool } from './deep-research.js';
