@@ -232,6 +232,28 @@ describe('the groups appear on their own terms', () => {
     expect(appsOnly.groups.map((group) => group.label)).not.toContain('skills.composerLabel');
   });
 
+  it('opens skills and apps in a submenu each, and keeps the common rows as they are', () => {
+    // Both lists can grow long; each is one row that opens them, so the few everyday rows (files,
+    // search, canvas) stay within reach.
+    const menu = run(
+      base({
+        turnSelection: {
+          skills: [
+            { id: 's1', name: 'research', label: 'Research', description: '', selected: false },
+          ],
+          connectors: [
+            { id: 'c1', label: 'Calendar', icon: undefined, toolCount: 1, selected: false },
+          ],
+        },
+      }),
+    );
+    const byLabel = (label: string) => menu.groups.find((group) => group.label === label);
+    expect(byLabel('skills.composerLabel')?.submenu).toBe(true);
+    expect(byLabel('composer.appsGroup')?.submenu).toBe(true);
+    expect(byLabel('composer.addGroup')?.submenu).toBeUndefined();
+    expect(byLabel('composer.capabilitiesGroup')?.submenu).toBeUndefined();
+  });
+
   it('withholds ghost once the conversation has something in it', () => {
     const fresh = run(base({ offerGhost: true }));
     expect(rows(fresh.groups).map((r) => r.id)).toContain('cap:ghost');
