@@ -52,6 +52,12 @@ interface ConversationScreenProps {
    * it, and on the new-chat screen.
    */
   threadHandle?: string;
+  /**
+   * The route is still resolving which conversation this is (an agent's thread is looked up by its
+   * handle). The frame, the header and the composer are drawn at once and the thread shows its
+   * skeleton, rather than a page that waits.
+   */
+  loading?: boolean;
 }
 
 /** The SDK keys a suggestion by `id` and calls a fill-in-the-blanks one a `template`. */
@@ -83,6 +89,7 @@ export const ConversationScreen = ({
   agentId,
   agentName,
   threadHandle,
+  loading = false,
 }: ConversationScreenProps) => {
   const { t } = useTranslation();
   const { isAuthenticated, signIn } = useAuth();
@@ -182,10 +189,17 @@ export const ConversationScreen = ({
         // from its first frame, while its messages load: otherwise the container's breadcrumb shows
         // for an instant and is replaced.
         header:
-          chat.hasMessages || conversationId !== undefined ? (
+          chat.hasMessages || conversationId !== undefined || loading ? (
             <ShellPageHeader
               titleAlign="center"
-              title={<AliaParticipants participants={chat.participants} onPress={openAgent} />}
+              // The lead's profile is read by the chat itself; until then the name the route knows.
+              title={
+                loading ? (
+                  agentName
+                ) : (
+                  <AliaParticipants participants={chat.participants} onPress={openAgent} />
+                )
+              }
               actions={
                 <>
                   {actions}
@@ -217,6 +231,7 @@ export const ConversationScreen = ({
         agent={agent}
         // An agent's thread is drawn as chat bubbles; Alia's own chat keeps its plain replies.
         bubbles={agentId !== undefined}
+        loading={loading}
         threadHandle={threadHandle}
         ephemeral={ephemeral}
         model={model}

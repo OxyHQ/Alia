@@ -1,11 +1,12 @@
 import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
+import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import { useAgentThread } from '@/features/agents/runtime/use-agent-thread';
+import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
-import { Loading } from '@oxy.so/bloom/loading';
 import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
@@ -57,6 +58,9 @@ const AgentThreadPage = () => {
    */
   const handle = username?.replace(/^@+/, '') ?? '';
   const { data: thread, isPending, isError } = useAgentThread(handle, threadId);
+  // The agent as the person's own list has it, for the first frame.
+  const { data: mine } = useMyAgents();
+  const known = mine?.find((agent) => agentHandle(agent) === handle);
 
   /**
    * An agent that does not exist and an agent this person cannot reach are ONE
@@ -81,12 +85,14 @@ const AgentThreadPage = () => {
   }
 
   if (isPending || thread === undefined) {
+    // The chat is drawn at once, as the agent the sidebar already knows, with the thread's skeleton
+    // where the turns will be: nothing here waits on the lookup of the conversation.
     return (
-      <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
-        <View className="flex-1 items-center justify-center">
-          <Loading variant="spinner" text={t('common.loading')} />
-        </View>
-      </ChatWorkspace>
+      <ConversationScreen
+        loading
+        agentId={known?._id}
+        agentName={known && agentDisplayName(known)}
+      />
     );
   }
 

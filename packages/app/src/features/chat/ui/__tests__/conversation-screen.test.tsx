@@ -273,6 +273,16 @@ describe('the breadcrumb', () => {
     expect(alia.props.title.props.onPress).toBeUndefined();
   });
 
+  it('is drawn at once while the route resolves the conversation: its header, the chat told to wait', () => {
+    mount({ agentId: 'a1', agentName: 'Atlas', loading: true });
+    expect(content().loading).toBe(true);
+    const header = content().chrome({ hasMessages: false }).header as React.ReactElement<{
+      title: unknown;
+    }>;
+    // The name the route knows, not the lead's profile (the chat is still reading it).
+    expect(header.props.title).toBe('Atlas');
+  });
+
   it('offers sharing on an ordinary chat only, never on an agent’s thread', () => {
     const shareableOf = (props: Parameters<typeof mount>[0]) => {
       mount(props);

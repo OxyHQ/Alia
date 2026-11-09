@@ -207,6 +207,12 @@ export interface AliaChatContentProps {
    * the replies in a neutral one. Off, a thread keeps its ordinary look (Alia's own chat).
    */
   bubbles?: boolean;
+  /**
+   * The host is still resolving WHICH conversation this is (an agent's thread is looked up by its
+   * handle before its conversation is known). The chat is drawn at once, with the thread's
+   * skeleton where the turns will be, and cannot send until the host says what it is talking to.
+   */
+  loading?: boolean;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /** The ambient field's shape: the whole `screen` (default) or a `sheet`'s smaller one. */
@@ -311,6 +317,7 @@ function AliaConversationView({
   onSuggestionPicked,
   chrome,
   bubbles = false,
+  loading = false,
   isDarkMode,
   layout = 'screen',
   isFocused = true,
@@ -662,7 +669,7 @@ function AliaConversationView({
           onValueChange={composer.setText}
           onSubmit={() => void composer.submit(composer.text)}
           busy={isLoading}
-          disabled={closed}
+          disabled={closed || loading}
           onStop={stop}
           emptyAction={voiceButton}
           accessory={
@@ -722,7 +729,7 @@ function AliaConversationView({
             messages={showsPast ? NO_MESSAGES : messages}
             conversationId={conversationId}
             isLoading={isLoading}
-            conversationLoading={conversationLoading}
+            conversationLoading={conversationLoading || loading}
             history={view.history}
             focusCursor={view.focusCursor}
             failedTurn={failedTurn}
