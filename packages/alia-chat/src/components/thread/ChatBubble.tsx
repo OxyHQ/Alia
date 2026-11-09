@@ -7,12 +7,12 @@ import {
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
 import { useInteractionState } from '@oxy.so/bloom/hooks';
-import { RiEmotionLine } from '@oxy.so/bloom/icons/RiEmotionLine';
-import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { type ComponentProps, type ReactNode, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { useLabels } from '../../lib/labels';
+import { RiEmojiPicker } from '../icons/RiEmojiPicker';
+import { RiMoreDots } from '../icons/RiMoreDots';
 import { RiReplyLine } from '../icons/RiReplyLine';
 
 type Glyph = (props: { width?: number; height?: number; fill?: string }) => ReactNode;
@@ -80,7 +80,7 @@ export function ChatBubble({
       {menu.length === 0 ? null : (
         <ActionMenu
           label={t('chat.moreActions')}
-          icon={RiMoreFill}
+          icon={RiMoreDots}
           actions={menu}
           onOpenChange={setPinned}
         />
@@ -130,8 +130,11 @@ export function ChatBubble({
 function ReactionPill({ emoji, onPress }: { emoji: string; onPress?: () => void }) {
   const theme = useTheme();
   const { t } = useLabels();
+  const { state: hovered, onIn, onOut } = useInteractionState();
   return (
     <Pressable
+      onHoverIn={onIn}
+      onHoverOut={onOut}
       accessibilityRole="button"
       accessibilityLabel={t('chat.reaction', { emoji })}
       accessibilityState={{ selected: true }}
@@ -139,7 +142,7 @@ function ReactionPill({ emoji, onPress }: { emoji: string; onPress?: () => void 
       onPress={onPress}
       className="h-[22px] flex-row items-center rounded-full px-2"
       style={{
-        backgroundColor: withAlpha(theme.colors.primary, 0.14),
+        backgroundColor: withAlpha(theme.colors.primary, hovered ? 0.16 : 0.12),
         borderWidth: 2,
         borderColor: theme.colors.background,
       }}
@@ -169,7 +172,7 @@ function ReactMenu({
   return (
     <DropdownMenu open={open} onOpenChange={change}>
       <DropdownMenuTrigger asChild label={label}>
-        <IconButton label={label} icon={RiEmotionLine} />
+        <IconButton label={label} icon={RiEmojiPicker} />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <ReactionPicker
