@@ -12,7 +12,7 @@ import {
 const reply = (name: string, content: string): GroupReply => ({
   role: 'assistant',
   content,
-  agentInfo: { id: name, name, color: 'blue', character: 'x', handle: name },
+  agentInfo: { id: name, name, color: 'blue', character: { preset: 'blue_beret' }, handle: name },
 });
 
 describe('group turn helpers', () => {
