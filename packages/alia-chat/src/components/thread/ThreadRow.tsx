@@ -136,11 +136,6 @@ export const ThreadRow = memo(function ThreadRow({
     : null;
 
   const bubbles = useBubbles();
-  const questionReactions = actions.reactionsOf(message.id, message.reactions);
-  const onQuestionReact =
-    actions.readOnly || text.length === 0
-      ? undefined
-      : (emoji: string) => actions.react(message.id, emoji, message.reactions, storedIn);
   const questionQuote = actions.reply;
   const onQuestionReply =
     questionQuote !== undefined && !actions.readOnly && text.length > 0
@@ -167,13 +162,7 @@ export const ThreadRow = memo(function ThreadRow({
               {bubbles ? (
                 // An agent's thread: the person's turn is a bubble in the theme's primary, never Bloom's
                 // larger default.
-                <ChatBubble
-                  side="user"
-                  reactions={questionReactions}
-                  onReact={onQuestionReact}
-                  menu={questionActions}
-                  onReply={onQuestionReply}
-                >
+                <ChatBubble side="user" menu={questionActions} onReply={onQuestionReply}>
                   {(foreground) => (
                     <>
                       {images.length > 0 && (
