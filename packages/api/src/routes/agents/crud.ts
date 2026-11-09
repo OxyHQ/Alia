@@ -1,7 +1,5 @@
 import { avatarCharacterFor, parseAvatarCharacter, type AvatarCharacter } from '@oxy.so/contracts';
 import { Router } from 'express';
-import { resolveModel } from '../../lib/chat-core.js';
-import { ModelNotFoundError } from '../../lib/models/errors.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
 import { getDb } from '../../db/index.js';
 import {
@@ -10,13 +8,9 @@ import {
   findAgentById,
   withoutInternalAgentBindings,
   withoutSystemPrompt,
-  findAgentKnowledge,
-  findAgentSkills,
   listAgentCatalogue,
   listActiveAgentsByAuthor,
   listAgentsByAuthor,
-  updateAgent,
-  type AgentRecord,
 } from '../../db/agents/agentRepository.js';
 import {
   loadAgentForActor,
@@ -73,17 +67,14 @@ import {
   PRIMARY_TOOL_KEY_PATTERN,
 } from '../../domain/agent-primary-tools.js';
 import type { Request, Response } from 'express';
+import {
+  agentAnswer,
+  applyAgentEdit,
+  refuseUnknownModel,
+  withChildLists,
+} from '../../lib/agent-update.js';
 
 const router = Router();
-
-/** The agent's own record plus the two child lists `populate` used to attach. */
-async function withChildLists(agent: AgentRecord): Promise<AgentRecord> {
-  const [skills, knowledge] = await Promise.all([
-    findAgentSkills(getDb(), agent._id),
-    findAgentKnowledge(getDb(), agent._id),
-  ]);
-  return { ...agent, skills, knowledge };
-}
 
 /** The refusal shape every write path here answers with. */
 function answerRefusal(res: Response, refusal: AgentAccountRefusal | 'agent_not_found'): Response {
@@ -431,22 +422,6 @@ const capabilityGrantsSchema = z
  * `z.ZodError` branch in the catch that turns anything the schema does not name
  * into a 400 with the field errors attached.
  */
-/** A 400 body when `modelId` names neither a power level nor a catalogue model, else null. */
-async function refuseUnknownModel(
-  modelId: string | null | undefined,
-): Promise<Record<string, unknown> | null> {
-  if (typeof modelId !== 'string') return null;
-  try {
-    await resolveModel(modelId);
-    return null;
-  } catch (error: unknown) {
-    if (error instanceof ModelNotFoundError) {
-      return { error: error.userMessage, param: 'modelId', code: ModelNotFoundError.WIRE_CODE };
-    }
-    throw error;
-  }
-}
-
 /** A character as a client writes it: the shape is checked here, the ids by the client that draws them. */
 const characterSchema = z
   .unknown()
@@ -679,54 +654,16 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       }
     }
 
-    const loaded = await loadAgentForActor(getDb(), {
+    const outcome = await applyAgentEdit({
       agentId: id,
-      oxyUserId: req.user.id,
+      userId: req.user.id,
       accessToken: req.accessToken,
-      // A WRITE. Never a cached verdict — see `lib/agent-account.ts`.
-      cache: false,
+      edit: data,
     });
-    if (!loaded.ok) return answerRefusal(res, loaded.refusal);
+    if (!outcome.ok) return res.status(outcome.status).json({ error: outcome.error });
 
-    // The look lives on the Oxy account too, and every other app draws it from there: change it
-    // there first, so a refusal leaves the agent as it was.
-    if (data.character !== undefined) {
-      try {
-        await setAgentAccountCharacter({
-          accessToken: req.accessToken,
-          oxyAccountId: loaded.agent.oxyAccountId,
-          character: data.character,
-        });
-      } catch (error: unknown) {
-        log.agents.warn({ err: error, agentId: id }, 'Oxy refused the look');
-        return res.status(502).json({ error: 'Could not set the agent’s look on its account' });
-      }
-    }
-
-    const { skills, knowledge, ...columns } = data;
-    const agent = await updateAgent(getDb(), id, {
-      ...columns,
-      ...(skills !== undefined && { skillIds: skills }),
-      ...(knowledge !== undefined && { libraryFileIds: knowledge }),
-    });
-
-    if (!agent) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-
-    /**
-     * The SAME shape `GET /agents/:id` answers with — child lists attached.
-     *
-     * They were not, and `useUpdateAgent` writes this answer straight into the
-     * `agents.detail` cache, so a save replaced the agent the editor was holding
-     * with one that had no `skills` and no `knowledge`. The screen re-seeded
-     * from it, and its next autosave sent `skills: []` — which DELETES them.
-     * Two routes serving one resource in two shapes is the bug; the client can
-     * only ever paper over it.
-     */
-    const hydrated = await attachAgentIdentity(await withChildLists(agent));
-
-    res.json({ agent: withoutInternalAgentBindings(hydrated) });
+    // The SAME shape `GET /agents/:id` answers with, child lists attached (`agentAnswer`).
+    res.json({ agent: await agentAnswer(outcome.agent) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.issues });

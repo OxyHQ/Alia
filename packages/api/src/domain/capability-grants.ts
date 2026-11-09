@@ -198,7 +198,7 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
     'sendWhatsAppMessage',
   ],
   automation: ['createAutomation'],
-  delegation: ['createAgent', 'searchAgents', 'delegate'],
+  delegation: ['createAgent', 'listMyAgents', 'updateAgent', 'searchAgents', 'delegate'],
   /**
    * The agent's own sandboxed Linux machine (`lib/computer/computer-tools.ts`)
    * and the browser on it (`lib/computer/browser-tools.ts`) — one machine, one

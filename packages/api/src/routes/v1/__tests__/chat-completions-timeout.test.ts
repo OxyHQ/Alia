@@ -129,6 +129,8 @@ vi.mock('../../../lib/tools/index.js', () => ({
   createDeepResearchTool: vi.fn(() => ({ execute: vi.fn() })),
   createSwitchModelTool: vi.fn(() => ({ execute: vi.fn() })),
   createAgentTool: vi.fn(() => ({ execute: vi.fn() })),
+  listMyAgentsTool: vi.fn(() => ({ execute: vi.fn() })),
+  updateAgentTool: vi.fn(() => ({ execute: vi.fn() })),
   createPlanPreviewTool: vi.fn(() => ({ execute: vi.fn() })),
   createAskUserQuestionTool: vi.fn(() => ({ execute: vi.fn() })),
   ASK_USER_QUESTION_TOOL: 'askUserQuestion',
