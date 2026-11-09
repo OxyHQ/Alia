@@ -38,7 +38,7 @@ one column, no foreign key, UNIQUE.
 
 There is no product-agent lane. An app's agent — Homiio's Sindi, Clarity's
 assistant — is an agent like any other: an Oxy `bot` account, an `agents` row,
-a prompt and tool families its owner edits in the agent editor. The app
+a prompt and tool families its owner edits (see "Editing an agent" below). The app
 opens it through the SDK with the person's own session, and the person present
 pays for the turn. No application id is stored on an agent, no service token
 selects one and no product pays for one.
@@ -61,7 +61,7 @@ deep research and `pro`/`ultra` behind Clarity's plan features) and Sindi's
 starters.
 
 Whoever operates an app's agent edits its instructions, primary tools, feature gates
-and starters in the same agent editor. Own Oxy apps have no enablement controls or
+and starters through `PATCH /agents/:id` (or by asking Alia, see "Editing an agent"). Own Oxy apps have no enablement controls or
 per-app read/write ceilings. External connector and device permissions remain.
 
 ### Where an agent opens is Oxy's (ADR 0021)
@@ -128,6 +128,24 @@ an agent session — has no surface, so a confined agent never runs there.
   conjunction of Alia's own facets AND an identity match, and intersecting two
   independently paginated result sets breaks `limit`/`offset` the same way —
   ask for ten, receive two, with no way to ask for the rest.
+
+
+## Editing an agent
+
+An agent is edited in two places, and they do different things.
+
+- **The editor** is Bloom's `AgentCreator`, as the multi-agent chat shows it: the avatar and its
+  look, the name, the label (the agent's `tagline`), the description and the username. From the
+  `md` breakpoint it is the right panel beside the conversation (opened from the header avatar,
+  the chat menu's "Edit {agent}" or the agent's page, and it follows the agent on screen); on a
+  phone it is the screen `/agents/edit/:id`. Edits autosave: the look, label and description to
+  the agent row, the name and username to the bot account at Oxy.
+- **Everything else** (instructions, `capabilityGrants`, `modelId`, `category`, `tags`,
+  publishing, `access`, and the starters, gates and primary tools) is changed with
+  `PATCH /agents/:id`, or by asking Alia, which has `listMyAgents` and `updateAgent` in the
+  `delegation` family beside `createAgent`. Both doors share one write (`lib/agent-update.ts`): who
+  may edit is asked of Oxy at the moment of the write, the look and the name go to the bot
+  account first, and the row is written from defined keys only.
 
 ## Who pays for an agent's turn
 
@@ -481,7 +499,7 @@ bot account's name, handle and colour, the agent's character and description, it
 `access`, which of Alia's features it gates, and two things of its own:
 
 - **`greeting` is the agent's `tagline`.** The one line its owner already writes in the
-  editor. No second column: a greeting and a tagline would be two lines describing
+  agent editor. No second column: a greeting and a tagline would be two lines describing
   the same agent, free to disagree.
 - **`starters`** (`agents.starters`, `[{ title, prompt }]`, at most 6) are the empty
   chat's suggestions, set with `PATCH /agents/:id`. They are a column of their own
@@ -503,7 +521,7 @@ the agent works with (`agents.primary_tools`, `<appId>:<tool>` keys, at most 12,
   under: the verified requester's account (`oxy_<app>__<tool>`)
   first, else the agent's own account (`self_<app>__<tool>`). A key neither lane
   binds this turn is simply absent (`primaryToolNames`, `lib/agent-primary-tools.ts`).
-- **Edited in the agent editor** ("Herramientas principales"): the tools of every app
+- **Edited through `PATCH /agents/:id`** (`primaryTools`; the editor panel no longer has a row for it): the tools of every app
   whose live catalogue admits the agent actor
   (`GET /agents/:id/primary-tool-options`). Saved on its own, never with the draft's
   autosave.
@@ -524,7 +542,7 @@ level; only the two levels `auto` never reaches on its own can be gated, see
 `{ "attachments.documents": { "app": "homiio", "feature": "sindi.files" } }` is how
 Homiio+ unlocks documents without Alia knowing what Homiio+ is.
 
-- **Edited in the agent editor** ("Funciones con requisitos"): one row per gateable
+- **Edited through `PATCH /agents/:id`** (`featureGates`; the editor panel no longer has a row for it): one row per gateable
   feature, free or one app feature from `GET /agents/:id/feature-gate-options`,
   which lists exactly the live catalogues' features a save accepts
   (`listGateableAppFeatures`). Saved on its own as the whole map, never with the
@@ -573,7 +591,7 @@ on cancellation or terminal completion. A worker never chooses the requester
 from the bot owner. Structured automations retain exact resources and limits.
 Old runs without provenance cannot acquire new own-data authority.
 
-The editor has no own-app access switches. Primary tools choose which catalogue
+Nothing in the product has own-app access switches. Primary tools choose which catalogue
 tools appear immediately; feature gates still ask the product about entitlement.
 Historical app-level rows stay inert pending archival and external connector
 grants are unaffected. See [Actors](./actors.mdx) for the identity matrix.
