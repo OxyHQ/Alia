@@ -25,6 +25,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
+import { GROUP_MAX_MEMBERS } from '../../domain/conversation-groups.js';
 import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../domain/conversation.js';
 import { checkOneOf } from './columns';
 
@@ -334,5 +335,61 @@ export const conversationShares = pgTable(
     uniqueIndex('conversation_shares_oxy_user_conversation_key').on(t.oxyUserId, t.conversationId),
     // The expiry sweep's predicate column. Indexed because the sweep scans it.
     index('conversation_shares_expires_at_idx').on(t.expiresAt),
+  ],
+);
+
+/**
+ * The agents of a GROUP conversation, in the order they answer.
+ *
+ * A group is an ordinary `conversations` row with NO `agent_id` (there is no lead: the person
+ * talks to all of them) plus one row here per member. Every message the person sends is answered
+ * by each member in `position` order; each reply is stored as a message carrying that agent's
+ * identity (`messages.agent_info_*`), which is all a thread needs to draw who said what.
+ *
+ * ## No foreign key to `conversations`, for the reason `messages` has none
+ *
+ * The relation is real and is on the business key pair `(oxy_user_id, conversation_id)`. A
+ * constraint would take SHARE ROW EXCLUSIVE on `conversations`, the hottest table in the package,
+ * to protect a write order the one writer (`createGroupConversation`) already guarantees: the
+ * conversation first, its members after, in one transaction. Deleting a conversation deletes its
+ * members in the same function (`deleteConversation`).
+ *
+ * `agent_id` is a bare id like `conversations.agent_id`: an agent deleted later leaves a row the
+ * listing skips (`listGroupMembers` joins nothing, and the app resolves ids against the agents it
+ * can still reach).
+ *
+ * `position` is unique per conversation, so the answering order is total and a second writer
+ * cannot interleave two members at one place.
+ */
+export const conversationMembers = pgTable(
+  'conversation_members',
+  {
+    id: generatedId(),
+    /** An Oxy account. No foreign key: Oxy owns identity. */
+    oxyUserId: text().notNull(),
+    conversationId: text().notNull(),
+    /** An `agents` row. No foreign key, as on `conversations`. */
+    agentId: text().notNull(),
+    /** 0-based: the member that answers first is 0. */
+    position: integer().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('conversation_members_conversation_agent_key').on(
+      t.oxyUserId,
+      t.conversationId,
+      t.agentId,
+    ),
+    uniqueIndex('conversation_members_conversation_position_key').on(
+      t.oxyUserId,
+      t.conversationId,
+      t.position,
+    ),
+    // Serves "which groups is this agent in", for the day an agent is deleted.
+    index('conversation_members_agent_idx').on(t.agentId),
+    check(
+      'conversation_members_position_check',
+      sql`${t.position} >= 0 and ${t.position} < ${sql.raw(String(GROUP_MAX_MEMBERS))}`,
+    ),
   ],
 );

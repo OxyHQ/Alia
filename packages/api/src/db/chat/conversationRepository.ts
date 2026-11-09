@@ -24,7 +24,7 @@
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import type { ConversationSource } from '../../domain/conversation.js';
 import type { ApiDatabase, Executor } from '../index';
-import { conversations } from '../schema/chat';
+import { conversationMembers, conversations } from '../schema/chat';
 
 /** A stored conversation, as this repository reads it. */
 export interface ConversationRow {
@@ -67,7 +67,7 @@ export interface NewConversation {
  * somebody else's `oxy_user_id` by sending them.
  */
 export async function createConversation(
-  db: ApiDatabase,
+  db: Executor,
   input: NewConversation,
 ): Promise<ConversationRow> {
   const [row] = await db
@@ -355,12 +355,26 @@ export async function deleteConversation(
   oxyUserId: string,
   conversationId: string,
 ): Promise<number> {
-  const result = await db
-    .delete(conversations)
-    .where(
-      and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.conversationId, conversationId)),
-    );
-  return result.count;
+  // A group's members go with it: there is no foreign key to do it (`db/schema/chat.ts`).
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(conversationMembers)
+      .where(
+        and(
+          eq(conversationMembers.oxyUserId, oxyUserId),
+          eq(conversationMembers.conversationId, conversationId),
+        ),
+      );
+    const result = await tx
+      .delete(conversations)
+      .where(
+        and(
+          eq(conversations.oxyUserId, oxyUserId),
+          eq(conversations.conversationId, conversationId),
+        ),
+      );
+    return result.count;
+  });
 }
 
 /**
