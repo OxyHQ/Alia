@@ -1,5 +1,6 @@
 import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
 import { activeAgentFor } from '@/features/agents/model/active-agent';
+import { useEditorFollowsAgent } from '@/features/agents/runtime/use-editor-follows-agent';
 import { readAgentCharacter } from '@alia.onl/sdk';
 import { useConversations } from '@alia.onl/sdk/runtime';
 import { avatarBodyHex, resolveAvatarCharacter } from '@oxy.so/bloom/agent-avatar';
@@ -26,12 +27,19 @@ export function AgentThemeScope({ children }: { children: ReactNode }) {
     () => data?.pages.flatMap((page) => page.conversations) ?? [],
     [data],
   );
-  const seed = useMemo(() => {
-    const agent = activeAgentFor({ pathname, agents: agents ?? [], conversations });
-    return agent
-      ? avatarBodyHex(resolveAvatarCharacter(readAgentCharacter(agent.character)))
-      : undefined;
-  }, [pathname, agents, conversations]);
+  const agent = useMemo(
+    () => activeAgentFor({ pathname, agents: agents ?? [], conversations }),
+    [pathname, agents, conversations],
+  );
+  const seed = useMemo(
+    () =>
+      agent
+        ? avatarBodyHex(resolveAvatarCharacter(readAgentCharacter(agent.character)))
+        : undefined,
+    [agent],
+  );
+  // The editor beside the chat edits the agent you are with: another agent's chat, another agent.
+  useEditorFollowsAgent(agent?._id);
 
   return (
     <BloomSeedScope seed={seed} asChild>

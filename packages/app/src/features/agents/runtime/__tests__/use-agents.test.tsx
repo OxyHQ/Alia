@@ -95,7 +95,7 @@ async function mount(): Promise<Harness> {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  let latest: (Omit<Harness, 'names'> & { list: { name: string }[] }) | undefined;
+  let latest: (Omit<Harness, 'names' | 'client'> & { list: { name: string }[] }) | undefined;
 
   function Probe() {
     const mine = useMyAgents();
