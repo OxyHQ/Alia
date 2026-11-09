@@ -3,6 +3,7 @@ import { useUpdateAgent } from '@/features/agents/runtime/use-agents';
 import {
   useAgentInbox,
   useAgentSubscriptionMutations,
+  useBackgroundPause,
   useAgentSubscriptions,
   type AgentSubscription,
   type SubscriptionAccount,
@@ -45,6 +46,39 @@ const NEW_EMAIL_TOGGLES: ReadonlyArray<{ account: SubscriptionAccount; key: stri
   { account: 'agent', key: 'newEmailAgent' },
 ];
 
+/** Pause everything the person's agents and Alia would start on their own, and resume it. */
+function PauseCard() {
+  const { t } = useTranslation();
+  const { paused, isPending, isError, change } = useBackgroundPause();
+
+  if (isPending) return <SettingsRowsSkeleton control="switch" rows={1} />;
+  if (isError) {
+    return (
+      <SettingsCard>
+        <SettingsRow label={t(`${K}.loadFailed`)} />
+      </SettingsCard>
+    );
+  }
+  return (
+    <SettingsCard>
+      <SettingsRow label={t(`${K}.pauseAll`)} description={t(`${K}.pauseAllDescription`)}>
+        <Switch
+          accessibilityLabel={t(`${K}.pauseAll`)}
+          checked={paused === true}
+          disabled={change.isPending}
+          onCheckedChange={async (on) => {
+            try {
+              await change.mutateAsync(on);
+            } catch {
+              toast.error(t(`${K}.pauseFailed`));
+            }
+          }}
+        />
+      </SettingsRow>
+    </SettingsCard>
+  );
+}
+
 /**
  * The person's agents, each opening what it notices on its own — a section of the memory page,
  * beside what the agents remember.
@@ -55,40 +89,45 @@ export function AttentionAgentsSection() {
   const { data: agents, isPending } = useMyAgents();
 
   return (
-    <SettingsSection label={t(`${K}.agentsTitle`)}>
-      <SettingsCard>
-        {isPending ? (
-          <SettingsSkeletonRows rows={2} />
-        ) : !agents?.length ? (
-          <SettingsRow
-            label={t(`${K}.agentsEmpty`)}
-            description={t(`${K}.agentsEmptyDescription`)}
-          />
-        ) : (
-          agents.map((agent) => (
+    <>
+      <SettingsSection label={t(`${K}.pauseTitle`)}>
+        <PauseCard />
+      </SettingsSection>
+      <SettingsSection label={t(`${K}.agentsTitle`)}>
+        <SettingsCard>
+          {isPending ? (
+            <SettingsSkeletonRows rows={2} />
+          ) : !agents?.length ? (
             <SettingsRow
-              key={agent._id}
-              label={agent.name ?? (agent.handle ? `@${agent.handle}` : t(`${K}.unnamedAgent`))}
-              description={t(`${K}.agentsDescription`)}
-            >
-              <Button
-                size="sm"
-                appearance="outline"
-                tone="neutral"
-                onPress={() =>
-                  settings.open('agent-attention', {
-                    agentId: agent._id,
-                    name: agent.name ?? agent.handle ?? '',
-                  })
-                }
+              label={t(`${K}.agentsEmpty`)}
+              description={t(`${K}.agentsEmptyDescription`)}
+            />
+          ) : (
+            agents.map((agent) => (
+              <SettingsRow
+                key={agent._id}
+                label={agent.name ?? (agent.handle ? `@${agent.handle}` : t(`${K}.unnamedAgent`))}
+                description={t(`${K}.agentsDescription`)}
               >
-                {t(`${K}.open`)}
-              </Button>
-            </SettingsRow>
-          ))
-        )}
-      </SettingsCard>
-    </SettingsSection>
+                <Button
+                  size="sm"
+                  appearance="outline"
+                  tone="neutral"
+                  onPress={() =>
+                    settings.open('agent-attention', {
+                      agentId: agent._id,
+                      name: agent.name ?? agent.handle ?? '',
+                    })
+                  }
+                >
+                  {t(`${K}.open`)}
+                </Button>
+              </SettingsRow>
+            ))
+          )}
+        </SettingsCard>
+      </SettingsSection>
+    </>
   );
 }
 

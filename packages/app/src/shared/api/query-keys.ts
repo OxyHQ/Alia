@@ -68,6 +68,7 @@ export const queryKeys = {
   },
   automations: {
     overview: ['automations', 'overview'] as const,
+    pause: ['automations', 'pause'] as const,
   },
   conversations: {
     all: ['conversations'] as const,

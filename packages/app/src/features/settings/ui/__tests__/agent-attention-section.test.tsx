@@ -22,7 +22,13 @@ const { hosts } = vi.hoisted(() => ({
   },
 }));
 
-const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), delete: vi.fn(), patch: vi.fn() }));
+const api = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  delete: vi.fn(),
+  patch: vi.fn(),
+  put: vi.fn(),
+}));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 const open = vi.hoisted(() => vi.fn());
 const params = vi.hoisted(() => ({ value: {} as Record<string, string> }));
@@ -98,15 +104,17 @@ const subscription = (over: Record<string, unknown> = {}) => ({
 
 let subscriptions: ReturnType<typeof subscription>[] = [];
 let items: unknown[] = [];
+let paused = false;
 
 beforeEach(() => {
   subscriptions = [];
   items = [];
-  api.get
-    .mockReset()
-    .mockImplementation(async (url: string) =>
-      url.endsWith('/inbox') ? { data: { items } } : { data: { subscriptions } },
-    );
+  paused = false;
+  api.get.mockReset().mockImplementation(async (url: string) => {
+    if (url.endsWith('/pause')) return { data: { paused } };
+    return url.endsWith('/inbox') ? { data: { items } } : { data: { subscriptions } };
+  });
+  api.put.mockReset().mockResolvedValue({ data: {} });
   api.post.mockReset().mockResolvedValue({ data: { subscription: subscription() } });
   api.delete.mockReset().mockResolvedValue({ data: undefined });
   toast.error.mockReset();
@@ -135,6 +143,32 @@ describe('the list of agents', () => {
     const tree = await render(<AttentionAgentsSection />);
     expect(all(tree, 'Region').length).toBeGreaterThan(0);
     expect(all(tree, 'Button')).toHaveLength(0);
+  });
+});
+
+describe('pausing everything that starts on its own', () => {
+  it('shows it off, and turning it on sends paused: true to the automations route', async () => {
+    const tree = await render(<AttentionAgentsSection />);
+    const toggle = switchLabelled(tree, 'Pause everything');
+    expect(toggle?.props.checked).toBe(false);
+    await act(async () => toggle?.props.onCheckedChange(true));
+    expect(api.put).toHaveBeenCalledWith('/automations/pause', { paused: true });
+  });
+
+  it('shows it on when the person already paused, and turning it off sends paused: false', async () => {
+    paused = true;
+    const tree = await render(<AttentionAgentsSection />);
+    const toggle = switchLabelled(tree, 'Pause everything');
+    expect(toggle?.props.checked).toBe(true);
+    await act(async () => toggle?.props.onCheckedChange(false));
+    expect(api.put).toHaveBeenCalledWith('/automations/pause', { paused: false });
+  });
+
+  it('tells the person when the change fails', async () => {
+    api.put.mockRejectedValueOnce(new Error('offline'));
+    const tree = await render(<AttentionAgentsSection />);
+    await act(async () => switchLabelled(tree, 'Pause everything')?.props.onCheckedChange(true));
+    expect(toast.error).toHaveBeenCalledWith("Couldn't change the pause. Try again.");
   });
 });
 

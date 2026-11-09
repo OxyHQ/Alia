@@ -52,6 +52,14 @@ woken once with the list.
    `pending` if the wake-up cannot be scheduled. Items older than three days are dismissed, and settled
    rows are purged after a week.
 
+8. **A person can pause everything that would start on its own** (`background_pauses`, one row per
+   paused person; `GET`/`PUT /automations/pause`, a switch in Settings → Memory → Attention). While it
+   exists `dispatchStructuredAutomation` denies every scheduled, event and agent-started run (silently:
+   they asked for quiet) and `dueHeartbeats` skips their agents; their inboxes keep filling. A run the
+   person asks for (`manual`), a chat and work already running are untouched: pausing stops what would
+   *start*, not what was asked for. Per agent, `status` `idle`/`offline` already does the same for that
+   agent's heartbeat.
+
 ## Consequences
 
 - A burst is one wake-up with a list. At most 20 items go into one wake-up; the rest wait for the next.
@@ -86,5 +94,8 @@ woken once with the list.
 - `lib/agent/__tests__/heartbeat.test.ts`: the task fences the events and clips them; an empty inbox
   schedules nothing; items are returned when scheduling fails; one agent failing does not stop the rest.
 - `lib/agent/__tests__/inbox-router.test.ts`: routing, one item per agent, idempotence.
+- `lib/__tests__/automation-dispatcher.test.ts`: a paused person's scheduled run is denied with no
+  hold, no run and no notification; a manual run is not even checked. `agentInbox.pgdb.test.ts`: the
+  pause removes the heartbeat and resuming restores it.
 - `routes/agents/__tests__/inbox.test.ts`: only the owner subscribes to their own events; no way to
   name a third account; the limit; refusals.

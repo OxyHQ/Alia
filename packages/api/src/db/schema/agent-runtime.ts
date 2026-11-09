@@ -302,3 +302,16 @@ export const agentSubscriptions = pgTable(
     index('agent_subscriptions_source_idx').on(t.sourceAccountId).where(sql`${t.enabled}`),
   ],
 );
+
+/**
+ * A person who has paused everything their agents and Alia start on their own (ADR 0026).
+ *
+ * One row per paused person; no row means not paused. While it exists no scheduled automation, event
+ * automation, follow-up or heartbeat runs for them (`dispatchStructuredAutomation`, `dueHeartbeats`).
+ * A run the person starts themselves, a chat, and work already running are untouched: pausing stops
+ * what would START, not what the person asked for.
+ */
+export const backgroundPauses = pgTable('background_pauses', {
+  ownerAccountId: text().primaryKey(),
+  pausedAt: createdAt(),
+});
