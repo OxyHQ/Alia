@@ -464,6 +464,63 @@ export async function claimAutomationEvent(
   return inserted.length === 1;
 }
 
+/**
+ * Events whose processing never finished: still `received` or `matched` after
+ * `staleMs`, because the instance that accepted them died between the 202 and
+ * the dispatch. Oxy already got its 202, so it will never redeliver, and the
+ * row is the only record of the event.
+ *
+ * Each one is CLAIMED by a conditional UPDATE on the `updated_at` that was read,
+ * so N instances sweeping at once hand every event to exactly one of them.
+ * Re-dispatching is idempotent in any case: a run is keyed by the event id.
+ * Events older than `maxAgeMs` are left alone — a day-old email is not worth a
+ * run now — and `failed` ones were already reported to the person.
+ */
+export async function claimStalledAutomationEvents(
+  db: Executor,
+  options: { now: Date; staleMs: number; maxAgeMs: number; limit: number },
+): Promise<NormalizedAutomationEventInput[]> {
+  const staleBefore = new Date(options.now.getTime() - options.staleMs);
+  const receivedAfter = new Date(options.now.getTime() - options.maxAgeMs);
+  const candidates = await db
+    .select()
+    .from(automationEvents)
+    .where(
+      and(
+        inArray(automationEvents.status, ['received', 'matched']),
+        lt(automationEvents.updatedAt, staleBefore),
+        gt(automationEvents.receivedAt, receivedAfter),
+      ),
+    )
+    .orderBy(asc(automationEvents.receivedAt))
+    .limit(options.limit);
+  const claimed: NormalizedAutomationEventInput[] = [];
+  for (const row of candidates) {
+    const won = await db
+      .update(automationEvents)
+      .set({ updatedAt: options.now })
+      .where(
+        and(
+          eq(automationEvents.id, row.id),
+          inArray(automationEvents.status, ['received', 'matched']),
+          eq(automationEvents.updatedAt, row.updatedAt),
+        ),
+      )
+      .returning({ id: automationEvents.id });
+    if (won.length === 0) continue;
+    claimed.push({
+      eventId: row.eventId,
+      appId: row.appId,
+      accountId: row.accountId,
+      resource: row.resource,
+      eventType: row.eventType,
+      occurredAt: row.occurredAt,
+      data: row.data,
+    });
+  }
+  return claimed;
+}
+
 export async function markAutomationEventStatus(
   db: Executor,
   appId: string,

@@ -32,6 +32,7 @@ import { sendNotification } from '../notification-service.js';
 import { enqueueAgentSession } from '../task-queue.js';
 import { reclaimOrphanedAgentSessions } from './session-handoff.js';
 import { reapAbandonedAliaRuns } from '../alia-task-reaper.js';
+import { reapStalledAutomationEvents } from '../automation-event-dispatch.js';
 
 const REAP_EVERY_MS = 60_000;
 
@@ -100,6 +101,11 @@ async function sweep(): Promise<void> {
   // is failed and refunded (`alia-task-reaper.ts`).
   await reapAbandonedAliaRuns().catch((err: unknown) =>
     log.agents.error({ err }, '[AliaTaskRun] Reap error'),
+  );
+  // Oxy events accepted (202) whose dispatch died with its instance: Oxy will
+  // not redeliver, so the stored row is re-dispatched (`automation-event-dispatch.ts`).
+  await reapStalledAutomationEvents().catch((err: unknown) =>
+    log.triggers.error({ err }, '[AutomationEvent] Reap error'),
   );
 }
 
