@@ -66,7 +66,7 @@ describe('screens that wait', () => {
   });
 
   it('imports Bloom’s Loading only for an action in progress, and says which', () => {
-    const importing = FILES.filter(({ source }) => source.includes("@oxy.so/bloom/loading")).map(
+    const importing = FILES.filter(({ source }) => source.includes('@oxy.so/bloom/loading')).map(
       ({ path }) => path,
     );
     expect(importing.sort()).toEqual([...ACTION_SPINNERS.keys()].sort());
