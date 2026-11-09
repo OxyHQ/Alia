@@ -23,6 +23,8 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: MessageContent;
+  /** The emoji the person left on this message, as the server holds them. */
+  reactions?: string[];
   /** Extended thinking content (when thinking mode is enabled). */
   thinking?: string;
   toolInvocations?: ToolInvocation[];

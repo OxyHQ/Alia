@@ -1,4 +1,5 @@
 import type { AiChatTurnAction } from '@oxy.so/bloom/ai-chat';
+import { ReactionPicker } from '@oxy.so/bloom/chat-composer';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,9 +9,9 @@ import {
 import { useInteractionState } from '@oxy.so/bloom/hooks';
 import { RiEmotionLine } from '@oxy.so/bloom/icons/RiEmotionLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
-import { useTheme } from '@oxy.so/bloom/theme';
+import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { type ComponentProps, type ReactNode, useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { useLabels } from '../../lib/labels';
 import { RiReplyLine } from '../icons/RiReplyLine';
 
@@ -29,14 +30,17 @@ type Glyph = (props: { width?: number; height?: number; fill?: string }) => Reac
  */
 export function ChatBubble({
   side,
-  react = [],
+  reactions = [],
+  onReact,
   menu = [],
   onReply,
   children,
 }: {
   side: 'user' | 'reply';
-  /** What "react" offers: a vote up and a vote down. */
-  react?: ReadonlyArray<AiChatTurnAction>;
+  /** The emoji left on this turn: drawn as pills under the bubble. */
+  reactions?: readonly string[];
+  /** Leave an emoji on this turn, or take it back (a pill pressed, or a pick of the picker). Absent: no react button. */
+  onReact?: (emoji: string) => void;
   /** What "more" offers: every other action of the turn. */
   menu?: ReadonlyArray<AiChatTurnAction>;
   /** Quote this turn into the composer. */
@@ -55,18 +59,18 @@ export function ChatBubble({
     ? { background: theme.colors.primary, foreground: theme.colors.primaryForeground }
     : null;
   const shown = Platform.OS !== 'web' || hovered || pinned;
-  const hasIcons = react.length > 0 || onReply !== undefined || menu.length > 0;
+  const hasIcons = onReact !== undefined || onReply !== undefined || menu.length > 0;
   const icons = !hasIcons ? null : (
     <View
       className="shrink-0 flex-row items-center gap-0.5"
       style={{ opacity: shown ? 1 : 0 }}
       pointerEvents={shown ? 'auto' : 'none'}
     >
-      {react.length === 0 ? null : (
-        <ActionMenu
+      {onReact === undefined ? null : (
+        <ReactMenu
           label={t('chat.reactToMessage')}
-          icon={RiEmotionLine}
-          actions={react}
+          held={reactions}
+          onReact={onReact}
           onOpenChange={setPinned}
         />
       )}
@@ -85,20 +89,100 @@ export function ChatBubble({
   );
   return (
     <View
-      className={`w-full flex-row items-center gap-2 py-2 ${mine ? 'justify-end' : 'justify-start'}`}
+      className="w-full py-2"
       {...(Platform.OS === 'web' ? { onPointerEnter: onIn, onPointerLeave: onOut } : {})}
     >
-      {mine ? icons : null}
       <View
-        className={`min-w-0 max-w-[80%] rounded-3xl px-4 ${
-          mine ? 'py-3' : 'bg-background-tertiary-default py-2'
-        }`}
-        style={mineColors ? { backgroundColor: mineColors.background } : undefined}
+        className={`w-full flex-row items-center gap-2 ${mine ? 'justify-end' : 'justify-start'}`}
       >
-        {typeof children === 'function' ? children(mineColors?.foreground) : children}
+        {mine ? icons : null}
+        <View
+          className={`min-w-0 max-w-[80%] rounded-3xl px-4 ${
+            mine ? 'py-3' : 'bg-background-tertiary-default py-2'
+          }`}
+          style={mineColors ? { backgroundColor: mineColors.background } : undefined}
+        >
+          {typeof children === 'function' ? children(mineColors?.foreground) : children}
+        </View>
+        {mine ? null : icons}
       </View>
-      {mine ? null : icons}
+      {reactions.length === 0 ? null : (
+        // The reactions sit on the bubble's lower edge, as the chat this is modelled on draws them.
+        <View
+          className={`-mt-2.5 flex-row flex-wrap items-center gap-1 ${
+            mine ? 'justify-end me-2.5' : 'justify-start ms-2.5'
+          }`}
+        >
+          {reactions.map((emoji) => (
+            <ReactionPill
+              key={emoji}
+              emoji={emoji}
+              onPress={onReact === undefined ? undefined : () => onReact(emoji)}
+            />
+          ))}
+        </View>
+      )}
     </View>
+  );
+}
+
+/** One reaction under a bubble: the emoji on a wash of the theme's primary, ringed in the surface. */
+function ReactionPill({ emoji, onPress }: { emoji: string; onPress?: () => void }) {
+  const theme = useTheme();
+  const { t } = useLabels();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t('chat.reaction', { emoji })}
+      accessibilityState={{ selected: true }}
+      disabled={onPress === undefined}
+      onPress={onPress}
+      className="h-[22px] flex-row items-center rounded-full px-2"
+      style={{
+        backgroundColor: withAlpha(theme.colors.primary, 0.14),
+        borderWidth: 2,
+        borderColor: theme.colors.background,
+      }}
+    >
+      <Text className="text-sm leading-none">{emoji}</Text>
+    </Pressable>
+  );
+}
+
+/** The react button: it opens Bloom's emoji bar, and a pick leaves the emoji (or takes it back). */
+function ReactMenu({
+  label,
+  held,
+  onReact,
+  onOpenChange,
+}: {
+  label: string;
+  held: readonly string[];
+  onReact: (emoji: string) => void;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const change = (next: boolean) => {
+    setOpen(next);
+    onOpenChange(next);
+  };
+  return (
+    <DropdownMenu open={open} onOpenChange={change}>
+      <DropdownMenuTrigger asChild label={label}>
+        <IconButton label={label} icon={RiEmotionLine} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <ReactionPicker
+          surface={false}
+          size="sm"
+          selected={held.length === 1 ? held[0] : undefined}
+          onSelectEmoji={(emoji) => {
+            onReact(emoji);
+            change(false);
+          }}
+        />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
