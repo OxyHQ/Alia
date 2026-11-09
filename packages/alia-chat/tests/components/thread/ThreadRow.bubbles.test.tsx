@@ -42,6 +42,18 @@ describe('the bubbles of an agent thread', () => {
     expect(row).toMatch(/<ChatBubble\s+side="user"\s+menu=\{questionActions\}/);
   });
 
+  it('shows nothing of the work in an agent\'s thread: no "Worked" line, task list or search trail', () => {
+    // The thread reads as a chat; what the agent did along the way is the agent's own business.
+    expect(row).toMatch(/const showsWork = !bubbled;/);
+    expect(row).toMatch(/!showsWork \|\| workInvocations\.length === 0 \|\| turnWorking \? null/);
+    expect(row).toMatch(
+      /!showsWork\s*\|\|\s*workInvocations\.length > 0\s*\|\|\s*!message\.thinking/,
+    );
+    expect(row).toMatch(/!showsWork \|\| taskInvocations\.length === 0/);
+    expect(row).toMatch(/showsWork && \(webLog\.steps\.length > 0/);
+    expect(row).toMatch(/showsWork \? message\.researchProgress : undefined/);
+  });
+
   it("turns Bloom's feedback row off when the icons are beside the bubble", () => {
     expect(row).toMatch(/feedback=\{hasFeedback && !bubbled\}/);
   });

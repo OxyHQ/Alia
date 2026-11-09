@@ -33,6 +33,7 @@ import { enqueueAgentSession } from '../task-queue.js';
 import { reclaimOrphanedAgentSessions } from './session-handoff.js';
 import { reapAbandonedAliaRuns } from '../alia-task-reaper.js';
 import { reapStalledAutomationEvents } from '../automation-event-dispatch.js';
+import { reapStalledChannelInbound } from '../channels/inbound-sweep.js';
 
 const REAP_EVERY_MS = 60_000;
 
@@ -106,6 +107,11 @@ async function sweep(): Promise<void> {
   // not redeliver, so the stored row is re-dispatched (`automation-event-dispatch.ts`).
   await reapStalledAutomationEvents().catch((err: unknown) =>
     log.triggers.error({ err }, '[AutomationEvent] Reap error'),
+  );
+  // Messaging-platform messages acked and not yet answered, because their
+  // instance died (`channels/inbound-sweep.ts`).
+  await reapStalledChannelInbound().catch((err: unknown) =>
+    log.webhook.error({ err }, '[ChannelInbound] Reap error'),
   );
 }
 

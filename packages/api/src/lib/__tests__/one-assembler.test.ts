@@ -343,7 +343,7 @@ describe('nothing hands a model a tool set the assembler did not build', () => {
       /\b(?:generateText|streamText)\s*\(/.test(readFileSync(path.join(REPO_ROOT, f), 'utf8')),
     );
     expect(callers.length).toBeGreaterThanOrEqual(5);
-    expect(callers).toContain('packages/api/src/routes/webhooks.ts');
+    expect(callers).toContain('packages/api/src/lib/channels/inbound-handlers.ts');
     // `agent-turn.ts`: the consulted agent's turn — the model call, its tools
     // and its reservation — is one runner, behind `consultAgent`.
     expect(callers).toContain('packages/api/src/lib/tools/agent-turn.ts');

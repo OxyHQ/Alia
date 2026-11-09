@@ -326,11 +326,26 @@ function ReplyTurn({
   // Where the turn went — searches, page visits, research — as a `WebSearch` trail with its
   // sources, and everything else it did as a `TaskList`. Both are driven by `revealed` from the
   // calls that have really arrived, never by their own demo ticker.
-  const webLog = webSearchLog(workInvocations, message.researchProgress, { t, faviconUrl });
+  //
+  // Not in an agent's thread: there the conversation reads as any chat does, and what the agent did
+  // along the way (its tools, its searches, how long it worked) is the agent's own business, not a
+  // line in the thread.
+  const showsWork = !bubbled;
+  const webLog = webSearchLog(
+    showsWork ? workInvocations : [],
+    showsWork ? message.researchProgress : undefined,
+    {
+      t,
+      faviconUrl,
+    },
+  );
   const taskInvocations = workInvocations.filter((call) => !isWebInvocation(call));
   const taskLog =
-    taskInvocations.length === 0 || turnWorking ? null : taskListLog(taskInvocations, false, { t });
-  const hasWorkLog = webLog.steps.length > 0 || (workInvocations.length > 0 && !turnWorking);
+    !showsWork || taskInvocations.length === 0 || turnWorking
+      ? null
+      : taskListLog(taskInvocations, false, { t });
+  const hasWorkLog =
+    showsWork && (webLog.steps.length > 0 || (workInvocations.length > 0 && !turnWorking));
 
   const reading =
     readAloudState === 'loading' || readAloudState === 'playing' || readAloudState === 'paused';
@@ -480,7 +495,7 @@ function ReplyTurn({
                 },
               }}
             >
-              {workInvocations.length === 0 || turnWorking ? null : (
+              {!showsWork || workInvocations.length === 0 || turnWorking ? null : (
                 <TurnStatusLine
                   label={
                     workStartedAt !== null && workEndedAt !== null
@@ -494,7 +509,10 @@ function ReplyTurn({
                 />
               )}
               {/* A turn that reasoned without tools: its reasoning, a press away. */}
-              {workInvocations.length > 0 || !message.thinking || turnWorking ? null : (
+              {!showsWork ||
+              workInvocations.length > 0 ||
+              !message.thinking ||
+              turnWorking ? null : (
                 <TurnStatusLine
                   label={t('thought.reasoning')}
                   hint={t('thought.viewDetails')}

@@ -235,8 +235,11 @@ describe('every unauthenticated inbound entry point is replay-protected (#139 ws
     },
     {
       route: 'routes/webhooks.ts',
-      /** A 60-second content-hash dedup, per bot. Per-instance, and said so. */
-      marker: 'isDuplicate(',
+      /**
+       * A 60-second content-hash dedup, per bot, stored in `channel_inbound` so a
+       * redelivery to another task (or after a restart) is seen.
+       */
+      marker: 'acceptChannelInbound(',
     },
   ] as const;
 

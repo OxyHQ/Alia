@@ -813,6 +813,13 @@
       "when": 1794213326023,
       "tag": "0115_message_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1794255572069,
+      "tag": "0116_channel_inbound",
+      "breakpoints": true
     }
   ]
 }
