@@ -3,8 +3,7 @@ import { useAgentReviews } from '@/features/agents/runtime/use-agent-reviews';
 import { useAgentThreads } from '@/features/agents/runtime/use-agent-threads';
 import { useAgent } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { DetailSkeleton } from '@/shared/ui/skeletons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
@@ -45,7 +44,7 @@ export default function AgentDetailScreen() {
       <>
         <Stack.Screen options={{ headerBackVisible: true }} />
         <EmptyState
-          icon={RiRobot2Line}
+          sticker="agentNotFound"
           title={t('agents.notFound')}
           action={{
             label: t('agents.backToAgents'),

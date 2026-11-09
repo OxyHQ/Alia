@@ -12,7 +12,7 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { RiCheckLine } from '@oxy.so/bloom/icons/RiCheckLine';
 import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
@@ -77,6 +77,7 @@ export default function SkillDetailScreen() {
       <>
         <Stack.Screen options={{ headerBackVisible: true }} />
         <EmptyState
+          sticker="skillNotFound"
           title={t('skills.notFound')}
           action={{ label: t('common.back'), onPress: () => router.back() }}
         />
