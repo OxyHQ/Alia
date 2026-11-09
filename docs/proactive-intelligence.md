@@ -109,6 +109,52 @@ subject: no model-written text exists that an injected email could steer, and
 the snippet is never shown. `automation_events` stores the event without its
 snippet.
 
+## Nothing accepted is lost
+
+The platforms that tell Alia about something do not tell her twice, so what is accepted is stored first
+and finished from the store:
+
+- **Oxy events** (`POST /webhooks/oxy`) are stored in `automation_events` before the 202 and
+  dispatched in the background. `reapStalledAutomationEvents` (`lib/automation-event-dispatch.ts`, in
+  the run reaper's minute sweep) re-dispatches any event still `received` or `matched` after two
+  minutes, up to a day old. Dispatching is idempotent by event id.
+- **Messaging-platform messages** (Telegram, Slack, ...) are stored in `channel_inbound` before the
+  platform is acked, claimed by whichever instance answers, and swept by `reapStalledChannelInbound`
+  (`lib/channels/inbound-sweep.ts`) if it died: one retry at most, because a second reply is worse
+  than a quiet failure. The dedup is the table's unique key with the same 60-second window, so it holds
+  across instances and restarts; the person's text is cleared when the row settles. A storage failure
+  answers 500 so the platform retries.
+- **A retried run does not repeat an undoable effect**: inside a run, `sendTelegramMessage` claims
+  (run, person, message) in Redis before sending and releases the claim if the send fails.
+- Redis is required in production: the API refuses to boot without `REDIS_URL`
+  (`lib/boot-guards.ts`), because without it every queue runs jobs inline and a restart loses them.
+
+## An agent that notices things (ADR 0026)
+
+Events an agent asked to hear about land in its **inbox** (`agent_inbox_items`) instead of each starting
+a run. A **heartbeat** wakes the agent once with the list, and only when something is waiting.
+
+- **Subscriptions** (`agent_subscriptions`, `/agents/:id/subscriptions`): `(account, app, type)` with
+  `*` wildcards, at most 25 per agent. The account is the owner's (only the owner can share it) or the
+  agent's own mailbox; there is no way to name another account. `routeEventToAgentInboxes` runs for
+  every stored event, whether or not an automation also matches it.
+- **Heartbeat**: opt-in through `schedule_interval` (5 to 1440 minutes, `null` turns it off). Every
+  minute `runAgentHeartbeats` (`lib/agent/heartbeat.ts`) finds active agents whose interval has elapsed
+  and whose inbox has pending items. An empty inbox costs one query: no model call, no hold, no run.
+- **The wake-up** is a one-off follow-up-shaped automation (`inputs.origin = 'agent_heartbeat'`, one
+  pending per agent) with the inbox rendered as one task. Its items are data from other people and are
+  fenced in `<events>` with the instruction outside; at most 20 go in one wake-up, the rest wait. Its
+  result is not posted: the agent speaks through the budgeted `sendMessageToUser`.
+- **A woken agent has the follow-up run's authority and no more**: no computer, no MCP, Oxy apps only
+  through exact authorization. Widening it is a decision about authority (ADR 0022), not plumbing.
+- **Pausing**: an agent whose `status` is `idle` or `offline` is not woken. A person can pause
+  everything that would start on its own with `PUT /automations/pause` (`background_pauses`): no
+  scheduled or event automation, follow-up or heartbeat runs for them while it is set; their inboxes
+  keep filling. A run they ask for (`manual`), a chat and work already running are not affected.
+- **Bounds**: at most 100 enabled automations per person (`MAX_ENABLED_AUTOMATIONS_PER_OWNER`); items
+  older than three days are dismissed; deleting an agent removes its inbox, subscriptions and memory
+  and disables the automations that name it.
+
 ## Abandoned Alia runs
 
 An Alia run stores its credit hold on `automation_runs.credit_reservation` and
@@ -157,7 +203,10 @@ Oxy calls use Oxy's agent-run authorizations ([agents](./agents.md#oxy-apps-for-
 
 - `schedule` — a five-field `cron` and an IANA `timezone`. `lib/trigger-engine.ts`
   is the one elected scheduler (leader election, a 30-second reconcile, and a
-  30-minute catch-up window for an occurrence missed during a deploy).
+  30-minute catch-up window for an occurrence missed during a deploy). A
+  recurring schedule may not fire more often than every five minutes
+  (`automationScheduleTooFrequent`: the closest pair of the next twelve
+  occurrences is compared, so `0,2 * * * *` is refused too); a one-off is exempt.
 - `event` — an Oxy app event (`appId`, `eventType`, optional resource), matched by
   `POST /webhooks/oxy` (below).
 - `manual` — only `POST /automations/:id/run`.

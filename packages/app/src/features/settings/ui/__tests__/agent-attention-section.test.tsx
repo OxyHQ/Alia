@@ -105,14 +105,18 @@ const subscription = (over: Record<string, unknown> = {}) => ({
 let subscriptions: ReturnType<typeof subscription>[] = [];
 let items: unknown[] = [];
 let paused = false;
+let lastHeartbeatAt: string | null = null;
 
 beforeEach(() => {
   subscriptions = [];
   items = [];
   paused = false;
+  lastHeartbeatAt = null;
   api.get.mockReset().mockImplementation(async (url: string) => {
     if (url.endsWith('/pause')) return { data: { paused } };
-    return url.endsWith('/inbox') ? { data: { items } } : { data: { subscriptions } };
+    return url.endsWith('/inbox')
+      ? { data: { items, heartbeat: { intervalMinutes: 60, lastHeartbeatAt } } }
+      : { data: { subscriptions } };
   });
   api.put.mockReset().mockResolvedValue({ data: {} });
   api.post.mockReset().mockResolvedValue({ data: { subscription: subscription() } });
@@ -310,5 +314,19 @@ describe('the inbox', () => {
         String(node.props.label).includes('Nothing is waiting'),
       ),
     ).toBe(true);
+  });
+
+  it('says when the agent last looked, so an empty inbox does not read as broken', async () => {
+    lastHeartbeatAt = '2026-11-09T12:00:00.000Z';
+    const tree = await render(<AgentAttentionSection />);
+    const labels = all(tree, 'SettingsRow').map((node) => String(node.props.label));
+    expect(labels.some((label) => label.startsWith('Last looked at its inbox: '))).toBe(true);
+    expect(labels.some((label) => label.includes('Nothing is waiting'))).toBe(true);
+  });
+
+  it('says so when it has never looked', async () => {
+    const tree = await render(<AgentAttentionSection />);
+    const labels = all(tree, 'SettingsRow').map((node) => String(node.props.label));
+    expect(labels).toContain("Scout hasn't looked at its inbox yet.");
   });
 });

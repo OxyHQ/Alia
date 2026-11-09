@@ -92,7 +92,12 @@ describe('agent attention hooks', () => {
       params: { status: 'pending' },
     });
     expect(seen.current.subscriptions.data).toEqual([subscription]);
-    expect(seen.current.inbox.data).toHaveLength(1);
+    expect(seen.current.inbox.data?.items).toHaveLength(1);
+    // The route said nothing about the heartbeat: it reads as none, never as an error.
+    expect(seen.current.inbox.data?.heartbeat).toEqual({
+      intervalMinutes: null,
+      lastHeartbeatAt: null,
+    });
   });
 
   it('subscribes with the strict body and refetches the subscriptions', async () => {

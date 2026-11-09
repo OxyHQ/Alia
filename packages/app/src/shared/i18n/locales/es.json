@@ -448,6 +448,8 @@
         "remove": "Quitar",
         "inboxTitle": "Esperando en su bandeja",
         "inboxEmpty": "No hay nada esperando a {{name}}.",
+        "lastLooked": "Última vez que miró su bandeja: {{when}}",
+        "neverLooked": "{{name}} todavía no ha mirado su bandeja.",
         "loadFailed": "No se pudo cargar. Inténtalo de nuevo.",
         "limitReached": "Este agente ya se entera de todo lo que puede (25). Quita algo primero.",
         "subscribeFailed": "No se pudo cambiar de qué se entera. Inténtalo de nuevo.",

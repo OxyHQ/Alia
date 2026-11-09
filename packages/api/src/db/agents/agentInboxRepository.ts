@@ -348,3 +348,23 @@ export async function setBackgroundPaused(
   }
   await db.delete(backgroundPauses).where(eq(backgroundPauses.ownerAccountId, ownerAccountId));
 }
+
+export interface HeartbeatState {
+  /** The heartbeat in minutes; null when the agent has none. */
+  intervalMinutes: number | null;
+  /** When the heartbeat last woke it for its inbox; null when it never has. */
+  lastHeartbeatAt: Date | null;
+}
+
+/** What the owner needs to read the inbox: how often the agent looks and when it last did. */
+export async function findHeartbeatState(
+  db: Executor,
+  agentId: string,
+): Promise<HeartbeatState | null> {
+  const [row] = await db
+    .select({ intervalMinutes: agents.scheduleInterval, lastHeartbeatAt: agents.lastHeartbeatAt })
+    .from(agents)
+    .where(eq(agents.id, agentId))
+    .limit(1);
+  return row ?? null;
+}

@@ -834,6 +834,13 @@
       "when": 1794264061848,
       "tag": "0118_background_pauses",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1794265934824,
+      "tag": "0119_agent_memory_journal_actor",
+      "breakpoints": true
     }
   ]
 }

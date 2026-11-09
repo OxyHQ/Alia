@@ -11,6 +11,10 @@ const state = vi.hoisted(() => ({
   userId: 'owner-1',
   loaded: { ok: true } as { ok: boolean; agent?: unknown; refusal?: string },
   count: 0,
+  heartbeat: { intervalMinutes: 30, lastHeartbeatAt: new Date('2026-11-09T12:00:00Z') } as {
+    intervalMinutes: number | null;
+    lastHeartbeatAt: Date | null;
+  } | null,
   upsert: vi.fn(),
   remove: vi.fn(),
 }));
@@ -36,6 +40,7 @@ vi.mock('../../../db/agents/agentInboxRepository.js', () => ({
   deleteAgentSubscription: state.remove,
   listAgentSubscriptions: vi.fn(async () => []),
   listInboxItems: vi.fn(async () => []),
+  findHeartbeatState: vi.fn(async () => state.heartbeat),
 }));
 vi.mock('../../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -70,6 +75,7 @@ beforeEach(() => {
   state.userId = 'owner-1';
   state.loaded = { ok: true, agent: AGENT };
   state.count = 0;
+  state.heartbeat = { intervalMinutes: 30, lastHeartbeatAt: new Date('2026-11-09T12:00:00Z') };
   state.upsert.mockReset();
   state.upsert.mockImplementation(async (_db, input) => ({ id: 's1', enabled: true, ...input }));
   state.remove.mockReset();
@@ -160,6 +166,29 @@ describe('POST /agents/:id/subscriptions', () => {
     expect((await subscribe({ appId: 'inbox', eventType: 'x', account: 'owner' })).status).toBe(
       404,
     );
+  });
+});
+
+describe('GET /agents/:id/inbox', () => {
+  const read = async () => {
+    const response = await fetch(`${base}/agents/agent-1/inbox`);
+    return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+  };
+
+  it('says how often the agent looks and when it last did', async () => {
+    const { status, body } = await read();
+    expect(status).toBe(200);
+    expect(body).toEqual({
+      items: [],
+      heartbeat: { intervalMinutes: 30, lastHeartbeatAt: '2026-11-09T12:00:00.000Z' },
+    });
+  });
+
+  it('says so plainly when the agent has no heartbeat and has never looked', async () => {
+    state.heartbeat = { intervalMinutes: null, lastHeartbeatAt: null };
+    expect((await read()).body.heartbeat).toEqual({ intervalMinutes: null, lastHeartbeatAt: null });
+    state.heartbeat = null;
+    expect((await read()).body.heartbeat).toEqual({ intervalMinutes: null, lastHeartbeatAt: null });
   });
 });
 

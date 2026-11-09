@@ -81,6 +81,11 @@ import { buildComputerTools } from '../computer/computer-tools.js';
 
 export interface AgentRuntimeContext {
   session: AgentSessionRecord;
+  /**
+   * The agent's Oxy `bot` account: who the memory journal names as the writer of what the agent
+   * remembers. Not `session.agentId`, which is Alia's row id for the agent and not an account.
+   */
+  agentAccountId?: string;
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
   /**
@@ -302,7 +307,7 @@ export function buildRuntimeTools(
     actions.memory = buildAgentMemoryTool({
       oxyUserId: session.oxyUserId,
       agentId: session.agentId,
-      actorOxyAccountId: session.agentId,
+      actorOxyAccountId: ctx.agentAccountId ?? session.agentId,
     });
   }
 
