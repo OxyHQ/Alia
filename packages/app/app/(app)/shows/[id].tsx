@@ -34,7 +34,7 @@ import { formatEpisodeCount } from '@/features/shows/model/show-format';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
@@ -378,6 +378,7 @@ export default function SeriesDetailScreen() {
         ListHeaderComponent={header}
         ListEmptyComponent={
           <EmptyState
+            sticker="showEpisodes"
             title={t('shows.noEpisodes.title')}
             description={
               series.speakers.length > 0

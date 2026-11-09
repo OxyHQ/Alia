@@ -1,8 +1,7 @@
 import { AuthContainer } from '@/features/onboarding/ui/auth-container';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { RiArrowRightLine } from '@oxy.so/bloom/icons/RiArrowRightLine';
-import { RiErrorWarningLine } from '@oxy.so/bloom/icons/RiErrorWarningLine';
 import { useRouter } from 'expo-router';
 import Head from 'expo-router/head';
 
@@ -16,8 +15,7 @@ export default function OrgInviteScreen() {
       </Head>
       <AuthContainer>
         <EmptyState
-          icon={RiErrorWarningLine}
-          media="circle"
+          sticker="inviteUnavailable"
           title={t('orgInvite.unavailableTitle')}
           description={t('orgInvite.unavailableDescription')}
           action={{

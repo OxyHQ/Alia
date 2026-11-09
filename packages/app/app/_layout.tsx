@@ -5,6 +5,9 @@ import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { AgentAvatarProvider } from '@oxy.so/bloom/agent-avatar';
 import { BloomProvider } from '@oxy.so/bloom/provider';
 import { preventNativeSplashAutoHide, useHideNativeSplashWhenReady } from '@oxy.so/expo-splash';
+import { configureLottieWeb } from '@/shared/stickers/lottie-web';
+import { createStickersClient } from '@oxy.so/stickers';
+import { StickersProvider } from '@oxy.so/stickers/react';
 import { OxyProvider, useAccountColor, useOxy } from '@oxy.so/services/ui/client';
 import * as Linking from 'expo-linking';
 import { Slot, Stack, ThemeProvider } from 'expo-router';
@@ -36,6 +39,9 @@ const OXY_CLIENT_ID =
   'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 const AUTH_REDIRECT_URI = Linking.createURL('/');
 
+// Before any sticker renders: on web, where the animation renderer is served from.
+configureLottieWeb();
+
 function AuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useOxy();
   // The account colour is the one every Oxy app wears; mounted once, below both providers.
@@ -64,7 +70,14 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
     [oxyServices],
   );
 
-  return <ImageResolverProvider value={resolveImageSource}>{children}</ImageResolverProvider>;
+  // One catalogue client per OxyServices: the stickers above the empty states.
+  const stickersClient = useMemo(() => createStickersClient(oxyServices), [oxyServices]);
+
+  return (
+    <ImageResolverProvider value={resolveImageSource}>
+      <StickersProvider client={stickersClient}>{children}</StickersProvider>
+    </ImageResolverProvider>
+  );
 }
 
 function AppContent() {

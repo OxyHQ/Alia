@@ -1,6 +1,6 @@
 import { useAgentTeams } from '@/features/agents/runtime/use-agent-teams';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -26,7 +26,7 @@ export default function AgentTeamsScreen() {
           <ListRowsSkeleton rows={4} mark="tile" />
         ) : teams.length === 0 ? (
           <EmptyState
-            icon={RiTeamLine}
+            sticker="agentTeams"
             title={t('pages.agents.teamsEmpty')}
             description={t('pages.agents.teamsEmptyDetail')}
           />
