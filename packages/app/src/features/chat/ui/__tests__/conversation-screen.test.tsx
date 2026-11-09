@@ -286,9 +286,15 @@ describe('the breadcrumb', () => {
   });
 
   it('has no participants header on the empty chat: its greeting carries the mark', () => {
-    mount({ conversationId: 'c1', agentName: 'Atlas' });
+    mount({ agentName: 'Atlas' });
     const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
     expect(content().chrome({ participants, hasMessages: false }).header).toBeUndefined();
+  });
+
+  it('has the header from the first frame of an open conversation, before its messages load', () => {
+    mount({ conversationId: 'c1', agentName: 'Atlas' });
+    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    expect(content().chrome({ participants, hasMessages: false }).header).toBeDefined();
   });
 
   it('files a chat under the project that holds it, else its folder, else the tree', () => {

@@ -19,7 +19,7 @@ export interface AliaWelcomeMessageProps {
 /**
  * The empty chat's greeting: the lead's avatar above it, both centred, the address on top ("Hi Nate,")
  * and the rest under it (`greetingLines`). The Alia app and the SDK chat
- * draw exactly this. The greeting has a max width (`max-w-xs`, 20rem) so it sets in two lines at
+ * draw exactly this. The greeting has a max width (`max-w-md`, 28rem) so it sets in two lines at
  * any width, as a headline under a mark rather than one long line across a wide column. The
  * suggestions are not part of it; they sit over the composer (`ComposerSuggestions`).
  */
@@ -46,7 +46,7 @@ export function AliaWelcomeMessage({
         ) : (
           avatar
         )}
-        <Text selectable={false} className="max-w-xs shrink text-center text-4xl text-text-primary">
+        <Text selectable={false} className="max-w-md shrink text-center text-4xl text-text-primary">
           {greetingLines(greeting).join('\n')}
         </Text>
       </View>

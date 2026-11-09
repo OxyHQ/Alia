@@ -178,19 +178,22 @@ export const ConversationScreen = ({
         // Once there is a conversation its header is Bloom's `PageHeader` as the multi-agent chat
         // sets it: the participants centred, the actions beside them. (A container given its own
         // header draws no breadcrumb row, so the actions travel in it.) The empty chat's mark is
-        // the greeting itself, so it keeps the container's row.
-        header: chat.hasMessages ? (
-          <ShellPageHeader
-            titleAlign="center"
-            title={<AliaParticipants participants={chat.participants} onPress={openAgent} />}
-            actions={
-              <>
-                {actions}
-                <NotificationsBell />
-              </>
-            }
-          />
-        ) : undefined,
+        // the greeting itself, so it keeps the container's row. An OPEN conversation has the header
+        // from its first frame, while its messages load: otherwise the container's breadcrumb shows
+        // for an instant and is replaced.
+        header:
+          chat.hasMessages || conversationId !== undefined ? (
+            <ShellPageHeader
+              titleAlign="center"
+              title={<AliaParticipants participants={chat.participants} onPress={openAgent} />}
+              actions={
+                <>
+                  {actions}
+                  <NotificationsBell />
+                </>
+              }
+            />
+          ) : undefined,
         title: title || t('chat.newChat'),
         project: projectName,
         // The container's own row (the empty chat) carries the bell beside the actions.
