@@ -24,6 +24,7 @@
  * rather than narrowed to a string anywhere it is merely being moved.
  */
 
+import { toggleReaction } from '../../domain/message-reactions.js';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type {
@@ -46,6 +47,7 @@ export interface MessageRow {
   readonly role: string;
   readonly content: unknown;
   readonly vote: string | null;
+  readonly reactions: unknown;
   readonly toolInvocations: unknown;
   readonly agentInfoId: string | null;
   readonly agentInfoName: string | null;
@@ -79,6 +81,8 @@ export interface StoredMessage {
   readonly role: string;
   readonly content: MessageContent;
   readonly vote?: MessageVote;
+  /** The emoji the person left on it. */
+  readonly reactions?: string[];
   readonly toolInvocations?: ToolInvocation[];
   readonly agentInfo?: AgentInfo;
   readonly seq?: number;
@@ -101,6 +105,9 @@ export function toStoredMessage(row: MessageRow): StoredMessage {
     role: row.role,
     content: row.content as MessageContent,
     ...(row.vote === null ? {} : { vote: row.vote as MessageVote }),
+    ...(Array.isArray(row.reactions) && row.reactions.length > 0
+      ? { reactions: row.reactions as string[] }
+      : {}),
     ...(row.toolInvocations === null
       ? {}
       : { toolInvocations: row.toolInvocations as ToolInvocation[] }),
@@ -749,6 +756,43 @@ export async function voteMessage(
     .returning({ vote: messages.vote });
 
   return row;
+}
+
+/**
+ * Toggle one reaction on a message and answer the reactions it holds now, or `undefined` when this
+ * person holds no such message. Read and written in one transaction under a row lock, so two quick
+ * taps cannot each write over the other.
+ */
+export async function reactToMessage(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+  messageId: string,
+  emoji: string,
+): Promise<{ reactions: string[] } | undefined> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ id: messages.id, reactions: messages.reactions })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.oxyUserId, oxyUserId),
+          eq(messages.conversationId, conversationId),
+          or(eq(messages.clientMessageId, messageId), eq(messages.id, messageId)),
+        ),
+      )
+      .orderBy(sql`${messages.seq} asc nulls first`, asc(messages.createdAt))
+      .limit(1)
+      .for('update');
+    if (row === undefined) return undefined;
+    const held = Array.isArray(row.reactions) ? (row.reactions as string[]) : [];
+    const next = toggleReaction(held, emoji);
+    await tx
+      .update(messages)
+      .set({ reactions: next.length === 0 ? null : next })
+      .where(eq(messages.id, row.id));
+    return { reactions: next };
+  });
 }
 
 /**

@@ -10,6 +10,7 @@ const row = (overrides: Partial<MessageRow>): MessageRow => ({
   role: 'user',
   content: '',
   vote: null,
+  reactions: null,
   toolInvocations: null,
   agentInfoId: null,
   agentInfoName: null,

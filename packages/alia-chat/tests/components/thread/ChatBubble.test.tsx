@@ -22,7 +22,7 @@ const { hosts } = vi.hoisted(() => ({
 }));
 
 vi.mock('react-native', async () => ({
-  ...(await hosts('View', 'Pressable')),
+  ...(await hosts('View', 'Pressable', 'Text')),
   Platform: { OS: 'web' },
 }));
 vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
@@ -46,7 +46,9 @@ vi.mock('@oxy.so/bloom/hooks', async () => {
     },
   };
 });
+vi.mock('@oxy.so/bloom/chat-composer', async () => await hosts('ReactionPicker'));
 vi.mock('@oxy.so/bloom/theme', () => ({
+  withAlpha: (color: string, alpha: number) => `${color}@${alpha}`,
   useTheme: () => ({
     colors: {
       backgroundSecondary: '#eee',
@@ -83,6 +85,8 @@ function mount(
     react?: ReturnType<typeof action>[];
     menu?: ReturnType<typeof action>[];
     onReply?: () => void;
+    reactions?: string[];
+    onReact?: (emoji: string) => void;
   } = {},
 ) {
   let renderer!: ReturnType<typeof create>;
@@ -95,7 +99,13 @@ function mount(
   });
   return renderer.root;
 }
-const row = (root: ReactTestInstance) => root.findAll((n) => is(n, 'View'))[0]!;
+/** The whole turn: it carries the hover handlers. */
+const outer = (root: ReactTestInstance) => root.findAll((n) => is(n, 'View'))[0]!;
+/** The line of icons and bubble inside it. */
+const row = (root: ReactTestInstance) =>
+  root.find(
+    (n) => is(n, 'View') && String(n.props.className ?? '').includes('flex-row items-center gap-2'),
+  );
 const group = (root: ReactTestInstance) =>
   root.find((n) => is(n, 'View') && String(n.props.className ?? '').includes('gap-0.5'));
 const labels = (root: ReactTestInstance) =>
@@ -129,16 +139,16 @@ describe('ChatBubble', () => {
     const root = mount('reply', { onReply: vi.fn() });
     expect(styleOf(group(root))).toEqual({ opacity: 0 });
     expect(group(root).props.pointerEvents).toBe('none');
-    act(() => row(root).props.onPointerEnter());
+    act(() => outer(root).props.onPointerEnter());
     expect(styleOf(group(root))).toEqual({ opacity: 1 });
     expect(group(root).props.pointerEvents).toBe('auto');
-    act(() => row(root).props.onPointerLeave());
+    act(() => outer(root).props.onPointerLeave());
     expect(styleOf(group(root))).toEqual({ opacity: 0 });
   });
 
   it('has the three icons of the chat it is modelled on, in order: react, reply, more', () => {
     const root = mount('reply', {
-      react: [action('like'), action('dislike')],
+      onReact: vi.fn(),
       menu: [action('copy')],
       onReply: vi.fn(),
     });
@@ -149,26 +159,52 @@ describe('ChatBubble', () => {
     ]);
   });
 
-  it('offers a vote under react, the rest under more, and quotes the turn on reply', () => {
-    const like = vi.fn();
+  it('opens the emoji bar under react, and a pick reacts', () => {
+    const onReact = vi.fn();
+    const root = mount('reply', { onReact });
+    const picker = root.find((n) => is(n, 'ReactionPicker'));
+    act(() => picker.props.onSelectEmoji('🎉'));
+    expect(onReact).toHaveBeenCalledWith('🎉');
+  });
+
+  it('keeps the rest of the turn under more, and quotes the turn on reply', () => {
     const copy = vi.fn();
     const reply = vi.fn();
     const root = mount('reply', {
-      react: [action('like', like), action('dislike')],
-      menu: [action('copy', copy)],
+      menu: [action('like'), action('copy', copy)],
       onReply: reply,
     });
     const items = root.findAll((n) => is(n, 'DropdownMenuItem'));
-    expect(items.map((i) => i.props.children)).toEqual(['like', 'dislike', 'copy']);
-    act(() => items[0]!.props.onPress());
-    act(() => items[2]!.props.onPress());
-    expect(like).toHaveBeenCalledOnce();
+    expect(items.map((i) => i.props.children)).toEqual(['like', 'copy']);
+    act(() => items[1]!.props.onPress());
     expect(copy).toHaveBeenCalledOnce();
     const replyButton = root
       .findAll((n) => is(n, 'Pressable'))
       .find((b) => b.props.accessibilityLabel === 'chat.replyToMessage')!;
     act(() => replyButton.props.onPress());
     expect(reply).toHaveBeenCalledOnce();
+  });
+
+  it('draws the reactions as pills on the bubble’s lower edge, and a pill takes its reaction back', () => {
+    const onReact = vi.fn();
+    const root = mount('user', { reactions: ['👍', '🎉'], onReact });
+    const pills = root
+      .findAll((n) => is(n, 'Pressable'))
+      .filter((n) => String(n.props.accessibilityLabel).startsWith('chat.reaction'));
+    expect(pills).toHaveLength(2);
+    act(() => pills[0]!.props.onPress());
+    expect(onReact).toHaveBeenCalledWith('👍');
+    const rowOfPills = root.find(
+      (n) => is(n, 'View') && String(n.props.className ?? '').includes('-mt-2.5'),
+    );
+    expect(String(rowOfPills.props.className)).toContain('justify-end');
+  });
+
+  it('draws no pill row without reactions', () => {
+    const root = mount('reply');
+    expect(
+      root.findAll((n) => is(n, 'View') && String(n.props.className ?? '').includes('-mt-2.5')),
+    ).toHaveLength(0);
   });
 
   it('draws only the icons the turn can use: the person has no vote to cast on a question', () => {

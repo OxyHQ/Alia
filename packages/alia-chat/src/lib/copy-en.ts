@@ -85,6 +85,8 @@ export const COPY_EN: Readonly<Record<string, CopyEntry>> = {
   'chat.newStretch': 'New conversation',
   'chat.chatWith': 'Chat with %{name}',
   'chat.reactToMessage': 'React to message',
+  'chat.reaction': 'Reacted with {{emoji}}',
+  'chat.reactionFailed': "Your reaction couldn't be saved.",
   'chat.replyToMessage': 'Reply to message',
   'chat.moreActions': 'More message actions',
   'chat.readAloud': 'Read Aloud',

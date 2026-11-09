@@ -1,3 +1,4 @@
+import { parseReaction } from '../domain/message-reactions.js';
 import { channelAccountOf } from '../middleware/channel-auth.js';
 import { parseAvatarCharacter } from '@oxy.so/contracts';
 import { Router } from 'express';
@@ -26,6 +27,7 @@ import {
   listMessages,
   replaceMessages,
   toStoredMessage,
+  reactToMessage,
   voteMessage,
   type MessageRow,
   type NewMessage,
@@ -537,6 +539,37 @@ router.post('/', authenticateTokenOrApiKey, async (req: Request, res: Response) 
     res.status(500).json({ error: 'Failed to save conversation' });
   }
 });
+
+// React to a message with an emoji; the same emoji again takes it back.
+router.post(
+  '/:id/messages/:messageId/reactions',
+  authenticateToken,
+  async (req: Request<{ id: string; messageId: string }>, res: Response) => {
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      const emoji = parseReaction(req.body?.emoji);
+      if (emoji === null) {
+        return res.status(400).json({ error: 'emoji must be a single emoji' });
+      }
+      const result = await reactToMessage(
+        getDb(),
+        req.user.id,
+        String(req.params.id),
+        String(req.params.messageId),
+        emoji,
+      );
+      if (!result) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      res.json({ reactions: result.reactions });
+    } catch (error: unknown) {
+      log.chat.error({ err: error }, 'Error reacting to a message');
+      res.status(500).json({ error: 'Failed to react to message' });
+    }
+  },
+);
 
 // Vote on a message (thumbs up/down)
 router.patch(

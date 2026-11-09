@@ -23,16 +23,23 @@ describe('the bubbles of an agent thread', () => {
 
   it('puts the words of a reply in a bubble, and leaves the work log and the cards whole', () => {
     expect(row).toMatch(
-      /\{bubbled \? \(\s*<ChatBubble side="reply" react=\{reactActions\} menu=\{moreActions\} onReply=\{onReply\}>\s*\{replyBody\}/,
+      /\{bubbled \? \(\s*<ChatBubble\s+side="reply"\s+reactions=\{reactions\}\s+onReact=\{onReact\}\s+menu=\{moreActions\}\s+onReply=\{onReply\}\s*>\s*\{replyBody\}/,
     );
     expect(row).toMatch(/const bubbled = useBubbles\(\) \|\| agent !== undefined;/);
   });
 
-  it("splits a reply's actions as the chat it is modelled on does: the vote under react, the rest under more", () => {
+  it("splits a reply's actions as the chat it is modelled on does: react is the emoji bar, the rest (votes included) is under more", () => {
     expect(row).toMatch(
-      /const reactActions = hasFeedback \? \[likeAction, dislikeAction\] : \[\];/,
+      /const moreActions = hasFeedback\s*\?\s*\[readAloudAction, copyAction, regenerateAction, likeAction, dislikeAction\]\.filter\(isPresent\)/,
     );
-    expect(row).toMatch(/\[readAloudAction, copyAction, regenerateAction\]\.filter\(isPresent\)/);
+    expect(row).toMatch(
+      /const reactions = actions\.reactionsOf\(message\.id, message\.reactions\)/,
+    );
+  });
+
+  it("reacts on the person's own turn too, and never on a read-only thread", () => {
+    expect(row).toMatch(/reactions=\{questionReactions\}\s+onReact=\{onQuestionReact\}/);
+    expect(row).toMatch(/actions\.readOnly \|\| text\.length === 0\s*\?\s*undefined/);
   });
 
   it("turns Bloom's feedback row off when the icons are beside the bubble", () => {
