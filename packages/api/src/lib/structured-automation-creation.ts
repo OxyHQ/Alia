@@ -7,6 +7,7 @@ import {
   replaceAliaTaskAuthorizations,
 } from '../db/automation/aliaTaskAuthorityRepository.js';
 import {
+  countEnabledAutomationDefinitions,
   createAutomationDefinition,
   setAutomationEnabled,
   updateAutomationDefinition,
@@ -34,7 +35,11 @@ import { automationExecutionPolicyError } from './automation-execution-policy.js
 import { mayRunForAutomationOwner } from './automation-actors.js';
 import { log } from './logger.js';
 import { automationReceipt } from './structured-automation.js';
-import { automationScheduleError, reloadAutomationSchedule } from './trigger-engine.js';
+import {
+  automationScheduleError,
+  automationScheduleTooFrequent,
+  reloadAutomationSchedule,
+} from './trigger-engine.js';
 
 export const automationResourceSchema = z
   .object({
@@ -163,6 +168,14 @@ export const updateAutomationSchema = z
 export type UpdateAutomationInput = z.infer<typeof updateAutomationSchema>;
 
 type AutomationRecord = Awaited<ReturnType<typeof createAutomationDefinition>>;
+
+/**
+ * Enabled automations one person may have. Each is a model run billed to them whenever it fires, and an
+ * agent can create them on the person's behalf, so the count is a bound on how much can be scheduled
+ * by mistake or by a prompt-injected agent. One-off runs (follow-ups, heartbeats) disable themselves
+ * when they fire and stop counting.
+ */
+export const MAX_ENABLED_AUTOMATIONS_PER_OWNER = 100;
 
 export class AutomationCreationError extends Error {
   constructor(
@@ -336,6 +349,9 @@ function validateDefinition(definition: CreateAutomationInput): void {
       definition.trigger.timezone,
     );
     if (scheduleError) throw new AutomationCreationError(scheduleError, 400);
+    if (automationScheduleTooFrequent(definition.trigger.cron, definition.trigger.timezone)) {
+      throw new AutomationCreationError('automation_schedule_too_frequent', 400);
+    }
   }
   if (
     definition.actions.some(
@@ -665,6 +681,13 @@ export async function createStructuredAutomation(input: {
   definition: CreateAutomationInput;
 }) {
   validateDefinition(input.definition);
+  if (
+    input.definition.enabled &&
+    (await countEnabledAutomationDefinitions(getDb(), input.ownerAccountId)) >=
+      MAX_ENABLED_AUTOMATIONS_PER_OWNER
+  ) {
+    throw new AutomationCreationError('too_many_automations', 409);
+  }
   const selection = input.definition.actorSelection;
   const agentIds = selectedAgentIds(selection);
   if (new Set(agentIds).size !== agentIds.length) {

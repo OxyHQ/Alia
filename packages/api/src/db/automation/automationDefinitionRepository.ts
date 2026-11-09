@@ -200,6 +200,22 @@ export async function listAutomationDefinitions(db: Executor, ownerAccountId: st
   return hydrateDefinitions(db, rows);
 }
 
+export async function countEnabledAutomationDefinitions(
+  db: Executor,
+  ownerAccountId: string,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(automationDefinitions)
+    .where(
+      and(
+        eq(automationDefinitions.ownerAccountId, ownerAccountId),
+        eq(automationDefinitions.enabled, true),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
 export async function findAutomationDefinition(db: Executor, id: string, ownerAccountId: string) {
   const [row] = await db
     .select()

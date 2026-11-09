@@ -262,7 +262,7 @@ export interface HeartbeatCandidate {
 }
 
 /**
- * Agents whose heartbeat is due AND that have something pending. The empty case is the common one and
+ * Active agents whose heartbeat is due AND that have something pending. The empty case is the common one and
  * costs this one query, no model call and no run.
  */
 export async function dueHeartbeats(db: Executor, now: Date): Promise<HeartbeatCandidate[]> {
@@ -277,6 +277,8 @@ export async function dueHeartbeats(db: Executor, now: Date): Promise<HeartbeatC
     .where(
       and(
         eq(agents.isPublished, true),
+        // `idle` and `offline` are how an owner pauses an agent: a paused agent is not woken.
+        eq(agents.status, 'active'),
         sql`${agents.scheduleInterval} > 0`,
         sql`${agents.ownerOxyAccountId} is not null`,
         or(

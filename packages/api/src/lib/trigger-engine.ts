@@ -56,6 +56,45 @@ export function automationScheduleError(
   }
 }
 
+/**
+ * The shortest a recurring schedule may run: an automation is a model run billed to its owner, and
+ * nothing a person or an agent schedules should be able to fire every minute. Matches the shortest
+ * agent heartbeat (`PATCH /agents/:id` accepts 5 to 1440 minutes).
+ */
+export const MIN_SCHEDULE_INTERVAL_MS = 5 * 60_000;
+
+/** How many successive occurrences are compared: enough to see an irregular list like `0,2 * * * *`. */
+const SCHEDULE_PROBE_OCCURRENCES = 12;
+
+/**
+ * Whether two occurrences of this schedule can come closer than {@link MIN_SCHEDULE_INTERVAL_MS}.
+ * Compares the next several occurrences from `from`, so `*\/1 * * * *` and an uneven `0,2 * * * *` are
+ * both caught while a one-off (`m h d mon *`, a year apart) and an hourly schedule pass.
+ */
+export function automationScheduleTooFrequent(
+  cronExpression: string,
+  timezone: string,
+  from: Date = new Date(),
+): boolean {
+  if (automationScheduleError(cronExpression, timezone)) return false;
+  try {
+    const iterator = cronParser.parseExpression(cronExpression, {
+      currentDate: from,
+      tz: timezone,
+    });
+    let previous = iterator.next().toDate().getTime();
+    for (let i = 1; i < SCHEDULE_PROBE_OCCURRENCES; i += 1) {
+      const next = iterator.next().toDate().getTime();
+      if (next - previous < MIN_SCHEDULE_INTERVAL_MS) return true;
+      previous = next;
+    }
+    return false;
+  } catch {
+    // No further occurrence in range (a date that will not come again): nothing recurs.
+    return false;
+  }
+}
+
 function unscheduleAutomation(automationId: string): void {
   const existing = scheduledTasks.get(automationId);
   if (!existing) return;
