@@ -710,20 +710,6 @@ export async function listActiveAgentsByAuthor(
     .orderBy(desc(agents.createdAt), desc(agents.id));
 }
 
-/**
- * Agents with a heartbeat interval set, for the boot-time trigger sync.
- *
- * `{scheduleInterval: {$exists: true, $gt: 0}}` — `$exists` and `$gt: 0` are one
- * predicate here, because a NULL fails `> 0` in SQL rather than matching it.
- */
-export async function listAgentsWithHeartbeat(db: Executor): Promise<AgentRecord[]> {
-  const rows = await db
-    .select()
-    .from(agents)
-    .where(and(eq(agents.isPublished, true), sql`${agents.scheduleInterval} > 0`));
-  return rows.map(toAgentRecord);
-}
-
 /* --------------------------- the children --------------------------- */
 
 /**
@@ -916,7 +902,8 @@ export interface UpdateAgentInput {
   systemPrompt?: string;
   /** The agent's power level or `publisher/model`; null goes back to `auto`. */
   modelId?: string | null;
-  scheduleInterval?: number;
+  /** The heartbeat in minutes, or null to turn it off. */
+  scheduleInterval?: number | null;
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;
   skillIds?: string[];

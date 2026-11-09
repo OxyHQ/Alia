@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createAgent } from '../agents/agentRepository';
+import { createAgent, findAgentById, updateAgent } from '../agents/agentRepository';
 import {
   INBOX_ITEMS_PER_WAKE,
   INBOX_ITEM_MAX_AGE_MS,
@@ -228,6 +228,20 @@ describe('the heartbeat', () => {
     // `idle` and `offline` are how an owner pauses an agent: it is not woken, and its items wait.
     expect(ids).not.toContain(paused);
     expect(ids).not.toContain(offline);
+  });
+
+  it('can be set and turned off again through updateAgent, and an agent without one is not woken', async () => {
+    const id = await agent();
+    await addInboxItem(db, item(id));
+    expect((await dueHeartbeats(db, T0)).map((c) => c.agentId)).not.toContain(id);
+
+    await updateAgent(db, id, { scheduleInterval: 30 });
+    expect((await findAgentById(db, id))?.scheduleInterval).toBe(30);
+    expect((await dueHeartbeats(db, T0)).map((c) => c.agentId)).toContain(id);
+
+    await updateAgent(db, id, { scheduleInterval: null });
+    expect((await findAgentById(db, id))?.scheduleInterval).toBeNull();
+    expect((await dueHeartbeats(db, T0)).map((c) => c.agentId)).not.toContain(id);
   });
 
   it('waits out its interval after a wake-up', async () => {

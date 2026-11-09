@@ -606,7 +606,8 @@ const updateAgentSchema = z
     systemPrompt: z.string().optional(),
     /** A power level, a `publisher/model` from `GET /catalogue`, or null for `auto`. */
     modelId: z.string().min(1).max(200).nullable().optional(),
-    scheduleInterval: z.number().int().min(5).max(1440).optional(),
+    /** The heartbeat in minutes (`lib/agent/heartbeat.ts`), or null to turn it off. */
+    scheduleInterval: z.number().int().min(5).max(1440).nullable().optional(),
     archetype: archetypeSchema.optional(),
     archetypeConfig: z.unknown().optional(),
     skills: z.array(z.string()).optional(),
