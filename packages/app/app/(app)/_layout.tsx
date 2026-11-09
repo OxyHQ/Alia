@@ -28,8 +28,7 @@ import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useScrollRestoration } from '@oxy.so/bloom/scroll';
-import { Navigator, Stack, usePathname, useRouter, type Href } from 'expo-router';
+import { Navigator, Stack, useRouter, type Href } from 'expo-router';
 import type React from 'react';
 import { useEffect, useMemo } from 'react';
 import { Platform, View } from 'react-native';
@@ -179,8 +178,8 @@ export default function AppLayout() {
 
   const shell = (
     <AiChatShell
-      // The page scrolls the document, as every Oxy web app does.
-      scroll="document"
+      // Bounded (the default), as the AI chat template declares it: every panel fills the height
+      // and scrolls its own content, so the editor beside a chat stretches.
       sidebar={sidebar}
       mobileSidebar={mobileSidebar}
       labels={shellLabels}
@@ -199,9 +198,8 @@ export default function AppLayout() {
       panel={rightPanel === null ? undefined : (width) => <WorkspacePanel width={width} />}
     >
       {Platform.OS === 'web' ? (
-        // The page flows in the document, which is what scrolls on web;
-        // native-stack's web scene is absolutely positioned and would
-        // pin it to one screen.
+        // Only the focused page is mounted: native-stack's web scene would keep every
+        // visited page under it.
         <Navigator screenOptions={screenOptions}>
           <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
           <FocusedPage layout={screenLayout} />
@@ -278,16 +276,13 @@ interface ScreenLayoutProps {
  * wraps each screen in, so a page's header and surface do not depend on which
  * navigator shows it.
  *
- * Every page shares the one document scroll, so a page opens at the top — or
- * where the reader left it, if they have been here — instead of at whatever
- * offset the last page left. A chat opens at its newest turn, which its thread
- * does itself.
+ * Only the focused page is mounted, so a page opens at the top rather than at whatever offset
+ * the last page left; each one scrolls inside its own container (the shell is bounded). A chat
+ * opens at its newest turn, which its thread does itself.
  */
 function FocusedPage({ layout }: { layout: (props: ScreenLayoutProps) => React.ReactNode }) {
   const { state, descriptors } = Navigator.useContext();
   const descriptor = descriptors[state.routes[state.index].key];
-  const pathname = usePathname();
-  useScrollRestoration('window', { enabled: !isChatRoute(descriptor.route.name), key: pathname });
   const page = descriptor.render();
   if (page === null) return null;
   return layout({

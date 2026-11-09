@@ -28,7 +28,8 @@ export function AgentEditorPanel() {
   const router = useRouter();
   const agentId = useUIStore((s) => s.editedAgentId);
   const setRightPanel = useUIStore((s) => s.setRightPanel);
-  // The creator draws its own header, with the close button: the panel adds none.
+  // The creator draws its own header, with the close button, and fills the panel (a scroll area of
+  // its own): the shell's bounded layout gives it the height, so the panel adds nothing.
   return (
     <View className="flex-1" testID="agent-editor-panel">
       <AgentEditorLoader
