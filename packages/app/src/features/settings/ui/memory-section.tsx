@@ -10,6 +10,7 @@ import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import { AttentionAgentsSection } from './agent-attention-section';
 import { RememberingAgentsSection } from './agent-memory-section';
 
 /** This page's own strings. */
@@ -74,6 +75,7 @@ export function MemorySection() {
 
       {/* Memory is per actor: Alia's lives in Nilo, each agent's own below. */}
       <RememberingAgentsSection />
+      <AttentionAgentsSection />
     </View>
   );
 }

@@ -93,6 +93,9 @@ vi.mock('@/features/settings/ui/writing-style-section', () => ({
 vi.mock('@/features/settings/ui/connector-detail-section', () => ({
   ConnectorDetailSection: () => null,
 }));
+vi.mock('@/features/settings/ui/agent-attention-section', () => ({
+  AgentAttentionSection: () => null,
+}));
 vi.mock('@/features/settings/ui/agent-memory-section', () => ({
   AgentMemorySection: () => null,
 }));

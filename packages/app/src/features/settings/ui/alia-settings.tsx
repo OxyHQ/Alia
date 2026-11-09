@@ -4,6 +4,7 @@ import { SettingsModal, type SettingsModalPage } from '@oxy.so/bloom/settings-mo
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccountsSection } from './accounts-section';
+import { AgentAttentionSection } from './agent-attention-section';
 import { AgentMemorySection } from './agent-memory-section';
 import { BillingSection } from './billing-section';
 import { BotsSection } from './bots-section';
@@ -79,6 +80,10 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
             'agent-memory': {
               title: t('settings.assistant.agentMemory.title'),
               content: <AgentMemorySection />,
+            },
+            'agent-attention': {
+              title: t('settings.assistant.attention.title'),
+              content: <AgentAttentionSection />,
             },
           }
         : {}),

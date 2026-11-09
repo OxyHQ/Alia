@@ -35,6 +35,9 @@ vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ isAuthenticated: true, user: { id: 'A' } }),
   useAuth: () => ({ isAuthenticated: true, signIn: vi.fn() }),
 }));
+vi.mock('@/features/settings/ui/agent-attention-section', async () =>
+  hosts('AttentionAgentsSection'),
+);
 vi.mock('@/features/settings/ui/agent-memory-section', async () =>
   hosts('RememberingAgentsSection'),
 );

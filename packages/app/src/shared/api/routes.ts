@@ -84,6 +84,11 @@ export const API_ROUTES = {
     threadById: (threadId: string) => `/agents/threads/${threadId}`,
     goals: (threadId: string) => `/agents/threads/${threadId}/goals`,
     memory: (id: string) => `/agents/${id}/memory`,
+    /** What the agent subscribes to, and what is waiting in its inbox (ADR 0026). */
+    subscriptions: (id: string) => `/agents/${id}/subscriptions`,
+    subscription: (id: string, subscriptionId: string) =>
+      `/agents/${id}/subscriptions/${subscriptionId}`,
+    inbox: (id: string) => `/agents/${id}/inbox`,
     activityGrid: (id: string) => `/agents/${id}/activity-grid`,
     status: (id: string) => `/agents/${id}/status`,
     reviews: (id: string) => `/agents/${id}/reviews`,
