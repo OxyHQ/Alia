@@ -157,6 +157,22 @@ export function isAgentOutreachMessageId(id: string | null | undefined): boolean
 }
 
 /**
+ * The client-message-id prefix of a reply a GROUP ROOM stored (`lib/chat/room`, ADR 0025). Those
+ * replies are written by a worker, often after the request that started them has ended, so the
+ * client cannot have seen them when it sends its next turn. Like an outreach message they carry a
+ * mark so the saver keeps them instead of converging storage on the client's older copy.
+ */
+export const GROUP_REPLY_MESSAGE_ID_PREFIX = 'group-reply-';
+
+/** Whether a stored message was written by someone other than the sending client (outreach or room). */
+export function isAgentWrittenMessageId(id: string | null | undefined): boolean {
+  return (
+    isAgentOutreachMessageId(id) ||
+    (typeof id === 'string' && id.startsWith(GROUP_REPLY_MESSAGE_ID_PREFIX))
+  );
+}
+
+/**
  * The longest message id this service stores. The speech route caps the
  * `messageId` it looks up at the same length, so a longer one could be stored
  * and then never addressed.

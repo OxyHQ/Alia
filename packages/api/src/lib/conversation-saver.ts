@@ -24,7 +24,7 @@ import {
   type NewMessage,
 } from '../db/chat/messageRepository.js';
 import {
-  isAgentOutreachMessageId,
+  isAgentWrittenMessageId,
   usableMessageId,
   type AgentInfo,
   type ConversationSource,
@@ -178,7 +178,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
         ...(id === undefined ? {} : { id }),
         // An agent-written message keeps its attribution when the client echoes
         // it back, so the next rewrite still recognises it.
-        ...(isAgentOutreachMessageId(id) ? { agentInfo: m.agentInfo } : {}),
+        ...(isAgentWrittenMessageId(id) ? { agentInfo: m.agentInfo } : {}),
       };
     });
 
@@ -207,12 +207,15 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   const title = extractConversationTitle(assistantResponse, messages);
 
   // Update conversation metadata
+  const preview = stripTitleTags(
+    omitLeadReply ? (agentMessages?.at(-1)?.content ?? '') : assistantResponse,
+  ).slice(0, 100);
   await upsertConversation(getDb(), {
     oxyUserId: userId,
     conversationId,
-    lastMessage: stripTitleTags(
-      omitLeadReply ? (agentMessages?.at(-1)?.content ?? '') : assistantResponse,
-    ).slice(0, 100),
+    // A group turn saved before its members answered has no reply to preview yet: the room
+    // writes the preview as each reply lands, and an empty one here would blank the last.
+    ...(omitLeadReply && preview === '' ? {} : { lastMessage: preview }),
     titleOnInsert: title,
     source: source || 'app',
     ...(agentId ? { agentId } : {}),
@@ -392,11 +395,11 @@ export function keepAgentOutreach(
     );
   const insertAfter = new Map<number, InputMessage[]>();
   for (const [index, row] of stored.entries()) {
-    if (!isAgentOutreachMessageId(row.clientMessageId) || present(row)) continue;
+    if (!isAgentWrittenMessageId(row.clientMessageId) || present(row)) continue;
     let anchor = -1;
     for (let back = index - 1; back >= 0 && anchor === -1; back--) {
       const previous = stored[back]!;
-      if (isAgentOutreachMessageId(previous.clientMessageId)) continue;
+      if (isAgentWrittenMessageId(previous.clientMessageId)) continue;
       for (let j = client.length - 1; j >= 0; j--) {
         if (sameMessage(previous, client[j]!)) {
           anchor = j;

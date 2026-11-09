@@ -88,6 +88,38 @@ refused with `400 invalid_request` before any credit is reserved, because the
 public Oxy inference request has no such field and Oxy resolves routes from the
 application's routing policy (`lib/chat/request-context.ts`).
 
+## Group conversations are rooms
+
+A conversation with `conversation_members` is a group. Its members answer in a **room** that lives
+in the API's workers, not inside the chat request (ADR 0025). `POST /v1/chat/completions` for a
+group stores the person's message, checks which members the person may reach, mints each member's
+Oxy task, queues the first step on the `group-rooms` BullMQ queue and then only *forwards* the
+room's events as the SSE frames it has always sent (`alia.group_turn`, `alia.agent_start`,
+`agent_delta`, `agent_tool`, `agent_end`) until the first round settles or the request's own limit
+nears (`GROUP_REQUEST_BUDGET_MS`, 70 s). The room goes on after the request: a member can answer
+another member's `@mention`, and every event is also pushed to the person's sockets as
+`group:event` (`{ conversationId, chainId, event, data }`) and stored as a message.
+
+- Code: `packages/api/src/lib/chat/room/` — `policy.ts` (mentions, bounds, prompt; pure),
+  `engine.ts` (one step), `queue.ts` (BullMQ, direct fallback without Redis), `lock.ts` (one speaker
+  per room across instances), `bus.ts` (Redis pub/sub, in-process fallback), `start.ts` (the edge),
+  `runtime.ts` (real wiring); the HTTP subscriber is `lib/chat/group-turn-http.ts`.
+- A person's message with no `@mention` is answered by every member in the group's order; with
+  mentions, by those members first.
+- A member's reply that `@mentions` another member (case- and accent-insensitive, name or handle,
+  never itself, never a non-member) gives that member the floor next. A member handed the floor may
+  answer exactly `[pass]`: nothing is stored or shown and it is not an error.
+- Bounds per person message: 12 replies, 24 turns, 3 mention hand-offs, 2 hand-offs per reply, nobody
+  twice in a row; a newer person message makes the older chain skip; 60 replies per room per 10
+  minutes. Reasons in ADR 0025.
+- Room replies are stored under `group-reply-<person message id>-<turn>` ids, which the saver keeps
+  when a client that has not seen them sends its next turn (like `agent-push-` outreach).
+- A member's failure ends only its own turn (`alia.agent_end` `failed`, nothing stored).
+- Room events (`event` of `group:event`, and the bus): the four `alia.agent_*` frames (an `agent_end`
+  may also be `declined`; a completed one carries `messageId`), `group.message` (`{ message }`, the
+  stored reply) and `group.idle` (`{ reason }`: `done`, `superseded`, `reply_cap`, `turn_cap`,
+  `rate_limited`, `error`).
+
 ## Product stream events
 
 Standard OpenAI-compatible chunks are emitted beside Alia product events. The

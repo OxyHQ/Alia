@@ -36,7 +36,10 @@ import type {
 } from '../../domain/conversation.js';
 import type { ApiDatabase, Executor } from '../index';
 import { conversations, messages } from '../schema/chat';
-import { AGENT_OUTREACH_MESSAGE_ID_PREFIX } from '../../domain/conversation.js';
+import {
+  AGENT_OUTREACH_MESSAGE_ID_PREFIX,
+  GROUP_REPLY_MESSAGE_ID_PREFIX,
+} from '../../domain/conversation.js';
 
 /** A stored message, as this repository reads it. */
 export interface MessageRow {
@@ -889,4 +892,54 @@ export async function listLatestMessageMarks(
     .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)))
     .orderBy(sql`${messages.seq} desc nulls last`, desc(messages.createdAt))
     .limit(limit);
+}
+
+// ---------------------------------------------------------------------------
+// Group rooms
+// ---------------------------------------------------------------------------
+
+/**
+ * The person's newest message in a thread: the one a group room's chain answers, and the rule that
+ * a newer one supersedes an older chain (`lib/chat/room`, ADR 0025). The row's primary key, not the
+ * client's id, because a client may omit its id and a rewrite re-inserts rows.
+ */
+export async function findLatestUserMessage(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+): Promise<{ id: string; clientMessageId: string | null; seq: number | null } | undefined> {
+  const [row] = await db
+    .select({ id: messages.id, clientMessageId: messages.clientMessageId, seq: messages.seq })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.oxyUserId, oxyUserId),
+        eq(messages.conversationId, conversationId),
+        eq(messages.role, 'user'),
+      ),
+    )
+    .orderBy(sql`${messages.seq} desc nulls last`, desc(messages.createdAt))
+    .limit(1);
+  return row;
+}
+
+/** How many replies group rooms stored in one conversation since `since`: the room's rate limit. */
+export async function countGroupRepliesSince(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+  since: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.oxyUserId, oxyUserId),
+        eq(messages.conversationId, conversationId),
+        sql`${messages.clientMessageId} like ${`${GROUP_REPLY_MESSAGE_ID_PREFIX}%`}`,
+        sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
+      ),
+    );
+  return row?.count ?? 0;
 }
