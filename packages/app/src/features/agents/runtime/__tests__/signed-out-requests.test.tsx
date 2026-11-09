@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * "Continue without an account" grants no authenticated endpoint (#608 §3.2).
  *
  * Every hook here reads something that is the account's — its skills and
- * connectors, its library, an agent's threads, its teams — and each is
- * reachable signed out: the agent editor and the teams page by link, an
+ * connectors, its library, an agent's threads — and each is
+ * reachable signed out: the agent editor by link, an
  * agent's page from the Agents page. Signed out, none of them may send a
  * request, since each could only answer 401. Signed in, each asks as before.
  */
@@ -21,7 +21,6 @@ vi.mock('@/shared/api/client', () => ({
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => auth }));
 
 const { useAgentThreads } = await import('../use-agent-threads');
-const { useAgentTeams } = await import('../use-agent-teams');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -53,10 +52,7 @@ afterEach(() => {
   getRequest.mockClear();
 });
 
-const hooks: [string, () => unknown][] = [
-  ['useAgentThreads', () => useAgentThreads('agent-1')],
-  ['useAgentTeams', () => useAgentTeams()],
-];
+const hooks: [string, () => unknown][] = [['useAgentThreads', () => useAgentThreads('agent-1')]];
 
 describe('signed out, the account’s own lists are not asked for', () => {
   for (const [name, hook] of hooks) {

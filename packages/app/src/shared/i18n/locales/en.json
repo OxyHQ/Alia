@@ -2026,14 +2026,8 @@
       "dismiss": "Dismiss notification"
     },
     "agents": {
-      "teams": "Teams",
       "categories": "Categories",
       "back": "Back",
-      "teamsTitle": "Agent teams",
-      "teamsDescription": "Durable groups with one coordinator",
-      "teamsEmpty": "No teams yet",
-      "teamsEmptyDetail": "Import an alia.team package through the API.",
-      "noPlaybook": "No playbook yet",
       "agentType": "Agent type",
       "sessionTitle": "Session activity",
       "sessionSteps": "%{count} steps",

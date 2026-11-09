@@ -39,8 +39,6 @@ export const EMPTY_STATE_STICKERS = {
   agentsEmpty: INTROVERT_WAVE,
   /** The agents list, a search that matched none. */
   agentsNoResults: BLOB_SHRUGGING,
-  /** An agent's teams. */
-  agentTeams: MATCH_WAVE,
   /** An agent's session log, with nothing recorded. */
   agentSession: BLOB_WATCHING,
   /** Tasks, the active tab. */

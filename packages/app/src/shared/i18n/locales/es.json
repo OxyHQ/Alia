@@ -2026,14 +2026,8 @@
       "dismiss": "Descartar notificación"
     },
     "agents": {
-      "teams": "Equipos",
       "categories": "Categorías",
       "back": "Atrás",
-      "teamsTitle": "Equipos de agentes",
-      "teamsDescription": "Grupos duraderos con un coordinador",
-      "teamsEmpty": "Aún no hay equipos",
-      "teamsEmptyDetail": "Importa un paquete alia.team a través de la API.",
-      "noPlaybook": "Aún sin guía",
       "agentType": "Tipo de agente",
       "sessionTitle": "Actividad de la sesión",
       "sessionSteps": "%{count} pasos",
