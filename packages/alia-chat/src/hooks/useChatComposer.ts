@@ -3,8 +3,9 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { TextInputKeyPressEvent } from 'react-native';
 import type { SharedValue } from 'react-native-reanimated';
+import { groupFirstSend } from '../components/AliaParticipants';
 import { leadToProfile } from '../lib/flights';
-import type { AliaLead } from '../lib/participants';
+import type { AliaLead, AliaParticipant } from '../lib/participants';
 import type { TextInputHandle } from '../lib/text-input';
 import { imageUriToDataUrl } from '../lib/image-data-url';
 import {
@@ -41,6 +42,8 @@ export interface UseChatComposerOptions {
   onStart: ((turn: AliaTurn) => void) | undefined;
   /** The avatar flights: the greeting leaves with the first turn. */
   flights: AvatarFlights;
+  /** The members when the chat is a group: its first message flies all their avatars, not the lead's. */
+  group?: readonly AliaParticipant[];
   /** Whose greeting it is: the lead's avatar is the one that flies. */
   lead: AliaLead;
   /** A turn sent once as the chat mounts: the conversation a sheet was opened for. */
@@ -88,6 +91,7 @@ export function useChatComposer({
   onWrite,
   onStart,
   flights,
+  group,
   lead,
   initialTurn,
   onSignInRequired,
@@ -149,6 +153,11 @@ export function useChatComposer({
   // The first turn of an empty chat goes to the host when it asked for it; every other turn is
   // sent here.
   const firstTurn = messages.length === 0;
+  /** What leaves the empty chat with its first message: a group's members, or the greeting's lead. */
+  const firstFlights = useMemo(
+    () => (group === undefined ? [leadToProfile(lead)] : groupFirstSend(group)),
+    [group, lead],
+  );
   const startsElsewhere = onStart !== undefined && firstTurn;
   const submitTurn = useCallback(
     async (text: string, attachments: AliaAttachment[] = [], options?: SendOptions) => {
@@ -160,14 +169,14 @@ export function useChatComposer({
         // The host's conversation sheet opens first so that the flight, drawn when it launches, is
         // above it; this chat stays on the greeting, so the avatar can still be measured.
         onStart({ text, ...(images.length > 0 ? { images } : {}) });
-        await flights.launch([leadToProfile(lead)]);
+        await flights.launch(firstFlights);
         return;
       }
       // The greeting leaves with the first turn: measure it before it does.
-      if (firstTurn) await flights.launch([leadToProfile(lead)]);
+      if (firstTurn) await flights.launch(firstFlights);
       await sendTurn(text, attachments, options);
     },
-    [startsElsewhere, onStart, firstTurn, flights, lead, sendTurn, onWrite],
+    [startsElsewhere, onStart, firstTurn, flights, firstFlights, sendTurn, onWrite],
   );
 
   // The conversation this chat was opened for, sent once.

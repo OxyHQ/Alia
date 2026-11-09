@@ -444,6 +444,7 @@ function AliaConversationView({
     onWrite: view.backToLatest,
     onStart,
     flights,
+    group,
     lead,
     initialTurn,
     onSignInRequired,

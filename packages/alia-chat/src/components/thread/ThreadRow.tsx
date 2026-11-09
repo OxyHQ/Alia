@@ -397,7 +397,7 @@ function ReplyTurn({
     rendered.length > 0 ||
     inlineCanvases.length > 0 ||
     (message.isStreaming === true && message.source === 'voice');
-  /** Its avatar is the source of the flight into the header while it is answering. */
+  /** Its avatar is the source of the flight into the header while it is answering, and the landing of a group's first one. */
   const agentLive = agent !== undefined && message.isStreaming === true;
   const agentAnchor = agent ? ANCHORS.reply(agent.id) : undefined;
 
@@ -453,7 +453,11 @@ function ReplyTurn({
                 thinking={agentLive && text.length === 0}
                 workingKey={agent.id}
                 avatarRef={agentLive && flights ? flights.anchor(agentAnchor) : undefined}
-                avatarHidden={agentLive && flights ? flights.isLeaving(agentAnchor) : false}
+                avatarHidden={
+                  agentLive && flights
+                    ? flights.isLeaving(agentAnchor) || flights.isLanding(agentAnchor)
+                    : false
+                }
               />
             </View>
           ) : null}
