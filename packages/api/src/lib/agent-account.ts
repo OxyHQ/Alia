@@ -436,6 +436,17 @@ export async function setAgentAccountCharacter(params: {
   );
 }
 
+/** Rename a bot account (its display name), as the caller: the owner's, or an admin's. */
+export async function setAgentAccountName(params: {
+  accessToken: string;
+  oxyAccountId: string;
+  displayName: string;
+}): Promise<void> {
+  await oxy.withUser(params.accessToken, (user) =>
+    user.accounts.update(params.oxyAccountId, { name: { displayName: params.displayName } }),
+  );
+}
+
 function isConflict(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   return (error as { status?: unknown }).status === 409;
