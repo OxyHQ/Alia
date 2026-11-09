@@ -240,13 +240,18 @@ describe('the breadcrumb', () => {
     expect(content().chrome({}).title).toBe('chat.newChat');
   });
 
-  it('puts the SDK’s participants in the header, and draws no title of its own there', () => {
+  it('puts the SDK’s participants in the header once there is a conversation, and draws no title of its own there', () => {
     mount({ conversationId: 'c1', agentName: 'Atlas' });
     const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
-    const header = content().chrome({ participants }).header as React.ReactElement<
-      Record<string, unknown>
-    >;
+    const header = content().chrome({ participants, hasMessages: true })
+      .header as React.ReactElement<Record<string, unknown>>;
     expect(header.props).toEqual({ participants });
+  });
+
+  it('has no participants header on the empty chat: its greeting carries the mark', () => {
+    mount({ conversationId: 'c1', agentName: 'Atlas' });
+    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    expect(content().chrome({ participants, hasMessages: false }).header).toBeUndefined();
   });
 
   it('files a chat under the project that holds it, else its folder, else the tree', () => {
@@ -326,10 +331,9 @@ describe('what the account decides', () => {
 });
 
 describe('the frame', () => {
-  it('stands the chat on the screen’s surface, in the safe area, running only while on show', () => {
+  it('stands the chat in the safe area, running only while on show', () => {
     mount();
     expect(content()).toMatchObject({
-      surface: true,
       bottomInset: 34,
       isFocused: true,
       isDarkMode: true,

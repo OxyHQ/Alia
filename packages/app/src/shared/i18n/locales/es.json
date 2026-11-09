@@ -1278,6 +1278,8 @@
     "open": "Abrir"
   },
   "agents": {
+    "byAuthor": "de {{name}}",
+    "viewAll": "Ver todo",
     "title": "Agentes",
     "subtitle": "Descubre agentes capaces de planificar y completar trabajo real",
     "searchPlaceholder": "Buscar agentes...",

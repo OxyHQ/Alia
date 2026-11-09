@@ -1278,6 +1278,8 @@
     "open": "Open"
   },
   "agents": {
+    "byAuthor": "by {{name}}",
+    "viewAll": "View all",
     "title": "Agents",
     "subtitle": "Discover agents that can plan and complete real work",
     "searchPlaceholder": "Search agents...",
