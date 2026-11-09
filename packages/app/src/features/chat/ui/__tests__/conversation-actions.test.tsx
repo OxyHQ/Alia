@@ -153,6 +153,23 @@ beforeEach(() => {
   renderer = undefined;
 });
 
+describe('before there is a stored conversation', () => {
+  it('still offers starting a group, and leaves out what needs a thread', () => {
+    const menu = mount({ chat: chat({ conversationId: undefined, openSearch: vi.fn() }) });
+    expect(menu.onStartGroup).toBeTypeOf('function');
+    for (const needsThread of [
+      'onSearch',
+      'onShare',
+      'onStopSharing',
+      'onExport',
+      'onClear',
+      'onDelete',
+    ]) {
+      expect(menu[needsThread], needsThread).toBeUndefined();
+    }
+  });
+});
+
 describe('exporting the conversation', () => {
   it('names the document after the generated title the cache already holds', async () => {
     world.cachedTitle = 'Trip to Lugo';

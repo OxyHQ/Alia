@@ -172,19 +172,20 @@ export const ConversationScreen = ({
   );
   const chrome = useCallback(
     (chat: AliaChatState): AliaChatChrome => {
-      // Nothing is persisted on the new-chat screen to act on yet.
-      const actions =
-        conversationId === undefined ? undefined : (
-          <ConversationActions
-            chat={chat}
-            agentName={agentName}
-            agentId={agentId}
-            threadHandle={threadHandle}
-            // Only an ordinary chat is shared: an agent's thread is a view over several
-            // conversations, and a temporary chat is never stored.
-            shareable={!ephemeral && agentId === undefined && group === undefined}
-          />
-        );
+      // The menu is there from the first screen: starting a group, editing an agent and the panel
+      // need no stored conversation; what needs one (search, share, export, clear, delete) is
+      // left out of it until there is one.
+      const actions = (
+        <ConversationActions
+          chat={chat}
+          agentName={agentName}
+          agentId={agentId}
+          threadHandle={threadHandle}
+          // Only an ordinary chat is shared: an agent's thread is a view over several
+          // conversations, and a temporary chat is never stored.
+          shareable={!ephemeral && agentId === undefined && group === undefined}
+        />
+      );
       return {
         // Once there is a conversation its header is Bloom's `PageHeader` as the multi-agent chat
         // sets it: the participants centred, the actions beside them. (A container given its own
@@ -215,7 +216,7 @@ export const ConversationScreen = ({
         title: title || t('chat.newChat'),
         project: projectName,
         // The container's own row (the empty chat) carries the bell beside the actions.
-        actions: actions && (
+        actions: (
           <>
             <NotificationsBell />
             {actions}
