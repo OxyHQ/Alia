@@ -1,3 +1,4 @@
+import { GroupPickerDialog } from '@/features/agents/ui/group-picker-dialog';
 import { InviteDialog } from '@/features/onboarding/ui/invite-dialog';
 import {
   ProjectEditDialog,
@@ -88,6 +89,9 @@ const AGENT_KEY = 'agent:';
  * the chats filed in them; the account is the foot. Only the data is Alia's. The
  * dialogs the menus open sit beside the sidebar.
  */
+/** A contact row's picture: Bloom gives a tree row with a description a 36px leading box (`tree.avatar`, size `md`). */
+const AGENT_ROW_AVATAR = 36;
+
 export interface AliaSidebarProps {
   /** The drawer copy the shell shows below `lg` (the template's `mobile surface="plain"`). */
   mobile?: boolean;
@@ -394,7 +398,13 @@ function useSidebarProps() {
         key: `${AGENT_KEY}${agent._id}`,
         label: agentDisplayName(agent),
         // The agent's own character, drawn as a still portrait: a row is not a live renderer.
-        leading: <AgentAvatar character={readAgentCharacter(agent.character)} size={24} portrait />,
+        leading: (
+          <AgentAvatar
+            character={readAgentCharacter(agent.character)}
+            size={AGENT_ROW_AVATAR}
+            portrait
+          />
+        ),
         // The last line of the thread, under the name; before anything was said, the invitation.
         description: agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
         // Ahead of the press: its thread and conversation, when there is a conversation to read.
@@ -706,6 +716,7 @@ function useSidebarProps() {
         onSave={saveProject}
       />
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      <GroupPickerDialog />
     </>
   );
 

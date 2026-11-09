@@ -649,6 +649,8 @@
     "newStretch": "Conversación nueva",
     "chatWith": "Chat con %{name}",
     "reactToMessage": "Reaccionar al mensaje",
+    "groupWelcome": "Varias mentes, una conversación",
+    "groupPlaceholder": "Escribe al grupo",
     "replyToMessage": "Responder al mensaje",
     "moreActions": "Más acciones del mensaje",
     "searchThreadPlaceholder": "Buscar en este hilo",
@@ -1273,6 +1275,7 @@
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",
     "modelLabel": "Nivel de potencia",
+    "handleLabel": "Usuario",
     "handlePlaceholder": "identificador",
     "handleAdjusted": "Ese handle estaba cogido — tu agente es @%{handle}",
     "handleTaken": "Ese identificador ya está en uso. Prueba con otro.",
@@ -1958,6 +1961,13 @@
     "editingMessage": "Editando mensaje",
     "cancelEdit": "Cancelar",
     "powerLevel": "Potencia"
+  },
+  "group": {
+    "title": "Nuevo grupo",
+    "choose": "Elige quién se une a la conversación",
+    "start": "Empezar el grupo ({{count}})",
+    "startFailed": "No se pudo empezar el grupo",
+    "needTwo": "Un grupo necesita al menos dos agentes."
   },
   "panel": {
     "editor": "Editar agente",

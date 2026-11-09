@@ -160,6 +160,7 @@ export function ConversationActions({
   }, [terminalAgentId, pathname]);
 
   const openAgentEditor = useOpenAgentEditor();
+  const startGroup = useCallback(() => useUIStore.getState().setGroupPickerOpen(true), []);
   // The agents taking part, as the header shows them (Alia has no editor), each editable from the menu.
   const { lead, joined } = chat.participants;
   const agents = useMemo(
@@ -177,6 +178,7 @@ export function ConversationActions({
       onSearch={openSearch}
       agents={agents}
       onEditAgent={openAgentEditor}
+      onStartGroup={startGroup}
       onShare={shareable ? handleShare : undefined}
       onStopSharing={shareable ? handleStopSharing : undefined}
       onExport={handleExport}

@@ -649,6 +649,8 @@
     "newStretch": "New conversation",
     "chatWith": "Chat with %{name}",
     "reactToMessage": "React to message",
+    "groupWelcome": "A few minds, one conversation",
+    "groupPlaceholder": "Message the group",
     "replyToMessage": "Reply to message",
     "moreActions": "More message actions",
     "searchThreadPlaceholder": "Search this thread",
@@ -1283,6 +1285,7 @@
     "namePlaceholder": "Agent name",
     "colorLabel": "Colour",
     "modelLabel": "Power level",
+    "handleLabel": "Username",
     "handlePlaceholder": "handle",
     "handleAdjusted": "That handle was taken — your agent is @%{handle}",
     "handleTaken": "That handle is taken. Try another.",
@@ -1958,6 +1961,13 @@
     "editingMessage": "Editing message",
     "cancelEdit": "Cancel",
     "powerLevel": "Power"
+  },
+  "group": {
+    "title": "New group",
+    "choose": "Choose who is joining the conversation",
+    "start": "Start the group ({{count}})",
+    "startFailed": "Could not start the group",
+    "needTwo": "A group needs at least two agents."
   },
   "panel": {
     "editor": "Edit agent",

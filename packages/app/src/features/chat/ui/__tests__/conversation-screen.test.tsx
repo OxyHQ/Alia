@@ -283,6 +283,19 @@ describe('the breadcrumb', () => {
     expect(header.props.title).toBe('Atlas');
   });
 
+  it('hands a group’s members to the chat and does not offer to share it', () => {
+    const group = [
+      { id: 'a1', name: 'Atlas' },
+      { id: 'a2', name: 'Nadia' },
+    ];
+    mount({ conversationId: 'c1', group: group as never });
+    expect(content().group).toBe(group);
+    const actions = content().chrome({ hasMessages: true }).actions as React.ReactElement<{
+      children: React.ReactElement<{ shareable: boolean }>[];
+    }>;
+    expect(actions.props.children[1].props.shareable).toBe(false);
+  });
+
   it('offers sharing on an ordinary chat only, never on an agent’s thread', () => {
     const shareableOf = (props: Parameters<typeof mount>[0]) => {
       mount(props);

@@ -3,6 +3,7 @@ import {
   type AliaChatState,
   AliaChatContent,
   AliaParticipants,
+  type AliaParticipant,
   type AliaSuggestion,
 } from '@alia.onl/sdk';
 import { useConversation } from '@alia.onl/sdk/runtime';
@@ -58,6 +59,8 @@ interface ConversationScreenProps {
    * skeleton, rather than a page that waits.
    */
   loading?: boolean;
+  /** The conversation's members when it is a group (two or more); the route reads them. */
+  group?: readonly AliaParticipant[];
 }
 
 /** The SDK keys a suggestion by `id` and calls a fill-in-the-blanks one a `template`. */
@@ -90,6 +93,7 @@ export const ConversationScreen = ({
   agentName,
   threadHandle,
   loading = false,
+  group,
 }: ConversationScreenProps) => {
   const { t } = useTranslation();
   const { isAuthenticated, signIn } = useAuth();
@@ -178,7 +182,7 @@ export const ConversationScreen = ({
             threadHandle={threadHandle}
             // Only an ordinary chat is shared: an agent's thread is a view over several
             // conversations, and a temporary chat is never stored.
-            shareable={!ephemeral && agentId === undefined}
+            shareable={!ephemeral && agentId === undefined && group === undefined}
           />
         );
       return {
@@ -232,6 +236,7 @@ export const ConversationScreen = ({
         // An agent's thread is drawn as chat bubbles; Alia's own chat keeps its plain replies.
         bubbles={agentId !== undefined}
         loading={loading}
+        group={group}
         threadHandle={threadHandle}
         ephemeral={ephemeral}
         model={model}

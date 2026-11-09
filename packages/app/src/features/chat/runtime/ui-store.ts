@@ -54,6 +54,9 @@ interface UIState {
   lastContextUsage: ContextUsage | null;
   setContextUsage: (conversationId: string | null, usage: ContextUsage) => void;
   shortcutsDialogOpen: boolean;
+  /** The dialog in which the person picks the agents of a new group conversation. */
+  groupPickerOpen: boolean;
+  setGroupPickerOpen: (open: boolean) => void;
   canvasArtifacts: CanvasArtifact[];
   activeAgentSessionId: string | null;
   activeAgentId: string | null;
@@ -130,6 +133,8 @@ export const useUIStore = create<UIState>()(
               : { ...state.contextUsage, [conversationId]: usage },
         })),
       shortcutsDialogOpen: false,
+      groupPickerOpen: false,
+      setGroupPickerOpen: (open) => set({ groupPickerOpen: open }),
       canvasArtifacts: [],
       activeAgentSessionId: null,
       activeAgentId: null,

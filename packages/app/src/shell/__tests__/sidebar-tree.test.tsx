@@ -75,6 +75,7 @@ vi.mock('@alia.onl/sdk', () => ({
 }));
 vi.mock('@oxy.so/bloom/agent-avatar', () => ({ AgentAvatar: () => null }));
 vi.mock('@/features/onboarding/ui/invite-dialog', () => ({ InviteDialog: () => null }));
+vi.mock('@/features/agents/ui/group-picker-dialog', () => ({ GroupPickerDialog: () => null }));
 vi.mock('@/features/projects/ui/project-edit-dialog', () => ({ ProjectEditDialog: () => null }));
 vi.mock('@/features/settings/ui/settings-context', () => ({
   useAliaSettings: () => ({ open: vi.fn() }),

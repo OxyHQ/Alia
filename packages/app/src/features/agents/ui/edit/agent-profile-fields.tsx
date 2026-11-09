@@ -1,13 +1,11 @@
 import type { AgentDraft, IdentityDraft } from '@/features/agents/runtime/use-agent-autosave';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import { AgentCreator } from '@oxy.so/bloom/agent-creator';
-import { RiAtLine } from '@oxy.so/bloom/icons';
-import { TextField, TextFieldIcon, TextFieldInput as Input } from '@oxy.so/bloom/text-field';
-import { View } from 'react-native';
+import { AgentCreator, AgentCreatorField } from '@oxy.so/bloom/agent-creator';
+import { TextFieldInput } from '@oxy.so/bloom/text-field';
 
 /**
  * Who the agent is: Bloom's `AgentCreator` for the name, the tagline, the description and the
- * look, and the handle under it.
+ * look, and the handle as a row of the editor's own card ().
  *
  * Two stores, one editor. The name (and the handle) are the bot ACCOUNT's, saved to Oxy; the
  * tagline, description and character are the agent row's, saved to Alia. The editor hands back one
@@ -32,41 +30,39 @@ export function AgentProfileFields({
   const { t } = useTranslation();
 
   return (
-    <View className="flex-1">
-      <AgentCreator
-        style={{ flex: 1 }}
-        onClose={onClose}
-        showPreferences={false}
-        agent={{
-          id,
-          name: identity.name,
-          label: draft.tagline,
-          description: draft.description,
-          avatar: draft.character,
-        }}
-        onChange={(next) => {
-          if (next.name !== identity.name) onEditIdentity({ name: next.name });
-          const patch: Partial<AgentDraft> = {};
-          if (next.label !== draft.tagline) patch.tagline = next.label;
-          if (next.description !== draft.description) patch.description = next.description;
-          if (next.avatar !== draft.character) patch.character = next.avatar;
-          if (Object.keys(patch).length > 0) onEditDraft(patch);
-        }}
-      />
-      {/* The handle was PROPOSED at creation and may carry a collision suffix
-          nobody chose, so it is editable here rather than permanent. */}
-      <View className="px-4 pb-4 pt-2">
-        <TextField>
-          <TextFieldIcon icon={RiAtLine} />
-          <Input
-            label={t('agents.handlePlaceholder')}
-            value={identity.handle}
-            onChangeText={(text) => onEditIdentity({ handle: text })}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </TextField>
-      </View>
-    </View>
+    <AgentCreator
+      style={{ flex: 1 }}
+      onClose={onClose}
+      showPreferences={false}
+      agent={{
+        id,
+        name: identity.name,
+        label: draft.tagline,
+        description: draft.description,
+        avatar: draft.character,
+      }}
+      onChange={(next) => {
+        if (next.name !== identity.name) onEditIdentity({ name: next.name });
+        const patch: Partial<AgentDraft> = {};
+        if (next.label !== draft.tagline) patch.tagline = next.label;
+        if (next.description !== draft.description) patch.description = next.description;
+        if (next.avatar !== draft.character) patch.character = next.avatar;
+        if (Object.keys(patch).length > 0) onEditDraft(patch);
+      }}
+    >
+      {/* The handle was PROPOSED at creation and may carry a collision suffix nobody chose, so it is
+          editable here rather than permanent: a row of the editor's own card, handed in. */}
+      <AgentCreatorField label={t('agents.handleLabel')}>
+        <TextFieldInput
+          label={t('agents.handlePlaceholder')}
+          size="sm"
+          maxLength={32}
+          value={identity.handle}
+          onChangeText={(text) => onEditIdentity({ handle: text })}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </AgentCreatorField>
+    </AgentCreator>
   );
 }
