@@ -19,7 +19,9 @@ const ui = vi.hoisted(() => ({
     ui.rightPanel = panel;
   },
 }));
-vi.mock('@/features/notifications/ui/notifications-bell', () => ({ NotificationsBell: () => null }));
+vi.mock('@/features/notifications/ui/notifications-bell', () => ({
+  NotificationsBell: () => null,
+}));
 vi.mock('@oxy.so/bloom/icons/RiEditLine', () => ({ RiEditLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiSideBarLine', () => ({ RiSideBarLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiDashboardLine', () => ({ RiDashboardLine: () => null }));
