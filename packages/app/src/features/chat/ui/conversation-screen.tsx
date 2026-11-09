@@ -184,6 +184,8 @@ export const ConversationScreen = ({
       <AliaChatContent
         conversationId={conversationId}
         agent={agent}
+        // An agent's thread is drawn as chat bubbles; Alia's own chat keeps its plain replies.
+        bubbles={agentId !== undefined}
         threadHandle={threadHandle}
         ephemeral={ephemeral}
         model={model}

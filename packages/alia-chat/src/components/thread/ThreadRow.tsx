@@ -21,6 +21,7 @@ import Animated from 'react-native-reanimated';
 import type { ReadAloudState } from '../../hooks/useReadAloud';
 import type { Vote } from '../../hooks/useMessageVote';
 import { readAgentCharacter } from '../../lib/agent-character';
+import { useBubbles } from '../../lib/bubbles';
 import { getImagesFromContent, messageText } from '../../lib/content-utils';
 import { ANCHORS, useAliaFlights } from '../../lib/flights';
 import { useLabels } from '../../lib/labels';
@@ -38,6 +39,7 @@ import { CanvasComponent } from '../canvas/CanvasComponent';
 import { ReplyMarkdown } from '../ReplyMarkdown';
 import { MessageBlockBoundary } from './MessageBlockBoundary';
 import { ToolResultCard } from './ToolResultCard';
+import { ChatBubble } from './ChatBubble';
 import { TurnMenu } from './TurnMenu';
 import { TurnStatusLine } from './TurnStatusLine';
 
@@ -123,6 +125,8 @@ export const ThreadRow = memo(function ThreadRow({
       }
     : null;
 
+  const bubbles = useBubbles();
+
   if (!isReply) {
     const editAction: AiChatTurnAction | null =
       onStartEdit === undefined
@@ -140,18 +144,48 @@ export const ThreadRow = memo(function ThreadRow({
           // Bloom's user turn, with the breathing room above it the thread has always had.
           <View className="mt-2 w-full flex-col items-end">
             <TurnMenu actions={questionActions} label={t('chat.turnActions')}>
-              <AiChatUserMessage animate={isNew} actions={questionActions}>
-                {images.length > 0 && (
-                  <View className="flex-row flex-wrap gap-2">
-                    {images.map((url) => (
-                      <View key={url} className="size-[120px] overflow-hidden rounded-xl">
-                        <Image source={{ uri: url }} className="h-full w-full" contentFit="cover" />
-                      </View>
-                    ))}
-                  </View>
-                )}
-                {text}
-              </AiChatUserMessage>
+              {bubbles?.colors ? (
+                // An agent's thread: the person's turn is a bubble in the agent's colour.
+                <ChatBubble side="user" colors={bubbles.colors} actions={questionActions}>
+                  {images.length > 0 && (
+                    <View className="flex-row flex-wrap gap-2">
+                      {images.map((url) => (
+                        <View key={url} className="size-[120px] overflow-hidden rounded-xl">
+                          <Image
+                            source={{ uri: url }}
+                            className="h-full w-full"
+                            contentFit="cover"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  <Text
+                    variant="body-regular"
+                    selectable
+                    style={{ color: bubbles.colors.foreground }}
+                  >
+                    {text}
+                  </Text>
+                </ChatBubble>
+              ) : (
+                <AiChatUserMessage animate={isNew} actions={questionActions}>
+                  {images.length > 0 && (
+                    <View className="flex-row flex-wrap gap-2">
+                      {images.map((url) => (
+                        <View key={url} className="size-[120px] overflow-hidden rounded-xl">
+                          <Image
+                            source={{ uri: url }}
+                            className="h-full w-full"
+                            contentFit="cover"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {text}
+                </AiChatUserMessage>
+              )}
             </TurnMenu>
           </View>
         )}
@@ -219,6 +253,8 @@ function ReplyTurn({
   const plan = message.plan;
   const agent = message.agentInfo;
   const { readOnly = false } = actions;
+  /** In an agent's thread every reply is a bubble, and so is a consulted agent's anywhere. */
+  const bubbled = useBubbles() !== null || agent !== undefined;
 
   // A host's own drawing of a catalogue tool's result, before any generic card: keyed by the
   // tool's canonical name (`oxy_<app>__<tool>`), never by anything the model wrote.
@@ -341,6 +377,26 @@ function ReplyTurn({
   const agentLive = agent !== undefined && message.isStreaming === true;
   const agentAnchor = agent ? ANCHORS.reply(agent.id) : undefined;
 
+  const replyBody =
+    message.source === 'voice' ? (
+      <Text
+        className={
+          bubbled ? 'text-sm leading-5 text-foreground' : 'text-base leading-7 text-foreground'
+        }
+      >
+        {text}
+        {message.isStreaming ? '▌' : ''}
+      </Text>
+    ) : (
+      <ReplyMarkdown
+        size={bubbled ? 'md' : 'lg'}
+        content={text}
+        toolInvocations={message.toolInvocations}
+        researchSources={message.researchProgress?.sources}
+        streaming={message.isStreaming === true}
+      />
+    );
+
   return (
     <>
       {/* Plan Preview — shown before tool execution */}
@@ -382,7 +438,7 @@ function ReplyTurn({
           <TurnMenu actions={menuActions} label={t('chat.turnActions')}>
             <AiChatAssistantMessage
               animate={isNew}
-              feedback={hasFeedback}
+              feedback={hasFeedback && !bubbled}
               feedbackProps={{
                 onLike: () => actions.vote(message.id, 'up', storedIn),
                 onDislike: () => actions.vote(message.id, 'down', storedIn),
@@ -460,18 +516,14 @@ function ReplyTurn({
                   {t('chat.consultFailed', { name: agent.name })}
                 </Text>
               ) : null}
-              {message.source === 'voice' ? (
-                <Text className="text-base leading-7 text-foreground">
-                  {text}
-                  {message.isStreaming ? '▌' : ''}
-                </Text>
+              {bubbled ? (
+                // Only the words are the bubble: the work log and the cards stay above it, whole.
+                // Its turn actions are the icons beside it, so Bloom's own row under it is off.
+                <ChatBubble side="reply" actions={menuActions}>
+                  {replyBody}
+                </ChatBubble>
               ) : (
-                <ReplyMarkdown
-                  content={text}
-                  toolInvocations={message.toolInvocations}
-                  researchSources={message.researchProgress?.sources}
-                  streaming={message.isStreaming === true}
-                />
+                replyBody
               )}
             </AiChatAssistantMessage>
           </TurnMenu>

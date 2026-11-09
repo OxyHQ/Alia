@@ -19,6 +19,7 @@
 
 import { getAccountDisplayName } from '@oxy.so/core';
 import { useOxy } from '@oxy.so/services/ui/client';
+import { avatarBodyHex, resolveAvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { AiChatContainer, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import {
   AvatarFlightLayer,
@@ -50,6 +51,8 @@ import { useAttachMenu } from '../hooks/useAttachMenu';
 import { usePendingQuestions } from '../hooks/usePendingQuestions';
 import { useThreadView } from '../hooks/useThreadView';
 import { useTTS } from '../hooks/useTTS';
+import { bubbleColors } from '../lib/bubble-colors';
+import { BubblesProvider, type BubblesValue } from '../lib/bubbles';
 import type { AliaAddMenu } from '../lib/add-menu';
 import { AliaFlightsProvider } from '../lib/flights';
 import { type AliaChatParticipants, leadOf } from '../lib/participants';
@@ -201,6 +204,11 @@ export interface AliaChatContentProps {
    * there is anything to clear, whether it is a searchable thread).
    */
   chrome?: (state: AliaChatState) => AliaChatChrome;
+  /**
+   * Draw the turns as chat bubbles, as an agent's thread does: the person's in the agent's colour,
+   * the replies in a neutral one. Off, a thread keeps its ordinary look (Alia's own chat).
+   */
+  bubbles?: boolean;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /** The ambient field's shape: the whole `screen` (default) or a `sheet`'s smaller one. */
@@ -304,6 +312,7 @@ function AliaConversationView({
   onSuggestionQuery,
   onSuggestionPicked,
   chrome,
+  bubbles = false,
   isDarkMode,
   layout = 'screen',
   isFocused = true,
@@ -332,6 +341,18 @@ function AliaConversationView({
   // ── Who leads: the agent the chat was opened on, or Alia ──
   const { data: profile, isLoading: profileLoading } = useAgentProfile(agentId);
   const lead = useMemo(() => leadOf(profile), [profile]);
+  /** The bubbles' colours are the lead's own: an agent's body colour; Alia has none to lend. */
+  const bubblesValue = useMemo<BubblesValue | null>(
+    () =>
+      bubbles
+        ? {
+            colors: lead.isAlia
+              ? null
+              : bubbleColors(avatarBodyHex(resolveAvatarCharacter(lead.character))),
+          }
+        : null,
+    [bubbles, lead],
+  );
   const { data: features } = useAgentFeatures(agentId);
 
   // A failure reaches the host's handler when it has one, and Bloom's toast otherwise.
@@ -693,26 +714,28 @@ function AliaConversationView({
         surface={false}
         background={background}
       >
-        <AliaThread
-          // Nothing live under a window: it is a view of the past, and the conversation being
-          // streamed into is not below it in the thread.
-          messages={showsPast ? NO_MESSAGES : messages}
-          conversationId={conversationId}
-          isLoading={isLoading}
-          conversationLoading={conversationLoading}
-          history={view.history}
-          focusCursor={view.focusCursor}
-          failedTurn={failedTurn}
-          onRetryTurn={retryFailedTurn}
-          onRegenerate={composer.regenerate}
-          onStartEdit={edit.start}
-          newConversationOffer={newConversationOffer}
-          agentActivity={agentRun === null ? null : agentActivity}
-          call={voice.isActive ? { agentState: voice.agentState } : undefined}
-          empty={welcome}
-          threadRef={threadRef}
-          onScroll={onScroll}
-        />
+        <BubblesProvider value={bubblesValue}>
+          <AliaThread
+            // Nothing live under a window: it is a view of the past, and the conversation being
+            // streamed into is not below it in the thread.
+            messages={showsPast ? NO_MESSAGES : messages}
+            conversationId={conversationId}
+            isLoading={isLoading}
+            conversationLoading={conversationLoading}
+            history={view.history}
+            focusCursor={view.focusCursor}
+            failedTurn={failedTurn}
+            onRetryTurn={retryFailedTurn}
+            onRegenerate={composer.regenerate}
+            onStartEdit={edit.start}
+            newConversationOffer={newConversationOffer}
+            agentActivity={agentRun === null ? null : agentActivity}
+            call={voice.isActive ? { agentState: voice.agentState } : undefined}
+            empty={welcome}
+            threadRef={threadRef}
+            onScroll={onScroll}
+          />
+        </BubblesProvider>
         {!showsPast ? null : (
           <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
             <Button appearance="outline" tone="neutral" size="sm" onPress={view.backToLatest}>

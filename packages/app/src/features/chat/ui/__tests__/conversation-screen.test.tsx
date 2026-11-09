@@ -331,6 +331,13 @@ describe('what the account decides', () => {
 });
 
 describe('the frame', () => {
+  it('draws an agent’s thread as chat bubbles, and Alia’s own chat plain', () => {
+    mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' });
+    expect(content()).toMatchObject({ bubbles: true });
+    mount({ conversationId: 'c1' });
+    expect(content()).toMatchObject({ bubbles: false });
+  });
+
   it('stands the chat in the safe area, running only while on show', () => {
     mount();
     expect(content()).toMatchObject({
