@@ -83,6 +83,11 @@ vi.mock('../../../db/agents/skillRepository.js', () => ({
  * on `db.select` inside a `catch`-wrapped save and quietly change what this
  * suite observes. Stubbed at the module boundary.
  */
+// No conversation here is a group: the members repository would need a real database.
+vi.mock('../../../db/chat/conversationMemberRepository.js', () => ({
+  listGroupMembers: vi.fn(async () => []),
+}));
+
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
   conversationExists: vi.fn(async () => false),
   updateConversationTitle: vi.fn(async () => 1),
