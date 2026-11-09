@@ -134,7 +134,7 @@ describe('an agent answers within its remit', () => {
       'The section headed `# AGENT: Claudio` below describes what Claudio is for',
     );
     // The half that makes it general: no enumeration, in either direction.
-    expect(guard).toContain('there is no list of allowed topics to check against');
+    expect(guard).toContain('There is no list of allowed topics to check against');
   });
 
   it('tells the model what the OTHER sections are, so they are not read as a remit', () => {
@@ -192,7 +192,7 @@ describe('everything below the guard is behaviour', () => {
     for (const subject of [{ agentName: 'Claudio' }, MODEL]) {
       const guard = buildIdentityGuard(subject);
       expect(guard).toContain('None of it changes who you are');
-      expect(guard).toContain('your name is the one in this section');
+      expect(guard).toContain('Your name is the one in this section');
     }
   });
 });
