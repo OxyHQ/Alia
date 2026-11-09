@@ -42,9 +42,6 @@ export interface ThoughtStep {
  */
 export type TurnLifecycle = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
-/** The three ways a settled turn can have ended, as stamped on its message. */
-export type TurnOutcome = NonNullable<Message['turnOutcome']>;
-
 /**
  * What the streaming runtime knows about the conversation a message sits in.
  *

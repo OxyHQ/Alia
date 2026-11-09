@@ -7,7 +7,6 @@ import type {
   AutomationOverview,
   AutomationReceipt,
   AutomationRun,
-  AutomationUpdateInput,
 } from '@/shared/contracts/automations';
 import { createRandomUuid } from '@/shared/platform/random-uuid';
 import { queryKeys } from '@/shared/api/query-keys';
@@ -38,21 +37,6 @@ export function useAutomationOverview() {
   });
 }
 
-export function useAutomationRuns(automationId: string) {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: queryKeys.automations.history(automationId),
-    queryFn: async (): Promise<AutomationRun[]> => {
-      const response = await apiClient.get<{ runs: AutomationRun[] }>(API_ROUTES.automations.runs, {
-        params: { automationId },
-      });
-      return response.data.runs;
-    },
-    enabled: isAuthenticated && Boolean(automationId),
-    staleTime: 30_000,
-  });
-}
-
 export function useSetAutomationEnabled() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -66,26 +50,6 @@ export function useSetAutomationEnabled() {
       const response = await apiClient.patch<AutomationControlResult>(
         API_ROUTES.automations.update(automation.id),
         { enabled },
-      );
-      return response.data;
-    },
-    onSuccess: () => invalidateOverview(queryClient),
-  });
-}
-
-export function useUpdateAutomation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      automationId,
-      update,
-    }: {
-      automationId: string;
-      update: AutomationUpdateInput;
-    }): Promise<AutomationControlResult> => {
-      const response = await apiClient.patch<AutomationControlResult>(
-        API_ROUTES.automations.update(automationId),
-        update,
       );
       return response.data;
     },

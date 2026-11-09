@@ -45,13 +45,9 @@ import {
 } from '../../domain/capability-grants.js';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../../..');
-// The editor's saves live in its hooks since the route was thinned (#608 §4):
-// the autosave, and the publish toggle among the editor's actions. The screen
-// under `app/(app)/agents/edit/` only composes them.
-const EDITOR = [
-  'packages/app/src/features/agents/runtime/use-agent-autosave.ts',
-  'packages/app/src/features/agents/runtime/use-agent-editor-actions.ts',
-];
+// The editor's saves live in its autosave hook (#608 §4). The editor is Bloom's `AgentCreator` in
+// the right panel (a screen on phones); it has no publish toggle or other action of its own.
+const EDITOR = ['packages/app/src/features/agents/runtime/use-agent-autosave.ts'];
 const FAMILIES = 'packages/app/src/features/chat/model/capability-families.ts';
 
 const state = vi.hoisted(() => ({
@@ -332,17 +328,12 @@ describe('the editor and the route agree on what a save contains', () => {
     // The vacuity floor. A moved file, a payload bound to a `const` first, or a
     // parser that stopped matching all produce an empty list, which would
     // satisfy every assertion below by iterating zero times.
-    //
-    // TWO payloads: the autosave and the publish toggle. They go through the
-    // same route with different bodies, and a census that found only one would
-    // stop covering whichever it lost.
-    expect(editorSavePayloads().length).toBeGreaterThanOrEqual(2);
+    expect(editorSavePayloads().length).toBeGreaterThanOrEqual(1);
 
     const keys = editorSaveKeys();
     expect(keys.length).toBeGreaterThanOrEqual(10);
     expect(keys).toContain('tagline');
     expect(keys).toContain('systemPrompt');
-    expect(keys).toContain('isPublished');
   });
 
   it('has a fixture value for every key the editor sends', () => {

@@ -76,16 +76,6 @@ export interface CatalogueFilters {
   publisher?: string;
 }
 
-export function useSkillCatalogue(filters: CatalogueFilters = {}) {
-  return useQuery({
-    queryKey: queryKeys.skills.catalogue(filters as Record<string, string | undefined>),
-    queryFn: async (): Promise<Skill[]> => {
-      const response = await apiClient.get(API_ROUTES.skills.catalogue, { params: filters });
-      return response.data.skills ?? [];
-    },
-  });
-}
-
 /** How many catalogue rows one page asks for. The server clamps at 100 and defaults to 60. */
 export const CATALOGUE_PAGE_SIZE = 24;
 
@@ -95,9 +85,7 @@ export const CATALOGUE_PAGE_SIZE = 24;
  * The server's default answer is sixty rows, and the screen used to mount a
  * cover for every one of them at once (#545). The API already takes `limit`
  * and `offset` and returns no total, so a page is the last one when it comes
- * back short. `pageSize` is part of the key so this cache never collides with
- * `useSkillCatalogue`'s flat array under the same filters; both still sit
- * under `['skills', 'catalogue']`, which is what an install invalidates.
+ * back short. It sits under `['skills', 'catalogue']`, which is what an install invalidates.
  */
 export function useSkillCataloguePages(
   filters: CatalogueFilters = {},
