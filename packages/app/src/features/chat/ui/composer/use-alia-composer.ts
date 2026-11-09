@@ -19,7 +19,6 @@ import type { SendOptions } from '@/shared/contracts/chat-turn';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
-import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useMemo } from 'react';
 
 /**
@@ -104,8 +103,6 @@ export function useComposerMenu({
       useComposerDraftStore.getState().addAttachment(address, attachment),
     [address],
   );
-  const webSearch = useModelStore((s) => s.webSearch);
-  const setWebSearch = useModelStore((s) => s.setWebSearch);
   const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
   const { installed } = useMcpServers();
   const { data: installedSkills = [] } = useInstalledSkills();
@@ -127,21 +124,11 @@ export function useComposerMenu({
     [installedSkills, installed, skillNames, connectorId],
   );
 
-  // Withholds three tools rather than rewording a prompt: an off switch the model cannot overrule
-  // (see `src/features/chat/runtime/model-store.ts`).
-  const toggleWebSearch = useCallback(() => {
-    const next = !webSearch;
-    setWebSearch(next);
-    toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
-  }, [webSearch, setWebSearch, t]);
-
   return useComposerAddMenu({
     addAttachment,
     canAttach: !locked,
     modes: modeActive,
     toggleMode,
-    webSearch,
-    onToggleWebSearch: toggleWebSearch,
     onOpenCanvas: () => useUIStore.getState().setRightPanel('canvas'),
     offerGhost,
     turnSelection,

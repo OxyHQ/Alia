@@ -661,11 +661,7 @@ export function useConversationStream({
          * when the callback was built would send the state the composer had
          * before the person touched it.
          */
-        const {
-          deepResearch: deepResearchMode,
-          webSearch,
-          personalization,
-        } = host.turnRequest?.() ?? {};
+        const { deepResearch: deepResearchMode, personalization } = host.turnRequest?.() ?? {};
 
         // The host's tools, and the outcomes of the actions it performed since the last request.
         const outcomes = hostOutcomesRef.current.pending();
@@ -692,10 +688,7 @@ export function useConversationStream({
             assistantMessageId: assistantMessage.id,
             stream: true,
             ...(conversationId && { conversationId }),
-            // Only sent when OFF. `true` is the server's default and every
-            // request has behaved that way, so sending it would be noise.
-            ...(webSearch === false && { webSearch: false }),
-            // Only sent when OFF, like web search: absent is the server's default.
+            // Only sent when OFF: absent is the server's default.
             ...(personalization === false && { personalization: false }),
             // The power level (or a device model). Oxy picks the model of that
             // level; the client never names a hosted model.

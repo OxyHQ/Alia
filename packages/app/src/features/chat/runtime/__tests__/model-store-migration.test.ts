@@ -61,9 +61,9 @@ describe('model store persisted-state migration (v4: power levels)', () => {
   });
 
   it('keeps a v4 level and a v4 device model, and repairs an unknown one', () => {
+    // The web search switch is gone: whatever it was set to is not carried over.
     expect(migrateModelState({ selectedLevel: 'xhigh', webSearch: false }, 4)).toEqual({
       selectedLevel: 'xhigh',
-      webSearch: false,
     });
     expect(migrateModelState({ selectedLevel: 'local/lm/qwen' }, 4).selectedLevel).toBe(
       'local/lm/qwen',
@@ -71,7 +71,7 @@ describe('model store persisted-state migration (v4: power levels)', () => {
     expect(migrateModelState({ selectedLevel: 'acme/model' }, 4).selectedLevel).toBe('auto');
   });
 
-  it('keeps web search, drops effort and pins, and survives a malformed state', () => {
+  it('drops web search, effort and pins, and survives a malformed state', () => {
     expect(
       migrateModelState(
         {
@@ -82,8 +82,8 @@ describe('model store persisted-state migration (v4: power levels)', () => {
         },
         3,
       ),
-    ).toEqual({ selectedLevel: 'auto', webSearch: false });
-    expect(migrateModelState(null, 2)).toEqual({ selectedLevel: 'auto', webSearch: true });
-    expect(migrateModelState('garbage', 0)).toEqual({ selectedLevel: 'auto', webSearch: true });
+    ).toEqual({ selectedLevel: 'auto' });
+    expect(migrateModelState(null, 2)).toEqual({ selectedLevel: 'auto' });
+    expect(migrateModelState('garbage', 0)).toEqual({ selectedLevel: 'auto' });
   });
 });

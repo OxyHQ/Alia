@@ -7,9 +7,8 @@ import { migrateModelState } from './model-store-migration';
 /**
  * What the user last chose, across app launches.
  *
- * Two independent things, held separately because the request body models
- * them separately: HOW MUCH POWER a turn gets ({@link ModelState.selectedLevel})
- * and WHAT IT MAY REACH FOR ({@link ModelState.webSearch}).
+ * HOW MUCH POWER a turn gets ({@link ModelState.selectedLevel}). Whether Alia may search the web is
+ * not a choice held here: she can always search, and the server decides when it is worth it.
  *
  * The store holds the REQUESTED value and never validates it:
  * `resolveModeSelection` (`src/features/chat/model/power-levels.ts`) is where a
@@ -23,33 +22,26 @@ interface ModelState {
    * Never a hosted model: Alia's users choose power, not models.
    */
   selectedLevel: PowerLevel | string;
-  /**
-   * Whether Alia may reach the open web. `true` by default, which is what the
-   * backend does when the request says nothing.
-   */
-  webSearch: boolean;
 
   setSelectedLevel: (level: PowerLevel | string) => void;
-  setWebSearch: (on: boolean) => void;
 }
 
 export const useModelStore = create<ModelState>()(
   persist(
     (set) => ({
       selectedLevel: DEFAULT_POWER_LEVEL,
-      webSearch: true,
 
       setSelectedLevel: (level) => set({ selectedLevel: level }),
-      setWebSearch: (on) => set({ webSearch: on }),
     }),
     {
       name: 'chat-storage', // keep same key for backwards compat
       storage: createJSONStorage(() => AsyncStorage),
-      version: 4,
+      version: 5,
       /**
        * v4 replaced the model picker with power levels. Every stored model
        * becomes `auto`; the old `instant` / `max` efforts become `instant` /
-       * `ultra`; a device model survives (`model-store-migration.ts`).
+       * `ultra`; a device model survives (`model-store-migration.ts`). v5 dropped the web
+       * search switch: a stored `webSearch` is not carried over.
        */
       migrate: (persisted, version) => migrateModelState(persisted, version) as ModelState,
     },
