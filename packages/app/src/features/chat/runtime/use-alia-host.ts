@@ -26,6 +26,9 @@ const MEMORY_WRITING_TOOLS = new Set([
   'updateUserContext',
 ]);
 
+/** Server tools that create or change the person's agents (`lib/tools/agent-create.ts`, `agent-manage.ts`). */
+const AGENT_WRITING_TOOLS = new Set(['createAgent', 'updateAgent']);
+
 /**
  * What the Alia app tells the SDK's conversation runtime about itself.
  *
@@ -76,10 +79,14 @@ export function useAliaHost(): AliaRuntimeHost {
           });
         }
       },
-      // The assistant just rewrote the memory document, so any screen showing it is out of date.
+      // The assistant just rewrote the memory document, or made or changed one of the person's
+      // agents, so any screen showing them (the sidebar's agent rows) is out of date.
       onToolResult: ({ name }) => {
         if (name && MEMORY_WRITING_TOOLS.has(name)) {
           void queryClient.invalidateQueries({ queryKey: USER_MEMORY_QUERY_KEY });
+        }
+        if (name && AGENT_WRITING_TOOLS.has(name)) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.agents.mine });
         }
       },
       onArtifact: (artifact) => {
