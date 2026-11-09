@@ -505,6 +505,14 @@
     "collapse": "Contraer barra lateral",
     "expand": "Expandir barra lateral",
     "noAgentMessages": "Sin mensajes todavía",
+    "create": {
+      "chat": "Chat nuevo",
+      "chatHint": "Habla con Alia",
+      "agent": "Agente nuevo",
+      "agentHint": "Personaliza a un nuevo compañero",
+      "group": "Chat de grupo",
+      "groupHint": "Reúne a tus agentes en un solo chat"
+    },
     "chats": "Chats",
     "support": "Soporte",
     "tasks": "Tareas",
@@ -649,6 +657,8 @@
     "newStretch": "Conversación nueva",
     "chatWith": "Chat con %{name}",
     "reactToMessage": "Reaccionar al mensaje",
+    "groupWelcome": "Varias mentes, una conversación",
+    "groupPlaceholder": "Escribe al grupo",
     "reaction": "Has reaccionado con {{emoji}}",
     "reactionFailed": "No se ha podido guardar tu reacción.",
     "replyToMessage": "Responder al mensaje",
@@ -1275,6 +1285,7 @@
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",
     "modelLabel": "Nivel de potencia",
+    "handleLabel": "Usuario",
     "handlePlaceholder": "identificador",
     "handleAdjusted": "Ese handle estaba cogido — tu agente es @%{handle}",
     "handleTaken": "Ese identificador ya está en uso. Prueba con otro.",
@@ -1960,6 +1971,13 @@
     "editingMessage": "Editando mensaje",
     "cancelEdit": "Cancelar",
     "powerLevel": "Potencia"
+  },
+  "group": {
+    "title": "Nuevo grupo",
+    "choose": "Elige quién se une a la conversación",
+    "start": "Empezar el grupo ({{count}})",
+    "startFailed": "No se pudo empezar el grupo",
+    "needTwo": "Un grupo necesita al menos dos agentes."
   },
   "panel": {
     "editor": "Editar agente",

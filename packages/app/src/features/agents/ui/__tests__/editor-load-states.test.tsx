@@ -291,6 +291,8 @@ vi.mock('@oxy.so/bloom/agent-creator', async () => {
   return {
     AgentCreator: (props: Record<string, unknown>) =>
       ReactModule.createElement('AgentCreator', props),
+    AgentCreatorField: (props: Record<string, unknown>) =>
+      ReactModule.createElement('AgentCreatorField', props),
   };
 });
 vi.mock('@/shared/platform/useColorScheme', () => ({

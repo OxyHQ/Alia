@@ -127,6 +127,7 @@ vi.mock('../../src/components/AliaComposer', () => ({
     return props.emptyAction ?? null;
   },
 }));
+vi.mock('../../src/components/AliaGroupWelcome', () => ({ AliaGroupWelcome: () => null }));
 vi.mock('../../src/components/VoiceModeIcon', () => ({ VoiceModeIcon: () => null }));
 vi.mock('../../src/components/voice/AliaVoiceCall', () => ({
   AliaVoiceCall: (props: Record<string, unknown>) => {

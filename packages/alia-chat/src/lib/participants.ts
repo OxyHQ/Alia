@@ -31,6 +31,17 @@ export interface AliaChatParticipants {
   joined: AliaParticipant[];
 }
 
+/**
+ * The participants of a GROUP conversation: nobody leads it, so the first member stands in as the
+ * lead the chat's frame needs (the header lists them all) and the rest are already in it. Members
+ * do not join through flights: they were there when the conversation was made.
+ */
+export function groupParticipants(members: readonly AliaParticipant[]): AliaChatParticipants {
+  const [first, ...rest] = members;
+  if (first === undefined) return { lead: ALIA_LEAD, joined: [] };
+  return { lead: { ...first, isAlia: false, starters: [] }, joined: rest };
+}
+
 /** Alia as a lead. */
 export const ALIA_LEAD: AliaLead = {
   id: 'alia',

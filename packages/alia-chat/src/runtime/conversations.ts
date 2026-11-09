@@ -531,10 +531,15 @@ export function useCreateConversation() {
   const labels = useLabels();
 
   return useMutation({
-    mutationFn: async (params?: { agentId?: string }): Promise<Conversation> => {
+    mutationFn: async (params?: {
+      agentId?: string;
+      /** Two to six agents: a group conversation, answered by each in turn. */
+      agentIds?: readonly string[];
+    }): Promise<Conversation> => {
       try {
         const { data } = await client.api.post<ApiConversation>(API_ROUTES.conversations.create, {
           ...(params?.agentId && { agentId: params.agentId }),
+          ...(params?.agentIds && { agentIds: params.agentIds }),
           ...(client.app === undefined ? {} : { app: client.app }),
         });
         return {
@@ -543,6 +548,7 @@ export function useCreateConversation() {
           lastMessage: undefined,
           source: data.source,
           agentId: data.agentId,
+          memberAgentIds: data.memberAgentIds,
           app: data.app,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),

@@ -95,6 +95,11 @@ export interface Conversation {
    * arrives carrying an explicit `null`.
    */
   agentId?: string | null;
+  /**
+   * The agents of a GROUP conversation, in the order they answer; absent on any other. A group has
+   * no lead: every message is answered by each member in turn (`agentId` is `null`).
+   */
+  memberAgentIds?: string[];
   /** The app the conversation started in, by its slug, or `null` for Alia's own surfaces. */
   app?: string | null;
   createdAt: Date;

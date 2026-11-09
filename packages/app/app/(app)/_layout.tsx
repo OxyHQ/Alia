@@ -42,6 +42,9 @@ const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]']);
  * A chat route — or a local visual fixture (`__*.tsx`, never committed), which
  * mounts a chat screen and composes its own container the same way.
  */
+/** The agent editor's panel width: Bloom's own multi-agent chat sets its editor at this order. */
+const EDITOR_PANEL_WIDTH = 380;
+
 const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('__');
 
 /** The crumb each page's section gets. */
@@ -185,7 +188,9 @@ export default function AppLayout() {
       sidebar={sidebar}
       mobileSidebar={mobileSidebar}
       labels={shellLabels}
-      defaultPanelWidth={rightPanelWidth}
+      defaultPanelWidth={rightPanel === 'editor' ? EDITOR_PANEL_WIDTH : rightPanelWidth}
+      // The editor has a width of its own; every other panel is dragged.
+      panelResizable={rightPanel !== 'editor'}
       // The panel exists only while something has opened it: the agent at
       // work (its tools, the files it writes, a run) or the chat's menu.
       // Closed, the conversation has the whole width.

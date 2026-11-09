@@ -53,7 +53,12 @@ import { useTTS } from '../hooks/useTTS';
 import { BubblesProvider } from '../lib/bubbles';
 import type { AliaAddMenu } from '../lib/add-menu';
 import { AliaFlightsProvider } from '../lib/flights';
-import { type AliaChatParticipants, leadOf } from '../lib/participants';
+import {
+  type AliaChatParticipants,
+  type AliaParticipant,
+  groupParticipants,
+  leadOf,
+} from '../lib/participants';
 import { type AliaToolRenderers, AliaToolRenderersProvider } from '../lib/tool-renderers';
 import { KeyboardSafeAreaFloor } from '../lib/keyboard';
 import { type AliaChatLabels, AliaChatLabelsProvider, useLabels } from '../lib/labels';
@@ -71,6 +76,7 @@ import type { AliaSuggestion } from '../types';
 import type { AliaAvatarState } from './AliaAvatar';
 import { AliaComposer } from './AliaComposer';
 import { useParticipants } from './AliaParticipants';
+import { AliaGroupWelcome } from './AliaGroupWelcome';
 import { AliaWelcomeMessage } from './AliaWelcomeMessage';
 import { AmbientField } from './AmbientField';
 import { AliaThread } from './thread/AliaThread';
@@ -208,6 +214,12 @@ export interface AliaChatContentProps {
    */
   bubbles?: boolean;
   /**
+   * The conversation is a GROUP: its members, in the order they answer (two or more). Nobody leads
+   * it, so the header lists them all, the empty chat shows them together, and every reply is a
+   * bubble under its author's name. The host reads them from the conversation's `memberAgentIds`.
+   */
+  group?: readonly AliaParticipant[];
+  /**
    * The host is still resolving WHICH conversation this is (an agent's thread is looked up by its
    * handle before its conversation is known). The chat is drawn at once, with the thread's
    * skeleton where the turns will be, and cannot send until the host says what it is talking to.
@@ -317,6 +329,7 @@ function AliaConversationView({
   onSuggestionPicked,
   chrome,
   bubbles = false,
+  group,
   loading = false,
   isDarkMode,
   layout = 'screen',
@@ -345,7 +358,10 @@ function AliaConversationView({
 
   // ── Who leads: the agent the chat was opened on, or Alia ──
   const { data: profile, isLoading: profileLoading } = useAgentProfile(agentId);
-  const lead = useMemo(() => leadOf(profile), [profile]);
+  const lead = useMemo(
+    () => (group === undefined ? leadOf(profile) : groupParticipants(group).lead),
+    [group, profile],
+  );
   const { data: features } = useAgentFeatures(agentId);
 
   // A failure reaches the host's handler when it has one, and Bloom's toast otherwise.
@@ -382,7 +398,11 @@ function AliaConversationView({
     failedTurn,
     retryFailedTurn,
   } = thread;
-  const participants = useParticipants({ lead, messages, flights });
+  const consulted = useParticipants({ lead, messages, flights });
+  const participants = useMemo(
+    () => (group === undefined ? consulted : groupParticipants(group)),
+    [group, consulted],
+  );
   const asked = usePendingQuestions(messages, isLoading);
   const view = useThreadView(threadHandle, conversationId);
   const agentActivity = useAgentActivity(agentRun?.turnId ?? null, agentRun?.agentId);
@@ -529,11 +549,15 @@ function AliaConversationView({
     () =>
       profileLoading ? null : (
         <View className="items-center gap-8">
-          <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} lead={lead} />
+          {group === undefined ? (
+            <AliaWelcomeMessage greeting={greeting} subtitle={welcomeSubtitle} lead={lead} />
+          ) : (
+            <AliaGroupWelcome members={group} />
+          )}
           {welcomeAccessory}
         </View>
       ),
-    [profileLoading, greeting, welcomeSubtitle, lead, welcomeAccessory],
+    [profileLoading, greeting, welcomeSubtitle, lead, group, welcomeAccessory],
   );
 
   // ── The agent's offer to start the next stretch fresh ──
@@ -684,7 +708,9 @@ function AliaConversationView({
               ? t('usageLimit.inputDisabledPlaceholder')
               : editing !== undefined
                 ? t('composer.editPlaceholder')
-                : labels.placeholder(lead.name)
+                : group === undefined
+                  ? labels.placeholder(lead.name)
+                  : t('chat.groupPlaceholder')
           }
           status={status}
           // The mode selector is the power level: how much power this turn gets.
@@ -722,7 +748,7 @@ function AliaConversationView({
         surface={false}
         background={background}
       >
-        <BubblesProvider value={bubbles}>
+        <BubblesProvider value={bubbles || group !== undefined}>
           <AliaThread
             // Nothing live under a window: it is a view of the past, and the conversation being
             // streamed into is not below it in the thread.
