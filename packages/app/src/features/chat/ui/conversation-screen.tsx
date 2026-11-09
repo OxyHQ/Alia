@@ -169,7 +169,9 @@ export const ConversationScreen = ({
             agentName={agentName}
             agentId={agentId}
             threadHandle={threadHandle}
-            shareable={!ephemeral}
+            // Only an ordinary chat is shared: an agent's thread is a view over several
+            // conversations, and a temporary chat is never stored.
+            shareable={!ephemeral && agentId === undefined}
           />
         );
       return {

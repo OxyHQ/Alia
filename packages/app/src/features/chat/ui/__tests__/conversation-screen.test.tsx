@@ -273,6 +273,18 @@ describe('the breadcrumb', () => {
     expect(alia.props.title.props.onPress).toBeUndefined();
   });
 
+  it('offers sharing on an ordinary chat only, never on an agent’s thread', () => {
+    const shareableOf = (props: Parameters<typeof mount>[0]) => {
+      mount(props);
+      const actions = content().chrome({ hasMessages: true }).actions as React.ReactElement<{
+        children: React.ReactElement<{ shareable: boolean }>[];
+      }>;
+      return actions.props.children[1].props.shareable;
+    };
+    expect(shareableOf({ conversationId: 'c1' })).toBe(true);
+    expect(shareableOf({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' })).toBe(false);
+  });
+
   it('has no participants header on the empty chat: its greeting carries the mark', () => {
     mount({ conversationId: 'c1', agentName: 'Atlas' });
     const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
