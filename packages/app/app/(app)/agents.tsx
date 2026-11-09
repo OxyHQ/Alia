@@ -7,9 +7,8 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { Chip, ChipRow } from '@oxy.so/bloom/chip';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -223,7 +222,7 @@ export default function AgentsScreen() {
     if (loading) return null;
     return (
       <EmptyState
-        icon={RiRobot2Line}
+        sticker={searchQuery ? 'agentsNoResults' : 'agentsEmpty'}
         title={t('agents.noAgents')}
         description={searchQuery ? t('common.tryDifferentSearch') : t('agents.createFirstHint')}
         // Creating an agent is a real screen, so an empty list offers it

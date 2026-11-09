@@ -3,8 +3,7 @@ import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
 import { useAgentThread } from '@/features/agents/runtime/use-agent-thread';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
@@ -74,7 +73,7 @@ const AgentThreadPage = () => {
     return (
       <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
         <View className="flex-1 justify-center">
-          <EmptyState icon={RiRobot2Line} title={t('agents.notFound')} />
+          <EmptyState sticker="agentNotFound" title={t('agents.notFound')} />
         </View>
       </ChatWorkspace>
     );

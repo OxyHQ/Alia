@@ -1,6 +1,5 @@
 import { WorkItemRow } from '@/features/automations/ui/work-item-row';
 import { WorkListHeader } from '@/features/automations/ui/work-list-header';
-import type { AutomationDefinition } from '@/shared/contracts/automations';
 import type { WorkItem } from '@/features/automations/model/work-items';
 import { useAgentNames } from '@/features/agents/runtime/use-agent-names';
 import { useAutomationControls } from '@/features/automations/runtime/use-automation-controls';
@@ -9,8 +8,7 @@ import type { TaskSession } from '@/features/automations/runtime/use-tasks';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Divider } from '@oxy.so/bloom/divider';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { RiInbox2Line } from '@oxy.so/bloom/icons/RiInbox2Line';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
@@ -80,7 +78,7 @@ export default function TasksPage() {
     </View>
   ) : work.isError && work.items.length === 0 ? undefined : (
     <EmptyState
-      icon={RiInbox2Line}
+      sticker={work.tab === 'active' ? 'tasksActive' : 'tasksHistory'}
       title={work.tab === 'active' ? t('tasks.emptyActive') : t('tasks.emptyHistory')}
       description={work.tab === 'active' ? t('tasks.emptyActiveHint') : undefined}
     />
