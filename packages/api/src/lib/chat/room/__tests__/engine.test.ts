@@ -423,3 +423,64 @@ describe('room engine: one speaker at a time per room', () => {
     expect(seen).toEqual([['blind'], ['saw']]);
   });
 });
+
+describe('room engine: a reply that does not store', () => {
+  /** Makes `storeReply` throw `failures` times, then store as usual. */
+  function flaky(h: ReturnType<typeof harness>, failures: number) {
+    const real = h.deps.storeReply;
+    let calls = 0;
+    (h.deps as { storeReply: typeof real }).storeReply = async (input) => {
+      calls += 1;
+      if (calls <= failures) throw new Error('database blinked');
+      return real(input);
+    };
+    (h.deps as { storeRetryDelaysMs?: readonly number[] }).storeRetryDelaysMs = [0, 0];
+    return () => calls;
+  }
+
+  it('waits out a blink: the paid reply is stored and the member is not run again', async () => {
+    const h = harness({ script: (id) => `reply from ${id}` });
+    const calls = flaky(h, 2);
+
+    await h.drain(h.first({ pending: [] }));
+
+    expect(calls()).toBe(3);
+    expect(h.rows.filter((r) => r.role === 'assistant').map((r) => r.content)).toEqual([
+      'reply from a',
+    ]);
+    expect(h.runs).toHaveLength(1);
+    expect(kinds(h.events)).toContain('alia.agent_end:completed');
+  });
+
+  it('fails the STEP when it never stores, so the queue retries it, instead of losing the reply', async () => {
+    const h = harness({ script: (id) => `reply from ${id}` });
+    flaky(h, 99);
+
+    await expect(processRoomStep(h.first({ pending: [] }), h.deps)).rejects.toThrow(
+      /Could not store a room reply/,
+    );
+
+    // The member's turn was closed for the watchers as a failure of storage, never as a completion.
+    const ends = h.events.filter((e) => e.event === 'alia.agent_end');
+    expect(ends).toHaveLength(1);
+    expect(ends[0]!.data).toMatchObject({ status: 'failed', error: { code: 'store_failed' } });
+    expect(kinds(h.events)).not.toContain('alia.agent_end:completed');
+    expect(h.events.some((e) => e.event === 'group.message')).toBe(false);
+    // And the chain did not go on to the next member as if this one had simply failed.
+    expect(h.queued).toHaveLength(0);
+  });
+
+  it('on the retry finds the reply it already stored and does not answer twice', async () => {
+    const h = harness({ script: (id) => `reply from ${id}` });
+    // First attempt: stores, then the step dies before it can enqueue the next speaker.
+    await processRoomStep(h.first({ pending: ['b'] }), h.deps);
+    h.queued.length = 0;
+    const before = h.runs.length;
+
+    await processRoomStep(h.first({ pending: ['b'] }), h.deps);
+
+    expect(h.runs).toHaveLength(before);
+    expect(h.queued).toHaveLength(1);
+    expect(h.queued[0]!.speakerId).toBe('b');
+  });
+});
