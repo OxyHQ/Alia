@@ -1,6 +1,7 @@
 import { AgentThinking } from '@oxy.so/bloom/agent-thinking';
 import { AiChatThread, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { ChatDateHeader } from '@oxy.so/bloom/chat-screen';
+import { Button } from '@oxy.so/bloom/button';
 import { Divider } from '@oxy.so/bloom/divider';
 import { ThreadSkeleton } from './ThreadSkeleton';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -26,6 +27,7 @@ import { useBubbles } from '../../lib/bubbles';
 import { useLabels } from '../../lib/labels';
 import type { AgentActivityState } from '../../runtime/thread/agent-activity';
 import type { FailedTurn } from '../../runtime/turn-failure';
+import { type AgentExchange, agentExchange } from '../../runtime/thread/agent-exchange';
 import type { Message } from '../../runtime/types';
 import type { ThreadHistory } from '../../runtime/thread/thread-history';
 import type { AgentState } from '../../types';
@@ -99,6 +101,11 @@ export interface AliaThreadProps {
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   /** Quote a turn's words into the composer (a bubble's reply button). Omitted, the button is not drawn. */
   onReply?: (text: string) => void;
+  /**
+   * Open the internal conversation of an agent that came into this one (the "Chatted with" line).
+   * Omitted, the line is plain text.
+   */
+  onOpenAgentChat?: (exchange: AgentExchange) => void;
   /** A conversation read by somebody it was shared with: no votes, no read-aloud, no regenerate. */
   readOnly?: boolean;
 }
@@ -142,6 +149,7 @@ export const AliaThread = memo(function AliaThread({
   threadRef,
   onScroll,
   onReply,
+  onOpenAgentChat,
   readOnly = false,
 }: AliaThreadProps) {
   const { t } = useLabels();
@@ -282,6 +290,9 @@ export const AliaThread = memo(function AliaThread({
     );
   }
 
+  const chattedWith = (messageId: string): string =>
+    t('chat.chattedWith', { name: speakers.get(messageId)?.agentName ?? '' });
+
   const renderRow = (message: Message, index: number) => {
     const fromHistory = index < history.length;
     const timing = timingOf(message.id);
@@ -294,7 +305,21 @@ export const AliaThread = memo(function AliaThread({
         {/* Where another agent comes into the conversation: whom the person is chatting with now. */}
         {speakers.has(message.id) ? (
           <Divider spacing={16}>
-            {t('chat.chatWith', { name: speakers.get(message.id)?.agentName ?? '' })}
+            {onOpenAgentChat === undefined ? (
+              chattedWith(message.id)
+            ) : (
+              <Button
+                appearance="subtle"
+                tone="neutral"
+                size="xs"
+                onPress={() => {
+                  const exchange = agentExchange(rows, message.id);
+                  if (exchange !== null) onOpenAgentChat(exchange);
+                }}
+              >
+                {chattedWith(message.id)}
+              </Button>
+            )}
           </Divider>
         ) : null}
         <ThreadRow

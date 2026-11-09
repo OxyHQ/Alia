@@ -68,6 +68,7 @@ import { type AliaRuntimeHost, AliaRuntimeProvider, useAliaRuntime } from '../ru
 import { type AliaHostTools, APP_SLUG } from '../runtime/host-tools';
 import { useCreateConversation } from '../runtime/conversations';
 import { aliaQueryKeys } from '../runtime/query-keys';
+import type { AgentExchange } from '../runtime/thread/agent-exchange';
 import type { Message } from '../runtime/types';
 import { useAgentActivity } from '../runtime/use-agent-activity';
 import { useConversationThread } from '../runtime/use-conversation-thread';
@@ -79,6 +80,8 @@ import { useParticipants } from './AliaParticipants';
 import { AliaGroupWelcome } from './AliaGroupWelcome';
 import { AliaWelcomeMessage } from './AliaWelcomeMessage';
 import { AmbientField } from './AmbientField';
+import { InertWhen } from './InertWhen';
+import { AgentExchangeView } from './thread/AgentExchangeView';
 import { AliaThread } from './thread/AliaThread';
 import { ThreadSearch } from './thread/ThreadSearch';
 import { VoiceModeIcon } from './VoiceModeIcon';
@@ -410,6 +413,10 @@ function AliaConversationView({
   );
   const asked = usePendingQuestions(messages, isLoading);
   const view = useThreadView(threadHandle, conversationId);
+  // The internal conversation of a consulted agent, read-only, drawn over the chat (which stays
+  // mounted under it, so its scroll and the draft are exactly as they were on the way back).
+  const [exchange, setExchange] = useState<AgentExchange | null>(null);
+  const closeExchange = useCallback(() => setExchange(null), []);
   const agentActivity = useAgentActivity(agentRun?.turnId ?? null, agentRun?.agentId);
 
   // The turn was refused for the usage limit: the composer is closed until the host's dialog is
@@ -739,56 +746,62 @@ function AliaConversationView({
   const showsPast = view.jumped;
   return (
     <AliaFlightsProvider value={flights}>
-      <AiChatContainer
-        header={frame.header}
-        title={frame.title}
-        project={frame.project}
-        actions={frame.actions}
-        composer={composerNode}
-        // The thread scrolls behind the header and the composer, which fade in over it. The wave
-        // is the container's background layer, between its surface and the turns.
-        floatingChrome
-        // The wave is a translucent layer over the frame's own fill, so the container paints no surface
-        // of its own: the frame's fill shows through, and the composer's fade lands on that same fill
-        // rather than on a band of its own (Bloom: `surface={false}` beside a translucent `background`).
-        surface={false}
-        background={background}
-      >
-        <BubblesProvider value={bubbles || group !== undefined}>
-          <AliaThread
-            // Nothing live under a window: it is a view of the past, and the conversation being
-            // streamed into is not below it in the thread.
-            messages={showsPast ? NO_MESSAGES : messages}
-            conversationId={conversationId}
-            isLoading={isLoading}
-            conversationLoading={conversationLoading || loading}
-            memberIds={memberIds}
-            history={view.history}
-            focusCursor={view.focusCursor}
-            failedTurn={failedTurn}
-            onRetryTurn={retryFailedTurn}
-            onRegenerate={composer.regenerate}
-            onStartEdit={edit.start}
-            newConversationOffer={newConversationOffer}
-            agentActivity={agentRun === null ? null : agentActivity}
-            call={voice.isActive ? { agentState: voice.agentState } : undefined}
-            empty={welcome}
-            threadRef={threadRef}
-            onScroll={onScroll}
-            onReply={quoteIntoComposer}
-          />
-        </BubblesProvider>
-        {!showsPast ? null : (
-          <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
-            <Button appearance="outline" tone="neutral" size="sm" onPress={view.backToLatest}>
-              {t('chat.backToLatest')}
-            </Button>
-          </View>
-        )}
-        {!view.searchOpen || threadHandle === undefined ? null : (
-          <ThreadSearch handle={threadHandle} onJump={view.jump} onClose={view.closeSearch} />
-        )}
-      </AiChatContainer>
+      <InertWhen inert={exchange !== null}>
+        <AiChatContainer
+          header={frame.header}
+          title={frame.title}
+          project={frame.project}
+          actions={frame.actions}
+          composer={composerNode}
+          // The thread scrolls behind the header and the composer, which fade in over it. The wave
+          // is the container's background layer, between its surface and the turns.
+          floatingChrome
+          // The wave is a translucent layer over the frame's own fill, so the container paints no surface
+          // of its own: the frame's fill shows through, and the composer's fade lands on that same fill
+          // rather than on a band of its own (Bloom: `surface={false}` beside a translucent `background`).
+          surface={false}
+          background={background}
+        >
+          <BubblesProvider value={bubbles || group !== undefined}>
+            <AliaThread
+              // Nothing live under a window: it is a view of the past, and the conversation being
+              // streamed into is not below it in the thread.
+              messages={showsPast ? NO_MESSAGES : messages}
+              conversationId={conversationId}
+              isLoading={isLoading}
+              conversationLoading={conversationLoading || loading}
+              memberIds={memberIds}
+              history={view.history}
+              focusCursor={view.focusCursor}
+              failedTurn={failedTurn}
+              onRetryTurn={retryFailedTurn}
+              onRegenerate={composer.regenerate}
+              onStartEdit={edit.start}
+              newConversationOffer={newConversationOffer}
+              agentActivity={agentRun === null ? null : agentActivity}
+              call={voice.isActive ? { agentState: voice.agentState } : undefined}
+              empty={welcome}
+              threadRef={threadRef}
+              onScroll={onScroll}
+              onReply={quoteIntoComposer}
+              onOpenAgentChat={setExchange}
+            />
+          </BubblesProvider>
+          {!showsPast ? null : (
+            <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
+              <Button appearance="outline" tone="neutral" size="sm" onPress={view.backToLatest}>
+                {t('chat.backToLatest')}
+              </Button>
+            </View>
+          )}
+          {!view.searchOpen || threadHandle === undefined ? null : (
+            <ThreadSearch handle={threadHandle} onJump={view.jump} onClose={view.closeSearch} />
+          )}
+        </AiChatContainer>
+      </InertWhen>
+      {exchange === null ? null : (
+        <AgentExchangeView exchange={exchange} lead={lead} onBack={closeExchange} />
+      )}
       {usageLimit === null ? null : renderUsageLimit?.({ error: usageLimit, dismiss: clearError })}
       {sharedFlights ? null : <AvatarFlightLayer flights={ownFlights} />}
     </AliaFlightsProvider>
