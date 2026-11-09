@@ -1,7 +1,6 @@
 import { CodeBlock } from '@oxy.so/bloom/code';
 import { Markdown } from '@oxy.so/bloom/markdown';
 import { Text } from '@oxy.so/bloom/typography';
-import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import { useMemo } from 'react';
 import { Platform, Pressable, View } from 'react-native';
@@ -291,18 +290,13 @@ function ReferenceList({
   );
 }
 
-/** Copy through Expo's clipboard, which Bloom's card needs on native (web has its own). */
-const copyCode = async (code: string) => {
-  await Clipboard.setStringAsync(code);
-};
-
 /**
  * Fenced code as Bloom's code card: the language chip, a copy button and
  * numbered lines. Module-level so its identity is stable, as Bloom's
  * `Markdown` asks of `renderCodeBlock`.
  */
 const renderCodeBlock = (code: string, language?: string) => (
-  <CodeBlock code={code} language={language} onCopy={copyCode} />
+  <CodeBlock code={code} language={language} />
 );
 
 /**
