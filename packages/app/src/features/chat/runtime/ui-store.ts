@@ -36,7 +36,6 @@ export interface CanvasArtifact {
 
 interface UIState {
   /** Desktop sidebar expanded/collapsed. Mobile uses the drawer's own state. */
-  sidebarOpen: boolean;
   /**
    * Which panel the right slot shows. The thought panel's selection (which turn, which tab) is the
    * SDK's `useThoughtStore`: the thread selects, this only says the panel is on show.
@@ -68,8 +67,6 @@ interface UIState {
    */
 
   // Actions
-  toggleSidebar: () => void;
-  setSidebarOpen: (open: boolean) => void;
   setRightPanel: (panel: RightPanel) => void;
   toggleRightPanel: (panel: RightPanel) => void;
   /** Open the right panel on this agent's editor. */
@@ -116,7 +113,6 @@ export function clampRightPanelWidth(width: number): number {
 export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
-      sidebarOpen: true,
       rightPanel: null,
       editedAgentId: null,
       contextUsage: {},
@@ -137,10 +133,6 @@ export const useUIStore = create<UIState>()(
       agentTerminal: null,
       codePanelView: 'changes',
       rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
-
-      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-
-      setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
       setRightPanel: (panel) =>
         set({
@@ -181,11 +173,11 @@ export const useUIStore = create<UIState>()(
     {
       name: 'alia-ui',
       storage: createJSONStorage(() => AsyncStorage),
-      // Only the sidebar collapse survives reloads; the rest is session state.
+      // Only the panel's width survives reloads (the sidebar's collapse is the shell's); the rest is
+      // session state.
       // The intro no longer records anything: whether somebody has met Alia is
       // whether they have an account, not what their browser remembers.
       partialize: (state) => ({
-        sidebarOpen: state.sidebarOpen,
         rightPanelWidth: state.rightPanelWidth,
       }),
       /**

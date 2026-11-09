@@ -144,6 +144,17 @@ vi.mock('react-native', async () => {
  * None of those is what this file is about, and the real library needs a
  * native module and a frame clock to say so.
  */
+// Bloom's menu base reaches for the gesture handler, whose native spec needs a TurboModule
+// registry the host-element shim of react-native does not have.
+vi.mock('react-native-gesture-handler', () => {
+  // Every gesture is a chainable builder (`Gesture.Pan().onUpdate(...)`); none of it is exercised.
+  const builder: unknown = new Proxy(() => builder, { get: () => () => builder });
+  return {
+    Gesture: new Proxy({}, { get: () => () => builder }),
+    GestureDetector: ({ children }: { children?: unknown }) => children,
+    GestureHandlerRootView: ({ children }: { children?: unknown }) => children,
+  };
+});
 vi.mock('react-native-reanimated', async () => {
   const ReactModule = await import('react');
   const { View } = await import('react-native');
@@ -151,6 +162,7 @@ vi.mock('react-native-reanimated', async () => {
   return {
     // Bloom's scroll viewport wraps its ScrollView with the default export's factory.
     default: { View, createAnimatedComponent },
+    ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
     Easing: { bezier: () => () => 0, linear: () => 0 },
     // Bloom's scroll viewport reads its scroll events through this; the test never scrolls.
     useAnimatedScrollHandler: () => () => undefined,

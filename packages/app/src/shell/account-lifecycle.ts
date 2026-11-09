@@ -46,7 +46,6 @@ export function resetAccountSession(queryClient: QueryClient, next: string | nul
   useUIStore.setState(
     {
       ...useUIStore.getInitialState(),
-      sidebarOpen: ui.sidebarOpen,
       rightPanelWidth: ui.rightPanelWidth,
     },
     true,
