@@ -44,7 +44,7 @@ import { AliaRuntimeProvider, type AliaRuntimeHost } from '../../src/runtime/con
 import type { RoomEvent } from '../../src/runtime/room-events';
 import { createRoomLedger } from '../../src/runtime/room-events';
 import { useConversationStream } from '../../src/runtime/use-conversation-stream';
-import { useRoomEvents } from '../../src/runtime/use-room-events';
+import { ROOM_SILENCE_MS, useRoomEvents } from '../../src/runtime/use-room-events';
 import { useMemo } from 'react';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -184,5 +184,44 @@ describe('the open group conversation', () => {
     expect(members().map((m) => [m.id, m.content, m.isStreaming])).toEqual([
       ['group-reply-p1-0', 'Hola mundo', false],
     ]);
+  });
+
+  describe('a room that goes quiet while a member shows as typing', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('stops waiting once the room has been silent past the limit, as group.idle would have', async () => {
+      await mount();
+      await push('alia.agent_start', { consultId: 'k1', agent: NADIA });
+      await push('alia.agent_delta', { consultId: 'k1', content: 'Hola' });
+      expect(members()[0]).toMatchObject({ isStreaming: true, content: 'Hola' });
+
+      await act(async () => {
+        vi.advanceTimersByTime(ROOM_SILENCE_MS + 20_000);
+      });
+
+      expect(members()[0]).toMatchObject({ isStreaming: false, content: 'Hola' });
+    });
+
+    it('drops a draft that never said anything instead of leaving an empty bubble', async () => {
+      await mount();
+      await push('alia.agent_start', { consultId: 'k1', agent: NADIA });
+      await act(async () => {
+        vi.advanceTimersByTime(ROOM_SILENCE_MS + 20_000);
+      });
+      expect(members()).toHaveLength(0);
+    });
+
+    it('waits while the member is still speaking: each event restarts the silence', async () => {
+      await mount();
+      await push('alia.agent_start', { consultId: 'k1', agent: NADIA });
+      for (let i = 0; i < 4; i += 1) {
+        await act(async () => {
+          vi.advanceTimersByTime(ROOM_SILENCE_MS - 20_000);
+        });
+        await push('alia.agent_delta', { consultId: 'k1', content: '.' });
+      }
+      expect(members()[0]).toMatchObject({ isStreaming: true, content: '....' });
+    });
   });
 });

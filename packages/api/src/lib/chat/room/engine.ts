@@ -99,6 +99,47 @@ export interface RoomEngineDeps {
   }) => Promise<StoredReply>;
   readonly revokeTasks: (taskIds: readonly string[]) => Promise<void>;
   readonly now: () => number;
+  /** Waits between attempts to store a reply that did not store. Defaults to {@link STORE_RETRY_DELAYS_MS}. */
+  readonly storeRetryDelaysMs?: readonly number[];
+}
+
+/**
+ * Pauses before each further attempt to store a finished reply. The member's turn is already paid
+ * for, so a database that blinks is waited out here instead of being answered with a lost reply.
+ */
+export const STORE_RETRY_DELAYS_MS: readonly number[] = [150, 500];
+
+/**
+ * A reply could not be stored after every attempt. Thrown out of the step (never turned into the
+ * member's `failed`), so the queue retries the step instead of the room silently losing a paid reply.
+ */
+export class RoomStoreError extends Error {
+  constructor(cause: unknown) {
+    super(`Could not store a room reply: ${getErrorMessage(cause)}`, { cause });
+    this.name = 'RoomStoreError';
+  }
+}
+
+async function storeWithRetry(
+  deps: RoomEngineDeps,
+  input: Parameters<RoomEngineDeps['storeReply']>[0],
+): Promise<StoredReply> {
+  const delays = deps.storeRetryDelaysMs ?? STORE_RETRY_DELAYS_MS;
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    try {
+      return await deps.storeReply(input);
+    } catch (error: unknown) {
+      lastError = error;
+      log.general.warn(
+        { err: error, conversationId: input.conversationId, attempt: attempt + 1 },
+        'Could not store a room reply',
+      );
+      const delay = delays[attempt];
+      if (delay !== undefined) await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw new RoomStoreError(lastError);
 }
 
 export type RoomStepOutcome = 'skipped' | 'ended' | 'continued';
@@ -289,7 +330,7 @@ async function speak(input: {
     }
 
     const content = outcome.response.trim();
-    const stored = await deps.storeReply({
+    const stored = await storeWithRetry(deps, {
       userId: data.userId,
       conversationId: data.conversationId,
       clientMessageId: replyId,
@@ -314,6 +355,16 @@ async function speak(input: {
     });
     return content;
   } catch (error: unknown) {
+    if (error instanceof RoomStoreError) {
+      // Infrastructure, not the member: close its turn for the watchers, then let the queue retry the
+      // step (the reply id is derived from the step, so a retry that finds it stored does not repeat).
+      await emit('alia.agent_end', {
+        consultId,
+        status: 'failed',
+        error: { code: 'store_failed' },
+      });
+      throw error;
+    }
     log.general.error({ err: error, agentId: info.id }, 'A group member failed');
     return fail({ code: 'agent_unavailable', message: getErrorMessage(error) });
   }
