@@ -91,16 +91,22 @@ const AGENT_KEY = 'agent:';
 export interface AliaSidebarProps {
   /** The drawer copy the shell shows below `lg` (the template's `mobile surface="plain"`). */
   mobile?: boolean;
+  /**
+   * What the shell resolved for the in-flow sidebar (`collapsed`, `onCollapsedChange`, `variant`...):
+   * spread into Bloom's sidebar, so its collapse control resizes the shell's track and the
+   * conversation takes the room. Nothing of it is kept here.
+   */
+  shell?: SidebarProps;
 }
 
-export const Sidebar = React.memo(function Sidebar({ mobile }: AliaSidebarProps) {
+export const Sidebar = React.memo(function Sidebar({ mobile, shell }: AliaSidebarProps) {
   const { props, dialogs } = useSidebarProps();
   return (
     <>
       {mobile ? (
         <ConversationSidebar {...props} mobile surface="plain" />
       ) : (
-        <ConversationSidebar {...props} />
+        <ConversationSidebar {...props} {...shell} />
       )}
       {dialogs}
     </>

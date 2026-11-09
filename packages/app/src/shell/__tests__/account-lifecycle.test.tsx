@@ -44,7 +44,6 @@ const message = { id: 'm1', role: 'user' as const, content: 'account A’s secre
 
 function seedAccountA(client: QueryClient) {
   useUIStore.setState({
-    sidebarOpen: false,
     rightPanelWidth: 480,
     rightPanel: 'thought',
     canvasArtifacts: [{ id: 'a1' } as never],
@@ -100,7 +99,6 @@ describe('resetAccountSession', () => {
     resetAccountSession(client, null);
     expectNothingOfA();
     // The device's, not the account's.
-    expect(useUIStore.getState().sidebarOpen).toBe(false);
     expect(useUIStore.getState().rightPanelWidth).toBe(480);
   });
 
