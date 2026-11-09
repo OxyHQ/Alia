@@ -32,6 +32,7 @@ import {
   useRenameConversation,
 } from '@alia.onl/sdk/runtime';
 import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
+import { usePrefetchAgentThread } from '@/features/agents/runtime/use-agent-thread';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { flatConversations, selectedItemForPath, sidebarSections } from '@/shell/sidebar-history';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
@@ -113,6 +114,7 @@ function useSidebarProps() {
   const settings = useAliaSettings();
   const queryClient = useQueryClient();
   const prefetchConversation = usePrefetchConversation();
+  const prefetchAgentThread = usePrefetchAgentThread();
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
   const streamingChatId = useConversationStore((state) => state.streamingConversationId);
@@ -395,9 +397,12 @@ function useSidebarProps() {
         leading: <AgentAvatar character={readAgentCharacter(agent.character)} size={24} portrait />,
         // The last line of the thread, under the name; before anything was said, the invitation.
         description: agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
+        // Ahead of the press: its thread and conversation, when there is a conversation to read.
+        onPrefetch: () =>
+          prefetchAgentThread(agentHandle(agent), Boolean(agent.lastMessage?.trim())),
       }));
     return rows.length ? { key: 'agents', label: t('sidebar.agents'), items: rows } : undefined;
-  }, [isAuthenticated, myAgents, searchQuery, t]);
+  }, [isAuthenticated, myAgents, searchQuery, t, prefetchAgentThread]);
 
   // Alia's own chats: a section of title-only rows, the ones filed nowhere, pinned and favourites first.
   const chatSection = React.useMemo<SidebarTree | undefined>(() => {
