@@ -54,6 +54,8 @@ export const API_ROUTES = {
     update: (id: string) => `/automations/${id}`,
     stop: (id: string) => `/automations/${id}`,
     run: (id: string) => `/automations/${id}/run`,
+    /** Pause everything that would start on its own (ADR 0026). */
+    pause: '/automations/pause',
   },
 
   // Agents routes

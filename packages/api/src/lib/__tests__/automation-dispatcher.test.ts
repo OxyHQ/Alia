@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   watchFailure: vi.fn(),
   watchPause: vi.fn(),
   watchRecord: vi.fn(),
+  paused: vi.fn(),
 }));
 
 const database = {
@@ -54,6 +55,7 @@ vi.mock('../alia-watch.js', async (importOriginal) => ({
   observeWatchSource: state.watchObserve,
 }));
 vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentById: state.findAgent }));
+vi.mock('../../db/agents/agentInboxRepository.js', () => ({ isBackgroundPaused: state.paused }));
 vi.mock('../../db/agents/agentSessionRepository.js', () => ({
   createAgentSession: state.createSession,
   updateAgentSession: state.updateSession,
@@ -141,6 +143,7 @@ const RESERVATION = { reservationId: 'hold-1', amount: 1 };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.paused.mockResolvedValue(false);
   state.reserve.mockResolvedValue(RESERVATION);
   database.transaction.mockImplementation(async (callback) => callback(database));
   state.findAgent.mockImplementation(async (_db, id: string) => ({
@@ -222,6 +225,37 @@ describe('normalized automation dispatch', () => {
     ).resolves.toEqual({ status: 'observed' });
     expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({ autonomy: 'draft' }));
     expect(state.observe).toHaveBeenCalled();
+  });
+
+  it('starts nothing on its own for a person who paused their background work, and says nothing', async () => {
+    state.paused.mockResolvedValue(true);
+
+    await expect(dispatchStructuredAutomation(automation(), scheduleTrigger)).resolves.toEqual({
+      status: 'denied',
+      reason: 'background_work_paused',
+    });
+    expect(state.paused).toHaveBeenCalledWith(database, 'owner-1');
+    expect(state.reserve).not.toHaveBeenCalled();
+    expect(state.createRun).not.toHaveBeenCalled();
+    expect(state.notify).not.toHaveBeenCalled();
+  });
+
+  it('still runs what the paused person asks for themselves', async () => {
+    state.paused.mockResolvedValue(true);
+
+    await expect(
+      dispatchStructuredAutomation(
+        automation({
+          executionMode: 'execute',
+          maximumAutonomy: 'execute_on_request',
+          trigger: { type: 'manual' },
+        }),
+        manualTrigger,
+      ),
+    ).resolves.toEqual({ status: 'queued', runId: expect.any(String), sessionId: 'session-1' });
+
+    // The pause is not even consulted: a person's own request is theirs to make.
+    expect(state.paused).not.toHaveBeenCalled();
   });
 
   it('does not select an unavailable agent', async () => {

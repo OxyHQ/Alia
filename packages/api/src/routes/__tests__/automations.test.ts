@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   revoke: vi.fn(),
   reload: vi.fn(),
   scheduleError: vi.fn(),
+  isPaused: vi.fn(async () => false),
+  setPaused: vi.fn(async () => undefined),
   tooFrequent: vi.fn(() => false),
   enabledCount: vi.fn(async () => 0),
   oxyMap: vi.fn(),
@@ -31,6 +33,10 @@ const database = { transaction: vi.fn(async (callback) => callback(database)) };
 // Where an agent opens (ADR 0021) is `app-confined-agents.test.ts`'s subject, not this file's.
 vi.mock('../../lib/agent-availability.js', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../db/index.js', () => ({ getDb: () => database }));
+vi.mock('../../db/agents/agentInboxRepository.js', () => ({
+  isBackgroundPaused: state.isPaused,
+  setBackgroundPaused: state.setPaused,
+}));
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: (
     request: express.Request,
@@ -333,6 +339,27 @@ describe('structured automation control plane', () => {
       }),
     );
     expect(state.setEnabled).toHaveBeenCalledWith(database, expect.any(String), 'owner-1', true);
+  });
+
+  it('reads and changes whether the caller has paused their background work', async () => {
+    state.isPaused.mockResolvedValueOnce(true);
+    expect(await send('GET', '/automations/pause')).toMatchObject({
+      status: 200,
+      body: { paused: true },
+    });
+
+    const paused = await send('PUT', '/automations/pause', { paused: true });
+    expect(paused).toMatchObject({ status: 200, body: { paused: true } });
+    expect(state.setPaused).toHaveBeenLastCalledWith(database, 'owner-1', true);
+
+    await send('PUT', '/automations/pause', { paused: false });
+    expect(state.setPaused).toHaveBeenLastCalledWith(database, 'owner-1', false);
+  });
+
+  it('refuses a pause request that is not a boolean, and a pause path that is not an id', async () => {
+    expect((await send('PUT', '/automations/pause', { paused: 'yes' })).status).toBe(400);
+    expect((await send('PUT', '/automations/pause', { paused: true, extra: 1 })).status).toBe(400);
+    expect(state.setPaused).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid schedule before persisting the definition', async () => {
