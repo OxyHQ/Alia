@@ -26,11 +26,12 @@ import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { AiChatContainer, AiChatShell } from '@oxy.so/bloom/ai-chat';
+import type { SidebarProps } from '@oxy.so/bloom/sidebar';
 import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { Navigator, Stack, useRouter, type Href } from 'expo-router';
 import type React from 'react';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -115,7 +116,8 @@ export default function AppLayout() {
    * copy (`mobile`, plain surface) below it. The shell keeps the closed drawer
    * out of the tab order and the screen-reader tree (#532).
    */
-  const sidebar = useMemo(() => <Sidebar />, []);
+  // A function, so the shell hands the sidebar what it resolved and owns the collapse.
+  const sidebar = useCallback((shellProps: SidebarProps) => <Sidebar shell={shellProps} />, []);
   const mobileSidebar = useMemo(() => <Sidebar mobile />, []);
 
   /** Names the veil that closes the nav drawer, and the shell's own controls. */

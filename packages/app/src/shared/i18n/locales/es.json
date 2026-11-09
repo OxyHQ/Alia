@@ -659,6 +659,8 @@
     "reactToMessage": "Reaccionar al mensaje",
     "groupWelcome": "Varias mentes, una conversación",
     "groupPlaceholder": "Escribe al grupo",
+    "reaction": "Has reaccionado con {{emoji}}",
+    "reactionFailed": "No se ha podido guardar tu reacción.",
     "replyToMessage": "Responder al mensaje",
     "moreActions": "Más acciones del mensaje",
     "searchThreadPlaceholder": "Buscar en este hilo",

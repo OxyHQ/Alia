@@ -24,6 +24,7 @@ import {
   listRecentTurns,
   listRecentUserText,
   messageExistsInConversation,
+  reactToMessage,
   replaceMessages,
   toStoredMessage,
   voteMessage,
@@ -521,6 +522,79 @@ describe('voting picks exactly one row', () => {
     await voteMessage(db, 'unvote-user', 'unvote-conv', 'm0', 'up');
 
     expect(await voteMessage(db, 'unvote-user', 'unvote-conv', 'm0', null)).toEqual({ vote: null });
+  });
+
+  it('toggles a reaction on and off, keeps several, and reads them back with the message', async () => {
+    await insertMessages(db, [
+      {
+        conversationId: 'react-conv',
+        oxyUserId: 'react-user',
+        role: 'assistant',
+        content: 'a',
+        seq: 0,
+        clientMessageId: 'r0',
+      },
+    ]);
+
+    expect(await reactToMessage(db, 'react-user', 'react-conv', 'r0', '👍')).toEqual({
+      reactions: ['👍'],
+    });
+    expect(await reactToMessage(db, 'react-user', 'react-conv', 'r0', '🎉')).toEqual({
+      reactions: ['👍', '🎉'],
+    });
+    const [row] = await listMessages(db, 'react-user', 'react-conv');
+    expect(toStoredMessage(row!).reactions).toEqual(['👍', '🎉']);
+
+    expect(await reactToMessage(db, 'react-user', 'react-conv', 'r0', '👍')).toEqual({
+      reactions: ['🎉'],
+    });
+    expect(await reactToMessage(db, 'react-user', 'react-conv', 'r0', '🎉')).toEqual({
+      reactions: [],
+    });
+    const [cleared] = await listMessages(db, 'react-user', 'react-conv');
+    expect(cleared!.reactions).toBeNull();
+    expect(toStoredMessage(cleared!).reactions).toBeUndefined();
+  });
+
+  it('answers nothing for another account or an unknown message, writing nothing', async () => {
+    await insertMessages(db, [
+      {
+        conversationId: 'react-other-conv',
+        oxyUserId: 'react-owner',
+        role: 'assistant',
+        content: 'a',
+        seq: 0,
+        clientMessageId: 'ro0',
+      },
+    ]);
+    expect(
+      await reactToMessage(db, 'react-intruder', 'react-other-conv', 'ro0', '👍'),
+    ).toBeUndefined();
+    expect(
+      await reactToMessage(db, 'react-owner', 'react-other-conv', 'nope', '👍'),
+    ).toBeUndefined();
+    const [row] = await listMessages(db, 'react-owner', 'react-other-conv');
+    expect(row!.reactions).toBeNull();
+  });
+
+  it('does not lose a reaction when two taps arrive together', async () => {
+    await insertMessages(db, [
+      {
+        conversationId: 'react-race-conv',
+        oxyUserId: 'react-race-user',
+        role: 'assistant',
+        content: 'a',
+        seq: 0,
+        clientMessageId: 'rr0',
+      },
+    ]);
+    await Promise.all(
+      ['👍', '🎉', '🔥'].map((emoji) =>
+        reactToMessage(db, 'react-race-user', 'react-race-conv', 'rr0', emoji),
+      ),
+    );
+    const [row] = await listMessages(db, 'react-race-user', 'react-race-conv');
+    expect([...(row!.reactions as string[])].sort()).toEqual(['👍', '🎉', '🔥'].sort());
   });
 
   it('answers nothing for another account, leaving the vote alone', async () => {

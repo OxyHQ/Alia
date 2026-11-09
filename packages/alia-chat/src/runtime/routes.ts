@@ -26,6 +26,8 @@ export const API_ROUTES = {
      */
     clearMessages: (id: string) => `/v1/conversations/${id}/messages`,
     vote: (id: string, messageId: string) => `/v1/conversations/${id}/messages/${messageId}/vote`,
+    react: (id: string, messageId: string) =>
+      `/v1/conversations/${id}/messages/${messageId}/reactions`,
     /** Mint (`POST { ttlHours }`) or revoke (`DELETE`) the conversation's read-only share link. */
     share: (id: string) => `/v1/conversations/${id}/share`,
   },

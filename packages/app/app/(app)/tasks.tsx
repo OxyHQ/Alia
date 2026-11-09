@@ -8,8 +8,7 @@ import type { TaskSession } from '@/features/automations/runtime/use-tasks';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Divider } from '@oxy.so/bloom/divider';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { RiInbox2Line } from '@oxy.so/bloom/icons/RiInbox2Line';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { ListRowsSkeleton } from '@/shared/ui/skeletons';
 import { useRouter } from 'expo-router';
 import { useCallback } from 'react';
@@ -77,7 +76,7 @@ export default function TasksPage() {
     <ListRowsSkeleton rows={4} mark="tile" />
   ) : work.isError && work.items.length === 0 ? undefined : (
     <EmptyState
-      icon={RiInbox2Line}
+      sticker={work.tab === 'active' ? 'tasksActive' : 'tasksHistory'}
       title={work.tab === 'active' ? t('tasks.emptyActive') : t('tasks.emptyHistory')}
       description={work.tab === 'active' ? t('tasks.emptyActiveHint') : undefined}
     />

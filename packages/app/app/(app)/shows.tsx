@@ -26,13 +26,12 @@ import { Admonition } from '@oxy.so/bloom/admonition';
 import { Badge, type BadgeIcon } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { Card } from '@oxy.so/bloom/card';
-import { EmptyState } from '@oxy.so/bloom/empty-state';
+import { EmptyState } from '@/shared/stickers/empty-state';
 import { RiAddLine } from '@oxy.so/bloom/icons/RiAddLine';
 import { RiArrowRightSLine } from '@oxy.so/bloom/icons/RiArrowRightSLine';
 import { RiGlobalLine } from '@oxy.so/bloom/icons/RiGlobalLine';
 import { RiLink } from '@oxy.so/bloom/icons/RiLink';
 import { RiLockLine } from '@oxy.so/bloom/icons/RiLockLine';
-import { RiMic2Line } from '@oxy.so/bloom/icons/RiMic2Line';
 import { Item } from '@oxy.so/bloom/item';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -197,8 +196,7 @@ export default function ShowsScreen() {
         ListEmptyComponent={
           isEmpty ? (
             <EmptyState
-              icon={RiMic2Line}
-              media="circle"
+              sticker="shows"
               title={t('shows.empty.title')}
               description={t('shows.empty.description')}
               action={{

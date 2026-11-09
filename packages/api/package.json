@@ -39,7 +39,7 @@
     "@oxy.so/contracts": "6.24.0",
     "@oxy.so/core": "7.47.1",
     "@oxy.so/db": "^1.4.0",
-    "@oxy.so/mcp": "1.4.1",
+    "@oxy.so/mcp": "1.4.2",
     "@oxy.so/utils": "^1.5.2",
     "@socket.io/redis-adapter": "^8.3.0",
     "@syra.fm/sdk": "0.23.0",

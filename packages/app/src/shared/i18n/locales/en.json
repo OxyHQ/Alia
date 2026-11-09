@@ -659,6 +659,8 @@
     "reactToMessage": "React to message",
     "groupWelcome": "A few minds, one conversation",
     "groupPlaceholder": "Message the group",
+    "reaction": "Reacted with {{emoji}}",
+    "reactionFailed": "Your reaction couldn't be saved.",
     "replyToMessage": "Reply to message",
     "moreActions": "More message actions",
     "searchThreadPlaceholder": "Search this thread",

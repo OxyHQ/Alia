@@ -138,6 +138,9 @@ vi.mock('@oxy.so/bloom/item', async () => {
   };
 });
 
+// The sticker above an empty state is the catalogue's: no network, no player.
+vi.mock('@/shared/stickers/empty-state-sticker', () => ({ EmptyStateSticker: () => null }));
+
 /** The empty state's actions, drawn as buttons so they can be pressed. */
 vi.mock('@oxy.so/bloom/empty-state', async () => {
   const ReactModule = await import('react');
