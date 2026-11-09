@@ -45,6 +45,7 @@ import { useProjectsStore, type Project } from '@/features/projects/runtime/proj
 import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { AgentStack } from '@oxy.so/bloom/agent-reply';
+import { AgentRowAvatar, reactAgentRow } from '@/shell/agent-row-avatar';
 import {
   ConversationSidebar,
   type ConversationSidebarCreateOption,
@@ -412,12 +413,13 @@ function useSidebarProps() {
         // Handles may be unresolved or missing; the database id is stable and unique.
         key: `${AGENT_KEY}${agent._id}`,
         label: agentDisplayName(agent),
-        // The agent's own character, drawn as a still portrait: a row is not a live renderer.
+        // The agent's own character, alive: it idles, follows the pointer and reacts when its row
+        // is pressed.
         leading: (
-          <AgentAvatar
+          <AgentRowAvatar
+            agentId={agent._id}
             character={readAgentCharacter(agent.character)}
             size={AGENT_ROW_AVATAR}
-            portrait
           />
         ),
         // The last line of the thread, under the name; before anything was said, the invitation.
@@ -749,7 +751,10 @@ function useSidebarProps() {
     onTreeItemPress: (item: { key: string }) => {
       if (!item.key.startsWith(AGENT_KEY)) return openConversation(item.key);
       const agent = myAgents?.find((candidate) => `${AGENT_KEY}${candidate._id}` === item.key);
-      if (agent) openAgent(agent);
+      if (agent) {
+        reactAgentRow(agent._id);
+        openAgent(agent);
+      }
     },
     footer,
     onScroll,
