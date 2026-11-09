@@ -83,7 +83,9 @@ export function initSocket(server: http.Server) {
   io = new Server(server, {
     // The origins HTTP admits (`lib/cors-origins.ts`), on both transports:
     // `cors` for long-polling and `allowRequest` for the WebSocket handshake,
-    // which browsers apply no CORS to.
+    // which browsers apply no CORS to. A native WebSocket (React Native,
+    // OxyOS) sends this server's own origin, which `allowRequest` admits as
+    // same-origin.
     ...createOxySocketCors({ appOrigins: appOriginsFor(process.env.WEB_URL) }),
     transports: ['websocket', 'polling'],
     // Upgrades to other paths belong to `lib/websocket-upgrades.ts`, which

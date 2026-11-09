@@ -6,7 +6,7 @@
       "name": "alia-monorepo",
       "dependencies": {
         "@oxy.so/bloom": "17.19.3",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/core": "7.47.1",
         "@oxy.so/services": "14.14.0",
         "@tanstack/query-sync-storage-persister": "^5.102.8",
         "@tanstack/react-query": "^5.102.8",
@@ -28,7 +28,7 @@
         "@hugeicons/core-free-icons": "^4.2.2",
         "@hugeicons/react": "^1.1.9",
         "@oxy.so/bloom": "17.19.3",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/core": "7.47.1",
         "@oxy.so/services": "14.14.0",
         "@tailwindcss/vite": "^4.3.2",
         "@tanstack/react-query": "^5.102.8",
@@ -117,7 +117,7 @@
       "version": "1.0.10",
       "dependencies": {
         "@alia.onl/server": "workspace:*",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/core": "7.47.1",
         "openai": "^6.46.0",
         "pathe": "2.0.3",
       },
@@ -138,7 +138,7 @@
       },
       "dependencies": {
         "@alia.onl/server": "workspace:*",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/core": "7.47.1",
         "chalk": "^5.6.2",
         "commander": "^15.0.0",
         "conf": "^15.1.0",
@@ -214,7 +214,7 @@
         "zod": "^4.6.7",
       },
       "devDependencies": {
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/core": "7.47.1",
         "@types/express": "^5.0.6",
         "@types/node": "^25.9.5",
         "typescript": "^5.9.3",
@@ -231,7 +231,7 @@
         "@hugeicons/core-free-icons": "^3.3.0",
         "@hugeicons/react": "^1.1.9",
         "@oxy.so/bloom": "17.19.3",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/core": "7.47.1",
         "@radix-ui/react-slot": "^1.4.0",
         "@radix-ui/react-use-controllable-state": "^1.2.3",
         "class-variance-authority": "^0.7.1",
@@ -297,8 +297,8 @@
         "@crowdsource.you/core": "3.1.0",
         "@kaana.ai/contracts": "8.2.0",
         "@kaana.ai/sdk": "3.5.0",
-        "@oxy.so/contracts": "6.19.0",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/contracts": "6.24.0",
+        "@oxy.so/core": "7.47.1",
         "@oxy.so/db": "^1.4.0",
         "@oxy.so/mcp": "1.4.1",
         "@oxy.so/utils": "^1.5.2",
@@ -356,8 +356,8 @@
         "@oxy.so/app-preset": "6.5.0",
         "@oxy.so/bloom": "17.19.3",
         "@oxy.so/bloom-avatar-native": "0.1.2",
-        "@oxy.so/contracts": "6.19.0",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/contracts": "6.24.0",
+        "@oxy.so/core": "7.47.1",
         "@oxy.so/expo-splash": "^1.1.0",
         "@oxy.so/services": "14.14.0",
         "@react-native-async-storage/async-storage": "^2.2.0",
@@ -446,7 +446,7 @@
         "@alia.onl/server": "workspace:*",
         "@aws-sdk/credential-provider-node": "3.972.84",
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "@oxy.so/core": "7.42.0",
+        "@oxy.so/core": "7.47.1",
         "@oxy.so/db": "^1.4.0",
         "@whiskeysockets/baileys": "~6.7.23",
         "discord.js": "^14.26.5",
@@ -476,8 +476,8 @@
     "@shopify/react-native-skia",
   ],
   "overrides": {
-    "@oxy.so/contracts": "6.19.0",
-    "@oxy.so/core": "7.42.0",
+    "@oxy.so/contracts": "6.24.0",
+    "@oxy.so/core": "7.47.1",
     "@oxy.so/mcp": "1.4.1",
     "@oxy.so/protocol": "1.11.0",
     "@oxy.so/services": "14.14.0",
@@ -1209,9 +1209,9 @@
 
     "@oxy.so/bloom-avatar-native": ["@oxy.so/bloom-avatar-native@0.1.2", "", { "peerDependencies": { "expo": ">=58 <59", "expo-gl": "58.0.3", "expo-modules-core": ">=58 <59", "react": ">=19", "react-native": ">=0.88" } }, "sha512-xzzTYSjwYxT4ljAbk37pKHt6X71gsPQJ5HiAT+l5fTsOX7b/r1salSCgKr8THbzyhd+BxmNRcQBnVGWBpb+xOQ=="],
 
-    "@oxy.so/contracts": ["@oxy.so/contracts@6.19.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-0P/35qu7fvqlk41s5JD54qGULRrgVixzMQ/DNk+KtBn7gyze8fhBfelDd6Qcn3oU7HHDtwTz6AntaP7t34tg0A=="],
+    "@oxy.so/contracts": ["@oxy.so/contracts@6.24.0", "", { "dependencies": { "zod": "^4.6.7" } }, "sha512-7rU+NSWfn95zelB6cNydY518DsVTB+DOCHAxNAF/pVQy+mJhdymVcpi6hrmqBM4E2vmBegIjj5ynFddKgtsIOQ=="],
 
-    "@oxy.so/core": ["@oxy.so/core@7.42.0", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "^6.19.0", "@oxy.so/protocol": "^1.11.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0 || ^5.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-4Q3EAQgIEzBSuQVi7qQoKz9rcIv1xQ9V2r87EVwsZSA8fbyEhBTtEEx5mxU4wLH99Y+R9vmakiMNQSTSTn50CA=="],
+    "@oxy.so/core": ["@oxy.so/core@7.47.1", "", { "dependencies": { "@noble/ciphers": "^2.4.0", "@noble/curves": "^2.4.0", "@noble/hashes": "^2.4.0", "@oxy.so/contracts": "^6.24.0", "@oxy.so/protocol": "^1.11.0", "@oxy.so/telemetry": "^2.1.0", "@scure/bip39": "^2.4.0", "buffer": "^6.0.3", "express-rate-limit": "^8.6.0", "helmet": "^8.3.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.4", "tldts": "^7.4.19", "zod": "^4.6.7" }, "peerDependencies": { "@aws-sdk/credential-provider-ini": ">=3.973.16 <4", "@aws-sdk/credential-provider-node": ">=3.972.83 <4", "@react-native-async-storage/async-storage": "<4.0.0", "expo-crypto": "<59.0.0", "expo-secure-store": "<59.0.0", "express": "^4.0.0 || ^5.0.0" }, "optionalPeers": ["@aws-sdk/credential-provider-ini", "@aws-sdk/credential-provider-node", "@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-7NL7RKubVYy1VoEmp+4bbzoqwXXqS8GCa2KTnjM1Nvc4x6rzYYIEzrfYgsXfs5nKxXtj2+P4Tob40hjPobFrmQ=="],
 
     "@oxy.so/db": ["@oxy.so/db@1.4.0", "", { "peerDependencies": { "drizzle-orm": "^0.45.2", "postgres": "^3.4.9" }, "bin": { "oxy-db-check-migration-locks": "dist/cjs/bin/check-migration-locks.js" } }, "sha512-qumZQoZ4khGXOl+LYC5uZquw5N3DdjBZoV3+WbwJ/zlLXCJ180Qhg72nRSalvIUQHoFIosuIr5DFHT0ia3Garg=="],
 
