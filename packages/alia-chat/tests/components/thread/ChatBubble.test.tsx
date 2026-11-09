@@ -59,8 +59,8 @@ vi.mock('@oxy.so/bloom/theme', () => ({
     },
   }),
 }));
-vi.mock('@oxy.so/bloom/icons/RiEmotionLine', () => ({ RiEmotionLine: () => null }));
-vi.mock('@oxy.so/bloom/icons/RiMoreFill', () => ({ RiMoreFill: () => null }));
+vi.mock('../../../src/components/icons/RiEmojiPicker', () => ({ RiEmojiPicker: () => null }));
+vi.mock('../../../src/components/icons/RiMoreDots', () => ({ RiMoreDots: () => null }));
 vi.mock('../../../src/components/icons/RiReplyLine', () => ({ RiReplyLine: () => null }));
 vi.mock('../../../src/lib/labels', () => ({ useLabels: () => ({ t: (key: string) => key }) }));
 
