@@ -9,12 +9,20 @@
  * reduced motion, or when there is nothing to measure, it gains it at once. An agent already in
  * the conversation when the chat opens is simply there.
  *
+ * A GROUP's first message flies its members' avatars out of the empty chat the same way
+ * (`groupFirstSend`).
+ *
  * This is the ONLY file that draws `AgentProfile` or joins agents to it (`one-thread.test.tsx`
  * holds it), so the header of the sheet, the screen and the Alia app are one header.
  */
 
 import { AgentProfile } from '@oxy.so/bloom/agent-reply';
-import { type AvatarFlights, useAvatarJoin } from '@oxy.so/bloom/avatar-flight';
+import {
+  type AvatarFlightSpec,
+  type AvatarFlights,
+  avatarJoinFlights,
+  useAvatarJoin,
+} from '@oxy.so/bloom/avatar-flight';
 import { memo, useMemo } from 'react';
 import { ANCHORS, useAliaFlights } from '../lib/flights';
 import {
@@ -30,6 +38,33 @@ export interface UseParticipantsOptions {
   messages: readonly Message[];
   /** The chat's flights; `null` draws everybody in place without flying. */
   flights: AvatarFlights | null;
+}
+
+/** How long the answering member's avatar takes to land on its reply. */
+const REPLY_LANDING_MS = 800;
+
+/**
+ * A group's first message, as Bloom's multi-agent chat flies it: the member that answers first
+ * lands on its reply (`reply:<id>`), the others merge into the header's participants. Each leaves
+ * the `empty:<id>` anchor the group's welcome draws.
+ */
+export function groupFirstSend(members: readonly AliaParticipant[]): AvatarFlightSpec[] {
+  const [responder, ...waiting] = members;
+  if (responder === undefined) return [];
+  return [
+    {
+      key: responder.id,
+      character: responder.character,
+      from: `empty:${responder.id}`,
+      to: ANCHORS.reply(responder.id),
+      duration: REPLY_LANDING_MS,
+    },
+    ...avatarJoinFlights(waiting, {
+      from: (member) => `empty:${member.id}`,
+      to: ANCHORS.profile,
+      character: (member) => member.character,
+    }),
+  ];
 }
 
 const fromReply = (agent: AliaParticipant) => ANCHORS.reply(agent.id);

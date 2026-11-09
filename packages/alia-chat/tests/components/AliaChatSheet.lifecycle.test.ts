@@ -88,10 +88,10 @@ describe('AliaChatSheet avatar flights', () => {
 
   it('launches the greeting avatar into the header with the first turn, once the conversation sheet is open', () => {
     expect(composer).toMatch(
-      /onStart\(\{ text, \.\.\.\(images\.length > 0 \? \{ images \} : \{\}\) \}\);\s*await flights\.launch\(\[leadToProfile\(lead\)\]\)/,
+      /onStart\(\{ text, \.\.\.\(images\.length > 0 \? \{ images \} : \{\}\) \}\);\s*await flights\.launch\(firstFlights\)/,
     );
     expect(composer).toMatch(
-      /if \(firstTurn\) await flights\.launch\(\[leadToProfile\(lead\)\]\);\s*await sendTurn\(/,
+      /if \(firstTurn\) await flights\.launch\(firstFlights\);\s*await sendTurn\(/,
     );
   });
 
@@ -111,6 +111,20 @@ describe('AliaChatSheet avatar flights', () => {
     expect(read('AliaParticipants.tsx')).toMatch(
       /avatarHidden=\{flights\?\.isLanding\(ANCHORS\.profile\)\}/,
     );
+  });
+});
+
+describe('a group chat avatar flights', () => {
+  it("launches the members' avatars with a group's first turn, not the lead's", () => {
+    expect(composer).toMatch(
+      /group === undefined \? \[leadToProfile\(lead\)\] : groupFirstSend\(group\)/,
+    );
+    expect(composer).toMatch(/flights\.launch\(firstFlights\)/);
+    expect(read('AliaChatContent.tsx')).toMatch(/flights,\s*group,\s*lead,/);
+  });
+
+  it('hides the answering agent reply avatar while the welcome avatar lands on it', () => {
+    expect(read('thread/ThreadRow.tsx')).toMatch(/flights\.isLanding\(agentAnchor\)/);
   });
 });
 
