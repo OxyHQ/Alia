@@ -15,6 +15,13 @@ import {
 } from './error-utils';
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
 import { aliaQueryKeys } from './query-keys';
+import {
+  claimConsult,
+  createRoomLedger,
+  isRoomOwned,
+  releaseConsult,
+  type RoomLedger,
+} from './room-events';
 import { createRandomUuid } from './random-uuid';
 import { createChatTurnControl } from './chat-turn-control';
 import { awaitTurnPreparation } from './turn-preparation';
@@ -148,7 +155,15 @@ export interface UseConversationStreamOptions {
    * Sent as the request's leading system message, which the server reads as client context.
    */
   clientContext?: string;
+  /**
+   * Which consultation each message draws, shared with the room's socket events (`use-room-events.ts`)
+   * so a member's reply that both the request and the socket carry is drawn once.
+   */
+  room?: RoomLedger;
 }
+
+/** The typed end the chat request gives a member still speaking when it closes (ADR 0025). */
+const ROOM_CONTINUES = 'room_continues';
 
 /** The words a message holds, as text: a consulted agent's reply is plain text as it streams. */
 function messageWords(message: Message): string {
@@ -161,6 +176,7 @@ export function useConversationStream({
   agentId,
   clientContext,
   hostTools,
+  room,
 }: UseConversationStreamOptions = {}) {
   const { apiUrl, streamFetch, host, app } = useAliaRuntime();
   /** Where an awaited host action's answer goes: the same account and app assertion as the turn. */
@@ -170,6 +186,10 @@ export function useConversationStream({
   hostToolsRef.current = hostTools;
   const appRef = useRef(app);
   appRef.current = app;
+  const ownRoomRef = useRef<RoomLedger | null>(null);
+  ownRoomRef.current ??= createRoomLedger();
+  const roomRef = useRef<RoomLedger>(ownRoomRef.current);
+  roomRef.current = room ?? ownRoomRef.current;
   /** This conversation's host actions: performed once, their outcomes held until a request carries them. */
   const hostOutcomesRef = useRef(new HostOutcomeQueue());
   const labels = useLabels();
@@ -542,7 +562,9 @@ export function useConversationStream({
             // A consultation still open when the turn ends ends with it.
             const settles =
               m.id === assistantMessage.id ||
-              (m.isStreaming === true && isAgentMessageOf(m.id, assistantMessage.id));
+              (m.isStreaming === true &&
+                isAgentMessageOf(m.id, assistantMessage.id) &&
+                !isRoomOwned(roomRef.current, m.id));
             let next = settles ? { ...m, isStreaming: false, turnOutcome: outcome } : m;
             if (stored && next.unsaved === true && isThisTurn(next.id)) {
               const { unsaved: _unsaved, ...rest } = next;
@@ -559,6 +581,13 @@ export function useConversationStream({
           if (consults.has(event.consultId)) return;
           const id = nextAgentMessageId();
           consults.set(event.consultId, id);
+          // The room's socket may have drawn this member typing already: that is its message.
+          const adopted = claimConsult(roomRef.current, event.consultId, id);
+          if (adopted !== null) {
+            consults.set(event.consultId, adopted);
+            setMessages((prev) => prev.map((m) => (m.id === adopted ? { ...m, content: '' } : m)));
+            return;
+          }
           const agentMessage: Message = {
             id,
             unsaved: true,
@@ -612,6 +641,17 @@ export function useConversationStream({
         }
         // The end: what was streamed lands first, then the agent's final words, if it sent them.
         flushPendingUpdates();
+        if (event.errorCode === ROOM_CONTINUES) {
+          // The request is over but the member is still speaking: the room's socket carries it on.
+          // With no socket to carry it, it stops here, unfinished but not failed.
+          if (host.subscribeRoomEvents) releaseConsult(roomRef.current, event.consultId);
+          else {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === id ? { ...m, isStreaming: false } : m)),
+            );
+          }
+          return;
+        }
         if (event.content !== undefined) outputEvidence.agentOutputChars += event.content.length;
         setMessages((prev) =>
           prev.map((m) =>
