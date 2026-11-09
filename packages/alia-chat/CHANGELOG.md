@@ -1,5 +1,16 @@
 # @alia.onl/sdk
 
+## 23.1.0
+
+- Reactions in the chat bubbles: Bloom's emoji bar on a message, the person's reactions as pills
+  under the bubble and everyone's votes under "more". They toggle through
+  `POST /v1/conversations/:id/messages/:messageId/reactions`.
+- Fix: the persisted conversation list hands its dates back as `Date`s (a hydrated list held
+  `updatedAt` as an ISO string and the sidebar's sort threw `updatedAt.getTime is not a function`).
+- Built and tested against Bloom 17.29.0, where the spinner of every busy state (`Loading`,
+  `Button`, the send button) is the Material 3 morphing loader. The peer range stays
+  `@oxy.so/bloom >=17.22.0`.
+
 ## 23.0.0
 
 - **Breaking.** Bloom 17.22 draws characters as SVG, so the hosted 3D runtime is gone from the
