@@ -22,6 +22,7 @@ import { useTimelineWindow } from '../../hooks/useTimelineWindow';
 import { useFailedTurnToast } from '../../hooks/useFailedTurnToast';
 import { copyText } from '../../lib/clipboard';
 import { messageText } from '../../lib/content-utils';
+import { useBubbles } from '../../lib/bubbles';
 import { useLabels } from '../../lib/labels';
 import type { AgentActivityState } from '../../runtime/thread/agent-activity';
 import type { FailedTurn } from '../../runtime/turn-failure';
@@ -178,8 +179,10 @@ export const AliaThread = memo(function AliaThread({
     failedTurn,
   });
   const lastLive = isLoading ? live[live.length - 1] : undefined;
+  // An agent's thread reads as a chat, so its tools never open the thought panel on their own.
+  const bubbles = useBubbles();
   const runningTurnId =
-    lastLive?.role === 'assistant' && (lastLive.toolInvocations?.length ?? 0) > 0
+    !bubbles && lastLive?.role === 'assistant' && (lastLive.toolInvocations?.length ?? 0) > 0
       ? lastLive.id
       : null;
   const openThought = useOpenThought(thoughtScope, history, runningTurnId);
