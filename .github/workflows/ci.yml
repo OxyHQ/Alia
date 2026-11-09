@@ -671,6 +671,16 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # Production runs with Redis and the API refuses to boot without it (`lib/boot-guards.ts`).
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6382:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v7
@@ -697,6 +707,7 @@ jobs:
         env:
           IMAGE: alia-api:ci
           DATABASE_URL: postgres://alia:alia@127.0.0.1:5441/alia
+          REDIS_URL: redis://127.0.0.1:6382
         run: bash .github/scripts/smoke-api-image.sh
 
   # The computer host's control API image, under the hardening its systemd unit
