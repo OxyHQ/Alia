@@ -33,7 +33,33 @@ const RECONCILE_INTERVAL_MS = 30_000;
  * yet; the run is keyed by the same occurrence id the live cron uses, so the
  * two cannot both run it.
  */
-const CATCH_UP_WINDOW_MS = 30 * 60 * 1000;
+const MIN_CATCH_UP_WINDOW_MS = 30 * 60 * 1000;
+/** No schedule is run more than this late: a briefing six hours stale is not worth a run. */
+const MAX_CATCH_UP_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * How late an occurrence of THIS schedule may still be run: a quarter of the gap between its
+ * occurrences, between thirty minutes and six hours. An hourly task skipped by a deploy is caught up
+ * within half an hour or not at all (the next one is close); a daily 09:00 summary skipped by a longer
+ * outage still runs at 11:00 instead of being lost until tomorrow; a one-off (`runOnce`) whose minute
+ * passed during an outage still gets its run instead of waiting a year. Still at most one run per
+ * schedule, never one per missed occurrence.
+ */
+export function catchUpWindowMs(
+  expression: string,
+  timezone: string,
+  now: Date = new Date(),
+): number {
+  try {
+    const iterator = cronParser.parseExpression(expression, { currentDate: now, tz: timezone });
+    const latest = iterator.prev().toDate().getTime();
+    const before = iterator.prev().toDate().getTime();
+    const quarter = (latest - before) / 4;
+    return Math.min(MAX_CATCH_UP_WINDOW_MS, Math.max(MIN_CATCH_UP_WINDOW_MS, quarter));
+  } catch {
+    return MIN_CATCH_UP_WINDOW_MS;
+  }
+}
 /**
  * Occurrences this leader already dispatched or tried to. A denied dispatch
  * (no eligible agent, no credits) creates no run, so without this the catch-up
@@ -134,7 +160,10 @@ export function missedOccurrence(
       .parseExpression(expression, { currentDate: now, tz: timezone })
       .prev()
       .toDate();
-    const since = Math.max(now.getTime() - CATCH_UP_WINDOW_MS, automation.updatedAt.getTime());
+    const since = Math.max(
+      now.getTime() - catchUpWindowMs(expression, timezone, now),
+      automation.updatedAt.getTime(),
+    );
     if (previous.getTime() <= since) return null;
     return occurrenceAt(automation.id, previous);
   } catch {
@@ -148,7 +177,7 @@ async function catchUpMissedOccurrences(now: Date = new Date()): Promise<void> {
     // `schedule:<automation uuid>:<ISO instant>` — the instant is everything
     // after the second colon.
     const at = Date.parse(id.split(':').slice(2).join(':'));
-    if (!Number.isNaN(at) && at < now.getTime() - 2 * CATCH_UP_WINDOW_MS)
+    if (!Number.isNaN(at) && at < now.getTime() - 2 * MAX_CATCH_UP_WINDOW_MS)
       attemptedOccurrences.delete(id);
   }
   const automations = await listSchedulableAutomationDefinitions(getDb());

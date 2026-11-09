@@ -29,6 +29,7 @@ import {
 import { dispatchStructuredAutomation } from '../automation-dispatcher.js';
 import {
   automationScheduleTooFrequent,
+  catchUpWindowMs,
   missedOccurrence,
   startTriggerScheduler,
   stopAllScheduledTasks,
@@ -158,12 +159,28 @@ describe('an occurrence missed while nobody led the scheduler', () => {
   });
 
   it('is nothing once the window has passed, or before the definition last changed', () => {
-    expect(missedOccurrence(monday9, new Date('2026-09-07T10:00:00.000Z'))).toBeNull();
+    // A weekly task's window is six hours (see catchUpWindowMs), so seven hours late is gone.
+    expect(missedOccurrence(monday9, new Date('2026-09-07T16:00:00.000Z'))).toBeNull();
     const editedAfter = automation('weekly', new Date('2026-09-07T09:05:00.000Z'));
     expect(missedOccurrence(editedAfter, new Date('2026-09-07T09:10:00.000Z'))).toBeNull();
     expect(
       missedOccurrence({ ...monday9, enabled: false }, new Date('2026-09-07T09:10:00.000Z')),
     ).toBeNull();
+  });
+
+  it('reaches further back for a task that comes round less often, and not for one that comes round soon', () => {
+    // Weekly: a quarter of a week is capped at six hours, so 11:00 still catches the 09:00 run.
+    expect(missedOccurrence(monday9, new Date('2026-09-07T11:00:00.000Z'))?.id).toBe(
+      'schedule:weekly:2026-09-07T09:00:00.000Z',
+    );
+    // Every five minutes: the floor is thirty minutes, so the latest occurrence is what is caught up.
+    const frequent = {
+      ...automation('frequent', new Date('2026-09-01T00:00:00.000Z')),
+      trigger: { type: 'schedule' as const, cron: '*/5 * * * *', timezone: 'UTC' },
+    };
+    expect(missedOccurrence(frequent, new Date('2026-09-07T09:12:00.000Z'))?.id).toBe(
+      'schedule:frequent:2026-09-07T09:10:00.000Z',
+    );
   });
 
   it('is run once by a new leader, and not again while a run exists or it was tried', async () => {
@@ -235,5 +252,26 @@ describe('automationScheduleTooFrequent', () => {
   it('leaves an invalid expression to the validator that already reports it', () => {
     cronMock.validate.mockReturnValueOnce(false);
     expect(tooFrequent('not a cron')).toBe(false);
+  });
+});
+
+describe('catchUpWindowMs', () => {
+  const at = new Date('2026-09-07T12:00:00.000Z');
+  const HOUR = 60 * 60 * 1000;
+
+  it('is a quarter of the gap between occurrences, between half an hour and six hours', () => {
+    expect(catchUpWindowMs('*/5 * * * *', 'UTC', at)).toBe(0.5 * HOUR); // floor
+    expect(catchUpWindowMs('0 * * * *', 'UTC', at)).toBe(0.5 * HOUR); // 15 min -> floor
+    expect(catchUpWindowMs('0 */4 * * *', 'UTC', at)).toBe(1 * HOUR); // 4h / 4
+    expect(catchUpWindowMs('0 9 * * *', 'UTC', at)).toBe(6 * HOUR); // 24h / 4
+    expect(catchUpWindowMs('0 9 * * 1', 'UTC', at)).toBe(6 * HOUR); // capped
+  });
+
+  it('gives a one-off, whose next occurrence is a year away, the cap', () => {
+    expect(catchUpWindowMs('30 14 9 9 *', 'UTC', at)).toBe(6 * HOUR);
+  });
+
+  it('falls back to the floor for an expression it cannot read', () => {
+    expect(catchUpWindowMs('not a cron', 'UTC', at)).toBe(0.5 * HOUR);
   });
 });
