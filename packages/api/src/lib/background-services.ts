@@ -47,6 +47,7 @@ import {
   shutdownAliaTaskQueue,
   startAliaTaskWorker,
 } from './alia-task-queue.js';
+import { initRoomQueue, shutdownRoomQueue, startRoomWorker } from './chat/room/queue.js';
 import { startSkillRegistrySync, stopSkillRegistrySync } from './skills/scheduler.js';
 import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
 
@@ -75,6 +76,10 @@ export function startBackgroundServices(): void {
   initAliaTaskQueue()
     .then(() => startAliaTaskWorker())
     .catch((err) => log.general.error({ err }, '[AliaTaskQueue] Startup error'));
+  // The steps of group rooms: members talking to each other past the request (ADR 0025)
+  initRoomQueue()
+    .then(() => startRoomWorker())
+    .catch((err) => log.general.error({ err }, '[RoomQueue] Startup error'));
   // Clean up orphaned audio jobs from previous process crashes (non-blocking).
   failOrphanedAudioJobs(getDb())
     .then((count) => {
@@ -128,6 +133,7 @@ export async function stopBackgroundServices(): Promise<void> {
   // Close task queue (drains in-flight jobs)
   await shutdownTaskQueue();
   await shutdownAliaTaskQueue();
+  await shutdownRoomQueue();
   await shutdownShowQueue();
   log.general.info('Task queues shut down');
 }

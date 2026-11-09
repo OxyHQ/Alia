@@ -34,10 +34,14 @@ vi.mock('@/features/memory/runtime/use-user-data', () => ({
   USER_MEMORY_QUERY_KEY: ['user-memory'],
 }));
 vi.mock('@/features/notifications/runtime/notifications-socket', () => ({
-  acquireNotificationsSocket: () => ({ socket: { on: vi.fn(), off: vi.fn() }, release: vi.fn() }),
+  acquireNotificationsSocket: vi.fn(() => ({
+    socket: { on: vi.fn(), off: vi.fn() },
+    release: vi.fn(),
+  })),
 }));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: () => ({}) }));
 
+import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
 import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
 import { queryKeys } from '@/shared/api/query-keys';
 
@@ -57,6 +61,31 @@ function host(): AliaRuntimeHost {
 
 const finish = (name: string) =>
   host().onToolResult?.({ toolCallId: 't1', name, output: {} } as never);
+
+describe('a group chat’s room', () => {
+  it('listens to group:event on the notifications socket for its own conversation only, and lets go', () => {
+    const handlers = new Map<string, (event: unknown) => void>();
+    const release = vi.fn();
+    const socket = {
+      on: vi.fn((name: string, fn: (event: unknown) => void) => handlers.set(name, fn)),
+      off: vi.fn((name: string) => handlers.delete(name)),
+    };
+    vi.mocked(acquireNotificationsSocket).mockReturnValueOnce({ socket, release } as never);
+    const listener = vi.fn();
+    const unsubscribe = host().subscribeRoomEvents?.('c1', listener);
+    expect(socket.on).toHaveBeenCalledWith('group:event', expect.any(Function));
+
+    const mine = { conversationId: 'c1', chainId: 'p', event: 'group.idle', data: {} };
+    handlers.get('group:event')?.(mine);
+    handlers.get('group:event')?.({ ...mine, conversationId: 'other' });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith(mine);
+
+    unsubscribe?.();
+    expect(socket.off).toHaveBeenCalledWith('group:event', expect.any(Function));
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('a server tool finishing', () => {
   it('refreshes the sidebar’s agents when Alia creates or changes one', () => {

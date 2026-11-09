@@ -183,9 +183,11 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     }
 
     /**
-     * A GROUP conversation is answered by its members, not by Alia (`lib/chat/group-turn.ts`), so it
-     * is served before anything is reserved for a turn of hers: each member reserves and settles its
-     * own. Only the person's own session can talk to a group.
+     * A GROUP conversation is answered by its members, not by Alia, in a room that outlives this
+     * request (`lib/chat/room`, ADR 0025): this request stores the person's message, queues the
+     * first step and forwards the room's events until the first round settles. It is served before
+     * anything is reserved for a turn of hers: each member reserves and settles its own. Only the
+     * person's own session can talk to a group.
      */
     if (
       req.user?.id &&
@@ -195,7 +197,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     ) {
       const members = await listGroupMembers(getDb(), req.user.id, req.body.conversationId);
       if (members.length > 0) {
-        const replies = await serveGroupTurn({
+        const outcome = await serveGroupTurn({
           req,
           res,
           sse,
@@ -206,7 +208,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           startedAt: requestStartTime,
           signal: providerAbort.signal,
         });
-        if (replies !== null && replies.length === 0) {
+        // Nobody answered AND the first round is over: a typed failure. A round still running when the
+        // request ends is not a failure, the room goes on answering.
+        if (outcome?.settled && outcome.completed === 0) {
           failTurn(
             new AliaError({
               code: AliaErrorCode.EMPTY_RESPONSE,
@@ -216,7 +220,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             }),
           );
         }
-        completed = replies !== null && replies.length > 0;
+        completed = outcome !== null && (outcome.completed > 0 || !outcome.settled);
         return;
       }
     }

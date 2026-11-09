@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { ALIA_API_URL } from '../lib/origins';
+import type { RoomEvent } from './room-events';
 import type { AgentRun, Message } from './types';
 
 /**
@@ -112,6 +113,15 @@ export interface AliaRuntimeHost {
   subscribeConversationMessages?: (
     conversationId: string,
     listener: (message: Message) => void,
+  ) => () => void;
+  /**
+   * The live events of a GROUP conversation's room (ADR 0025): the host's `group:event` socket
+   * event for this conversation. Returns the unsubscribe. Without it, what a group's members say
+   * after the request ended appears on reload.
+   */
+  subscribeRoomEvents?: (
+    conversationId: string,
+    listener: (event: RoomEvent) => void,
   ) => () => void;
   /**
    * Show where the work of a turn is read — the host's right panel — now that the thread selected

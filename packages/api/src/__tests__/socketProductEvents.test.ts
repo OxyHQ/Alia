@@ -106,6 +106,7 @@ import {
   emitWorkflowProgress,
   initSocket,
 } from '../socket.js';
+import { publishRoomEvent } from '../lib/chat/room/bus.js';
 import type { Server } from 'socket.io';
 import { sendNotification } from '../lib/notification-service.js';
 
@@ -306,7 +307,7 @@ describe('every socket event the app listens for is one the API emits', () => {
     expect(names).toContain('agent-activity');
   });
 
-  it('emits every name the app binds, and the census can tell a miss from a hit', () => {
+  it('emits every name the app binds, and the census can tell a miss from a hit', async () => {
     /**
      * Driving every `socket.ts` emitter plus the notification service once, and reading
      * the union of the names they produced. This is what the app must find.
@@ -317,6 +318,15 @@ describe('every socket event the app listens for is one the API emits', () => {
     emitAudioJobUpdate('u', { jobId: 'j', status: 'completed' });
     emitTelegramLinked('t', {});
     emitWorkflowProgress('e', {});
+    // A group room's event, through the real publisher: `group:event` reaches the person's sockets
+    // (lib/chat/room/bus.ts, publishRoomEvent()).
+    await publishRoomEvent({
+      userId: 'u',
+      conversationId: 'c',
+      chainId: 'p',
+      event: 'group.idle',
+      data: { reason: 'done' },
+    });
     const emitted = new Set(broadcasts.map((entry) => entry.event));
     // `notification` and `show:progress` are emitted by their own services
     // rather than by `socket.ts`; each is named with the file that emits it so

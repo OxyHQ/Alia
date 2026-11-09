@@ -1,7 +1,7 @@
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useId, useRef } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { useAliaActivityStore } from '../lib/activity-store';
 import { turnActivityState } from '../lib/turn-state';
 import { useLabels } from '../lib/labels';
@@ -22,7 +22,9 @@ import {
 } from './conversations';
 import { aliaQueryKeys } from './query-keys';
 import { reportDroppedAttachments, useStartConversation } from './use-start-conversation';
+import { createRoomLedger } from './room-events';
 import { useConversationStream } from './use-conversation-stream';
+import { useRoomEvents } from './use-room-events';
 import type { Message, SendOptions } from './types';
 
 export interface UseConversationThreadOptions {
@@ -122,6 +124,10 @@ export function useConversationThread({
     host.closeConversation?.();
   }, [conversationQueryError, queryClient, host]);
 
+  // One per open conversation: which consultation each message draws (the request's and the room's).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new conversation is a new ledger
+  const room = useMemo(() => createRoomLedger(), [conversationId]);
+
   /**
    * Turns go to `/v1/chat/completions`, Alia's product API: the same handler `/alia/chat` mounts,
    * on the one surface that answers a browser from any Oxy app's origin (see `routes.ts`).
@@ -148,7 +154,10 @@ export function useConversationThread({
     agentId,
     clientContext,
     hostTools,
+    room,
   });
+  // A group's members keep talking after the request: their room's events join the thread.
+  useRoomEvents(conversationId, room, setMessages);
   const upload = useDocumentUpload();
 
   // The turn's lifecycle, published for every "Ask Alia" button (`useAliaActivity`).
