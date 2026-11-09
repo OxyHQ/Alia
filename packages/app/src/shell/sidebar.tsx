@@ -54,6 +54,7 @@ import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
 import type {
   SidebarNavItem,
+  SidebarProps,
   SidebarTree,
   SidebarTreeFolder,
   SidebarTreeItem,
