@@ -119,7 +119,9 @@ export const Sidebar = React.memo(function Sidebar({ mobile, shell }: AliaSideba
       {mobile ? (
         <ConversationSidebar {...props} mobile surface="plain" />
       ) : (
-        <ConversationSidebar {...props} {...shell} />
+        // The shell resolves the track and the collapse; the panel itself (its fill, its radius) is
+        // the sidebar's own default, `card`, which the shell's `plain` would otherwise strip.
+        <ConversationSidebar {...props} {...shell} surface="card" />
       )}
       {dialogs}
     </>
