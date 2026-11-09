@@ -31,6 +31,8 @@ export interface UseThreadRowsOptions {
   conversationId: string | undefined;
   /** The conversation's messages are still on their way. */
   conversationLoading: boolean;
+  /** The agents that are part of this conversation (a group's members): not announced as newcomers. */
+  memberIds?: ReadonlySet<string>;
 }
 
 /**
@@ -46,6 +48,7 @@ export function useThreadRows({
   history: historyMessages,
   conversationId,
   conversationLoading,
+  memberIds,
 }: UseThreadRowsOptions) {
   const { t, locale } = useLabels();
   const history = historyMessages ?? NO_HISTORY;
@@ -123,7 +126,7 @@ export function useThreadRows({
   );
 
   /** The turns where a consulted agent comes into the conversation: a line says whom the person is chatting with. */
-  const speakers = useMemo(() => speakerChanges(shape), [shape]);
+  const speakers = useMemo(() => speakerChanges(shape, memberIds), [shape, memberIds]);
 
   const timingOf = useCallback(
     (messageId: string) => timings.get(messageId) ?? EMPTY_TIMING,
