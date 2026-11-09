@@ -54,6 +54,8 @@ export interface ThreadActions {
   readAloud: (messageId: string, text: string, conversationId: string | undefined) => void;
   /** Absent where the host has no thought panel: the "worked for" line is then plain text. */
   openThought?: OpenThought;
+  /** Quote a turn's words into the composer. Absent where there is no composer to quote into. */
+  reply?: (text: string) => void;
   /** A thread read by somebody it was shared with: words to copy, nothing to vote on or play. */
   readOnly?: boolean;
 }
@@ -126,6 +128,11 @@ export const ThreadRow = memo(function ThreadRow({
     : null;
 
   const bubbles = useBubbles();
+  const questionQuote = actions.reply;
+  const onQuestionReply =
+    questionQuote !== undefined && !actions.readOnly && text.length > 0
+      ? () => questionQuote(text)
+      : undefined;
 
   if (!isReply) {
     const editAction: AiChatTurnAction | null =
@@ -144,29 +151,35 @@ export const ThreadRow = memo(function ThreadRow({
           // Bloom's user turn, with the breathing room above it the thread has always had.
           <View className="mt-2 w-full flex-col items-end">
             <TurnMenu actions={questionActions} label={t('chat.turnActions')}>
-              {bubbles?.colors ? (
-                // An agent's thread: the person's turn is a bubble in the agent's colour.
-                <ChatBubble side="user" colors={bubbles.colors} actions={questionActions}>
-                  {images.length > 0 && (
-                    <View className="flex-row flex-wrap gap-2">
-                      {images.map((url) => (
-                        <View key={url} className="size-[120px] overflow-hidden rounded-xl">
-                          <Image
-                            source={{ uri: url }}
-                            className="h-full w-full"
-                            contentFit="cover"
-                          />
+              {bubbles !== null ? (
+                // An agent's thread: the person's turn is a bubble in the agent's colour, or in the
+                // theme's own until the agent's is known, never Bloom's larger default.
+                <ChatBubble
+                  side="user"
+                  colors={bubbles.colors}
+                  menu={questionActions}
+                  onReply={onQuestionReply}
+                >
+                  {(foreground) => (
+                    <>
+                      {images.length > 0 && (
+                        <View className="flex-row flex-wrap gap-2">
+                          {images.map((url) => (
+                            <View key={url} className="size-[120px] overflow-hidden rounded-xl">
+                              <Image
+                                source={{ uri: url }}
+                                className="h-full w-full"
+                                contentFit="cover"
+                              />
+                            </View>
+                          ))}
                         </View>
-                      ))}
-                    </View>
+                      )}
+                      <Text variant="body-regular" selectable style={{ color: foreground }}>
+                        {text}
+                      </Text>
+                    </>
                   )}
-                  <Text
-                    variant="body-regular"
-                    selectable
-                    style={{ color: bubbles.colors.foreground }}
-                  >
-                    {text}
-                  </Text>
                 </ChatBubble>
               ) : (
                 <AiChatUserMessage animate={isNew} actions={questionActions}>
@@ -342,25 +355,29 @@ function ReplyTurn({
   const replyActions = [readAloudAction, regenerateAction].filter(isPresent);
   const hasFeedback = !message.isStreaming && text.length > 0 && !readOnly;
   /** The long-press menu: everything the rows offer, likes included. */
+  const likeAction: AiChatTurnAction = {
+    key: 'like',
+    label: t('chat.like'),
+    icon: RiThumbUpLine,
+    onPress: () => actions.vote(message.id, 'up', storedIn),
+  };
+  const dislikeAction: AiChatTurnAction = {
+    key: 'dislike',
+    label: t('chat.dislike'),
+    icon: RiThumbDownLine,
+    onPress: () => actions.vote(message.id, 'down', storedIn),
+  };
   const menuActions: AiChatTurnAction[] = hasFeedback
-    ? [
-        readAloudAction,
-        copyAction,
-        regenerateAction,
-        {
-          key: 'like',
-          label: t('chat.like'),
-          icon: RiThumbUpLine,
-          onPress: () => actions.vote(message.id, 'up', storedIn),
-        },
-        {
-          key: 'dislike',
-          label: t('chat.dislike'),
-          icon: RiThumbDownLine,
-          onPress: () => actions.vote(message.id, 'down', storedIn),
-        },
-      ].filter(isPresent)
+    ? [readAloudAction, copyAction, regenerateAction, likeAction, dislikeAction].filter(isPresent)
     : [];
+  /** In a bubble: "react" is the vote, "more" is the rest of what the turn offers. */
+  const reactActions = hasFeedback ? [likeAction, dislikeAction] : [];
+  const moreActions = hasFeedback
+    ? [readAloudAction, copyAction, regenerateAction].filter(isPresent)
+    : [];
+  const quote = actions.reply;
+  const onReply =
+    quote !== undefined && !readOnly && text.length > 0 ? () => quote(text) : undefined;
 
   const { openThought } = actions;
   const viewDetails = openThought && (() => openThought(message.id, 'steps'));
@@ -519,7 +536,7 @@ function ReplyTurn({
               {bubbled ? (
                 // Only the words are the bubble: the work log and the cards stay above it, whole.
                 // Its turn actions are the icons beside it, so Bloom's own row under it is off.
-                <ChatBubble side="reply" actions={menuActions}>
+                <ChatBubble side="reply" react={reactActions} menu={moreActions} onReply={onReply}>
                   {replyBody}
                 </ChatBubble>
               ) : (

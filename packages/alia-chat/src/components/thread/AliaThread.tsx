@@ -93,6 +93,8 @@ export interface AliaThreadProps {
    */
   threadRef: RefObject<AiChatThreadHandle | null>;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** Quote a turn's words into the composer (a bubble's reply button). Omitted, the button is not drawn. */
+  onReply?: (text: string) => void;
   /** A conversation read by somebody it was shared with: no votes, no read-aloud, no regenerate. */
   readOnly?: boolean;
 }
@@ -156,6 +158,7 @@ export const AliaThread = memo(function AliaThread({
   empty,
   threadRef,
   onScroll,
+  onReply,
   readOnly = false,
 }: AliaThreadProps) {
   const { t } = useLabels();
@@ -208,9 +211,10 @@ export const AliaThread = memo(function AliaThread({
       vote,
       readAloud: readAloud.toggle,
       openThought,
+      reply: onReply,
       readOnly,
     }),
-    [copy, vote, readAloud.toggle, openThought, readOnly],
+    [copy, vote, readAloud.toggle, openThought, onReply, readOnly],
   );
 
   /**

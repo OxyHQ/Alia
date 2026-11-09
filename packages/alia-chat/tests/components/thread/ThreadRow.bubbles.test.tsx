@@ -16,19 +16,24 @@ const row = readFileSync(join(HERE, '../../../src/components/thread/ThreadRow.ts
   .replace(/^\s*\/\/.*$/gm, '');
 
 describe('the bubbles of an agent thread', () => {
-  it("draws the person's turn as a ChatBubble in the agent's colour, only where there is one", () => {
-    expect(row).toMatch(
-      /bubbles\?\.colors \? \(\s*[\s\S]*?<ChatBubble side="user" colors=\{bubbles\.colors\}/,
-    );
-    // Without colours the person keeps Bloom's own bubble.
-    expect(row).toMatch(/<AiChatUserMessage/);
+  it("always draws the person's turn as a ChatBubble in a bubbles thread, never Bloom's larger default", () => {
+    expect(row).toMatch(/bubbles !== null \? \(\s*[\s\S]*?<ChatBubble\s+side="user"/);
+    // The agent's colour; until it is known ChatBubble falls back to the theme's own.
+    expect(row).toMatch(/colors=\{bubbles\.colors\}/);
   });
 
   it('puts the words of a reply in a bubble, and leaves the work log and the cards whole', () => {
     expect(row).toMatch(
-      /\{bubbled \? \(\s*<ChatBubble side="reply" actions=\{menuActions\}>\s*\{replyBody\}/,
+      /\{bubbled \? \(\s*<ChatBubble side="reply" react=\{reactActions\} menu=\{moreActions\} onReply=\{onReply\}>\s*\{replyBody\}/,
     );
     expect(row).toMatch(/const bubbled = useBubbles\(\) !== null \|\| agent !== undefined;/);
+  });
+
+  it("splits a reply's actions as the chat it is modelled on does: the vote under react, the rest under more", () => {
+    expect(row).toMatch(
+      /const reactActions = hasFeedback \? \[likeAction, dislikeAction\] : \[\];/,
+    );
+    expect(row).toMatch(/\[readAloudAction, copyAction, regenerateAction\]\.filter\(isPresent\)/);
   });
 
   it("turns Bloom's feedback row off when the icons are beside the bubble", () => {

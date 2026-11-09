@@ -441,6 +441,21 @@ function AliaConversationView({
     onSuggestionPicked,
     presentedProgress,
   });
+
+  /**
+   * A bubble's reply button: the turn's words, quoted, ahead of what is already typed. Each line is
+   * prefixed `> `, so a model reads it as a quotation and a person as a reply.
+   */
+  const quoteIntoComposer = useCallback(
+    (words: string) => {
+      const quoted = words
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n');
+      composer.setText(`${quoted}\n\n${composer.text}`);
+    },
+    [composer],
+  );
   // Without a call handed down (a text-only entry), the chat is text-only whatever `voice` says.
   const VoiceCall = useContext(VoiceCallContext);
   const voice = useChatVoice({
@@ -734,6 +749,7 @@ function AliaConversationView({
             empty={welcome}
             threadRef={threadRef}
             onScroll={onScroll}
+            onReply={quoteIntoComposer}
           />
         </BubblesProvider>
         {!showsPast ? null : (

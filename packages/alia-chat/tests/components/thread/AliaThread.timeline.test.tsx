@@ -97,6 +97,9 @@ const stub = vi.hoisted(() => (name: string) => async () => {
   return ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     ReactModule.createElement(name, props, children);
 });
+vi.mock('../../../src/components/thread/ChatBubble', async () => ({
+  ChatBubble: await stub('ChatBubble')(),
+}));
 vi.mock('../../../src/components/thread/AgentResultCard', async () => ({
   AgentResultCard: await stub('AgentResultCard')(),
 }));

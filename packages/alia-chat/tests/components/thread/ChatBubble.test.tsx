@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 /**
  * A turn as a chat bubble: the person's at the end in the agent's colour with its icons on the
- * side facing the thread, a reply at the start with its icons after it; the icons appear on hover.
+ * side facing the thread, a reply at the start with its icons after it. The icons are the three of
+ * the chat this is modelled on (react, reply, more) and appear on hover.
  */
 
 const { hosts } = vi.hoisted(() => ({
@@ -24,6 +25,18 @@ vi.mock('react-native', async () => ({
   ...(await hosts('View', 'Pressable')),
   Platform: { OS: 'web' },
 }));
+vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
+  const items = await hosts('DropdownMenu', 'DropdownMenuTrigger', 'DropdownMenuContent');
+  const ReactModule = await import('react');
+  return {
+    ...items,
+    DropdownMenuItem: ({
+      children,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode }) =>
+      ReactModule.createElement('DropdownMenuItem', props, children),
+  };
+});
 vi.mock('@oxy.so/bloom/hooks', async () => {
   const ReactModule = await import('react');
   return {
@@ -38,6 +51,10 @@ vi.mock('@oxy.so/bloom/theme', () => ({
     colors: { backgroundSecondary: '#eee', text: '#111', textSecondary: '#666' },
   }),
 }));
+vi.mock('@oxy.so/bloom/icons/RiEmotionLine', () => ({ RiEmotionLine: () => null }));
+vi.mock('@oxy.so/bloom/icons/RiMoreFill', () => ({ RiMoreFill: () => null }));
+vi.mock('../../../src/components/icons/RiReplyLine', () => ({ RiReplyLine: () => null }));
+vi.mock('../../../src/lib/labels', () => ({ useLabels: () => ({ t: (key: string) => key }) }));
 
 import { ChatBubble } from '../../../src/components/thread/ChatBubble';
 
@@ -50,71 +67,112 @@ const action = (key: string, onPress = vi.fn()) => ({
   icon: Glyph as never,
   onPress,
 });
-
 const COLORS = { background: '#009957', foreground: '#ffffff' };
+const is = (node: ReactTestInstance, name: string) => (node.type as unknown) === name;
+const styleOf = (node: ReactTestInstance) =>
+  node.props.style as Record<string, unknown> | undefined;
 
-function mount(side: 'user' | 'reply', actions = [action('copy')]) {
+function mount(
+  side: 'user' | 'reply',
+  extra: {
+    react?: ReturnType<typeof action>[];
+    menu?: ReturnType<typeof action>[];
+    onReply?: () => void;
+  } = {},
+) {
   let renderer!: ReturnType<typeof create>;
   act(() => {
     renderer = create(
-      <ChatBubble side={side} colors={side === 'user' ? COLORS : null} actions={actions}>
+      <ChatBubble side={side} colors={side === 'user' ? COLORS : null} {...extra}>
         {createElement('View', { testID: 'words' })}
       </ChatBubble>,
     );
   });
   return renderer.root;
 }
-const is = (node: ReactTestInstance, name: string) => (node.type as unknown) === name;
 const row = (root: ReactTestInstance) => root.findAll((n) => is(n, 'View'))[0]!;
-const icons = (root: ReactTestInstance) =>
+const group = (root: ReactTestInstance) =>
   root.find((n) => is(n, 'View') && String(n.props.className ?? '').includes('gap-0.5'));
+const labels = (root: ReactTestInstance) =>
+  root.findAll((n) => is(n, 'Pressable')).map((b) => b.props.accessibilityLabel);
 
 describe('ChatBubble', () => {
   it("puts the person's bubble at the end in the agent's colour, icons first", () => {
-    const root = mount('user');
+    const root = mount('user', { onReply: vi.fn() });
     expect(row(root).props.className).toContain('justify-end');
     const children = row(root).children as ReactTestInstance[];
     expect(String(children[0]!.props.className)).toContain('gap-0.5');
     const bubble = children[1]!;
-    expect(bubble.props.style).toEqual({ backgroundColor: '#009957' });
-    expect(String(bubble.props.className)).toContain('rounded-3xl');
-    expect(String(bubble.props.className)).toContain('py-3');
-    expect(String(bubble.props.className)).toContain('max-w-[80%]');
+    expect(styleOf(bubble)).toEqual({ backgroundColor: '#009957' });
+    for (const klass of ['rounded-3xl', 'px-4', 'py-3', 'max-w-[80%]']) {
+      expect(String(bubble.props.className)).toContain(klass);
+    }
   });
 
   it('puts a reply at the start in a neutral bubble, 8px tall, icons after it', () => {
-    const root = mount('reply');
+    const root = mount('reply', { onReply: vi.fn() });
     expect(row(root).props.className).toContain('justify-start');
     const children = row(root).children as ReactTestInstance[];
     const bubble = children[0]!;
     expect(String(bubble.props.className)).toContain('bg-background-tertiary-default');
     expect(String(bubble.props.className)).toContain('py-2');
-    expect(bubble.props.style).toBeUndefined();
+    expect(styleOf(bubble)).toBeUndefined();
     expect(String(children[1]!.props.className)).toContain('gap-0.5');
   });
 
   it('shows the icons only while the row is hovered', () => {
-    const root = mount('reply');
-    expect(icons(root).props.style).toEqual({ opacity: 0 });
-    expect(icons(root).props.pointerEvents).toBe('none');
+    const root = mount('reply', { onReply: vi.fn() });
+    expect(styleOf(group(root))).toEqual({ opacity: 0 });
+    expect(group(root).props.pointerEvents).toBe('none');
     act(() => row(root).props.onPointerEnter());
-    expect(icons(root).props.style).toEqual({ opacity: 1 });
-    expect(icons(root).props.pointerEvents).toBe('auto');
+    expect(styleOf(group(root))).toEqual({ opacity: 1 });
+    expect(group(root).props.pointerEvents).toBe('auto');
     act(() => row(root).props.onPointerLeave());
-    expect(icons(root).props.style).toEqual({ opacity: 0 });
+    expect(styleOf(group(root))).toEqual({ opacity: 0 });
   });
 
-  it('draws one pressable per action, named by its label, that does what the action does', () => {
+  it('has the three icons of the chat it is modelled on, in order: react, reply, more', () => {
+    const root = mount('reply', {
+      react: [action('like'), action('dislike')],
+      menu: [action('copy')],
+      onReply: vi.fn(),
+    });
+    expect(labels(root)).toEqual([
+      'chat.reactToMessage',
+      'chat.replyToMessage',
+      'chat.moreActions',
+    ]);
+  });
+
+  it('offers a vote under react, the rest under more, and quotes the turn on reply', () => {
+    const like = vi.fn();
     const copy = vi.fn();
-    const root = mount('reply', [action('copy', copy), action('like')]);
-    const buttons = root.findAll((n) => is(n, 'Pressable'));
-    expect(buttons.map((b) => b.props.accessibilityLabel)).toEqual(['copy', 'like']);
-    act(() => buttons[0]!.props.onPress());
+    const reply = vi.fn();
+    const root = mount('reply', {
+      react: [action('like', like), action('dislike')],
+      menu: [action('copy', copy)],
+      onReply: reply,
+    });
+    const items = root.findAll((n) => is(n, 'DropdownMenuItem'));
+    expect(items.map((i) => i.props.children)).toEqual(['like', 'dislike', 'copy']);
+    act(() => items[0]!.props.onPress());
+    act(() => items[2]!.props.onPress());
+    expect(like).toHaveBeenCalledOnce();
     expect(copy).toHaveBeenCalledOnce();
+    const replyButton = root
+      .findAll((n) => is(n, 'Pressable'))
+      .find((b) => b.props.accessibilityLabel === 'chat.replyToMessage')!;
+    act(() => replyButton.props.onPress());
+    expect(reply).toHaveBeenCalledOnce();
   });
 
-  it('draws no icon group when the turn has no actions', () => {
-    const root = mount('reply', []);
+  it('draws only the icons the turn can use: the person has no vote to cast on a question', () => {
+    const root = mount('user', { menu: [action('copy')], onReply: vi.fn() });
+    expect(labels(root)).toEqual(['chat.replyToMessage', 'chat.moreActions']);
+  });
+
+  it('draws no icon group when there is nothing to offer', () => {
+    const root = mount('reply');
     expect(root.findAll((n) => String(n.props.className ?? '').includes('gap-0.5'))).toHaveLength(
       0,
     );
