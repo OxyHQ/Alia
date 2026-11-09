@@ -544,11 +544,11 @@ jobs:
       - name: Verify every static asset a source file names exists
         run: node scripts/check-static-assets.mjs
 
-      # The alia.onl and Canvas Workers: CORS on the shared character runtime, a
+      # The alia.onl and Canvas Workers: CORS on the SDK's shared files, a
       # year-long immutable cache on content-hashed files, a 404 (not the app
       # shell) for a hashed name a deploy lacks. Plain `node --test`, no build.
       - name: Test the asset Workers
-        run: node --test scripts/asset-worker.test.mjs scripts/avatar-runtime-release.test.mjs scripts/avatar-runtime-http.test.mjs
+        run: node --test scripts/asset-worker.test.mjs
 
       # `alia-canvas` and the Codea `webview-ui` are solution-style projects
       # (`"files": []`, references only), so `tsc --noEmit` in them compiles

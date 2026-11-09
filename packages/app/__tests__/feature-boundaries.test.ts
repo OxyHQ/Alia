@@ -42,16 +42,7 @@ import { APP_ROOT } from '@/shared/testing/app-root';
 /** Feature → the features it may import. Anything not here imports only `shared/`. */
 const ALLOWED: Record<string, readonly string[]> = {
   // memory and shows: the account lifecycle resets their stores (`src/shell/account-lifecycle.ts`).
-  shell: [
-    'agents',
-    'chat',
-    'library',
-    'memory',
-    'onboarding',
-    'projects',
-    'settings',
-    'shows',
-  ],
+  shell: ['agents', 'chat', 'library', 'memory', 'onboarding', 'projects', 'settings', 'shows'],
   settings: ['billing', 'chat', 'connections', 'library', 'local-models', 'memory', 'skills'],
   automations: ['agents'],
   agents: ['chat'],

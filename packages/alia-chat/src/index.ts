@@ -33,7 +33,6 @@ export { AliaChatScreen } from './components/AliaChatWithVoice';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';
 
 // ── Chat UI components ──
-export { ALIA_CHARACTER_RUNTIME_URL } from './lib/character-runtime';
 export { DEFAULT_LABELS } from './lib/labels';
 export { AliaChatLabelsProvider, useLabels } from './lib/labels';
 export type { AliaChatLabels, VoiceBlockReason } from './lib/labels';

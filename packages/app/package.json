@@ -3,15 +3,11 @@
   "main": "index",
   "version": "1.0.0",
   "scripts": {
-    "setup-character-runtime": "bun scripts/setup-character-runtime.mjs",
     "stamp:voice-worklets": "bun scripts/stamp-voice-worklets.mjs",
-    "prestart": "bun run setup-character-runtime",
     "start": "RCT_METRO_PORT=8150 expo start --clear --tunnel",
-    "predev": "bun run setup-character-runtime",
     "dev": "RCT_METRO_PORT=8150 expo start --scheme alia",
     "android": "RCT_METRO_PORT=8150 expo run:android",
     "ios": "RCT_METRO_PORT=8150 expo run:ios",
-    "preweb": "bun run setup-character-runtime",
     "web": "RCT_METRO_PORT=8150 expo start --web",
     "generate-sitemap": "bun scripts/generate-sitemap.ts",
     "visual:baseline": "node scripts/visual/capture.mjs",
@@ -19,7 +15,7 @@
     "generate:icons": "bun scripts/icons/write.ts",
     "setup-skia-web": "bun x setup-skia-web public",
     "check:web-bundle": "node scripts/check-web-bundle.mjs",
-    "prebuild": "bun run generate-sitemap && bun run setup-character-runtime",
+    "prebuild": "bun run generate-sitemap",
     "build": "bun x expo export --platform web && bun run check:web-bundle",
     "test": "vitest run",
     "typecheck": "expo customize tsconfig.json && tsc --noEmit",
@@ -101,7 +97,6 @@
     "socket.io-client": "^4.8.3",
     "tailwindcss": "4.2.2",
     "zustand": "^5.0.15",
-    "@oxy.so/bloom-avatar-native": "0.1.2",
     "expo-gl": "58.0.3"
   },
   "devDependencies": {
