@@ -14,6 +14,8 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 }));
 vi.mock('../automation-dispatcher.js', () => ({ dispatchStructuredAutomation: dispatch }));
 vi.mock('../notification-service.js', () => ({ sendNotification: notify }));
+const routeToInboxes = vi.fn(() => Promise.resolve(0));
+vi.mock('../agent/inbox-router.js', () => ({ routeEventToAgentInboxes: routeToInboxes }));
 
 const { reapStalledAutomationEvents, STALLED_AFTER_MS } = await import(
   '../automation-event-dispatch.js'
@@ -70,6 +72,14 @@ describe('reapStalledAutomationEvents', () => {
     expect(mark).toHaveBeenCalledWith({}, 'inbox', 'bad', 'failed');
     expect(notify).toHaveBeenCalledTimes(1);
     expect(mark).toHaveBeenCalledWith({}, 'inbox', 'good', 'processed');
+  });
+
+  it('routes a re-dispatched event to agent inboxes even when no automation matches it', async () => {
+    claim.mockResolvedValue([event('e1')]);
+    match.mockResolvedValue([]);
+    await reapStalledAutomationEvents();
+    expect(routeToInboxes).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'e1' }));
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('does nothing when nothing is stalled', async () => {

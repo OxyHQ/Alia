@@ -1,5 +1,14 @@
 /** Durable product runtime for agent threads, goals, memory and teams. */
-import { check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
@@ -223,5 +232,73 @@ export const coworkDevices = pgTable(
   (t) => [
     index('cowork_devices_owner_status_idx').on(t.oxyUserId, t.status),
     checkOneOf('cowork_devices_status_check', t.status, COWORK_DEVICE_STATUSES),
+  ],
+);
+
+export const AGENT_INBOX_STATUSES = ['pending', 'delivered', 'dismissed'] as const;
+
+/**
+ * What an agent has been told since it last looked (ADR 0026).
+ *
+ * An event an agent subscribed to (`agent_subscriptions`) lands here instead of starting a run of its
+ * own, so a burst of mail is one wake-up with a list, not forty runs. The heartbeat
+ * (`lib/agent/heartbeat.ts`) reads the pending rows, hands them to the agent as one task and marks them
+ * `delivered`.
+ *
+ * `summary` is the event's projection Alia already stores in `automation_events` (never a body),
+ * capped in size by the writer. `dedupe_key` is `<appId>:<eventId>`: Oxy redelivering an event, or the
+ * stalled-event sweep re-dispatching it, adds nothing.
+ */
+export const agentInboxItems = pgTable(
+  'agent_inbox_items',
+  {
+    id: generatedId(),
+    /** An `agents` row. No foreign key, like the other agent runtime tables. */
+    agentId: text().notNull(),
+    /** The person the agent works for: whose automation the wake-up runs as. */
+    ownerAccountId: text().notNull(),
+    appId: text().notNull(),
+    eventType: text().notNull(),
+    dedupeKey: text().notNull(),
+    summary: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+    status: text({ enum: AGENT_INBOX_STATUSES as unknown as [string, ...string[]] })
+      .notNull()
+      .default('pending'),
+    receivedAt: createdAt(),
+    deliveredAt: timestamptz(),
+  },
+  (t) => [
+    uniqueIndex('agent_inbox_items_agent_dedupe_key').on(t.agentId, t.dedupeKey),
+    index('agent_inbox_items_pending_idx')
+      .on(t.agentId, t.receivedAt)
+      .where(sql`${t.status} = 'pending'`),
+    checkOneOf('agent_inbox_items_status_check', t.status, AGENT_INBOX_STATUSES),
+  ],
+);
+
+/**
+ * What an agent has asked to be told about: the events of one account (its owner's, or its own bot
+ * account's mailbox) of one app and type. `'*'` matches any app or type.
+ *
+ * Written only by someone who may act as the agent (its owner or an operator); an event is routed by
+ * the account it concerns, so a subscription can never read another person's events.
+ */
+export const agentSubscriptions = pgTable(
+  'agent_subscriptions',
+  {
+    id: generatedId(),
+    agentId: text().notNull(),
+    ownerAccountId: text().notNull(),
+    /** The account whose events these are: the event's `accountId`. */
+    sourceAccountId: text().notNull(),
+    appId: text().notNull(),
+    eventType: text().notNull(),
+    enabled: boolean().notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('agent_subscriptions_key').on(t.agentId, t.sourceAccountId, t.appId, t.eventType),
+    // The router's lookup: every enabled subscription on the account an event concerns.
+    index('agent_subscriptions_source_idx').on(t.sourceAccountId).where(sql`${t.enabled}`),
   ],
 );

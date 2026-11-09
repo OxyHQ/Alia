@@ -219,6 +219,11 @@ export const agents = pgTable(
     /** The agent's power level (ADR 0014) or `publisher/model`; null runs `auto`. */
     modelId: text(),
     scheduleInterval: integer(),
+    /**
+     * When this agent's heartbeat last woke it (`lib/agent/heartbeat.ts`). Claimed by a conditional
+     * UPDATE on the value read, so N instances wake it once per interval. NULL: never.
+     */
+    lastHeartbeatAt: timestamptz(),
 
     /** `soul`, flattened. Absent as a group on an agent that has never evolved. */
     soulVibe: text().array(),
