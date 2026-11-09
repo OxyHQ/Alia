@@ -7,6 +7,10 @@
  * chatting with. Consecutive replies of one agent get the line once; the lead resuming gets none
  * (it is the conversation's own voice) but does reset the run, so the same agent coming back is
  * announced again.
+ *
+ * Only an agent from OUTSIDE the conversation is announced. The members of a group chat are in
+ * it: each speaks as itself, with its own name on its message, as in any group chat, and a line
+ * saying whom the person is "now chatting with" at each change of speaker would be wrong.
  */
 export interface SpeakerChange {
   /** The agent that starts speaking here. */
@@ -19,13 +23,15 @@ export function speakerChanges(
     readonly role: string;
     readonly agentInfo?: { readonly id: string; readonly name: string } | null;
   }[],
+  /** The agents that are part of this conversation (a group's members): never announced. */
+  members?: ReadonlySet<string>,
 ): Map<string, SpeakerChange> {
   const changes = new Map<string, SpeakerChange>();
   let current: string | null = null;
   for (const row of rows) {
     if (row.role !== 'assistant') continue;
     const speaker = row.agentInfo?.id ?? null;
-    if (speaker !== null && speaker !== current && row.agentInfo) {
+    if (speaker !== null && speaker !== current && row.agentInfo && !members?.has(speaker)) {
       changes.set(row.id, { agentName: row.agentInfo.name });
     }
     current = speaker;

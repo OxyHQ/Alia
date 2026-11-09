@@ -41,4 +41,20 @@ describe('speakerChanges', () => {
     const rows = [agent('a1', 'x', 'Nadia'), user('u1'), agent('a2', 'x', 'Nadia')];
     expect(ids(speakerChanges(rows))).toEqual(['a1:Nadia']);
   });
+
+  it('announces nobody who is a member of the conversation: a group speaks as itself', () => {
+    const rows = [
+      user('u1'),
+      agent('a1', 'x', 'Nadia'),
+      agent('a2', 'y', 'Claudio'),
+      user('u2'),
+      agent('a3', 'x', 'Nadia'),
+    ];
+    expect(speakerChanges(rows, new Set(['x', 'y'])).size).toBe(0);
+  });
+
+  it('still announces an agent from outside the group', () => {
+    const rows = [user('u1'), agent('a1', 'x', 'Nadia'), agent('a2', 'z', 'Guest')];
+    expect(ids(speakerChanges(rows, new Set(['x', 'y'])))).toEqual(['a2:Guest']);
+  });
 });

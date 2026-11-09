@@ -399,6 +399,11 @@ function AliaConversationView({
     retryFailedTurn,
   } = thread;
   const consulted = useParticipants({ lead, messages, flights });
+  // A group's members are in the conversation: the thread does not announce them as newcomers.
+  const memberIds = useMemo(
+    () => (group === undefined ? undefined : new Set(group.map((member) => member.id))),
+    [group],
+  );
   const participants = useMemo(
     () => (group === undefined ? consulted : groupParticipants(group)),
     [group, consulted],
@@ -757,6 +762,7 @@ function AliaConversationView({
             conversationId={conversationId}
             isLoading={isLoading}
             conversationLoading={conversationLoading || loading}
+            memberIds={memberIds}
             history={view.history}
             focusCursor={view.focusCursor}
             failedTurn={failedTurn}

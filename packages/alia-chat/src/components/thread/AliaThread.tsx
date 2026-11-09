@@ -58,6 +58,8 @@ export interface AliaThreadProps {
   isLoading: boolean;
   /** The conversation's messages are still on their way. */
   conversationLoading?: boolean;
+  /** The agents taking part in this conversation (a group's members): they speak as themselves, with no "chat with" line. */
+  memberIds?: ReadonlySet<string>;
   history?: ThreadHistory;
   /**
    * The message a jump was aimed at, by cursor, or `null` at the present. A window is half before
@@ -125,6 +127,7 @@ export const AliaThread = memo(function AliaThread({
   conversationId,
   isLoading,
   conversationLoading = false,
+  memberIds,
   history: historyProps,
   focusCursor,
   failedTurn = null,
@@ -163,6 +166,7 @@ export const AliaThread = memo(function AliaThread({
     history: pastMessages,
     conversationId,
     conversationLoading,
+    memberIds,
   });
 
   // ── The thought panel: this conversation as it reads it, and opening it on a turn ──
