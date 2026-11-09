@@ -1,19 +1,20 @@
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import { Button } from '@oxy.so/bloom/button';
 import { RiDownload2Line } from '@oxy.so/bloom/icons/RiDownload2Line';
 import {
   SettingsGeneralPage,
+  SettingsSection,
   SettingsTextField,
   SettingsValueField,
   type SettingsRowData,
 } from '@oxy.so/bloom/settings-modal';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, Share } from 'react-native';
+import { Platform, Share, View } from 'react-native';
 
 interface ThreatEntry {
   id: string;
@@ -109,117 +110,116 @@ export function SecuritySection() {
     }
   };
 
-  const threatRows: SettingsRowData[] = threatsLoading
-    ? [
-        {
-          key: 'loading',
-          label: t('common.loading'),
-          control: <Skeleton.Box width={202} height={32} borderRadius={10} />,
-        },
-      ]
-    : threats.length
-      ? threats.slice(0, 10).map((threat) => ({
-          key: threat.id,
-          label: threat.agentName,
-          description: `${t(`settings.account.security.severity.${threat.severity}`)} · ${threat.description}`,
-          control: (
-            <SettingsValueField muted>
-              {new Date(threat.timestamp).toLocaleDateString()}
-            </SettingsValueField>
-          ),
-        }))
-      : [{ key: 'empty', label: t('settings.security.noThreats') }];
+  const threatRows: SettingsRowData[] = threats.length
+    ? threats.slice(0, 10).map((threat) => ({
+        key: threat.id,
+        label: threat.agentName,
+        description: `${t(`settings.account.security.severity.${threat.severity}`)} · ${threat.description}`,
+        control: (
+          <SettingsValueField muted>
+            {new Date(threat.timestamp).toLocaleDateString()}
+          </SettingsValueField>
+        ),
+      }))
+    : [{ key: 'empty', label: t('settings.security.noThreats') }];
 
-  return (
-    <SettingsGeneralPage
-      sections={[
+  const threatsSection = {
+    key: 'threats',
+    label: t('settings.security.threatLog'),
+    description: t('settings.security.threatLogDesc'),
+    rows: threatRows,
+  };
+
+  const sections = [
+    {
+      key: 'export',
+      label: t('settings.security.auditExport'),
+      description: t('settings.security.auditExportDesc'),
+      rows: [
+        ...(summary
+          ? [
+              {
+                key: 'summary',
+                label: t('settings.account.security.auditSummary'),
+                description: t('settings.account.security.auditSummaryDetail', {
+                  sessions: summary.totalSessions,
+                  steps: summary.totalSteps,
+                  threats: summary.threatDetections,
+                }),
+              },
+            ]
+          : []),
         {
-          key: 'threats',
-          label: t('settings.security.threatLog'),
-          description: t('settings.security.threatLogDesc'),
-          rows: threatRows,
+          key: 'from',
+          label: t('settings.security.from'),
+          control: (
+            <SettingsTextField
+              label={t('settings.account.security.fromDate')}
+              value={fromDate}
+              onCommit={setFromDate}
+              placeholder="YYYY-MM-DD"
+              showSavedToast={false}
+            />
+          ),
         },
         {
-          key: 'export',
-          label: t('settings.security.auditExport'),
-          description: t('settings.security.auditExportDesc'),
-          rows: [
-            ...(summary
-              ? [
-                  {
-                    key: 'summary',
-                    label: t('settings.account.security.auditSummary'),
-                    description: t('settings.account.security.auditSummaryDetail', {
-                      sessions: summary.totalSessions,
-                      steps: summary.totalSteps,
-                      threats: summary.threatDetections,
-                    }),
-                  },
-                ]
-              : []),
-            {
-              key: 'from',
-              label: t('settings.security.from'),
-              control: (
-                <SettingsTextField
-                  label={t('settings.account.security.fromDate')}
-                  value={fromDate}
-                  onCommit={setFromDate}
-                  placeholder="YYYY-MM-DD"
-                  showSavedToast={false}
-                />
-              ),
-            },
-            {
-              key: 'to',
-              label: t('settings.security.to'),
-              control: (
-                <SettingsTextField
-                  label={t('settings.account.security.toDate')}
-                  value={toDate}
-                  onCommit={setToDate}
-                  placeholder="YYYY-MM-DD"
-                  showSavedToast={false}
-                />
-              ),
-            },
-            {
-              key: 'format',
-              label: t('settings.security.format'),
-              control: (
-                <SettingsSelect
-                  label={t('settings.account.security.exportFormat')}
-                  value={exportFormat}
-                  onChange={setExportFormat}
-                  items={[
-                    { value: 'json', label: 'JSON' },
-                    { value: 'csv', label: 'CSV' },
-                  ]}
-                />
-              ),
-            },
-            {
-              key: 'download',
-              label: t('settings.account.security.downloadAudit'),
-              control: (
-                <Button
-                  size="sm"
-                  leadingIcon={RiDownload2Line}
-                  appearance="outline"
-                  tone="neutral"
-                  disabled={exporting}
-                  loading={exporting}
-                  onPress={handleExport}
-                >
-                  {exporting
-                    ? t('settings.security.exporting')
-                    : t('settings.security.exportButton')}
-                </Button>
-              ),
-            },
-          ],
+          key: 'to',
+          label: t('settings.security.to'),
+          control: (
+            <SettingsTextField
+              label={t('settings.account.security.toDate')}
+              value={toDate}
+              onCommit={setToDate}
+              placeholder="YYYY-MM-DD"
+              showSavedToast={false}
+            />
+          ),
         },
-      ]}
-    />
+        {
+          key: 'format',
+          label: t('settings.security.format'),
+          control: (
+            <SettingsSelect
+              label={t('settings.account.security.exportFormat')}
+              value={exportFormat}
+              onChange={setExportFormat}
+              items={[
+                { value: 'json', label: 'JSON' },
+                { value: 'csv', label: 'CSV' },
+              ]}
+            />
+          ),
+        },
+        {
+          key: 'download',
+          label: t('settings.account.security.downloadAudit'),
+          control: (
+            <Button
+              size="sm"
+              leadingIcon={RiDownload2Line}
+              appearance="outline"
+              tone="neutral"
+              disabled={exporting}
+              loading={exporting}
+              onPress={handleExport}
+            >
+              {exporting ? t('settings.security.exporting') : t('settings.security.exportButton')}
+            </Button>
+          ),
+        },
+      ],
+    },
+  ];
+
+  // The threat log holds its place as placeholder rows while it is read, under its own heading.
+  return threatsLoading ? (
+    <View className="w-full gap-6">
+      <SettingsSection label={threatsSection.label} description={threatsSection.description}>
+        <SettingsRowsSkeleton rows={2} />
+      </SettingsSection>
+      <SettingsGeneralPage sections={sections} />
+    </View>
+  ) : (
+    <SettingsGeneralPage sections={[threatsSection, ...sections]} />
   );
 }

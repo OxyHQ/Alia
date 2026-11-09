@@ -6,13 +6,13 @@ import {
   type AgentMemoryFile,
 } from '@/features/memory/runtime/use-agent-memory';
 import { errorStatus } from '@/shared/api/error-utils';
+import { SettingsRowsSkeleton, SettingsSkeletonRows } from '@/shared/ui/skeletons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
@@ -43,9 +43,7 @@ export function RememberingAgentsSection() {
     <SettingsSection label={t(`${K}.agentsTitle`)}>
       <SettingsCard>
         {isPending ? (
-          <SettingsRow label={t('common.loading')}>
-            <Skeleton.Box width={120} height={28} borderRadius={10} />
-          </SettingsRow>
+          <SettingsSkeletonRows rows={2} />
         ) : !agents?.length ? (
           <SettingsRow
             label={t(`${K}.agentsEmpty`)}
@@ -120,9 +118,7 @@ function MemoryFileEditor({
     <SettingsSection label={path}>
       <SettingsCard>
         {isPending ? (
-          <SettingsRow label={t('common.loading')}>
-            <Skeleton.Box width={160} height={28} borderRadius={10} />
-          </SettingsRow>
+          <SettingsSkeletonRows control="none" rows={3} />
         ) : (
           <View className="gap-3 p-3">
             <Textarea
@@ -205,11 +201,7 @@ export function AgentMemorySection() {
       </SettingsCard>
 
       {isPending ? (
-        <SettingsCard>
-          <SettingsRow label={t('common.loading')}>
-            <Skeleton.Box width={160} height={28} borderRadius={10} />
-          </SettingsRow>
-        </SettingsCard>
+        <SettingsRowsSkeleton control="none" rows={2} />
       ) : !files?.length ? (
         <SettingsCard>
           <SettingsRow label={t(`${K}.empty`, { name })} />

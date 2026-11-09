@@ -54,10 +54,8 @@ vi.mock('@/features/chat/runtime/save-image', () => ({
 vi.mock('@oxy.so/bloom/surfaces', () => ({ alert: () => {}, confirm: async () => false }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { success: () => {}, error: () => {} } }));
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: async () => ({}) }));
-vi.mock('@oxy.so/bloom/loading', async () => {
-  const { host } = await import('@/shared/testing/panel-bloom-stubs');
-  return { Loading: host('Loading') };
-});
+// The terminal's placeholder is Bloom's skeleton: nothing to run here.
+vi.mock('@/shared/ui/skeletons', () => ({ LinesSkeleton: () => null }));
 for (const icon of [
   'RiCodeSLine',
   'RiEditLine',

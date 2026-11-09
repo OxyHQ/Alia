@@ -1,6 +1,24 @@
 export const EMAIL_ALERTS_MUTATION_KEY = ['email-alerts-update'] as const;
+/**
+ * Which of Alia's reads belong to the signed-in account and survive a restart, so the first frame
+ * of a returning person is drawn from what they saw last (the cache is read at once and refreshed
+ * behind it) instead of from a wait.
+ *
+ * Persisted, per account (`oxy_account_queries:<account id>`: another account can never hydrate
+ * them, and a sign-out deletes them):
+ *  - `agents`: the person's agents, an agent's page and the catalogue they browsed.
+ *  - `agent-thread`: an agent's thread (its identity and the conversation it is on), which is what
+ *    opens `/@handle` at once.
+ *  - `conversations`: the list the sidebar draws (titles and times, never the messages).
+ *  - `alia-agent-profile`: the lead of an agent's chat (name, look, greeting, starters).
+ *  - `skills`: the catalogue and the person's installed skills.
+ *
+ * NOT persisted, so they live in memory only: a conversation's messages, the thought panel's
+ * reads, search results, billing (a subscription must never be shown from last week) and
+ * anything signed. `useAccountLifecycle` drops all of Alia's queries when the account changes.
+ */
 export const ALIA_ACCOUNT_QUERIES = {
-  roots: [],
+  roots: ['agents', 'agent-thread', 'conversations', 'alia-agent-profile', 'skills'],
   mutationKeys: [EMAIL_ALERTS_MUTATION_KEY],
 } as const;
 

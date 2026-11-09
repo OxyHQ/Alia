@@ -1,9 +1,9 @@
 import { useBots, type SystemBot } from '@/features/connections/runtime/use-bots';
+import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { SettingsProfilePage } from '@oxy.so/bloom/settings-modal';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { Linking } from 'react-native';
 
@@ -70,22 +70,7 @@ export function BotsSection() {
   };
 
   if (loading) {
-    return (
-      <SettingsProfilePage
-        sections={[
-          {
-            key: 'loading',
-            rows: [
-              {
-                key: 'loading',
-                label: t('common.loading'),
-                control: <Skeleton.Box width={202} height={32} borderRadius={10} />,
-              },
-            ],
-          },
-        ]}
-      />
-    );
+    return <SettingsRowsSkeleton rows={2} />;
   }
 
   return (

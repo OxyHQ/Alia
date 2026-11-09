@@ -35,11 +35,19 @@ vi.mock('react-native', async () => {
   };
 });
 
+// A running step (ToolStep) still draws Bloom's spinner: an action in progress.
 vi.mock('@oxy.so/bloom/loading', async () => {
   const ReactModule = await import('react');
   return {
     Loading: (props: Record<string, unknown>) => ReactModule.createElement('Loading', props),
   };
+});
+
+vi.mock('@oxy.so/bloom/skeleton', async () => {
+  const ReactModule = await import('react');
+  const host = (name: string) => (props: Record<string, unknown>) =>
+    ReactModule.createElement(name, props);
+  return { Region: host('SkeletonRegion'), Circle: host('Skeleton'), Box: host('Skeleton') };
 });
 
 vi.mock('@oxy.so/bloom/agent-log', async () =>
@@ -256,15 +264,15 @@ describe('opened from a persisted tool row (#542)', () => {
     expect(text(r)).not.toContain('thought.noSteps');
   });
 
-  it('says "loading" — not "no steps" — until the conversation’s messages arrive, then shows them', () => {
+  it('draws placeholder rows — not "no steps", and no word about waiting — until the conversation’s messages arrive, then shows them', () => {
     // A seeded conversation: the row was pressed before the full load landed.
     open('a2', scope('c1', [], { status: 'loading' }));
     const r = render();
-    expect(text(r)).toContain('thought.loading');
+    expect(r.root.findAll((n) => n.props.testID === 'thought-loading').length).toBeGreaterThan(0);
     expect(text(r)).not.toContain('thought.noSteps');
 
     sync(scope('c1', persisted));
-    expect(text(r)).not.toContain('thought.loading');
+    expect(r.root.findAll((n) => n.props.testID === 'thought-loading')).toHaveLength(0);
     expect(hosts(r, 'ToolIcon')).toHaveLength(2);
   });
 

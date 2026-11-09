@@ -1,17 +1,12 @@
 import { useMcpServers } from '@/features/connections/runtime/use-mcp-servers';
+import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
-import {
-  SettingsCard,
-  SettingsProfilePage,
-  SettingsRow,
-  SettingsValueField,
-} from '@oxy.so/bloom/settings-modal';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
+import { SettingsProfilePage, SettingsValueField } from '@oxy.so/bloom/settings-modal';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
@@ -116,14 +111,7 @@ export function ConnectorDetailSection() {
     }
   };
 
-  if (loading)
-    return (
-      <SettingsCard>
-        <SettingsRow label={t('common.loading')}>
-          <Skeleton.Box width={202} height={32} borderRadius={10} />
-        </SettingsRow>
-      </SettingsCard>
-    );
+  if (loading) return <SettingsRowsSkeleton />;
   if (!entry)
     return (
       <SettingsProfilePage

@@ -1,7 +1,6 @@
 {
   "common": {
     "or": "O",
-    "loading": "Cargando...",
     "error": "Error",
     "success": "Éxito",
     "cancel": "Cancelar",
@@ -544,7 +543,6 @@
     "renameFolderTitle": "Renombrar carpeta",
     "folderName": "Nombre de la carpeta",
     "responding": "Alia está respondiendo",
-    "loadingConversations": "Cargando conversaciones…",
     "searchChats": "Buscar chats",
     "searchChatsPlaceholder": "Buscar chats…",
     "getTheApp": "Descargar la app",
@@ -653,7 +651,6 @@
     "reactToMessage": "Reaccionar al mensaje",
     "replyToMessage": "Responder al mensaje",
     "moreActions": "Más acciones del mensaje",
-    "loadingHistory": "Cargando mensajes anteriores…",
     "searchThreadPlaceholder": "Buscar en este hilo",
     "searchThreadHint": "Busca todo lo que le has dicho a este agente, en todas las conversaciones.",
     "searchThreadSearching": "Buscando…",
@@ -786,7 +783,6 @@
     "atMidnight": "a las 00:00",
     "totalUsage": "Uso total",
     "creditUsage": "Uso de créditos",
-    "loading": "Cargando...",
     "noUsage": "Sin uso en este periodo",
     "viewFullHistory": "Ver historial completo",
     "today": "Hoy",
@@ -1411,8 +1407,7 @@
       "reconnected": "Reconectado",
       "connectionLost": "Conexión perdida — reconectando…",
       "connectionError": "Error de conexión — reintentando…",
-      "unavailable": "El terminal no está disponible en este dispositivo.",
-      "loading": "Cargando terminal…"
+      "unavailable": "El terminal no está disponible en este dispositivo."
     },
     "cannotReviewOwn": "No puedes reseñar tu propio agente",
     "deleteReview": "Eliminar reseña",
@@ -1447,7 +1442,6 @@
         "urlPlaceholder": "Dirección de la página",
         "go": "Ir",
         "screenLabel": "El navegador del agente. Toca para hacer clic.",
-        "loading": "Cargando la pantalla…",
         "agentInControl": "El agente tiene el control",
         "youInControl": "Tienes el control — el agente espera",
         "takeControl": "Tomar el control",
@@ -1674,7 +1668,6 @@
     "failed": "Falló",
     "cancelled": "Detenido",
     "noActivity": "Aún no hay acciones registradas",
-    "loading": "Cargando esta conversación…",
     "loadFailed": "No se pudo cargar esta conversación",
     "messageGone": "Este mensaje ya no está en la conversación",
     "working": "Trabajando…",

@@ -97,6 +97,10 @@ Oxy, OIDC, cuando CI pasó en ese commit); las puertas de cada paquete son CI �
   uso y el worker lo canjea; jamás un token de servicio. `title`/`topic` son
   overrides opcionales y por eso admiten NULL; `topic` se envía entero —
   `docs/shows.mdx`.
+- **Ninguna pantalla espera detrás de un spinner ni de un «Loading...»** (`docs/instant-loading.md`):
+  lo que se espera se dibuja con el esqueleto de Bloom, con la forma del contenido
+  (`src/shared/ui/skeletons`, `ThreadSkeleton` del SDK). El spinner es solo para acciones en
+  curso; `__tests__/no-loading-screens.test.ts` lo hace cumplir.
 - Actores: `docs/actors.mdx`. Agentes y su ordenador: `docs/agents.md`. Tareas y
   avisos: `docs/proactive-intelligence.md`. Memoria: `docs/memory-system.md`.
   Chat/SSE: `docs/chat-runtime.mdx`. Despliegue: `docs/deployment.md`.

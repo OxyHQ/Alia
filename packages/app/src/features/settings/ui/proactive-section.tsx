@@ -1,7 +1,7 @@
 import { useEmailAlerts } from '@/features/settings/runtime/use-email-alerts';
+import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Switch } from '@oxy.so/bloom/switch';
 import { View } from 'react-native';
 
@@ -21,13 +21,7 @@ export function ProactiveSection() {
   const { alerts, loading, failed, setEnabled } = useEmailAlerts();
 
   if (loading) {
-    return (
-      <SettingsCard>
-        <SettingsRow label={t('common.loading')}>
-          <Skeleton.Box width={52} height={28} borderRadius={14} />
-        </SettingsRow>
-      </SettingsCard>
-    );
+    return <SettingsRowsSkeleton control="switch" />;
   }
   if (failed || !alerts) {
     return (

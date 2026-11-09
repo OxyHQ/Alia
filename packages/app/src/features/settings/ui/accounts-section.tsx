@@ -3,9 +3,9 @@ import {
   type ConnectedAccount,
 } from '@/features/connections/runtime/use-connected-accounts';
 import { useTranslation } from '@/shared/i18n/use-translation';
+import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import { Button } from '@oxy.so/bloom/button';
 import { SettingsProfilePage } from '@oxy.so/bloom/settings-modal';
-import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useState } from 'react';
@@ -75,22 +75,7 @@ export function AccountsSection() {
   };
 
   if (loading) {
-    return (
-      <SettingsProfilePage
-        sections={[
-          {
-            key: 'loading',
-            rows: [
-              {
-                key: 'loading',
-                label: t('common.loading'),
-                control: <Skeleton.Box width={202} height={32} borderRadius={10} />,
-              },
-            ],
-          },
-        ]}
-      />
-    );
+    return <SettingsRowsSkeleton rows={2} />;
   }
 
   return (

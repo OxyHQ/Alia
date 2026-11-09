@@ -12,7 +12,13 @@
  * the system prompt's index are both downstream of it.
  */
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  keepPreviousData,
+} from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
@@ -107,6 +113,8 @@ export function useSkillCataloguePages(
       lastPage.length < pageSize
         ? undefined
         : allPages.reduce((count, page) => count + page.length, 0),
+    // A new search or category keeps the list on screen until the next one arrives.
+    placeholderData: keepPreviousData,
   });
 }
 
