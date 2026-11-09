@@ -92,6 +92,12 @@ export interface SaveConversationParams {
   /** The embedding app (`host.app`); it labels the conversation only if this turn creates it. */
   originApp?: string;
   agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: AgentInfo }>;
+  /**
+   * A group turn has no lead: every reply is a member's, in `agentMessages`. Set, the turn stores
+   * no reply of its own (`assistantResponse` is ignored) and the conversation's last message is the
+   * last member's.
+   */
+  omitLeadReply?: boolean;
 }
 
 /**
@@ -149,6 +155,7 @@ export async function saveConversation(params: SaveConversationParams): Promise<
     agentId,
     originApp,
     agentMessages,
+    omitLeadReply = false,
   } = params;
   const assistantMessageId = usableMessageId(params.assistantMessageId);
 
@@ -185,12 +192,16 @@ export async function saveConversation(params: SaveConversationParams): Promise<
         ? {}
         : { id: agentMessageId(assistantMessageId, index) }),
     })),
-    {
-      role: 'assistant',
-      content: stripTitleTags(assistantResponse),
-      ...(toolInvocations && toolInvocations.length > 0 && { toolInvocations }),
-      ...(assistantMessageId === undefined ? {} : { id: assistantMessageId }),
-    },
+    ...(omitLeadReply
+      ? []
+      : [
+          {
+            role: 'assistant',
+            content: stripTitleTags(assistantResponse),
+            ...(toolInvocations && toolInvocations.length > 0 && { toolInvocations }),
+            ...(assistantMessageId === undefined ? {} : { id: assistantMessageId }),
+          },
+        ]),
   ].filter((msg) => msg != null && msg.role && msg.content !== undefined);
 
   const title = extractConversationTitle(assistantResponse, messages);
@@ -199,7 +210,9 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   await upsertConversation(getDb(), {
     oxyUserId: userId,
     conversationId,
-    lastMessage: stripTitleTags(assistantResponse).slice(0, 100),
+    lastMessage: stripTitleTags(
+      omitLeadReply ? (agentMessages?.at(-1)?.content ?? '') : assistantResponse,
+    ).slice(0, 100),
     titleOnInsert: title,
     source: source || 'app',
     ...(agentId ? { agentId } : {}),

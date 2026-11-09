@@ -105,6 +105,12 @@ export interface AgentTurnPerson {
   surfaceApplicationId: string | null;
 }
 
+/** One earlier message of the conversation a turn answers. */
+export interface AgentTurnMessage {
+  readonly role: 'user' | 'assistant';
+  readonly content: string;
+}
+
 /** What the nested turn shows while it runs. Each callback is best effort. */
 export interface AgentTurnObserver {
   onTextDelta?: (text: string) => void;
@@ -130,6 +136,13 @@ export async function runAgentTurn(input: {
   observer?: AgentTurnObserver;
   /** The outer turn's attachments, which the callee's gates are applied to. */
   attachments?: readonly GatedPart[];
+  /**
+   * What was said before `task`, oldest first: a group member answers a conversation, not a
+   * lone question. Omitted (`consultAgent`), the agent is given `task` and nothing else.
+   */
+  history?: readonly AgentTurnMessage[];
+  /** A tighter limit than {@link AGENT_TIMEOUT_MS}, for a turn that shares a request's time. */
+  timeoutMs?: number;
 }): Promise<AgentTurnResult> {
   const { agent, task, person, payerOxyUserId, observer } = input;
   const start = Date.now();
@@ -208,7 +221,8 @@ export async function runAgentTurn(input: {
 
   let settled = false;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
+  const limitMs = Math.min(input.timeoutMs ?? AGENT_TIMEOUT_MS, AGENT_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), limitMs);
   const nameOf = (toolName: string) => toolNameMapping.get(toolName) ?? toolName;
   const observe = (call: () => void) => {
     try {
@@ -222,7 +236,9 @@ export async function runAgentTurn(input: {
     const result = streamText({
       model,
       system: systemPrompt + appCatalogPrompt,
-      prompt: task,
+      ...(input.history === undefined
+        ? { prompt: task }
+        : { messages: [...input.history, { role: 'user' as const, content: task }] }),
       tools: agentTools,
       ...toolRouting,
       stopWhen: stepCountIs(AGENT_MAX_STEPS),
@@ -297,7 +313,7 @@ export async function runAgentTurn(input: {
     log.general.error({ err: error, agentId: agent._id }, 'Consultation failed');
     return failed(
       controller.signal.aborted
-        ? `The agent took too long (${AGENT_TIMEOUT_MS / 1000}s)`
+        ? `The agent took too long (${Math.round(limitMs / 1000)}s)`
         : getErrorMessage(error),
     );
   } finally {

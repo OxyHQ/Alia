@@ -70,6 +70,8 @@ import {
   createSendWhatsAppMessageTool,
   createSearchAgentsTool,
   createAgentTool,
+  listMyAgentsTool,
+  updateAgentTool,
   createDeepResearchTool,
   createPlanPreviewTool,
   createAskUserQuestionTool,
@@ -643,6 +645,9 @@ export class ToolPipeline {
     // Minting an agent needs the caller's own credential, so only a session has it.
     if (isDirectSession && !nested && grants.allows('delegation')) {
       aliaTools.createAgent = createAgentTool(userId, accessToken);
+      // Managing them needs the same: the bearer decides who may act as each agent's account.
+      aliaTools.listMyAgents = listMyAgentsTool(userId);
+      aliaTools.updateAgent = updateAgentTool(userId, accessToken);
     }
 
     /**

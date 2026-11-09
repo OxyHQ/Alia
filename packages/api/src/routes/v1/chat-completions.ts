@@ -10,6 +10,8 @@ import { convertToAISDKMessages, priorToolCallsOf } from '../../lib/message-conv
 import { applyHostOutcomes, hostAwaitsResults, hostOutcomeResult } from '../../lib/host-tools.js';
 import { turnStepBounds } from '../../lib/chat/model-config.js';
 import { recordToolResults } from '../../db/chat/messageRepository.js';
+import { listGroupMembers } from '../../db/chat/conversationMemberRepository.js';
+import { serveGroupTurn } from '../../lib/chat/group-turn-http.js';
 import { getDb } from '../../db/index.js';
 import { ToolLimitExceededError } from '../../lib/inference/tool-limit.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
@@ -176,6 +178,45 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         // A rejected duplicate never owns or finalizes the existing turn.
         controlIdentity = undefined;
         answerTurnControlError(res, error);
+        return;
+      }
+    }
+
+    /**
+     * A GROUP conversation is answered by its members, not by Alia (`lib/chat/group-turn.ts`), so it
+     * is served before anything is reserved for a turn of hers: each member reserves and settles its
+     * own. Only the person's own session can talk to a group.
+     */
+    if (
+      req.user?.id &&
+      !req.serviceApp &&
+      typeof req.body?.conversationId === 'string' &&
+      req.body.conversationId !== ''
+    ) {
+      const members = await listGroupMembers(getDb(), req.user.id, req.body.conversationId);
+      if (members.length > 0) {
+        const replies = await serveGroupTurn({
+          req,
+          res,
+          sse,
+          userId: req.user.id,
+          conversationId: req.body.conversationId,
+          memberAgentIds: members,
+          requestId,
+          startedAt: requestStartTime,
+          signal: providerAbort.signal,
+        });
+        if (replies !== null && replies.length === 0) {
+          failTurn(
+            new AliaError({
+              code: AliaErrorCode.EMPTY_RESPONSE,
+              message: 'No member of the group could answer',
+              retryable: true,
+              reason: 'provider_unavailable',
+            }),
+          );
+        }
+        completed = replies !== null && replies.length > 0;
         return;
       }
     }
