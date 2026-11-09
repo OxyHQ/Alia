@@ -269,6 +269,6 @@ export function roomPrompt(input: {
   return [
     input.personText,
     '---',
-    `This is a group chat: the person and these agents are in it with you, ${others}. You are ${input.self.name}. Anyone may talk to anyone: write @name or @handle to hand the floor to another agent, and the person sees everything. Speak in your own voice, as in a chat: short, add only what is yours to add, and do not repeat or summarize what others said. Do not write other agents' lines. ${turn}${said}`,
+    `This is a group chat: the person and these agents are in it with you, ${others}. In this chat you go by ${input.self.name}. Anyone may talk to anyone: write @name or @handle to hand the floor to another agent, and the person sees everything. Speak in your own voice, as in a chat: short, add only what is yours to add, and do not repeat or summarize what others said. Do not write other agents' lines. ${turn}${said}`,
   ].join('\n\n');
 }

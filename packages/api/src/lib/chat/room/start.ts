@@ -65,15 +65,17 @@ export const prepareRoom: PrepareRoom = async (input) => {
   for (const agentId of input.memberAgentIds) {
     try {
       const found = await findAgentById(getDb(), agentId);
-      const reach =
-        found === null
-          ? 'out_of_reach'
-          : await canReachAgent(found, {
-              oxyUserId: userId,
-              accessToken: input.accessToken,
-              surfaceApplicationId: input.surfaceApplicationId,
-            });
-      if (found === null || reach !== 'reachable') {
+      if (found === null) {
+        unreachable.push(agentId);
+        continue;
+      }
+      // The verdict is compared where it is read: only `reachable` opens the agent to the room.
+      const reach = await canReachAgent(found, {
+        oxyUserId: userId,
+        accessToken: input.accessToken,
+        surfaceApplicationId: input.surfaceApplicationId,
+      });
+      if (reach !== 'reachable') {
         unreachable.push(agentId);
         continue;
       }
