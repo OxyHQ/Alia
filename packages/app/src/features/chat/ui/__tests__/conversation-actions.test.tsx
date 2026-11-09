@@ -113,7 +113,7 @@ const chat = (over: Record<string, unknown> = {}) =>
     startOver: vi.fn(),
     clearMessages: vi.fn(async () => true),
     markState: 'idle',
-    agents: [],
+    participants: { lead: { id: 'alia', isAlia: true, name: 'Alia' }, joined: [] },
     openSearch: undefined,
     getMessages: () => [{ id: 'm1', role: 'user', content: 'hi' }],
     ...over,

@@ -48,10 +48,9 @@ export type ShareLinkOutcome = 'shared' | 'copied' | 'dismissed';
  * Hand a conversation's share link (`useShareConversation` → `share.url`, Alia's one shared page)
  * to the person, however this platform does that.
  *
- * On a phone it is React Native's share sheet: iOS takes the link as a `url`, Android only a
- * `message`, so there the text carries it. On web it is the browser's own share sheet where there
- * is one (`navigator.share`, most phones' browsers), and the clipboard everywhere else — a desktop
- * browser's sheet, where it exists, is a worse way to get a link into a chat than pasting it.
+ * It opens the system's share sheet wherever there is one: React Native's on a phone (iOS takes the
+ * link as a `url`, Android only a `message`, so there the text carries it) and the browser's own
+ * (`navigator.share`) on web. Only a browser without one gets the link copied to the clipboard.
  * Closing the sheet is `dismissed`, not a failure; a sheet that cannot open at all falls back to
  * the clipboard.
  */
@@ -66,11 +65,7 @@ export async function deliverShareLink(
     );
     return result.action === Share.dismissedAction ? 'dismissed' : 'shared';
   }
-  const touch =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(pointer: coarse)').matches;
-  if (touch && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
       await navigator.share({ url, title, text });
       return 'shared';

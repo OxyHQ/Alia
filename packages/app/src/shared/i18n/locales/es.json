@@ -1211,6 +1211,10 @@
     "failedToReset": "Error al restablecer la contraseña. Por favor, intenta de nuevo."
   },
   "chatHeader": {
+    "chatActions": "Acciones del chat",
+    "inThisConversation": "En esta conversación",
+    "editNamed": "Editar a {{name}}",
+    "startGroup": "Iniciar un chat de grupo",
     "agentTerminal": "Terminal del agente",
     "export": "Exportar",
     "settings": "Configuración",

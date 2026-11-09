@@ -5,7 +5,7 @@ import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { deliverMarkdownFile, deliverShareLink } from '@/features/chat/runtime/conversation-share';
 import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
@@ -160,14 +160,23 @@ export function ConversationActions({
   }, [terminalAgentId, pathname]);
 
   const openAgentEditor = useOpenAgentEditor();
-  const handleEditAgent = useCallback(() => {
-    if (agentId !== undefined) openAgentEditor(agentId);
-  }, [agentId, openAgentEditor]);
+  // The agents taking part, as the header shows them (Alia has no editor), each editable from the menu.
+  const { lead, joined } = chat.participants;
+  const agents = useMemo(
+    () =>
+      [...(lead.isAlia ? [] : [lead]), ...joined].map(({ id, name, character }) => ({
+        id,
+        name,
+        character,
+      })),
+    [lead, joined],
+  );
 
   return (
     <ChatHeaderActions
       onSearch={openSearch}
-      onEditAgent={agentId === undefined ? undefined : handleEditAgent}
+      agents={agents}
+      onEditAgent={openAgentEditor}
       onShare={shareable ? handleShare : undefined}
       onStopSharing={shareable ? handleStopSharing : undefined}
       onExport={handleExport}

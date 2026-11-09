@@ -1211,6 +1211,10 @@
     "failedToReset": "Failed to reset password. Please try again."
   },
   "chatHeader": {
+    "chatActions": "Chat actions",
+    "inThisConversation": "In this conversation",
+    "editNamed": "Edit {{name}}",
+    "startGroup": "Start a group chat",
     "agentTerminal": "Agent terminal",
     "export": "Export",
     "settings": "Settings",
