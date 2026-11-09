@@ -349,6 +349,11 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
  * Measured while porting: without these, the flow drops its `alia.title` frame
  * and the transcript below is two entries short.
  */
+// No conversation here is a group: the members repository would need a real database.
+vi.mock('../../../db/chat/conversationMemberRepository.js', () => ({
+  listGroupMembers: vi.fn(async () => []),
+}));
+
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
   conversationExists: vi.fn(async () => false),
   updateConversationTitle: vi.fn(async () => 1),

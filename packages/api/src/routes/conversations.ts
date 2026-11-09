@@ -4,6 +4,12 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
 import { findAgentById } from '../db/agents/agentRepository.js';
+import {
+  createGroupConversation,
+  listGroupMembers,
+  listGroupMembersFor,
+} from '../db/chat/conversationMemberRepository.js';
+import { parseGroupMembers } from '../domain/conversation-groups.js';
 import { canReachAgent } from '../lib/agent-account.js';
 import { appSurfaceOf } from '../lib/app-surface.js';
 import { purgeConversationSpeechClips } from '../lib/speech-clips.js';
@@ -249,6 +255,56 @@ router.post('/new', authenticateToken, async (req: Request, res: Response) => {
      * or confined to another app — is the same 404.
      */
     const agentId = typeof req.body?.agentId === 'string' ? req.body.agentId : undefined;
+
+    /**
+     * `agentIds` starts a GROUP: two to six agents that each answer every message, in this order.
+     * It is the alternative to `agentId` (one agent's thread), never an addition to it. Each
+     * member passes the same reach rule as a single agent, and any that does not is the same 404,
+     * so the answer says nothing about which one it was.
+     */
+    if (req.body?.agentIds !== undefined) {
+      if (agentId !== undefined) {
+        return res.status(400).json({ error: 'agentId and agentIds are exclusive' });
+      }
+      const members = parseGroupMembers(req.body.agentIds);
+      if (!members.ok) return res.status(400).json({ error: members.error });
+      const surfaceApplicationId = await appSurfaceOf(req);
+      for (const memberId of members.agentIds) {
+        const agent = await findAgentById(getDb(), memberId);
+        if (
+          agent === null ||
+          (await canReachAgent(agent, {
+            oxyUserId: req.user.id,
+            accessToken: req.accessToken,
+            surfaceApplicationId,
+          })) !== 'reachable'
+        ) {
+          return res.status(404).json({ error: 'Agent not found' });
+        }
+      }
+      const group = await createGroupConversation(getDb(), {
+        oxyUserId: req.user.id,
+        conversationId,
+        title:
+          typeof req.body?.title === 'string' && req.body.title.trim() !== ''
+            ? req.body.title.trim().slice(0, 100)
+            : 'New group',
+        source: sourceFromBody(req.body?.source) ?? 'app',
+        agentIds: members.agentIds,
+        ...(originApp === undefined ? {} : { originApp }),
+      });
+      return res.json({
+        id: group.conversation.conversationId,
+        title: group.conversation.title,
+        source: group.conversation.source,
+        agentId: null,
+        memberAgentIds: group.memberAgentIds,
+        app: group.conversation.originApp,
+        createdAt: group.conversation.createdAt,
+        updatedAt: group.conversation.updatedAt,
+      });
+    }
+
     if (agentId !== undefined) {
       const agent = await findAgentById(getDb(), agentId);
       if (
@@ -340,6 +396,12 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
 
     const hasMore = rows.length > limit;
     const results = hasMore ? rows.slice(0, limit) : rows;
+    // The agents of the groups on this page, in one query: empty for every other conversation.
+    const groupMembers = await listGroupMembersFor(
+      getDb(),
+      localAccountId,
+      results.map((c) => c.conversationId),
+    );
 
     const nextCursor =
       hasMore && results.length > 0 ? results[results.length - 1].updatedAt.toISOString() : null;
@@ -351,6 +413,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
         lastMessage: c.lastMessage,
         source: c.source,
         agentId: c.agentId,
+        memberAgentIds: groupMembers.get(c.conversationId) ?? [],
         app: c.originApp,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
@@ -381,6 +444,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
     }
 
     const rows = await listMessages(getDb(), userId, conversationId);
+    const memberAgentIds = await listGroupMembers(getDb(), userId, conversationId);
 
     res.json({
       id: conversation.conversationId,
@@ -388,6 +452,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       lastMessage: conversation.lastMessage,
       source: conversation.source,
       agentId: conversation.agentId,
+      memberAgentIds,
       app: conversation.originApp,
       messages: rows.map(toStoredMessage),
       createdAt: conversation.createdAt,
