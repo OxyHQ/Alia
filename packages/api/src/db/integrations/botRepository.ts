@@ -153,6 +153,24 @@ export async function findActiveUserBotByWebhookSecret(
   return row ? { ...withLegacyId(row), botToken: row.botToken } : null;
 }
 
+/**
+ * One active USER-OWNED bot by id, with the token it replies with.
+ *
+ * The sweep that re-runs an unfinished inbound message knows the bot only by the
+ * id it stored; the webhook's by-secret lookup is not available to it.
+ */
+export async function findInboundUserBotById(
+  db: ApiDatabase,
+  id: string,
+): Promise<InboundUserBotRow | null> {
+  const [row] = await db
+    .select({ ...BOT_COLUMNS, botToken: bots.botToken })
+    .from(bots)
+    .where(and(eq(bots.id, id), eq(bots.status, 'active'), isNotNull(bots.userId)))
+    .limit(1);
+  return row ? { ...withLegacyId(row), botToken: row.botToken } : null;
+}
+
 /** One bot by id, without credentials. */
 export async function findBotById(db: ApiDatabase, id: string): Promise<BotRow | null> {
   const [row] = await db.select(BOT_COLUMNS).from(bots).where(eq(bots.id, id)).limit(1);
@@ -358,6 +376,16 @@ const BOT_USER_COLUMNS = {
   createdAt: botUsers.createdAt,
   updatedAt: botUsers.updatedAt,
 } as const;
+
+/** One bot user by its own id. */
+export async function findBotUserById(db: ApiDatabase, id: string): Promise<BotUserRow | null> {
+  const [row] = await db
+    .select(BOT_USER_COLUMNS)
+    .from(botUsers)
+    .where(eq(botUsers.id, id))
+    .limit(1);
+  return row ?? null;
+}
 
 /** One bot user by the platform's id for the person. */
 export async function findBotUser(

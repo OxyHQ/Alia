@@ -261,6 +261,7 @@
     "modules": [
       "lib/agent/session-handoff.ts",
       "lib/automation-dispatcher.ts",
+      "lib/channels/inbound-handlers.ts",
       "lib/chat/request-context.ts",
       "lib/seed-comped-accounts.ts",
       "lib/show/show-pipeline.ts",
@@ -268,8 +269,7 @@
       "routes/credits.ts",
       "routes/referrals.ts",
       "routes/shows.ts",
-      "routes/v1.ts",
-      "routes/webhooks.ts"
+      "routes/v1.ts"
     ]
   },
   "readSideEntrypoints": {
