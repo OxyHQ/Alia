@@ -153,7 +153,10 @@ export const ConversationScreen = ({
   // by the SDK; the app draws no title of its own there.
   const chrome = useCallback(
     (chat: AliaChatState): AliaChatChrome => ({
-      header: <AliaParticipantsHeader participants={chat.participants} />,
+      // The lead's header is for a conversation; the empty chat's mark is the greeting itself.
+      header: chat.hasMessages ? (
+        <AliaParticipantsHeader participants={chat.participants} />
+      ) : undefined,
       title: title || t('chat.newChat'),
       project: projectName,
       // Nothing is persisted on the new-chat screen to act on yet.
@@ -179,7 +182,6 @@ export const ConversationScreen = ({
   return (
     <KeyboardFrame>
       <AliaChatContent
-        surface
         conversationId={conversationId}
         agent={agent}
         threadHandle={threadHandle}

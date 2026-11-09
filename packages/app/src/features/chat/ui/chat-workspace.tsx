@@ -47,6 +47,8 @@ export function ChatWorkspace({ header, children, background }: ChatWorkspacePro
       <AiChatContainer
         header={header}
         background={background}
+        // The background is translucent: the frame's fill shows through, with no band under the composer.
+        surface={false}
         // The chat fills the card and scrolls behind the header and the composer, which float
         // over it.
         floatingChrome

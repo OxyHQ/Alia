@@ -201,8 +201,6 @@ export interface AliaChatContentProps {
    * there is anything to clear, whether it is a searchable thread).
    */
   chrome?: (state: AliaChatState) => AliaChatChrome;
-  /** The container draws its own surface (the card of a page), instead of leaving the fill to the frame around it. */
-  surface?: boolean;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
   /** The ambient field's shape: the whole `screen` (default) or a `sheet`'s smaller one. */
@@ -306,7 +304,6 @@ function AliaConversationView({
   onSuggestionQuery,
   onSuggestionPicked,
   chrome,
-  surface = false,
   isDarkMode,
   layout = 'screen',
   isFocused = true,
@@ -690,8 +687,10 @@ function AliaConversationView({
         // The thread scrolls behind the header and the composer, which fade in over it. The wave
         // is the container's background layer, between its surface and the turns.
         floatingChrome
-        // A frame that owns the fill and the shape (a sheet, a screen) leaves the surface off.
-        surface={surface}
+        // The wave is a translucent layer over the frame's own fill, so the container paints no surface
+        // of its own: the frame's fill shows through, and the composer's fade lands on that same fill
+        // rather than on a band of its own (Bloom: `surface={false}` beside a translucent `background`).
+        surface={false}
         background={background}
       >
         <AliaThread
