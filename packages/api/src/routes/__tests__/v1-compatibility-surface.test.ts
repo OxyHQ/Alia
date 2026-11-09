@@ -300,6 +300,7 @@ const FROZEN_ROUTES: readonly string[] = [
   'GET /v1/models/:publisher/:model',
   'GET /v1/models/:modelId',
   'PATCH /v1/conversations/:id/messages/:messageId/vote',
+  'POST /v1/conversations/:id/messages/:messageId/reactions',
   'POST /v1/audio/generate',
   'POST /v1/audio/speech',
   'POST /v1/audio/transcriptions',
@@ -332,7 +333,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(29);
+    expect(FROZEN_ROUTES).toHaveLength(30);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -364,6 +365,7 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'GET /v1/conversations': PERSON,
   'GET /v1/conversations/:id': PERSON,
   'PATCH /v1/conversations/:id/messages/:messageId/vote': PERSON,
+  'POST /v1/conversations/:id/messages/:messageId/reactions': PERSON,
   'POST /v1/conversations': PERSON,
   'POST /v1/conversations/:id/share': PERSON,
   'POST /v1/conversations/new': PERSON,
@@ -435,7 +437,7 @@ describe('the compatibility surface gains no auth mechanism (#139 ws6, ADR 0004)
 
   it('admits only a person on the conversations: no key, no bot secret', () => {
     const conversations = v1.filter((e) => e.signature.includes('/v1/conversations'));
-    expect(conversations).toHaveLength(9);
+    expect(conversations).toHaveLength(10);
     for (const endpoint of conversations) {
       // Person auth first, mounted before the channel-bot pre-auth and the blanket lane, so
       // neither of those can have admitted the request.
