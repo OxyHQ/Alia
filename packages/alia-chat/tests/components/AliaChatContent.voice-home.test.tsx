@@ -107,6 +107,7 @@ vi.mock('../../src/components/AliaComposer', () => ({
   // The mic button the chat offers an empty composer.
   AliaComposer: ({ emptyAction }: { emptyAction?: React.ReactNode }) => emptyAction ?? null,
 }));
+vi.mock('../../src/components/AliaGroupWelcome', () => ({ AliaGroupWelcome: () => null }));
 vi.mock('../../src/components/VoiceModeIcon', () => ({ VoiceModeIcon: () => null }));
 vi.mock('../../src/components/voice/AliaVoiceCall', () => ({
   AliaVoiceCall: (props: { conversationId?: string }) => {

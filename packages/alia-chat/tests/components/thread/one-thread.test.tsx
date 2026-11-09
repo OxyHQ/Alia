@@ -138,6 +138,7 @@ vi.mock('../../../src/components/AmbientField', async () => ({
 vi.mock('../../../src/components/AliaWelcomeMessage', async () => ({
   AliaWelcomeMessage: await stub('Welcome')(),
 }));
+vi.mock('../../../src/components/AliaGroupWelcome', () => ({ AliaGroupWelcome: () => null }));
 vi.mock('../../../src/components/VoiceModeIcon', () => ({ VoiceModeIcon: () => null }));
 vi.mock('../../../src/components/voice/AliaVoiceCall', () => ({ AliaVoiceCall: () => null }));
 vi.mock('../../../src/components/thread/ThreadSearch', () => ({ ThreadSearch: () => null }));

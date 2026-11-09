@@ -76,6 +76,10 @@ vi.mock('@alia.onl/sdk', () => ({
 vi.mock('@oxy.so/bloom/agent-avatar', () => ({ AgentAvatar: () => null }));
 vi.mock('@/features/onboarding/ui/invite-dialog', () => ({ InviteDialog: () => null }));
 vi.mock('@/features/agents/ui/group-picker-dialog', () => ({ GroupPickerDialog: () => null }));
+vi.mock('@oxy.so/bloom/agent-reply', () => ({ AgentStack: () => null }));
+vi.mock('@/features/agents/runtime/use-new-agent-conversation', () => ({
+  useNewAgentConversation: () => () => undefined,
+}));
 vi.mock('@/features/projects/ui/project-edit-dialog', () => ({ ProjectEditDialog: () => null }));
 vi.mock('@/features/settings/ui/settings-context', () => ({
   useAliaSettings: () => ({ open: vi.fn() }),
@@ -432,7 +436,7 @@ describe('the sidebar list', () => {
     });
   });
 
-  it('offers the three tools: search, the agents\' catalogue and "+" straight to a new chat', async () => {
+  it('offers the three tools: search, the agents\' catalogue and "+" with its create menu', async () => {
     await mount();
     const props = state.sidebarProps as Record<string, any>;
     expect(typeof props.onQueryChange).toBe('function');
@@ -440,10 +444,14 @@ describe('the sidebar list', () => {
       props.onMarketplace();
     });
     expect(state.push).toHaveBeenCalledWith('/(app)/agents');
-    // "+" acts at once: no menu to choose from.
-    expect(props.createOptions).toBeUndefined();
+    // "+" opens Bloom's create menu: a chat with Alia, a new agent, a group chat.
+    expect(props.createOptions.map((option: { key: string }) => option.key)).toEqual([
+      'chat',
+      'agent',
+      'group',
+    ]);
     act(() => {
-      props.onCreate();
+      props.createOptions[0].onPress();
     });
     expect(state.replace).toHaveBeenCalledWith('/(app)');
   });
