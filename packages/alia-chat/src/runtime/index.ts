@@ -23,6 +23,7 @@ export type {
   SpeechPreferences,
   ThoughtOpening,
 } from './config';
+export type { RoomEvent } from './room-events';
 export { AliaApiError, useAliaApi } from './api';
 export {
   ALIA_FEATURES,
