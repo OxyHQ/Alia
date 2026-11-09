@@ -191,6 +191,7 @@
       "exportShareTitle": "Alia audit export ({{format}})"
     },
     "sections": {
+      "skills": "Skills",
       "general": "General",
       "usage": "Usage",
       "billing": "Billing",
@@ -1273,7 +1274,8 @@
     "pushNotifications": "Push Notifications",
     "pushDescription": "Receive alerts about new messages and updates",
     "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications.",
-    "channelDefault": "Default"
+    "channelDefault": "Default",
+    "open": "Open"
   },
   "agents": {
     "title": "Agents",

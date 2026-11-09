@@ -158,9 +158,15 @@ export function ConversationActions({
       useUIStore.getState().openAgentTerminal(terminalAgentId, pathname);
   }, [terminalAgentId, pathname]);
 
+  const handleEditAgent = useCallback(() => {
+    if (agentId !== undefined)
+      router.push({ pathname: '/(app)/agents/edit/[id]', params: { id: agentId } });
+  }, [agentId, router]);
+
   return (
     <ChatHeaderActions
       onSearch={openSearch}
+      onEditAgent={agentId === undefined ? undefined : handleEditAgent}
       onShare={shareable ? handleShare : undefined}
       onStopSharing={shareable ? handleStopSharing : undefined}
       onExport={handleExport}

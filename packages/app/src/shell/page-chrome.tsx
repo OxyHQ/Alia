@@ -1,3 +1,4 @@
+import { NotificationsBell } from '@/features/notifications/ui/notifications-bell';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
@@ -73,21 +74,21 @@ export function ShellPageHeader({ title, onBack, actions }: ShellPageHeaderProps
         ) : undefined
       }
       actions={
-        actions != null || showPanel ? (
-          <>
-            {actions}
-            {showPanel ? (
-              <ButtonGroup accessibilityLabel={shell.labels.openPanel(shell.panelLabel)}>
-                <ButtonGroupItem
-                  iconOnly
-                  leadingIcon={shell.panelIcon}
-                  accessibilityLabel={shell.labels.openPanel(shell.panelLabel)}
-                  onPress={shell.openPanel}
-                />
-              </ButtonGroup>
-            ) : null}
-          </>
-        ) : undefined
+        // The bell is every page's, after the page's own actions and before the panel's button.
+        <>
+          {actions}
+          <NotificationsBell />
+          {showPanel ? (
+            <ButtonGroup accessibilityLabel={shell.labels.openPanel(shell.panelLabel)}>
+              <ButtonGroupItem
+                iconOnly
+                leadingIcon={shell.panelIcon}
+                accessibilityLabel={shell.labels.openPanel(shell.panelLabel)}
+                onPress={shell.openPanel}
+              />
+            </ButtonGroup>
+          ) : null}
+        </>
       }
       scrim="none"
       sticky={false}

@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
+import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -41,6 +42,8 @@ export interface ChatHeaderActionsProps {
   onClear?: () => Promise<unknown>;
   /** Show the agent's terminal in the panel. Absent where no agent works in this chat. */
   onOpenTerminal?: () => void;
+  /** Open the editor of the agent this thread belongs to. Absent where the thread has no agent. */
+  onEditAgent?: () => void;
 }
 
 /**
@@ -68,6 +71,7 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
   onDelete,
   onClear,
   onOpenTerminal,
+  onEditAgent,
 }: ChatHeaderActionsProps) {
   const { t } = useTranslation();
   /** Held while a clear is in flight, so the item cannot start a second one. */
@@ -129,6 +133,11 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
         <DropdownMenuItem onPress={togglePanel} leading={<RiSideBarLine size="sm" />}>
           {panelOpen ? t('chatHeader.hidePanel') : t('chatHeader.showPanel')}
         </DropdownMenuItem>
+        {onEditAgent === undefined ? null : (
+          <DropdownMenuItem onPress={onEditAgent} leading={<RiEditLine size="sm" />}>
+            {t('agents.editAgent')}
+          </DropdownMenuItem>
+        )}
         {onOpenTerminal === undefined ? null : (
           <DropdownMenuItem onPress={onOpenTerminal} leading={<RiTerminalBoxLine size="sm" />}>
             {t('chatHeader.agentTerminal')}

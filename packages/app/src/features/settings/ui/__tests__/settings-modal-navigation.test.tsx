@@ -86,6 +86,7 @@ vi.mock('@/features/settings/ui/security-section', () => ({
 vi.mock('@/features/settings/ui/memory-section', () => ({
   MemorySection: () => null,
 }));
+vi.mock('@/features/settings/ui/skills-section', () => ({ SkillsSection: () => null }));
 vi.mock('@/features/settings/ui/writing-style-section', () => ({
   WritingStyleSection: () => null,
 }));

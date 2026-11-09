@@ -4,22 +4,18 @@ import {
   useMarkAsRead,
   useNotifications,
 } from '@/features/notifications/runtime/use-notifications';
+import { notificationIcon } from '@/features/notifications/ui/notification-icons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Admonition } from '@oxy.so/bloom/admonition';
 import { Badge } from '@oxy.so/bloom/badge';
 import { Button } from '@oxy.so/bloom/button';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
-import { RiAlarmWarningLine } from '@oxy.so/bloom/icons/RiAlarmWarningLine';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiCheckDoubleLine } from '@oxy.so/bloom/icons/RiCheckDoubleLine';
 import { RiCloseLine } from '@oxy.so/bloom/icons/RiCloseLine';
-import { RiEyeLine } from '@oxy.so/bloom/icons/RiEyeLine';
-import { RiFlashlightLine } from '@oxy.so/bloom/icons/RiFlashlightLine';
-import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { RiNotificationOffLine } from '@oxy.so/bloom/icons/RiNotificationOffLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
-import { RiTimeLine } from '@oxy.so/bloom/icons/RiTimeLine';
 import { Item } from '@oxy.so/bloom/item';
 import { Loading } from '@oxy.so/bloom/loading';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
@@ -32,18 +28,6 @@ import * as ExpoNotifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
-
-type IconComponent = typeof RiFlashlightLine;
-
-const TYPE_ICONS: Record<string, IconComponent> = {
-  trigger_result: RiFlashlightLine,
-  proactive_insight: RiEyeLine,
-  daily_briefing: RiTimeLine,
-  price_alert: RiAlarmWarningLine,
-  reminder: RiNotification3Line,
-  chat_response_ready: RiMessage2Line,
-  agent_task_complete: RiFlashlightLine,
-};
 
 /** A notification's priority, as the tone of its unread dot. */
 const PRIORITY_TONES: Record<string, AccentTone> = {
@@ -217,7 +201,7 @@ export default function NotificationsScreen() {
       ) : (
         <View>
           {notifications.map((notification: any) => {
-            const Icon = TYPE_ICONS[notification.type] || RiNotification3Line;
+            const Icon = notificationIcon(notification.type);
             const isUnread = notification.status !== 'read' && notification.status !== 'dismissed';
             const tone = PRIORITY_TONES[notification.priority] || PRIORITY_TONES.normal;
 
@@ -228,7 +212,7 @@ export default function NotificationsScreen() {
                 onPress={() => handleNotificationPress(notification)}
                 leading={
                   <Badge dot color={tone} invisible={!isUnread}>
-                    <Icon size="sm" fill={colors.textSecondary} />
+                    <Icon width={18} height={18} fill={colors.textSecondary} />
                   </Badge>
                 }
                 title={

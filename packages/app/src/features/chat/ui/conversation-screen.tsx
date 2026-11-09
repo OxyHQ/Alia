@@ -26,6 +26,7 @@ import { KeyboardFrame } from '@/features/chat/ui/chat-workspace';
 import { useComposerMenu } from '@/features/chat/ui/composer/use-alia-composer';
 import { useModeSelection } from '@/features/chat/ui/composer/power-level-options';
 import { ConversationActions } from '@/features/chat/ui/conversation-actions';
+import { NotificationsBell } from '@/features/notifications/ui/notifications-bell';
 import { useLocalModelOptions } from '@/features/local-models/runtime/use-local-runtimes';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
@@ -158,13 +159,16 @@ export const ConversationScreen = ({
       // Nothing is persisted on the new-chat screen to act on yet.
       actions:
         conversationId === undefined ? undefined : (
-          <ConversationActions
-            chat={chat}
-            agentName={agentName}
-            agentId={agentId}
-            threadHandle={threadHandle}
-            shareable={!ephemeral}
-          />
+          <>
+            <NotificationsBell />
+            <ConversationActions
+              chat={chat}
+              agentName={agentName}
+              agentId={agentId}
+              threadHandle={threadHandle}
+              shareable={!ephemeral}
+            />
+          </>
         ),
     }),
     [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral],

@@ -17,7 +17,6 @@ import { Search } from '@oxy.so/bloom/search';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { FlashList } from '@shopify/flash-list';
-import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
@@ -168,9 +167,22 @@ function Shelf({
   );
 }
 
-export default function SkillsScreen() {
+export interface SkillsCatalogueProps {
+  /** Opens one skill's page, by its name. */
+  onOpenSkill: (name: string) => void;
+  /** Imports a skill from a file or a URL. */
+  onImport: () => void;
+  /** Creates a skill of the account's own. */
+  onCreate: () => void;
+}
+
+/**
+ * The Skills catalogue, as the settings dialog's Skills page: the account's import and create
+ * actions on top, then the shelves. Where a press leads (a skill's page, import, create) is the
+ * host's; the page itself is the same wherever it is drawn.
+ */
+export function SkillsCatalogue({ onOpenSkill, onImport, onCreate }: SkillsCatalogueProps) {
   const { t } = useTranslation();
-  const router = useRouter();
   const [search, setSearch] = useState('');
   /** What the catalogue is actually asked for: `search`, once typing has paused. */
   const [query, setQuery] = useState('');
@@ -221,7 +233,7 @@ export default function SkillsScreen() {
     [installed.data, query],
   );
 
-  const openSkill = useCallback((name: string) => router.push(`/(app)/skills/${name}`), [router]);
+  const openSkill = useCallback((name: string) => onOpenSkill(name), [onOpenSkill]);
   const installSkill = useCallback((id: string) => install.mutate(id), [install]);
   const loadMore = useCallback(() => {
     if (catalogue.hasNextPage && !catalogue.isFetchingNextPage) void catalogue.fetchNextPage();
@@ -231,30 +243,16 @@ export default function SkillsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerRight: () => (
-            <>
-              <ButtonGroup accessibilityLabel={t('skills.import')}>
-                <ButtonGroupItem
-                  leadingIcon={RiDownloadLine}
-                  onPress={() => router.push('/(app)/skills/import')}
-                >
-                  {t('skills.import')}
-                </ButtonGroupItem>
-              </ButtonGroup>
-              <Button
-                tone="action"
-                size="md"
-                leadingIcon={RiAddLine}
-                onPress={() => router.push('/(app)/skills/create')}
-              >
-                {t('common.create')}
-              </Button>
-            </>
-          ),
-        }}
-      />
+      <View className="flex-row flex-wrap items-center justify-end gap-2 px-4 pt-4">
+        <ButtonGroup accessibilityLabel={t('skills.import')}>
+          <ButtonGroupItem leadingIcon={RiDownloadLine} onPress={onImport}>
+            {t('skills.import')}
+          </ButtonGroupItem>
+        </ButtonGroup>
+        <Button tone="action" size="md" leadingIcon={RiAddLine} onPress={onCreate}>
+          {t('common.create')}
+        </Button>
+      </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

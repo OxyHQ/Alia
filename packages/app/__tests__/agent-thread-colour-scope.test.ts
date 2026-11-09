@@ -31,14 +31,14 @@ import { describe, expect, it } from 'vitest';
  */
 
 const SOURCE = readFileSync(
-  fileURLToPath(new URL('../app/(app)/[username].tsx', import.meta.url)),
+  fileURLToPath(new URL('../src/features/agents/ui/agent-theme-scope.tsx', import.meta.url)),
   'utf8',
 );
 
 /** The `<BloomSeedScope …>` opening tag and the element that follows it. */
 function scopeAndChild(text: string): string {
   const start = text.indexOf('<BloomSeedScope');
-  if (start === -1) throw new Error('no <BloomSeedScope> in the agent thread screen');
+  if (start === -1) throw new Error('no <BloomSeedScope> in the agent theme scope');
   const childEnd = text.indexOf('>', text.indexOf('<', text.indexOf('>', start) + 1));
   if (childEnd === -1) throw new Error('the <BloomSeedScope> has no child element');
   return text.slice(start, childEnd + 1);

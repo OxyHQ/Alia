@@ -53,7 +53,7 @@ const ALLOWED: Record<string, readonly string[]> = {
     'settings',
     'shows',
   ],
-  settings: ['billing', 'chat', 'connections', 'library', 'local-models', 'memory'],
+  settings: ['billing', 'chat', 'connections', 'library', 'local-models', 'memory', 'skills'],
   automations: ['agents'],
   agents: ['chat', 'library'],
   chat: [

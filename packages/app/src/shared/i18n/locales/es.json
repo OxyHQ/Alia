@@ -172,6 +172,7 @@
     "saveSuccess": "Preferencias guardadas exitosamente",
     "saveFailed": "Error al guardar preferencias",
     "sections": {
+      "skills": "Skills",
       "general": "General",
       "usage": "Uso",
       "billing": "Facturación",
@@ -1273,7 +1274,8 @@
     "pushNotifications": "Notificaciones push",
     "pushDescription": "Recibe alertas sobre nuevos mensajes y actualizaciones",
     "permissionDenied": "Las notificaciones están bloqueadas. Por favor habilítalas en la configuración de tu dispositivo para recibir notificaciones push.",
-    "channelDefault": "General"
+    "channelDefault": "General",
+    "open": "Abrir"
   },
   "agents": {
     "title": "Agentes",

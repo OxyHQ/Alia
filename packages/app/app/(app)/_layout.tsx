@@ -18,6 +18,7 @@ import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
 import { useAliaSpeech } from '@/features/chat/runtime/use-alia-speech';
 import config from '@/shared/platform/config';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
+import { AgentThemeScope } from '@/features/agents/ui/agent-theme-scope';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
@@ -44,10 +45,7 @@ const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('
 
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
-  library: 'sidebar.library',
   tasks: 'sidebar.tasks',
-  automations: 'sidebar.automations',
-  skills: 'sidebar.skills',
   shows: 'sidebar.shows',
   agents: 'sidebar.agents',
   notifications: 'sidebar.notifications',
@@ -229,29 +227,33 @@ export default function AppLayout() {
           settings pages call `useAliaSettings()`. On web both are no-ops and
           the portal goes to the document. Gate: native-portal-host.test.ts */}
         <PortalProvider>
-          <AliaSettingsProvider>
-            <ChatLabelsProvider>
-              {/* Hides the app from a screen reader while a portaled modal is up
+          {/* The agent you are with themes the whole app, dialogs included: the scope is inside the
+              portal, so what the portal draws reads it too. */}
+          <AgentThemeScope>
+            <AliaSettingsProvider>
+              <ChatLabelsProvider>
+                {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
-              <OverlayInertBoundary>
-                {Platform.OS === 'web' ? (
-                  shell
-                ) : (
-                  // Android draws the app edge to edge and Bloom's shell takes no
-                  // safe area: without this its frame, the chat header's menu button
-                  // and the drawer all start under the status bar, where the system
-                  // takes the touch (the button did nothing to a tap on its top two
-                  // thirds). The strip above shows the root's background, which is
-                  // the shell's own surface colour. The chat keeps the bottom
-                  // inset itself (`conversation-screen.tsx`).
-                  <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-                )}
-              </OverlayInertBoundary>
-              <CommandPalette />
-              <KeyboardShortcutsDialog />
-              <PortalOutlet />
-            </ChatLabelsProvider>
-          </AliaSettingsProvider>
+                <OverlayInertBoundary>
+                  {Platform.OS === 'web' ? (
+                    shell
+                  ) : (
+                    // Android draws the app edge to edge and Bloom's shell takes no
+                    // safe area: without this its frame, the chat header's menu button
+                    // and the drawer all start under the status bar, where the system
+                    // takes the touch (the button did nothing to a tap on its top two
+                    // thirds). The strip above shows the root's background, which is
+                    // the shell's own surface colour. The chat keeps the bottom
+                    // inset itself (`conversation-screen.tsx`).
+                    <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+                  )}
+                </OverlayInertBoundary>
+                <CommandPalette />
+                <KeyboardShortcutsDialog />
+                <PortalOutlet />
+              </ChatLabelsProvider>
+            </AliaSettingsProvider>
+          </AgentThemeScope>
         </PortalProvider>
       </AliaRuntimeProvider>
     </AppErrorBoundary>

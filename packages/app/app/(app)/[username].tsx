@@ -1,14 +1,11 @@
 import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
-import { readAgentCharacter } from '@alia.onl/sdk';
-import { avatarBodyHex, resolveAvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { useAgentThread } from '@/features/agents/runtime/use-agent-thread';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
 import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { Loading } from '@oxy.so/bloom/loading';
-import { BloomSeedScope } from '@oxy.so/bloom/theme';
 import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
@@ -104,67 +101,19 @@ const AgentThreadPage = () => {
    */
   const headerName = thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
 
-  /**
-   * The agent's own Bloom recipe, applied to this screen and nothing else.
-   *
-   * An agent's colour is a preset KEY, which is a whole theme rather than a
-   * value — so the thread adopts the recipe instead of tinting one icon with
-   * it. `useColorScheme().colors` reads Bloom's `useTheme()`, which is context,
-   * so Alia's own components follow it too: the welcome mark comes out in the
-   * agent's colour with the SDK's `AliaWelcomeMessage` untouched, and that it needed no
-   * touching is the evidence the scope reaches what it claims to.
-   *
-   * ONE scope, and it wraps the SCREEN rather than the layout. Mention puts a
-   * second one in its layout because its chrome — the sign-in banner, the
-   * middle column — sits outside the profile screen and has to be themed too.
-   * Alia wants the opposite: the recipe must not escape the panel, and a scope
-   * in `(app)/_layout.tsx` would sit above the drawer and paint the sidebar.
-   *
-   * Which also means there is nothing to go stale. Mention needs a context, an
-   * effect that publishes the colour, a cleanup that clears it and a pathname
-   * check to catch what those miss; here the scope unmounts with the route, so
-   * navigating away cannot leave a colour behind — there is no state that
-   * outlives the screen holding it.
-   *
-   * The seed is the agent's own look: the body colour of its character.
-   *
-   * ## `asChild` over a `flex-1` View, and it is not a style preference
-   *
-   * WITHOUT `asChild` the scope renders its own wrapper — and the two platforms
-   * disagree about it. Native wraps in a `<View style={[{flex: 1}, style]}>`;
-   * WEB wraps in a plain `<div style={vars}>` with no flex at all, which
-   * collapses to its content height inside a flex column and lifts the whole
-   * conversation to the top of the panel. Shipped that way for an afternoon: the
-   * wrapper did its colour job perfectly while breaking the geometry, and only
-   * an agent WITH a colour showed it, because `undefined` renders no wrapper.
-   *
-   * `ConversationScreen` does not forward `style`, so `asChild` needs a real
-   * element between them — which is what Mention's `ChannelScreen` and
-   * `AccountInfoScreen` both do. `web:z-auto` comes from the same place and for
-   * the reason its comment records: without it this wrapper becomes its own
-   * stacking context and traps the sticky header chrome below the panel's
-   * overlays.
-   */
   return (
-    <BloomSeedScope
-      seed={avatarBodyHex(resolveAvatarCharacter(readAgentCharacter(thread.agent.character)))}
-      asChild
-    >
-      <View className="flex-1 web:z-auto">
-        <ConversationScreen
-          conversationId={thread.conversationId}
-          agentId={thread.agent._id}
-          agentName={headerName}
-          /**
-           * The handle is what makes this screen a THREAD rather than one
-           * conversation: it is what the history is paged from, and what is
-           * re-read when a new stretch begins. Without it the screen shows the
-           * active conversation and nothing behind it.
-           */
-          threadHandle={thread.threadId ? undefined : handle}
-        />
-      </View>
-    </BloomSeedScope>
+    <ConversationScreen
+      conversationId={thread.conversationId}
+      agentId={thread.agent._id}
+      agentName={headerName}
+      /**
+       * The handle is what makes this screen a THREAD rather than one
+       * conversation: it is what the history is paged from, and what is
+       * re-read when a new stretch begins. Without it the screen shows the
+       * active conversation and nothing behind it.
+       */
+      threadHandle={thread.threadId ? undefined : handle}
+    />
   );
 };
 

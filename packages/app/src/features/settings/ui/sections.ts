@@ -15,6 +15,7 @@ import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
+import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 
 export interface SettingsSection {
   id: string;
@@ -97,6 +98,12 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
         route: '/(app)/settings/proactive',
         icon: RiNotification3Line,
         labelKey: 'settings.sections.proactive',
+      },
+      {
+        id: 'skills',
+        route: '/(app)/settings/skills',
+        icon: RiSparklingLine,
+        labelKey: 'settings.sections.skills',
       },
       {
         id: 'writing-style',

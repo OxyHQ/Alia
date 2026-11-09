@@ -50,16 +50,6 @@ export default function TasksPage() {
     [router],
   );
 
-  const handleViewHistory = useCallback(
-    (automation: AutomationDefinition) => {
-      router.push({
-        pathname: '/(app)/automations/[id]',
-        params: { id: automation.id },
-      });
-    },
-    [router],
-  );
-
   const renderItem = useCallback(
     ({ item }: { item: WorkItem }) => (
       <WorkItemRow
@@ -70,7 +60,6 @@ export default function TasksPage() {
         onToggleAutomation={controls.toggleEnabled}
         onRunAutomation={controls.runNow}
         onStopAutomation={controls.stop}
-        onViewAutomationHistory={handleViewHistory}
       />
     ),
     [
@@ -80,7 +69,6 @@ export default function TasksPage() {
       controls.stop,
       controls.toggleEnabled,
       handleTaskPress,
-      handleViewHistory,
     ],
   );
 

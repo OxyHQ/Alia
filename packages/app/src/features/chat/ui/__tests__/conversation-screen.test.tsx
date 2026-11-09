@@ -26,6 +26,9 @@ const world = vi.hoisted(() => ({
   setGhostMode: vi.fn(),
 }));
 
+vi.mock('@/features/notifications/ui/notifications-bell', () => ({
+  NotificationsBell: () => null,
+}));
 vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
@@ -271,8 +274,15 @@ describe('the breadcrumb', () => {
   it('wires the actions to what the chat tells it, once there is a conversation', () => {
     mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas', threadHandle: 'pepe' });
     const chat = { conversationId: 'c1' };
-    const actions = content().chrome(chat).actions as React.ReactElement<Record<string, unknown>>;
-    expect(actions.props).toMatchObject({
+    // The actions are the bell and the chat's own menu; the menu is the child that carries the chat.
+    const actions = content().chrome(chat).actions as React.ReactElement<{
+      children: React.ReactNode;
+    }>;
+    const menu = React.Children.toArray(actions.props.children).find(
+      (child): child is React.ReactElement<Record<string, unknown>> =>
+        React.isValidElement(child) && 'chat' in (child.props as object),
+    );
+    expect(menu?.props).toMatchObject({
       chat,
       agentName: 'Atlas',
       agentId: 'a1',
