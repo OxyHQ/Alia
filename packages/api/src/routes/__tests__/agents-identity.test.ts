@@ -377,6 +377,17 @@ describe('a created agent', () => {
     expect(Object.keys(input)).not.toContain('color');
   });
 
+  it('can consult the agents the person could open when its creator named no grants, and keeps a list it did name', async () => {
+    await post(VALID_BODY);
+    await post({ ...VALID_BODY, capabilityGrants: [] });
+    await post({ ...VALID_BODY, capabilityGrants: ['web'] });
+
+    const grants = repository.createAgent.mock.calls.map(
+      (call) => (call[1] as { capabilityGrants: string[] }).capabilityGrants,
+    );
+    expect(grants).toEqual([['agent'], [], ['web']]);
+  });
+
   it('answers with the identity read from Oxy, not from the row', async () => {
     state.users = [
       {

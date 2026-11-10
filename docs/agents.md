@@ -474,6 +474,11 @@ another conversation. Ordinary Alia always has it; an agent has it through the
 `agent` family, separate from `delegation` (which finds and creates agents in the
 catalogue, `searchAgents` / `createAgent`).
 
+A NEW agent is created with the bare `agent` grant when its creator names no grants
+(`DEFAULT_NEW_AGENT_GRANTS`: the server's `POST /agents` and the chat `createAgent` tool), so it can
+consult any agent the person could open from the start. A list the creator does send — an empty one
+included — is kept, and agents that already exist are never changed by it.
+
 Reach is the ordinary rule: an agent can be consulted exactly when the person
 present could open it themselves (`canReachAgent`) — their own agents, agents
 shared with them, and public active agents such as Homiio's Sindi. An agent's
