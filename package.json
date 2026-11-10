@@ -57,10 +57,10 @@
   ],
   "author": "",
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.6",
     "@oxy.so/doctor": "1.8.0",
     "typescript": "^5.9.3",
-    "@aws-sdk/client-s3": "^3.1086.0"
+    "@aws-sdk/client-s3": "^3.1164.0"
   },
   "dependencies": {
     "@oxy.so/bloom": "18.4.2",
