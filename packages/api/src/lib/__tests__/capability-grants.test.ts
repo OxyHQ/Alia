@@ -297,6 +297,27 @@ describe('an agent reaches exactly what it was granted', () => {
     });
   });
 
+  it('lets a member of a space that was woken on its own keep the space’s notes, and nobody else', async () => {
+    const unattended = {
+      isDirectSession: false,
+      toolScope: 'preauthorized_oxy_automation' as const,
+      oxyExecutionAuthorizations: {},
+    };
+    space.peers = ['peer-1'];
+
+    const member = await namesFor(null, {
+      ...unattended,
+      agent: { ...agentWith([...EVERY_GRANT]), spaceId: 'space-1' },
+    });
+    const outsider = await namesFor([...EVERY_GRANT], unattended);
+
+    expect(member).toContain('spaceNotes');
+    expect(outsider).not.toContain('spaceNotes');
+    // Still unattended and thin: no consultation, no ask-Alia, no computer.
+    expect(member).not.toContain('consultAgent');
+    expect(member).not.toContain('askAlia');
+  });
+
   it('never substitutes the listing author for an unreconciled Oxy owner', async () => {
     await namesFor([...EVERY_GRANT], {
       agent: {

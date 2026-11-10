@@ -76,6 +76,23 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
 5. A member addressing Alia (`askAlia`, read-only). **Done.**
 6. Later, each its own decision: a space-wide budget for autonomous activity, more than six members.
 
+## How far members work on their own
+
+Three ways, each with the authority it already had, and no new loop:
+
+- **When the person speaks**, the room runs a chain of up to twelve replies with the members' full tools
+  (computer, web, apps), attended. A member can also hand long work to a durable background run
+  (`continueInBackground`), which has the same full tools and resumes across restarts.
+- **When something happens**, a member's inbox and heartbeat (ADR 0026) wake it once with the list. That
+  run is unattended and so thin (ADR 0027 §2: no computer, no MCP, no consultation): it can tell the
+  person, and — as a member — keep the space's shared notes (`spaceNotes`), so what it noticed is there
+  for its teammates.
+- **What is NOT built is a space-wide autonomous loop**: members starting conversations with each other,
+  with computer access, on a timer, with nobody present. That is an unattended multi-agent loop that
+  spends the person's credits and acts on their behalf, so it needs the person's explicit budget and a
+  decision about its authority (the same one ADR 0027 §2 closes for the heartbeat). It is not hidden
+  here as plumbing; if it is wanted, it is its own ADR with a per-space budget.
+
 ## Consequences
 
 - An agent can only be in one space: moving it is one request, and it leaves the old one.
