@@ -200,6 +200,14 @@ describe('framePrompt', () => {
     expect(prompt.trimEnd().endsWith('fix the bug')).toBe(true);
   });
 
+  it('tells a read-only agent how to lift the restriction, and a writable one nothing of the sort', () => {
+    const base = { agentName: 'A', task: 'edit it', history: [] };
+    expect(framePrompt({ ...base, write: false })).toContain('READ-ONLY');
+    expect(framePrompt({ ...base, write: false })).toContain('--read-only');
+    expect(framePrompt({ ...base, write: true })).not.toContain('READ-ONLY');
+    expect(framePrompt(base)).not.toContain('READ-ONLY');
+  });
+
   it('drops the oldest turns of a very long conversation, never the new message', () => {
     const history = Array.from({ length: 200 }, (_, i) => ({
       role: 'user' as const,

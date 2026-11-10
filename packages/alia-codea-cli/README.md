@@ -64,7 +64,7 @@ codea connect                                     # serve the agents this comput
 Serves Claude Code, Codex or OpenCode to Alia as one of your agents. Create the code in Alia
 (Settings → Connect an external agent). The process dials Alia outbound with your Oxy session and
 runs the CLI you are already signed in to, so the answers use your own subscription. It runs in the
-current directory (`--cwd` to change it) and is read-only unless you pass `--write`.
+current directory (`--cwd` to change it) and may edit files there; pass `--read-only` to forbid it.
 
 ### Session Management
 ```bash

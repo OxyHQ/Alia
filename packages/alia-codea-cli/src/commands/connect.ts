@@ -23,11 +23,14 @@ export interface ConnectOptions {
   cli?: string;
   agent?: string;
   cwd?: string;
+  /** Commander turns `--read-only` into `readOnly`. */
+  readOnly?: boolean;
+  /** Accepted for compatibility: editing is the default now. */
   write?: boolean;
 }
 
 const WRITE_NOTICE =
-  'The agent may edit files in the working directory. Without --write it is read-only.';
+  'The agent may edit files in the working directory. Start with --read-only to forbid it.';
 
 async function installed(cli: ExternalCli): Promise<boolean> {
   const result = await runProcess({
@@ -120,7 +123,7 @@ export async function connect(options: ConnectOptions): Promise<void> {
   }
 
   const cwd = options.cwd ?? process.cwd();
-  const write = options.write === true;
+  const write = options.readOnly !== true;
   const wsUrl = `${apiBaseUrl.replace(/^http/, 'ws')}/ws/external-agent`;
   const linked = linkedAliaClient();
   const daemons: Daemon[] = [];

@@ -79,6 +79,7 @@ export function startDaemon(options: DaemonOptions): Daemon {
           agentName: options.agentName,
           task: frame.task,
           history: frame.history,
+          write: options.write,
         }),
         cwd: options.cwd,
         write: options.write,

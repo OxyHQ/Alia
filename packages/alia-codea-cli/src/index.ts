@@ -128,7 +128,11 @@ program
   .option('--cli <cli>', 'Which CLI this machine serves: claude, codex or opencode')
   .option('--agent <id>', 'Serve only this paired agent')
   .option('--cwd <dir>', 'Working directory the agent runs in (default: the current one)')
-  .option('--write', 'Let the agent edit files in the working directory (default: read-only)')
+  .option(
+    '--read-only',
+    'Do not let the agent change anything (default: it may edit files in the working directory)',
+  )
+  .option('--write', 'Deprecated: editing is the default')
   .action(async (options) => {
     await connect(options);
   });
