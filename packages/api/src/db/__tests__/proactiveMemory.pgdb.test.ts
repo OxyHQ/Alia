@@ -8,7 +8,6 @@ import { createAgent, deleteAgent, listAgentsOwnedBy } from '../agents/agentRepo
 import {
   deleteAgentMemory,
   listAgentMemory,
-  listAgentsRememberingPerson,
   readAgentMemory,
   writeAgentMemory,
 } from '../agents/agentMemoryRepository';
@@ -186,10 +185,6 @@ describe("an agent's memory is per person (migrations 0084 + 0085)", () => {
     await write(person, 'MEMORY.md', '- likes coffee\n', index.contentHash);
     await write(person, 'memory/health.md', 'allergic to nuts\n');
     await write(other, 'MEMORY.md', '- someone else\n');
-
-    expect(await listAgentsRememberingPerson(db, person)).toEqual([
-      expect.objectContaining({ agentId: shared._id, files: 2 }),
-    ]);
 
     expect(
       await deleteAgentMemory(db, {

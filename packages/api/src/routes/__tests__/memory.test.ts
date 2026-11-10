@@ -15,11 +15,6 @@ vi.mock('../../db/memory/userMemoryRepository.js', () => ({
   updateSettings: vi.fn(),
 }));
 
-vi.mock('../../db/agents/agentMemoryRepository.js', () => ({
-  listAgentsRememberingPerson: vi.fn(async () => []),
-}));
-vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentsByIds: vi.fn(async () => []) }));
-vi.mock('../../lib/agent-identity.js', () => ({ attachAgentIdentities: vi.fn(async () => []) }));
 
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: vi.fn((_req: any, _res: any, next: any) => next()),
@@ -135,12 +130,6 @@ describe('memory routes', () => {
     expect(MemorySettingsSchema.safeParse({ recallEnabled: 'yes' }).success).toBe(false);
   });
 
-  it('lists the agents that remember the person', async () => {
-    const res = makeMockRes();
-    await getRouteHandler('get', '/agents')({ user: { id: 'user-1' } }, res);
-    expect(res.body).toEqual({ agents: [] });
-  });
-
   it('has no route that adds, searches, imports, exports or edits memories: they are Nilo’s', () => {
     const paths = (router as any).stack
       .filter((layer: any) => layer.route)
@@ -148,6 +137,6 @@ describe('memory routes', () => {
         (layer: any) => `${Object.keys(layer.route.methods)[0]?.toUpperCase()} ${layer.route.path}`,
       )
       .sort();
-    expect(paths).toEqual(['GET /', 'GET /agents', 'PUT /preferences', 'PUT /settings']);
+    expect(paths).toEqual(['GET /', 'PUT /preferences', 'PUT /settings']);
   });
 });
