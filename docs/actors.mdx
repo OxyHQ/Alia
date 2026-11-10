@@ -108,8 +108,8 @@ are unanswered (`lib/agent/outreach-budget.ts`).
 Alia remembers the person in `user_memories`; each agent remembers them separately
 in `agent_memory_documents` (MEMORY.md plus topic files, per agent and person). An
 agent turn never receives Alia's memory or her memory tools. The person sees, edits
-and forgets both in Settings → Memory (`GET /memory/agents`,
-`GET|PUT|DELETE /agents/:id/memory`). Memory in a prompt is data, never
+and forgets an agent's in that agent's editor (`GET|PUT|DELETE /agents/:id/memory`); Alia's
+lives in Nilo (Settings → Memory says so and opens it). Memory in a prompt is data, never
 instructions (`memoryDataBlock`, `lib/memory/memory-prompt.ts`).
 
 - Detail: [Memory](./memory-system.md), [Agents → Memory is per actor](./agents.md#memory-is-per-actor).

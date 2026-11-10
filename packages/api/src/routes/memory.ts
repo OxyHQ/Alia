@@ -9,9 +9,6 @@ import { authenticateToken } from '../middleware/auth.js';
 import { MemorySettingsSchema } from '../lib/validators/memory-validators.js';
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
-import { listAgentsRememberingPerson } from '../db/agents/agentMemoryRepository.js';
-import { findAgentsByIds } from '../db/agents/agentRepository.js';
-import { attachAgentIdentities } from '../lib/agent-identity.js';
 
 /**
  * What Alia keeps about a person is settings and a learned writing style. Her memory of the
@@ -23,46 +20,6 @@ const router = Router();
 
 // All memory routes require authentication
 router.use(authenticateToken);
-
-/**
- * GET /memory/agents
- *
- * Every agent that remembers something about the caller — the per-actor half
- * of the memory screen. Alia's memory is `GET /memory`; each agent's is its
- * own files (`GET /agents/:id/memory`), listed here so a person can find and
- * forget what an agent they once talked to still knows.
- */
-router.get('/agents', async (req, res) => {
-  try {
-    const userId = req.user!.id;
-    const remembering = await listAgentsRememberingPerson(getDb(), userId);
-    const records = await findAgentsByIds(
-      getDb(),
-      remembering.map((row) => row.agentId),
-    );
-    const hydrated = await attachAgentIdentities(records);
-    const byId = new Map(hydrated.map((agent) => [agent._id, agent]));
-    res.json({
-      agents: remembering.flatMap((row) => {
-        const agent = byId.get(row.agentId);
-        if (!agent) return [];
-        return [
-          {
-            agentId: agent._id,
-            name: agent.name,
-            handle: agent.handle,
-            color: agent.color,
-            files: row.files,
-            updatedAt: row.updatedAt,
-          },
-        ];
-      }),
-    });
-  } catch (error: unknown) {
-    log.memory.error({ err: error }, 'Error listing agent memories');
-    res.status(500).json({ error: 'Failed to list agent memories' });
-  }
-});
 
 /**
  * GET /api/memory

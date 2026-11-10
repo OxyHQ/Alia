@@ -11,7 +11,6 @@ import {
   markAutomationRunForSession,
   setAutomationEnabled,
 } from '../db/automation/automationDefinitionRepository.js';
-import { isBackgroundPaused } from '../db/agents/agentInboxRepository.js';
 import { findAgentById } from '../db/agents/agentRepository.js';
 import { createAgentSession, updateAgentSession } from '../db/agents/agentSessionRepository.js';
 import { getDb } from '../db/index.js';
@@ -171,11 +170,6 @@ export async function dispatchStructuredAutomation(
     return { status: 'denied', reason: 'automation_trigger_mismatch' };
   }
   if (!automation.enabled) return { status: 'denied', reason: 'automation_disabled' };
-  // A paused person is not woken by anything that starts on its own. Silent: they asked for quiet, so
-  // no notification either. A run they ask for themselves (`manual`) is theirs to make.
-  if (trigger.kind !== 'manual' && (await isBackgroundPaused(getDb(), automation.ownerAccountId))) {
-    return { status: 'denied', reason: 'background_work_paused' };
-  }
   const executionPolicyError = automationExecutionPolicyError({
     enabled: automation.enabled,
     executionMode: automation.executionMode,

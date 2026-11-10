@@ -8,7 +8,7 @@
  */
 
 import { and, eq, gt, inArray, lt, sql } from 'drizzle-orm';
-import { agentInboxItems, backgroundPauses } from '../../db/schema/agent-runtime.js';
+import { agentInboxItems } from '../../db/schema/agent-runtime.js';
 import { automationEvents } from '../../db/schema/agency.js';
 import { channelInbound } from '../../db/schema/bots.js';
 import type { ApiDatabase } from '../../db/index.js';
@@ -86,11 +86,6 @@ export async function databaseGauges(
           .from(agentInboxItems)
           .where(eq(agentInboxItems.status, 'pending')),
       ),
-    ],
-    [
-      'alia_background_paused_people',
-      'People who have paused everything that would start on its own.',
-      count(db.select({ n: sql<number>`count(*)::int` }).from(backgroundPauses)),
     ],
   ];
   const settled = await Promise.allSettled(reads.map(([, , value]) => value));

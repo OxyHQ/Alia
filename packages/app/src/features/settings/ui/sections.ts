@@ -1,7 +1,6 @@
 import type { Href } from 'expo-router';
 import type { SettingsIcon } from '@oxy.so/bloom/settings-modal';
 import { RiSettings6Line } from '@oxy.so/bloom/icons/RiSettings6Line';
-import { RiSchoolLine } from '@oxy.so/bloom/icons/RiSchoolLine';
 import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiToolsFill } from '@oxy.so/bloom/icons/RiToolsFill';
@@ -38,12 +37,6 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
         route: '/(app)/settings/general',
         icon: RiSettings6Line,
         labelKey: 'settings.sections.general',
-      },
-      {
-        id: 'profile',
-        route: '/(app)/settings/profile',
-        icon: RiSchoolLine,
-        labelKey: 'settings.sections.profile',
       },
       {
         id: 'usage',

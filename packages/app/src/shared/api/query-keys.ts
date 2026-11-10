@@ -68,7 +68,6 @@ export const queryKeys = {
   },
   automations: {
     overview: ['automations', 'overview'] as const,
-    pause: ['automations', 'pause'] as const,
   },
   /** The person's spaces (ADR 0028), with their members and rooms. */
   spaces: {

@@ -13,7 +13,6 @@ import { LocalModelsSection } from './local-models-section';
 import { MemorySection } from './memory-section';
 import { PersonalizationSection } from './personalization-section';
 import { ProactiveSection } from './proactive-section';
-import { ProfileSection } from './profile-section';
 import { SETTINGS_GROUPS } from './sections';
 import { SecuritySection } from './security-section';
 import { SkillsSection } from './skills-section';
@@ -24,7 +23,6 @@ import { WritingStyleSection } from './writing-style-section';
 
 const CONTENT: Record<string, ReactNode> = {
   general: <GeneralSection />,
-  profile: <ProfileSection />,
   storage: <StorageSection />,
   personalization: <PersonalizationSection />,
   accounts: <AccountsSection />,
