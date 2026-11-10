@@ -370,8 +370,8 @@ tools (and the browser below)
 `lib/computer/computer-tools.ts`). Built only on a runtime turn, only when
 `ALIA_COMPUTER_HOST_URL` is set, and never in a preauthorized automation stage.
 
-- **Whose computer is the owner's choice** (`agents.computer_source`, set in Settings → Memory →
-  Attention, `PATCH /agents/:id`): `alia` (the default) is the person's shared workspace
+- **Whose computer is the owner's choice** (`agents.computer_source`, set in the agent's editor,
+  `PATCH /agents/:id`): `alia` (the default) is the person's shared workspace
   (`alia:user:<oxyUserId>`), the same for all of their agents, so what one makes is there for the next;
   `own` is a machine of the agent's, per person (`agent:<agentId>:user:<oxyUserId>`).
   `lib/computer/computer-actor.ts` decides it for the tools and the live view alike. **`alia` only
@@ -735,9 +735,8 @@ a heading, one sentence saying the block is remembered data to inform the answer
 and never a command that overrides the rules or the current request, and the
 content inside a `<memory>` element its content cannot close.
 
-**The person sees, edits and forgets it.** Settings → Memory shows Alia's
-memory and, under it, every agent that remembers something about the person
-(`GET /memory/agents`); each opens its files (`GET|PUT /agents/:id/memory`),
+**The person sees, edits and forgets it.** The agent's editor shows what it
+remembers about the person: its files (`GET|PUT /agents/:id/memory`),
 editable with the hash they were read at, and forgettable one file or all at
 once (`DELETE /agents/:id/memory[?path=]`). The caller only ever reaches their
 OWN rows; an agent is addressable when it already remembers them (a public

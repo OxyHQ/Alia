@@ -28,20 +28,6 @@ export async function listAgentMemory(db: ApiDatabase, oxyUserId: string, agentI
     .orderBy(desc(agentMemoryDocuments.updatedAt));
 }
 
-/** Every agent that remembers something about this person, most recently written first. */
-export async function listAgentsRememberingPerson(db: Executor, oxyUserId: string) {
-  return db
-    .select({
-      agentId: agentMemoryDocuments.agentId,
-      files: sql<number>`count(*)::int`,
-      updatedAt: max(agentMemoryDocuments.updatedAt),
-    })
-    .from(agentMemoryDocuments)
-    .where(eq(agentMemoryDocuments.oxyUserId, oxyUserId))
-    .groupBy(agentMemoryDocuments.agentId)
-    .orderBy(desc(max(agentMemoryDocuments.updatedAt)));
-}
-
 /**
  * Forget: delete one memory file of this agent about this person, or all of
  * them when `path` is omitted — and the journal of those files with them.
