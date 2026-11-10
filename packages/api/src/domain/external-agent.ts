@@ -9,6 +9,21 @@
 export const EXTERNAL_AGENT_CLIS = ['claude', 'codex', 'opencode'] as const;
 export type ExternalAgentCli = (typeof EXTERNAL_AGENT_CLIS)[number];
 
+export const EXTERNAL_AGENT_CLI_LABELS: Record<ExternalAgentCli, string> = {
+  claude: 'Claude Code',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+};
+
+/** One earlier message of the conversation a turn answers. */
+export interface ChatTurn {
+  readonly role: 'user' | 'assistant';
+  readonly content: string;
+}
+
+/** How many earlier messages a direct chat turn carries to the daemon. */
+export const EXTERNAL_HISTORY_TURNS = 20;
+
 /** How long a pairing code can be redeemed. */
 export const EXTERNAL_PAIRING_TTL_MS = 10 * 60 * 1000;
 
@@ -34,7 +49,7 @@ export type ServerFrame =
        * the CLI's own session for it. Absent for turns that are not part of one (a consultation).
        */
       threadKey?: string;
-      history: readonly { role: 'user' | 'assistant'; content: string }[];
+      history: readonly ChatTurn[];
     }
   | { type: 'cancel'; turnId: string }
   | { type: 'revoked' };
@@ -45,7 +60,3 @@ export type DaemonFrame =
   | { type: 'delta'; turnId: string; text: string }
   | { type: 'end'; turnId: string; text?: string }
   | { type: 'error'; turnId: string; message: string };
-
-export function isExternalAgentCli(value: unknown): value is ExternalAgentCli {
-  return typeof value === 'string' && (EXTERNAL_AGENT_CLIS as readonly string[]).includes(value);
-}

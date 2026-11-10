@@ -39,7 +39,7 @@ export interface RuntimeRun {
   /** The full prompt: framing, history and the new message. */
   readonly prompt: string;
   readonly cwd: string;
-  /** Let the agent edit files in `cwd`. Off by default: read-only. */
+  /** Let the agent edit files in `cwd`. On by default; `--read-only` turns it off. */
   readonly write: boolean;
   readonly signal: AbortSignal;
   readonly onDelta: (text: string) => void;
@@ -54,7 +54,6 @@ export interface RuntimeRun {
 
 /** One coding-agent CLI, driven non-interactively under the person's own login. */
 export interface ExternalRuntime {
-  readonly cli: ExternalCli;
   /** Whether this CLI can continue a session by id (`RuntimeRun.resumeId`). */
   readonly resumes: boolean;
   /** Resolves with the agent's full answer. Rejects with a message fit to show the person. */

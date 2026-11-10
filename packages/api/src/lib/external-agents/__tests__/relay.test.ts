@@ -20,7 +20,7 @@ vi.mock('../../../db/agents/externalAgentRepository.js', () => ({
 import {
   disconnectExternalAgent,
   externalAgentRelayRoute,
-  isExternalAgentOnline,
+  isExternalAgentReachable,
   runExternalTurn,
   shutdownExternalAgentRelay,
 } from '../relay.js';
@@ -81,7 +81,7 @@ describe('external agent relay', () => {
     const { frames } = await connect();
     await waitFor(() => frames.length > 0);
     expect(frames[0]).toEqual({ type: 'auth-ok', agentId: 'agent-1' });
-    expect(isExternalAgentOnline('agent-1')).toBe(true);
+    expect(await isExternalAgentReachable('agent-1')).toBe(true);
   });
 
   it('refuses a valid session that does not own the agent', async () => {
@@ -89,7 +89,7 @@ describe('external agent relay', () => {
     await waitFor(() => frames.length > 0);
     expect(frames[0]).toEqual({ type: 'auth-error', reason: 'unknown_agent' });
     await waitFor(() => ws.readyState === WebSocket.CLOSED);
-    expect(isExternalAgentOnline('agent-1')).toBe(false);
+    expect(await isExternalAgentReachable('agent-1')).toBe(false);
   });
 
   it('refuses a bad token and an unknown agent', async () => {
@@ -149,7 +149,7 @@ describe('external agent relay', () => {
     await waitFor(() => frames.some((f) => f.type === 'turn'));
     ws.terminate();
     await expect(turn).rejects.toThrow(/disconnected/);
-    expect(isExternalAgentOnline('agent-1')).toBe(false);
+    expect(await isExternalAgentReachable('agent-1')).toBe(false);
   });
 
   it('times a turn out and tells the daemon to cancel', async () => {
@@ -166,7 +166,7 @@ describe('external agent relay', () => {
     disconnectExternalAgent('agent-1');
     await waitFor(() => frames.some((f) => f.type === 'revoked'));
     await waitFor(() => ws.readyState === WebSocket.CLOSED);
-    expect(isExternalAgentOnline('agent-1')).toBe(false);
+    expect(await isExternalAgentReachable('agent-1')).toBe(false);
   });
 
   it('ignores answers for a turn that belongs to another agent', async () => {

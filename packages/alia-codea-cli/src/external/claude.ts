@@ -1,4 +1,4 @@
-import { runProcess, tail } from './process.js';
+import { lineSplitter, runProcess, tail } from './process.js';
 import type { ExternalRuntime } from './types.js';
 
 /**
@@ -7,13 +7,11 @@ import type { ExternalRuntime } from './types.js';
  */
 export function claudeRuntime(command = 'claude'): ExternalRuntime {
   return {
-    cli: 'claude',
     resumes: true,
     async run({ prompt, cwd, write, signal, onDelta, resumeId, onSession }) {
       let streamed = '';
       let result: { text: string; isError: boolean } | null = null;
-      let buffer = '';
-      const onLine = (line: string) => {
+      const onLine = (line: string): void => {
         if (line.trim() === '') return;
         let event: unknown;
         try {
@@ -41,6 +39,7 @@ export function claudeRuntime(command = 'claude'): ExternalRuntime {
           };
         }
       };
+      const lines = lineSplitter(onLine);
       const out = await runProcess({
         command,
         args: [
@@ -56,14 +55,9 @@ export function claudeRuntime(command = 'claude'): ExternalRuntime {
         cwd,
         stdin: prompt,
         signal,
-        onStdout: (chunk) => {
-          buffer += chunk;
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-          for (const line of lines) onLine(line);
-        },
+        onStdout: lines.push,
       });
-      onLine(buffer);
+      lines.flush();
       const final = result as { text: string; isError: boolean } | null;
       if (final?.isError) throw new Error(final.text || 'Claude Code reported an error');
       if (out.code !== 0 && final === null) {

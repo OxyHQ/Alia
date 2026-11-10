@@ -24,7 +24,7 @@ vi.mock('../../logger.js', () => {
   return { log: { general: child } };
 });
 
-import { createMemoryClusterBus } from '../cluster.js';
+import { createMemoryClusterBus } from './memory-cluster-bus.js';
 import { createExternalAgentRelay, type ExternalAgentRelay } from '../relay.js';
 import { routeWebSocketUpgrades } from '../../websocket-upgrades.js';
 
@@ -77,11 +77,12 @@ describe('turns across instances', () => {
   it('reports an agent connected to A as reachable from B, and offline when it leaves', async () => {
     expect(await b.isReachable('agent-1')).toBe(false);
     const { ws } = await daemonOnA();
-    expect(a.isLocallyOnline('agent-1')).toBe(true);
-    expect(b.isLocallyOnline('agent-1')).toBe(false);
     expect(await b.isReachable('agent-1')).toBe(true);
     ws.close();
-    await waitFor(() => !a.isLocallyOnline('agent-1'));
+    await waitFor(() => ws.readyState === WebSocket.CLOSED);
+    for (let i = 0; i < 100 && (await b.isReachable('agent-1')); i++) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
     expect(await b.isReachable('agent-1')).toBe(false);
   });
 
@@ -154,7 +155,7 @@ describe('turns across instances', () => {
     b.disconnect('agent-1');
     await waitFor(() => frames.some((f) => f.type === 'revoked'));
     await waitFor(() => ws.readyState === WebSocket.CLOSED);
-    expect(a.isLocallyOnline('agent-1')).toBe(false);
+    expect(await a.isReachable('agent-1')).toBe(false);
   });
 
   it('serves a local turn without the bus', async () => {

@@ -51,9 +51,14 @@ export function sessionStore(): SessionStore {
   return {
     get: (key) => store.get('sessions')[key],
     set(key, sessionId) {
-      const { [key]: _old, ...rest } = store.get('sessions');
-      const entries = Object.entries({ ...rest, [key]: sessionId });
-      store.set('sessions', Object.fromEntries(entries.slice(-MAX_SESSIONS)));
+      const sessions = store.get('sessions');
+      // The same id again (every turn of a resumed session reports it) needs no write.
+      if (sessions[key] === sessionId) return;
+      const { [key]: _replaced, ...rest } = sessions;
+      store.set(
+        'sessions',
+        Object.fromEntries(Object.entries({ ...rest, [key]: sessionId }).slice(-MAX_SESSIONS)),
+      );
     },
     delete(key) {
       const { [key]: _gone, ...rest } = store.get('sessions');

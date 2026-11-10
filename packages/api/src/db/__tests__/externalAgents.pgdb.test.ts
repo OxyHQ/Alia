@@ -48,8 +48,8 @@ describe('redeemPairing', () => {
       ownerOxyUserId: 'owner-a',
       now: new Date(),
     });
-    expect(first).not.toBeNull();
-    expect(second).toBeNull();
+    expect(first).toBe(true);
+    expect(second).toBe(false);
   });
 
   it('lets exactly one of many racing redeemers win', async () => {
@@ -59,31 +59,31 @@ describe('redeemPairing', () => {
         redeemPairing(db, { codeHash, ownerOxyUserId: 'owner-a', now: new Date() }),
       ),
     );
-    expect(results.filter((r) => r !== null)).toHaveLength(1);
+    expect(results.filter(Boolean)).toHaveLength(1);
   });
 
   it('refuses another account and leaves the code redeemable by its owner', async () => {
     const codeHash = await mint('owner-a');
-    expect(
-      await redeemPairing(db, { codeHash, ownerOxyUserId: 'owner-b', now: new Date() }),
-    ).toBeNull();
-    expect(
-      await redeemPairing(db, { codeHash, ownerOxyUserId: 'owner-a', now: new Date() }),
-    ).not.toBeNull();
+    expect(await redeemPairing(db, { codeHash, ownerOxyUserId: 'owner-b', now: new Date() })).toBe(
+      false,
+    );
+    expect(await redeemPairing(db, { codeHash, ownerOxyUserId: 'owner-a', now: new Date() })).toBe(
+      true,
+    );
   });
 
   it('refuses an expired code and an unknown one', async () => {
     const codeHash = await mint('owner-a', -1000);
-    expect(
-      await redeemPairing(db, { codeHash, ownerOxyUserId: 'owner-a', now: new Date() }),
-    ).toBeNull();
+    expect(await redeemPairing(db, { codeHash, ownerOxyUserId: 'owner-a', now: new Date() })).toBe(
+      false,
+    );
     expect(
       await redeemPairing(db, {
         codeHash: 'no-such-code',
         ownerOxyUserId: 'owner-a',
         now: new Date(),
       }),
-    ).toBeNull();
+    ).toBe(false);
   });
 
   it('keeps the code hash unique', async () => {

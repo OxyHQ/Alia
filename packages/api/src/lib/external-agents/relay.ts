@@ -24,6 +24,7 @@ import {
 } from '../../db/agents/externalAgentRepository.js';
 import {
   EXTERNAL_TURN_TIMEOUT_MS,
+  type ChatTurn,
   type DaemonFrame,
   type ServerFrame,
 } from '../../domain/external-agent.js';
@@ -39,8 +40,6 @@ const AUTH_TIMEOUT_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 25_000;
 /** How long an instance waits for the one that holds the socket to take a turn it published. */
 const REMOTE_ACK_TIMEOUT_MS = 4_000;
-
-type ChatTurn = { role: 'user' | 'assistant'; content: string };
 
 export interface ExternalTurnInput {
   agentId: string;
@@ -63,7 +62,6 @@ export class ExternalAgentOfflineError extends Error {
 
 interface Connection {
   readonly ws: WebSocket;
-  readonly ownerOxyUserId: string;
 }
 
 interface PendingTurn {
@@ -72,7 +70,16 @@ interface PendingTurn {
   readonly resolve: (result: { response: string }) => void;
   readonly reject: (error: Error) => void;
   readonly timer: NodeJS.Timeout;
+  /** Detaches the turn's abort listener, so a long-lived signal does not collect one per turn. */
+  stopWatching: () => void;
   text: string;
+}
+
+/** The part of a final answer the deltas did not already carry (they are a prefix of it). */
+function unstreamedTail(streamed: string, final: string): string {
+  return final.length > streamed.length && final.startsWith(streamed)
+    ? final.slice(streamed.length)
+    : '';
 }
 
 /** What the instance holding the socket tells the one that asked. */
@@ -87,7 +94,7 @@ type Command =
       kind: 'turn';
       turnId: string;
       task: string;
-      history: ChatTurn[];
+      history: readonly ChatTurn[];
       threadKey?: string;
       timeoutMs?: number;
     }
@@ -99,8 +106,6 @@ export interface ExternalAgentRelay {
   readonly route: WebSocketRoute;
   /** Runs one turn on whichever instance holds the agent's socket. */
   runTurn(input: ExternalTurnInput): Promise<{ response: string }>;
-  /** True when the agent's daemon is connected to THIS instance. */
-  isLocallyOnline(agentId: string): boolean;
   /** True when it is connected to any instance. */
   isReachable(agentId: string): Promise<boolean>;
   disconnect(agentId: string): void;
@@ -152,6 +157,10 @@ export function createExternalAgentRelay(
     });
   };
 
+  const publishCommand = (agentId: string, command: Command): void => {
+    bus?.publish(`${CMD_PREFIX}${agentId}`, JSON.stringify(command)).catch(() => undefined);
+  };
+
   const announce = (agentId: string): void => {
     bus?.setPresence(agentId).catch((err: unknown) => {
       log.general.warn({ err, agentId }, 'Could not announce an external agent');
@@ -162,6 +171,7 @@ export function createExternalAgentRelay(
 
   const settle = (turnId: string, pending: PendingTurn): void => {
     clearTimeout(pending.timer);
+    pending.stopWatching();
     pendingTurns.delete(turnId);
   };
 
@@ -201,26 +211,24 @@ export function createExternalAgentRelay(
         pending.reject(new Error(`The external agent did not answer within ${timeoutMs / 1000}s`));
       }, timeoutMs);
 
+      const onAbort = (): void => {
+        const live = pendingTurns.get(turnId);
+        if (!live) return;
+        settle(turnId, live);
+        send(connection.ws, { type: 'cancel', turnId });
+        live.reject(new Error('Aborted'));
+      };
+      input.signal?.addEventListener('abort', onAbort, { once: true });
+
       pendingTurns.set(turnId, {
         agentId: input.agentId,
         ...(input.onDelta ? { onDelta: input.onDelta } : {}),
         resolve,
         reject,
         timer,
+        stopWatching: () => input.signal?.removeEventListener('abort', onAbort),
         text: '',
       });
-
-      input.signal?.addEventListener(
-        'abort',
-        () => {
-          const live = pendingTurns.get(turnId);
-          if (!live) return;
-          settle(turnId, live);
-          send(connection.ws, { type: 'cancel', turnId });
-          live.reject(new Error('Aborted'));
-        },
-        { once: true },
-      );
 
       send(connection.ws, {
         type: 'turn',
@@ -316,21 +324,21 @@ export function createExternalAgentRelay(
       let text = '';
       let done = false;
       let unsubscribe: (() => void) | undefined;
-      const cmdChannel = `${CMD_PREFIX}${input.agentId}`;
 
       const finish = (fn: () => void): void => {
         if (done) return;
         done = true;
         clearTimeout(ackTimer);
         clearTimeout(turnTimer);
+        input.signal?.removeEventListener('abort', onAbort);
         unsubscribe?.();
         fn();
       };
-      const cancel = (): void => {
-        cluster
-          .publish(cmdChannel, JSON.stringify({ kind: 'cancel', turnId } satisfies Command))
-          .catch(() => undefined);
+      const onAbort = (): void => {
+        cancel();
+        finish(() => reject(new Error('Aborted')));
       };
+      const cancel = (): void => publishCommand(input.agentId, { kind: 'cancel', turnId });
 
       // Nobody took the turn: the presence key outlived its holder.
       const ackTimer = setTimeout(
@@ -345,14 +353,7 @@ export function createExternalAgentRelay(
         );
       }, timeoutMs + remoteAckTimeoutMs);
 
-      input.signal?.addEventListener(
-        'abort',
-        () => {
-          cancel();
-          finish(() => reject(new Error('Aborted')));
-        },
-        { once: true },
-      );
+      input.signal?.addEventListener('abort', onAbort, { once: true });
 
       cluster
         .subscribe(`${EVT_PREFIX}${turnId}`, (payload) => {
@@ -368,9 +369,8 @@ export function createExternalAgentRelay(
             text += event.text;
             input.onDelta?.(event.text);
           } else if (event.type === 'end') {
-            if (event.text.startsWith(text) && event.text.length > text.length) {
-              input.onDelta?.(event.text.slice(text.length));
-            }
+            const tail = unstreamedTail(text, event.text);
+            if (tail) input.onDelta?.(tail);
             finish(() => resolve({ response: event.text }));
           } else if (event.type === 'error') {
             finish(() =>
@@ -392,11 +392,11 @@ export function createExternalAgentRelay(
             kind: 'turn',
             turnId,
             task: input.task,
-            history: [...input.history],
+            history: input.history,
             ...(input.threadKey ? { threadKey: input.threadKey } : {}),
             timeoutMs,
           };
-          return cluster.publish(cmdChannel, JSON.stringify(command));
+          return cluster.publish(`${CMD_PREFIX}${input.agentId}`, JSON.stringify(command));
         })
         .catch((err: unknown) => {
           log.general.warn(
@@ -433,7 +433,7 @@ export function createExternalAgentRelay(
       if (existing && existing.ws.readyState === WebSocket.OPEN) {
         existing.ws.close(4000, 'Replaced by new connection');
       }
-      connections.set(frame.agentId, { ws, ownerOxyUserId: userId });
+      connections.set(frame.agentId, { ws });
       announce(frame.agentId);
       send(ws, { type: 'auth-ok', agentId: frame.agentId });
       void markExternalLinkConnected(getDb(), frame.agentId).catch((err: unknown) =>
@@ -462,10 +462,9 @@ export function createExternalAgentRelay(
         if (!pending) return;
         settle(frame.turnId, pending);
         const response = typeof frame.text === 'string' ? frame.text : pending.text;
-        if (response !== pending.text && response.startsWith(pending.text)) {
-          // The daemon sent the final text without streaming the tail: surface the tail as a delta.
-          pending.onDelta?.(response.slice(pending.text.length));
-        }
+        // The daemon may send the final text without having streamed its tail.
+        const tail = unstreamedTail(pending.text, response);
+        if (tail) pending.onDelta?.(tail);
         pending.resolve({ response });
         break;
       }
@@ -478,8 +477,6 @@ export function createExternalAgentRelay(
         );
         break;
       }
-      default:
-        break;
     }
   };
 
@@ -564,16 +561,10 @@ export function createExternalAgentRelay(
       return Promise.reject(new ExternalAgentOfflineError());
     },
 
-    isLocallyOnline: (agentId) => connections.get(agentId)?.ws.readyState === WebSocket.OPEN,
-
     async isReachable(agentId) {
       if (connections.get(agentId)?.ws.readyState === WebSocket.OPEN) return true;
       if (!bus) return false;
-      try {
-        return await bus.hasPresence(agentId);
-      } catch {
-        return false;
-      }
+      return bus.hasPresence(agentId).catch(() => false);
     },
 
     disconnect(agentId) {
@@ -582,9 +573,7 @@ export function createExternalAgentRelay(
         return;
       }
       // The socket may be held by another instance: ask it to drop it.
-      bus
-        ?.publish(`${CMD_PREFIX}${agentId}`, JSON.stringify({ kind: 'revoke' } satisfies Command))
-        .catch(() => undefined);
+      publishCommand(agentId, { kind: 'revoke' });
     },
 
     shutdown() {
@@ -611,15 +600,11 @@ let current: ExternalAgentRelay | null = null;
 
 export function externalAgentRelayRoute(
   observe?: (socket: WebSocket, headers: http.IncomingHttpHeaders) => void,
-  options: { heartbeatIntervalMs?: number; authTimeoutMs?: number; bus?: ClusterBus | null } = {},
+  options: Parameters<typeof createExternalAgentRelay>[0] = {},
 ): WebSocketRoute {
   current?.shutdown();
   current = createExternalAgentRelay({ ...options, ...(observe ? { observe } : {}) });
   return current.route;
-}
-
-export function isExternalAgentOnline(agentId: string): boolean {
-  return current?.isLocallyOnline(agentId) ?? false;
 }
 
 /** Connected to any instance (this one, or another through Redis). */

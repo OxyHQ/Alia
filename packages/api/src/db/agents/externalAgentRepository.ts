@@ -18,8 +18,8 @@ export async function createPairing(
 export async function redeemPairing(
   db: ApiDatabase,
   input: { codeHash: string; ownerOxyUserId: string; now: Date },
-): Promise<{ id: string } | null> {
-  const [row] = await db
+): Promise<boolean> {
+  const rows = await db
     .update(externalAgentPairings)
     .set({ redeemedAt: input.now })
     .where(
@@ -31,15 +31,14 @@ export async function redeemPairing(
       ),
     )
     .returning({ id: externalAgentPairings.id });
-  return row ?? null;
+  return rows.length > 0;
 }
 
 export async function createExternalLink(
   db: ApiDatabase,
   input: { agentId: string; ownerOxyUserId: string; cli: ExternalAgentCli; hostName: string },
-) {
-  const [row] = await db.insert(externalAgentLinks).values(input).returning();
-  return row;
+): Promise<void> {
+  await db.insert(externalAgentLinks).values(input);
 }
 
 /** The live link of an agent, or `undefined` when it is an ordinary agent or was revoked. */
@@ -50,6 +49,16 @@ export async function findExternalLink(db: ApiDatabase, agentId: string) {
     .where(and(eq(externalAgentLinks.agentId, agentId), isNull(externalAgentLinks.revokedAt)))
     .limit(1);
   return row;
+}
+
+/** Whether `agentId` has a live link: the question every agent turn asks, so it reads one column. */
+export async function hasExternalLink(db: ApiDatabase, agentId: string): Promise<boolean> {
+  const rows = await db
+    .select({ agentId: externalAgentLinks.agentId })
+    .from(externalAgentLinks)
+    .where(and(eq(externalAgentLinks.agentId, agentId), isNull(externalAgentLinks.revokedAt)))
+    .limit(1);
+  return rows.length > 0;
 }
 
 export async function listExternalLinks(db: ApiDatabase, ownerOxyUserId: string) {

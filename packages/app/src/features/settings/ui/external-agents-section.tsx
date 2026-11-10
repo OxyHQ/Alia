@@ -27,12 +27,15 @@ export function ExternalAgentsSection() {
   const { agents, loading, invite, createInvite, remove } = useExternalAgents(locale ?? 'en');
   const [creating, setCreating] = useState(false);
 
+  const copyPrompt = async (prompt: string) => {
+    await Clipboard.setStringAsync(prompt);
+    toast.success(t('settings.connections.externalAgents.copied'));
+  };
+
   const handleCreate = async () => {
     setCreating(true);
     try {
-      const created = await createInvite();
-      await Clipboard.setStringAsync(created.prompt);
-      toast.success(t('settings.connections.externalAgents.copied'));
+      await copyPrompt((await createInvite()).prompt);
     } catch (err) {
       console.error('Failed to create the pairing code:', err);
       toast.error(t('settings.connections.externalAgents.createFailed'));
@@ -42,9 +45,7 @@ export function ExternalAgentsSection() {
   };
 
   const handleCopy = async () => {
-    if (!invite) return;
-    await Clipboard.setStringAsync(invite.prompt);
-    toast.success(t('settings.connections.externalAgents.copied'));
+    if (invite) await copyPrompt(invite.prompt);
   };
 
   const handleRemove = async (agent: ExternalAgent) => {

@@ -60,7 +60,6 @@ function start(runtime: ExternalRuntime, extra: Partial<Parameters<typeof startD
 }
 
 const echo: ExternalRuntime = {
-  cli: 'codex',
   resumes: false,
   async run({ prompt, onDelta }: RuntimeRun) {
     onDelta('he');
@@ -91,7 +90,6 @@ describe('daemon', () => {
 
   it('reports a runtime failure as an error frame', async () => {
     start({
-      cli: 'codex',
       resumes: false,
       async run() {
         throw new Error('codex exited with 2');
@@ -110,7 +108,6 @@ describe('daemon', () => {
     let running = 0;
     let peak = 0;
     start({
-      cli: 'codex',
       resumes: false,
       async run() {
         running++;
@@ -131,7 +128,6 @@ describe('daemon', () => {
   it('aborts a running turn on cancel and sends nothing for it', async () => {
     let aborted = false;
     start({
-      cli: 'codex',
       resumes: false,
       run: ({ signal }) =>
         new Promise((_, reject) => {
@@ -213,7 +209,6 @@ describe('session resume', () => {
     const seen: { resumeId?: string; prompt: string }[] = [];
     start(
       {
-        cli: 'claude',
         resumes: true,
         async run({ prompt, resumeId, onSession }) {
           seen.push({ prompt, ...(resumeId ? { resumeId } : {}) });
@@ -242,7 +237,6 @@ describe('session resume', () => {
     const resumeIds: (string | undefined)[] = [];
     start(
       {
-        cli: 'claude',
         resumes: true,
         async run({ resumeId, onSession }) {
           resumeIds.push(resumeId);
@@ -267,7 +261,6 @@ describe('session resume', () => {
     const prompts: string[] = [];
     start(
       {
-        cli: 'claude',
         resumes: true,
         async run({ prompt, resumeId, onSession }) {
           prompts.push(prompt);
@@ -293,7 +286,6 @@ describe('session resume', () => {
     let calls = 0;
     start(
       {
-        cli: 'claude',
         resumes: true,
         async run({ onDelta }) {
           calls++;
