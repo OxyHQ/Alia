@@ -80,6 +80,10 @@ export function usePersonalitySamplePhrase() {
               // is answered by the server's default model, like any turn
               // nobody picked a model for.
               stream: true,
+              // A greeting is words: no tool is offered, so the model has nothing to call (and
+              // nothing to write as a call). What it knows of the person is the memory profile
+              // already in its prompt.
+              tool_choice: 'none',
               max_tokens: 80,
               temperature: 0.95,
               messages: [

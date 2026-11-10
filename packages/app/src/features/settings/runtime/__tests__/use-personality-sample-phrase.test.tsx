@@ -100,4 +100,10 @@ describe('the personality sample names a model', () => {
     // answered by the server's default model.
     expect(fetchCalls[0].body).not.toHaveProperty('model');
   });
+
+  it('offers the model no tool: a greeting is words, never a call', async () => {
+    await requestOneSample();
+
+    expect(fetchCalls[0].body.tool_choice).toBe('none');
+  });
 });

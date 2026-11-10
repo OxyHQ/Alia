@@ -45,6 +45,7 @@ import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
 import { CHAT_TURN_STEP_BOUNDS, type StreamWatchdog, type TurnStepBounds } from './model-config.js';
 import { withoutHostImageData } from './host-image-result.js';
+import { createToolMarkupGuard } from './tool-markup.js';
 
 /**
  * The consultation's result: another agent's whole answer, with its identity.
@@ -181,6 +182,11 @@ export interface StepUsage {
 
 export interface RunStreamResult {
   assistantResponse: string;
+  /**
+   * Tool-call markup the model wrote as text, from its first marker on (`tool-markup.ts`). Never
+   * streamed and never part of `assistantResponse`; the text-tool fallback reads it.
+   */
+  withheldToolMarkup: string;
   toolInvocations: ToolInvocation[];
   hasStreamedText: boolean;
   chunkCount: number;
@@ -230,6 +236,10 @@ export async function runStream<TOOLS extends ToolSet>(
   let chunkCount = 0;
   let assistantResponse = ''; // Track assistant's response for conversation save
   let hasStreamedText = false; // Track whether actual text (not just tool calls) was streamed
+  // Text that is a tool call in the model's own syntax is never shown (see `tool-markup.ts`).
+  const markup = createToolMarkupGuard();
+  // What earlier steps of this turn wrote as markup; the guard starts clean at each step.
+  let withheldEarlier = '';
   const toolInvocations: ToolInvocation[] = [];
   const usage: StepUsage = {
     promptTokens: 0,
@@ -313,10 +323,13 @@ export async function runStream<TOOLS extends ToolSet>(
         stopWhen: undefined,
       });
 
+      // This pass offers no tools, so a call written as text has nothing to run: it is dropped.
+      const retryMarkup = createToolMarkupGuard();
       for await (const retryChunk of retryResult.fullStream) {
         if (res.writableEnded) break;
         if (retryChunk.type === 'text-delta' && retryChunk.text) {
-          const filtered = writeTextChunk(res, requestId, modelId, retryChunk.text);
+          const shown = retryMarkup.push(retryChunk.text);
+          const filtered = shown ? writeTextChunk(res, requestId, modelId, shown) : null;
           if (filtered) {
             state.hasStreamedContent = true;
             hasStreamedText = true;
@@ -372,7 +385,8 @@ export async function runStream<TOOLS extends ToolSet>(
       }
 
       // Filter out thinking tags and stream as OpenAI-compatible chunk
-      const filtered = writeTextChunk(res, requestId, modelId, chunk.text);
+      const shown = markup.push(chunk.text);
+      const filtered = shown ? writeTextChunk(res, requestId, modelId, shown) : null;
       if (filtered) {
         assistantResponse += filtered;
       }
@@ -556,6 +570,11 @@ export async function runStream<TOOLS extends ToolSet>(
       // Source/file/raw events - no action needed
     } else if (chunk.type === 'finish-step') {
       log.v1.debug('Step finished');
+      // A step that wrote markup does not silence the steps after it.
+      const stepTail = markup.flush();
+      const stepTailShown = stepTail ? writeTextChunk(res, requestId, modelId, stepTail) : null;
+      if (stepTailShown) assistantResponse += stepTailShown;
+      withheldEarlier += markup.take();
       const step = chunk.usage;
       if (step) {
         const input = step.inputTokens ?? 0;
@@ -608,6 +627,10 @@ export async function runStream<TOOLS extends ToolSet>(
        */
       throw chunk.error ?? new Error('The inference stream failed part-way through the turn');
     } else if (chunk.type === 'finish') {
+      // A tail held back in case it began a marker did not: it is plain text.
+      const tail = markup.flush();
+      const tailShown = tail ? writeTextChunk(res, requestId, modelId, tail) : null;
+      if (tailShown) assistantResponse += tailShown;
       log.v1.debug('Finish chunk received');
       sse.ensureHeaders();
       if (chunk.finishReason === 'error') {
@@ -667,7 +690,13 @@ export async function runStream<TOOLS extends ToolSet>(
 
       // Nothing to show for the turn: no words, no tool, no agent answer. A
       // `length` stop that spent the whole budget thinking lands here too.
-      if (assistantResponse === '' && toolInvocations.length === 0 && agentMessages.length === 0) {
+      if (
+        assistantResponse === '' &&
+        withheldEarlier === '' &&
+        markup.withheld === '' &&
+        toolInvocations.length === 0 &&
+        agentMessages.length === 0
+      ) {
         throw emptyResponseError(finishReason);
       }
 
@@ -687,5 +716,13 @@ export async function runStream<TOOLS extends ToolSet>(
     writeStopChunk(res, requestId, modelId, 'length');
   }
 
-  return { assistantResponse, toolInvocations, hasStreamedText, chunkCount, toolCallCount, usage };
+  return {
+    assistantResponse,
+    withheldToolMarkup: withheldEarlier + markup.withheld,
+    toolInvocations,
+    hasStreamedText,
+    chunkCount,
+    toolCallCount,
+    usage,
+  };
 }

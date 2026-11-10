@@ -380,7 +380,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             webSearch,
             mcpServerId,
             isLocalRuntime,
-            toolsEnabled: true,
+            toolsEnabled: ctx.toolsEnabled,
             agent: linkedAgent,
             skills,
             runtime: coordinatedTurn?.runtime,

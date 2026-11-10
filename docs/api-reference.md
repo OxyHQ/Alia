@@ -91,7 +91,8 @@ with any power level, and with a model only when the model lists that level in `
 model), `responseMode: "voice"`, `deepResearch`, `tools`, `host` (the embedding app's UI
 effects, [Embedding an agent](./agent-embedding.md) §2, including tools that `awaitsResult`),
 `turnId` ([explicit Stop](./explicit-chat-stop.md)), `personalization: false` (no memory read,
-recalled or written for this turn; [Embedding an agent](./agent-embedding.md) §2),
+recalled or written for this turn; [Embedding an agent](./agent-embedding.md) §2), `tool_choice: "none"`
+(no tool is offered; `"auto"` is the default),
 `stream_options.include_usage`.
 
 **`POST /v1/chat/turns/:turnId/cancel`** stops a turn ([explicit Stop](./explicit-chat-stop.md)).

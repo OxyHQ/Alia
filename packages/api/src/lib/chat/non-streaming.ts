@@ -35,6 +35,7 @@ import type { SkillRuntime } from '../skills/runtime.js';
 import { isInvalidToolCall } from './tool-calls.js';
 import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
 import { servedModelId } from '../models/power-levels.js';
+import { withoutToolMarkup } from './tool-markup.js';
 
 export interface NonStreamingParams {
   req: Request;
@@ -137,7 +138,8 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     log.v1.info({ usage: tokenUsage }, 'Token usage');
   }
 
-  const assistantResponse = result.text || '';
+  // A call the model wrote as text is not an answer, and is never stored or returned.
+  const assistantResponse = withoutToolMarkup(result.text || '');
 
   const nonStreamToolInvocations = result.toolCalls
     .filter((tc) => !isInvalidToolCall(tc))

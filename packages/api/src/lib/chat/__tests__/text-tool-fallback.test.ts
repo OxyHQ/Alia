@@ -116,6 +116,64 @@ describe('runTextToolFallback', () => {
     expect(allWrites).toContain('alia.tool_result');
   });
 
+  const DSML_CALL =
+    '<｜DSML｜function_calls><｜DSML｜invoke name="testTool"><｜DSML｜parameter name="query" string="true">my name</｜DSML｜parameter></｜DSML｜invoke></｜DSML｜function_calls>';
+
+  it('runs a DSML call the stream withheld, and answers from the follow-up', async () => {
+    const execute = vi.fn().mockResolvedValue('tool-output');
+    const toolInvocations: ToolInvocation[] = [];
+    const res = createMockRes();
+    const tools = { testTool: { execute } } as unknown as ToolSet;
+
+    const result = await runTextToolFallback({
+      assistantResponse: 'Let me check. ',
+      withheldToolMarkup: DSML_CALL,
+      toolInvocations,
+      tools,
+      baseConfig: { messages: [] },
+      res: res as never,
+      requestId: 'chatcmpl-test',
+      modelId: 'acme/chat-1',
+      resolved: { provider: 'openai', modelId: 'gpt-4o' },
+    });
+
+    expect(execute).toHaveBeenCalledWith({ query: 'my name' });
+    expect(toolInvocations).toHaveLength(1);
+    expect(result.assistantResponse).toBe('Follow-up reply');
+    // Nothing of the markup reaches the client.
+    expect(res._written.join('')).not.toContain('DSML');
+  });
+
+  it('shows nothing of a withheld DSML call it cannot run', async () => {
+    const execute = vi.fn();
+    const toolInvocations: ToolInvocation[] = [];
+    const res = createMockRes();
+
+    const result = await runFallback({
+      assistantResponse: '',
+      toolInvocations,
+      execute,
+      toolName: 'someOtherTool',
+      res,
+    });
+    expect(result.assistantResponse).toBe('');
+
+    const unknown = await runTextToolFallback({
+      assistantResponse: 'Hi! ',
+      withheldToolMarkup: DSML_CALL,
+      toolInvocations,
+      tools: {} as ToolSet,
+      baseConfig: { messages: [] },
+      res: res as never,
+      requestId: 'chatcmpl-test',
+      modelId: 'acme/chat-1',
+      resolved: { provider: 'openai', modelId: 'gpt-4o' },
+    });
+    expect(unknown.assistantResponse).toBe('Hi!');
+    expect(toolInvocations).toHaveLength(0);
+    expect(res._written.join('')).not.toContain('DSML');
+  });
+
   it('parses and executes a whole-response JSON tool call (OpenAI format)', async () => {
     const execute = vi.fn().mockResolvedValue('json-tool-output');
     const toolInvocations: ToolInvocation[] = [];
