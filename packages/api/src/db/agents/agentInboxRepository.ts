@@ -142,7 +142,7 @@ export async function listInboxItems(
 
 /**
  * Take up to `limit` pending items for one wake-up, marking them `delivered` in the same statement so a
- * concurrent heartbeat gets different ones. Items past {@link INBOX_ITEM_MAX_AGE_MS} are dismissed
+ * concurrent heartbeat gets different ones (the rows it picks are locked with `SKIP LOCKED`). Items past {@link INBOX_ITEM_MAX_AGE_MS} are dismissed
  * first and never handed over.
  */
 export async function takeInboxItems(
@@ -161,18 +161,27 @@ export async function takeInboxItems(
         lt(agentInboxItems.receivedAt, new Date(now.getTime() - INBOX_ITEM_MAX_AGE_MS)),
       ),
     );
+  // The rows this taker will hand over, locked. `ARRAY(…)` makes the pick an init plan, evaluated once:
+  // inside `id IN (SELECT … FOR UPDATE SKIP LOCKED)` the planner may run the subquery again per row,
+  // and each run skips more locked rows, so the LIMIT would no longer bound the total.
+  const picked = db
+    .select({ id: agentInboxItems.id })
+    .from(agentInboxItems)
+    .where(and(eq(agentInboxItems.agentId, agentId), eq(agentInboxItems.status, 'pending')))
+    .orderBy(asc(agentInboxItems.receivedAt))
+    .limit(limit)
+    // A concurrent taker skips the rows this one has locked instead of waiting for them and taking
+    // them too: `UPDATE … WHERE id IN (SELECT … LIMIT n)` evaluates the pick once from a snapshot, so
+    // without the lock two heartbeats both handed over the same items.
+    .for('update', { skipLocked: true });
   const taken = await db
     .update(agentInboxItems)
     .set({ status: 'delivered', deliveredAt: now })
     .where(
-      inArray(
-        agentInboxItems.id,
-        db
-          .select({ id: agentInboxItems.id })
-          .from(agentInboxItems)
-          .where(and(eq(agentInboxItems.agentId, agentId), eq(agentInboxItems.status, 'pending')))
-          .orderBy(asc(agentInboxItems.receivedAt))
-          .limit(limit),
+      and(
+        sql`${agentInboxItems.id} = ANY (ARRAY(${picked}))`,
+        // Rechecked against the row as it is once its lock is free, as a second line.
+        eq(agentInboxItems.status, 'pending'),
       ),
     )
     .returning();

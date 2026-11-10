@@ -176,6 +176,20 @@ describe('the inbox', () => {
     expect(await countPendingInboxItems(db, id)).toBe(0);
   });
 
+  it('never hands an item to two takers, however many race for it, round after round', async () => {
+    // The race is in timing, so one round proves little: many takers, many rounds.
+    for (let round = 0; round < 25; round += 1) {
+      const id = await agent();
+      for (let i = 0; i < 6; i += 1) await addInboxItem(db, item(id, `inbox:r-${unique()}`, at(i)));
+      const taken = await Promise.all(
+        Array.from({ length: 8 }, () => takeInboxItems(db, id, at(10))),
+      );
+      const ids = taken.flat().map((row) => row.id);
+      expect(ids).toHaveLength(6);
+      expect(new Set(ids).size).toBe(6);
+    }
+  });
+
   it('takes the oldest first and no more than a wake-up carries', async () => {
     const id = await agent();
     for (let i = 0; i < INBOX_ITEMS_PER_WAKE + 3; i += 1) {
