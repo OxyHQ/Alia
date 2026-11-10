@@ -236,6 +236,13 @@ export async function runStream<TOOLS extends ToolSet>(
   let chunkCount = 0;
   let assistantResponse = ''; // Track assistant's response for conversation save
   let hasStreamedText = false; // Track whether actual text (not just tool calls) was streamed
+  /**
+   * Tool results arrived after the last text the person saw. Narration BEFORE a tool
+   * ("Let me read the two that matter") is not the answer to the results that follow it:
+   * a turn that stops here, on the step bound or a provider error, owes one more pass.
+   * `hasStreamedText` cannot say so (any earlier narration sets it for the whole turn).
+   */
+  let answerOwed = false;
   // Text that is a tool call in the model's own syntax is never shown (see `tool-markup.ts`).
   const markup = createToolMarkupGuard();
   // What earlier steps of this turn wrote as markup; the guard starts clean at each step.
@@ -333,6 +340,7 @@ export async function runStream<TOOLS extends ToolSet>(
           if (filtered) {
             state.hasStreamedContent = true;
             hasStreamedText = true;
+            answerOwed = false;
             assistantResponse += filtered;
           }
         } else if (retryChunk.type === 'reasoning-start') {
@@ -348,7 +356,7 @@ export async function runStream<TOOLS extends ToolSet>(
           throw new Error('The tool-result synthesis stream finished with an error');
         }
       }
-      return hasStreamedText;
+      return !answerOwed;
     } finally {
       clearTimeout(retryTimer);
     }
@@ -368,6 +376,7 @@ export async function runStream<TOOLS extends ToolSet>(
       sse.ensureHeaders();
       state.hasStreamedContent = true;
       hasStreamedText = true;
+      answerOwed = false;
 
       // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
       const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
@@ -466,6 +475,7 @@ export async function runStream<TOOLS extends ToolSet>(
         break;
       }
     } else if (chunk.type === 'tool-result') {
+      answerOwed = true;
       idle?.toolFinished();
       sse.ensureHeaders();
       state.hasStreamedContent = true;
@@ -598,7 +608,7 @@ export async function runStream<TOOLS extends ToolSet>(
       }
 
       // If only tool content was streamed (no text), retry synthesis with collected tool results
-      if (!hasStreamedText && toolInvocations.some((t) => t.state === 'result')) {
+      if (answerOwed && toolInvocations.some((t) => t.state === 'result')) {
         log.v1.info(
           { provider: resolved.provider, modelId: resolved.modelId },
           'Synthesis failed after tool results, retrying without tools',
@@ -645,7 +655,7 @@ export async function runStream<TOOLS extends ToolSet>(
       // own product event, that is progress without a response and needs one
       // final tools-disabled synthesis pass.
       if (
-        !hasStreamedText &&
+        answerOwed &&
         !endedAtQuestion() &&
         agentMessages.length === 0 &&
         toolInvocations.some((t) => t.state === 'result')
@@ -671,7 +681,7 @@ export async function runStream<TOOLS extends ToolSet>(
           throw synthesisFailure;
         }
 
-        if (!hasStreamedText) {
+        if (answerOwed) {
           // The real cause when the pass failed (its classification decides the
           // client's code: timeout, budget, provider); a typed error of its own
           // when it ran to the end and the model simply never wrote an answer.
