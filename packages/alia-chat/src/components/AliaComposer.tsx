@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from 'react';
 import { View, type TextInputKeyPressEvent } from 'react-native';
+import type { ComposerLoaderPhase } from '@oxy.so/bloom/composer-loader';
 import {
   ComposerPill,
   type ComposerPanelAddMenuGroup,
@@ -79,6 +80,8 @@ export interface AliaComposerProps<T extends AliaSuggestion = AliaSuggestion> {
   onSubmit: () => void;
   /** A turn is streaming: send becomes stop. */
   busy?: boolean;
+  /** Request lifecycle sent to Bloom's decorative loader; request behavior remains controlled by `busy`. */
+  loaderPhase?: ComposerLoaderPhase;
   /** The composer is closed (usage limit). Never reaches stop. */
   disabled?: boolean;
   onStop?: () => void;
@@ -132,6 +135,7 @@ function AliaComposerBody<T extends AliaSuggestion>({
   onValueChange,
   onSubmit,
   busy = false,
+  loaderPhase,
   disabled = false,
   onStop,
   placeholder,
@@ -308,7 +312,7 @@ function AliaComposerBody<T extends AliaSuggestion>({
           onDismiss={questions.onDismiss}
         />
       ) : null}
-      <ComposerLoader active={busy}>
+      <ComposerLoader phase={loaderPhase ?? (busy ? 'streaming' : 'idle')}>
         <ComposerPill
           value={value}
           onValueChange={onValueChange}

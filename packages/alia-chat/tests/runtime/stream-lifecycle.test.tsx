@@ -18,6 +18,10 @@ const harness = vi.hoisted(() => ({
   controller: null as ReadableStreamDefaultController<Uint8Array> | null,
   /** Whether the consumer cancelled the stream (the person stopped the turn). */
   cancelled: false,
+  deferResponse: false,
+  releaseResponse: null as (() => void) | null,
+  deferCancel: false,
+  releaseCancel: null as (() => void) | null,
 }));
 
 const stream = vi.hoisted(() => ({
@@ -38,6 +42,11 @@ const stream = vi.hoisted(() => ({
         /* already closed */
       }
     });
+    if (harness.deferResponse) {
+      await new Promise<void>((resolve) => {
+        harness.releaseResponse = resolve;
+      });
+    }
     return { ok: true, status: 200, body };
   },
 }));
@@ -54,10 +63,17 @@ vi.mock('@oxy.so/services/ui/client', async () => ({
         client: {
           getSessionEpoch: () => 0,
           addTokenChangeListener: () => () => {},
-          requestAuthenticatedResponse: (config: { url: string }) =>
-            config.url.endsWith('/cancel')
-              ? Promise.resolve(Response.json({ state: 'cancelled' }))
-              : stream.fetch(config.url, config as never),
+          requestAuthenticatedResponse: (config: { url: string }) => {
+            if (config.url.endsWith('/cancel')) {
+              if (harness.deferCancel) {
+                return new Promise<Response>((resolve) => {
+                  harness.releaseCancel = () => resolve(Response.json({ state: 'cancelled' }));
+                });
+              }
+              return Promise.resolve(Response.json({ state: 'cancelled' }));
+            }
+            return stream.fetch(config.url, config as never);
+          },
         },
         dispose: () => {},
       }),
@@ -143,6 +159,10 @@ const reply = () => api.messages[api.messages.length - 1];
 beforeEach(() => {
   harness.controller = null;
   harness.cancelled = false;
+  harness.deferResponse = false;
+  harness.releaseResponse = null;
+  harness.deferCancel = false;
+  harness.releaseCancel = null;
 });
 
 afterEach(async () => {
@@ -153,6 +173,25 @@ afterEach(async () => {
 });
 
 describe('the assistant message’s lifecycle stamp', () => {
+  it('publishes submitting before response headers, then streaming and completion', async () => {
+    await mount();
+    harness.deferResponse = true;
+    const { outcome } = await begin();
+    expect(api.composerPhase).toBe('submitting');
+
+    harness.deferResponse = false;
+    await act(async () => {
+      harness.releaseResponse?.();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(api.composerPhase).toBe('streaming');
+
+    await deliver(contentFrame('answer'), 'data: [DONE]\n\n');
+    await close();
+    expect(await outcome).toBe('sent');
+    expect(api.composerPhase).toBe('complete');
+  });
+
   it('is streaming from the placeholder through every token, and completed once the stream ends', async () => {
     await mount();
     const { outcome } = await begin();
@@ -191,15 +230,23 @@ describe('the assistant message’s lifecycle stamp', () => {
       turnOutcome: 'failed',
     });
     expect(api.failedTurn).toMatchObject({ partial: true, retryable: true });
+    expect(api.composerPhase).toBe('error');
   });
 
   it('is cancelled when the person stops it, keeping the partial output', async () => {
     await mount();
     const { outcome } = await begin();
     await deliver(contentFrame('Half of'));
+    harness.deferCancel = true;
+
+    act(() => {
+      api.stop();
+    });
+    expect(api.composerPhase).toBe('stopping');
 
     await act(async () => {
-      api.stop();
+      harness.deferCancel = false;
+      harness.releaseCancel?.();
       await new Promise((resolve) => setTimeout(resolve, 80));
     });
 
@@ -210,6 +257,7 @@ describe('the assistant message’s lifecycle stamp', () => {
       turnOutcome: 'cancelled',
     });
     expect(api.isLoading).toBe(false);
+    expect(api.composerPhase).toBe('complete');
   });
 
   it('is failed when real output is followed by the server’s stand-in tail', async () => {

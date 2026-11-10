@@ -136,6 +136,7 @@ export function useConversationThread({
     messages,
     append,
     isLoading,
+    composerPhase,
     error,
     clearError,
     setMessages,
@@ -545,6 +546,7 @@ export function useConversationThread({
     conversation,
     messages,
     isLoading,
+    composerPhase,
     conversationLoading,
     error,
 

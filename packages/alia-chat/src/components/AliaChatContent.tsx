@@ -388,6 +388,7 @@ function AliaConversationView({
     messages,
     setMessages,
     isLoading,
+    composerPhase,
     conversationLoading,
     error,
     clearError,
@@ -706,6 +707,7 @@ function AliaConversationView({
           onValueChange={composer.setText}
           onSubmit={() => void composer.submit(composer.text)}
           busy={isLoading}
+          loaderPhase={composerPhase}
           disabled={closed || loading}
           onStop={stop}
           emptyAction={voiceButton}
