@@ -130,6 +130,11 @@ export interface Agent {
   modelId?: string | null;
   /** Minutes between heartbeats (ADR 0026); `null` or absent means the agent has none. */
   scheduleInterval?: number | null;
+  /**
+   * Whose computer it works on when it has one: `alia`, the person's shared workspace (the default and
+   * only for its owner), or its `own` machine. Absent on an older answer reads as `alia`.
+   */
+  computerSource?: 'alia' | 'own';
   archetype?: AgentArchetype;
   archetypeConfig?: ArchetypeConfig;
   /** What its empty chat offers to send, at most {@link MAX_AGENT_STARTERS} (ADR 0020 §6). */

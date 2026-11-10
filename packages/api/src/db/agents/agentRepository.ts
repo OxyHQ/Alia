@@ -74,7 +74,12 @@ import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/skills';
 import type { AvatarCharacter } from '@oxy.so/contracts';
-import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
+import type {
+  AgentAccess,
+  AgentArchetype,
+  AgentComputerSource,
+  AgentStatus,
+} from '../../domain/agent';
 import type { AgentFeatureGates, AgentStarter } from '../../domain/agent-features';
 import { withoutRetiredGrants } from '../../domain/capability-grants';
 import { escapeLikePattern } from '@oxy.so/utils/sql';
@@ -155,6 +160,8 @@ export interface AgentRecord {
   isTrending: boolean;
   isPublished: boolean;
   status: AgentStatus;
+  /** Whose computer it works on; see `AGENT_COMPUTER_SOURCES`. */
+  computerSource: AgentComputerSource;
   access: AgentAccess;
   systemPrompt: string | null;
   /** The agent's power level or `publisher/model`; null runs `auto`. */
@@ -250,6 +257,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     isTrending: row.isTrending,
     isPublished: row.isPublished,
     status: row.status as AgentStatus,
+    computerSource: row.computerSource as AgentComputerSource,
     access: row.access as AgentAccess,
     systemPrompt: row.systemPrompt,
     modelId: row.modelId,
@@ -898,6 +906,7 @@ export interface UpdateAgentInput {
   capabilityGrants?: string[];
   isPublished?: boolean;
   status?: AgentStatus;
+  computerSource?: AgentComputerSource;
   access?: AgentAccess;
   systemPrompt?: string;
   /** The agent's power level or `publisher/model`; null goes back to `auto`. */

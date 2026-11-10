@@ -186,6 +186,42 @@ function HeartbeatCard({ agentId, name }: { agentId: string; name: string }) {
   );
 }
 
+/** Whose computer the agent works on: the shared workspace Alia's agents use, or its own. */
+function ComputerCard({ agentId, name }: { agentId: string; name: string }) {
+  const { t } = useTranslation();
+  const { data: agents, isPending } = useMyAgents();
+  const update = useUpdateAgent();
+  const agent = agents?.find((candidate) => candidate._id === agentId);
+
+  if (isPending) return <SettingsRowsSkeleton control="switch" rows={1} />;
+
+  const source = agent?.computerSource ?? 'alia';
+  return (
+    <SettingsCard>
+      <SettingsRow label={t(`${K}.computer`)} description={t(`${K}.computerDescription`, { name })}>
+        <SettingsSelect
+          label={t(`${K}.computer`)}
+          value={source}
+          onChange={async (value: string) => {
+            try {
+              await update.mutateAsync({
+                id: agentId,
+                updates: { computerSource: value === 'own' ? 'own' : 'alia' },
+              });
+            } catch {
+              toast.error(t('settings.saveFailed'));
+            }
+          }}
+          items={[
+            { value: 'alia', label: t(`${K}.computerAlia`) },
+            { value: 'own', label: t(`${K}.computerOwn`, { name }) },
+          ]}
+        />
+      </SettingsRow>
+    </SettingsCard>
+  );
+}
+
 /** The ready-made toggles and every subscription that is not one of them. */
 function SubscriptionsCard({ agentId, name }: { agentId: string; name: string }) {
   const { t } = useTranslation();
@@ -337,6 +373,10 @@ export function AgentAttentionSection() {
 
       <SettingsSection label={t(`${K}.heartbeatTitle`)}>
         <HeartbeatCard agentId={agentId} name={name} />
+      </SettingsSection>
+
+      <SettingsSection label={t(`${K}.computerTitle`)}>
+        <ComputerCard agentId={agentId} name={name} />
       </SettingsSection>
 
       <SettingsSection label={t(`${K}.subscriptionsTitle`)}>
