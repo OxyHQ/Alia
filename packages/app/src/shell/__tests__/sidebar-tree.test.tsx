@@ -498,10 +498,7 @@ describe('the sidebar list', () => {
     act(() => {
       state.sidebarProps!.onTreeItemPress({ key: 'agent:a1' });
     });
-    expect(state.push).toHaveBeenCalledWith({
-      pathname: '/(app)/[username]',
-      params: { username: '@pepe' },
-    });
+    expect(state.push).toHaveBeenCalledWith('/@pepe');
   });
 
   it('offers the three tools: search, the agents\' catalogue and "+" with its create menu', async () => {
