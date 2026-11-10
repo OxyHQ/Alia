@@ -1,10 +1,13 @@
 /**
  * `/@pepe` must not have swallowed the rest of the app.
  *
- * The agent thread lives at `app/(app)/[username].tsx` — a DYNAMIC segment at
+ * What `/@pepe` names lives under `app/(app)/[username]/` — a DYNAMIC segment at
  * the top of the group, because Expo Router cannot mix static text with a
- * dynamic segment and so there is no `@[username].tsx`. The `@` rides inside the
- * parameter value.
+ * dynamic segment and so there is no `@[username]`. The `@` rides inside the
+ * parameter value. The directory holds `index` (the agent's thread, or a person's
+ * profile), `details` (an agent's page) and `edit` (its editor screen), so the
+ * dynamic route at the root is the directory `[username]` as a whole: its routes
+ * are named `[username]/index`, `[username]/details` and `[username]/edit`.
  *
  * A dynamic segment at the top of a group matches EVERY single-segment path.
  * Twelve static routes and eight directories sit at that same level, and the
@@ -43,9 +46,10 @@
  *
  * Each of these was run against this file before it was committed:
  *
- *  - a SECOND dynamic route beside `[username]` — red, and the one that matters,
- *    because the loser of that pair is unreachable and which one loses is not a
- *    decision anybody makes;
+ *  - a SECOND dynamic route beside `[username]` (a file or a directory) — red, and
+ *    the one that matters, because the loser of that pair is unreachable and which
+ *    one loses is not a decision anybody makes. The control below does it on every
+ *    run;
  *  - `[username]` deleted, or moved back under a static segment — red;
  *  - a declared route resolving into `[username]` — red, one line per route.
  *
@@ -138,7 +142,12 @@ function resolveRoute(path, config) {
   return names.length > 0 ? names : ['NO MATCH'];
 }
 
+/** The dynamic route at the group root: the directory `[username]`, whose routes are `[username]/…`. */
 const DYNAMIC = '[username]';
+/** The root a route belongs to: `[username]/details` → `[username]`, `settings/general` → `settings`. */
+const rootOf = (name) => name.split('/')[0];
+/** Whether a resolved chain landed in the dynamic route, whichever of its routes it is. */
+const inDynamic = (chain) => chain.some((name) => rootOf(name) === DYNAMIC);
 const failures = [];
 
 const keys = routeKeys(APP_DIR);
@@ -180,7 +189,7 @@ if (typeof groupScreens !== 'object' || groupScreens === null) {
 }
 
 const declared = declaredPaths(groupScreens.screens);
-const others = declared.filter((route) => route.name !== DYNAMIC);
+const others = declared.filter((route) => rootOf(route.name) !== DYNAMIC);
 
 if (others.length < 20) {
   console.error(
@@ -198,14 +207,21 @@ if (others.length < 20) {
  * It is checked before anything else because a missing or duplicated dynamic
  * route makes every result below mean something different.
  */
-const bareDynamics = declared.filter((route) => /^:[^/]*$/.test(route.pattern));
-if (bareDynamics.length !== 1 || bareDynamics[0].name !== DYNAMIC) {
+/** The roots whose route is a bare dynamic segment (`:x`): each one matches every single-segment path. */
+function dynamicRoots(routes) {
+  return [
+    ...new Set(routes.filter((route) => /^:[^/]*$/.test(route.pattern)).map((r) => rootOf(r.name))),
+  ].sort();
+}
+
+const roots = dynamicRoots(declared);
+if (roots.length !== 1 || roots[0] !== DYNAMIC) {
   console.error(
     'check-single-segment-routes: the group root does not hold exactly one dynamic route.',
   );
   console.error('');
   console.error(
-    `  found: ${bareDynamics.map((r) => r.name).join(', ') || '(none)'} — expected only ${DYNAMIC}.`,
+    `  found: ${roots.join(', ') || '(none)'} — expected only ${DYNAMIC} (the directory, with its index).`,
   );
   console.error('');
   console.error(
@@ -219,18 +235,28 @@ if (bareDynamics.length !== 1 || bareDynamics[0].name !== DYNAMIC) {
 for (const route of others) {
   const path = concrete(route.pattern);
   const chain = resolveRoute(path, config);
-  if (chain.includes(DYNAMIC)) {
+  if (inDynamic(chain)) {
     failures.push(
       `${path} (${route.name}) resolves to ${chain.join(' > ')} — the agent profile swallowed it.`,
     );
   }
 }
 
-/** And the route this all exists for still works, sigil and all. */
-for (const path of ['/@pepe', '/pepe']) {
+/**
+ * And the routes this all exists for still work, sigil and all: the thread or profile, the agent's
+ * page and its editor. `/x/details` and `/x/edit` are two segments, so they are only ever the
+ * dynamic directory's own: a static two-segment route resolving there is caught by the loop above.
+ */
+const EXPECTED = [
+  ['/@pepe', '[username]/index'],
+  ['/pepe', '[username]/index'],
+  ['/@pepe/details', '[username]/details'],
+  ['/@pepe/edit', '[username]/edit'],
+];
+for (const [path, route] of EXPECTED) {
   const chain = resolveRoute(path, config);
-  if (!chain.includes(DYNAMIC)) {
-    failures.push(`${path} resolves to ${chain.join(' > ')} — it should reach the agent profile.`);
+  if (!chain.includes(route)) {
+    failures.push(`${path} resolves to ${chain.join(' > ')} — it should reach ${route}.`);
   }
 }
 
@@ -248,7 +274,7 @@ for (const path of ['/@pepe', '/pepe']) {
 const sacrificed = 'settings';
 const withoutOne = keys.filter((key) => !key.startsWith(`./(app)/${sacrificed}`));
 const controlChain = resolveRoute(`/${sacrificed}`, linkingConfig(withoutOne));
-if (!controlChain.includes(DYNAMIC)) {
+if (!inDynamic(controlChain)) {
   console.error(
     'check-single-segment-routes: the control did not fire, so nothing above is trustworthy.',
   );
@@ -264,13 +290,33 @@ if (!controlChain.includes(DYNAMIC)) {
   process.exit(1);
 }
 
+/**
+ * The second control: two dynamic routes at the root must be seen as two.
+ *
+ * "Exactly one" passes on a gate that has stopped counting. So a dynamic file is added to a COPY of
+ * the tree, and the gate is required to see two roots. Both shapes are tried, a file and a
+ * directory, because the real one is a directory.
+ */
+for (const extra of ['./(app)/[probe].tsx', './(app)/[probe]/index.tsx']) {
+  const extraConfig = linkingConfig([...keys, extra]);
+  const extraRoots = dynamicRoots(declaredPaths(extraConfig?.screens?.['(app)']?.screens ?? {}));
+  if (extraRoots.length !== 2) {
+    console.error(
+      'check-single-segment-routes: the second-dynamic control did not fire, so the count above is not trustworthy.',
+    );
+    console.error('');
+    console.error(`  With ${extra} added the gate sees [${extraRoots.join(', ')}], not two roots.`);
+    process.exit(1);
+  }
+}
+
 if (failures.length > 0) {
   console.error('check-single-segment-routes: a route no longer resolves to itself.');
   console.error('');
   for (const failure of failures) console.error(`  ${failure}`);
   console.error('');
   console.error(
-    '  `app/(app)/[username].tsx` matches every single-segment path that no static\n' +
+    '  `app/(app)/[username]/` matches every single-segment path that no static\n' +
       '  route claims. Restore the route, or move the agent profile off the group root.',
   );
   process.exit(1);
@@ -278,5 +324,6 @@ if (failures.length > 0) {
 
 console.log(
   `check-single-segment-routes: OK — ${String(others.length)} declared routes resolve past ` +
-    `${DYNAMIC}, /@pepe and /pepe reach it, and removing /${sacrificed} moves it there.`,
+    `${DYNAMIC}, /@pepe, /pepe, /@pepe/details and /@pepe/edit reach it, a second dynamic root is ` +
+    `seen as two, and removing /${sacrificed} moves it there.`,
 );
