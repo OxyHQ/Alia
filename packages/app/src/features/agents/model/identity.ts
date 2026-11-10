@@ -58,7 +58,7 @@ export function agentIdentityMatches(agent: AgentIdentityFields, query: string):
  */
 export function agentChatRoute(
   agent: AgentIdentityFields & Pick<Agent, '_id'>,
-): string | { pathname: '/(app)/agents/[id]'; params: { id: string } } {
+): `/@${string}` | { pathname: '/(app)/agents/[id]'; params: { id: string } } {
   const handle = agentHandle(agent);
   return handle === ''
     ? { pathname: '/(app)/agents/[id]', params: { id: agent._id } }
@@ -73,7 +73,7 @@ export function agentChatRoute(
  * `@` is part of the route's value (`app/(app)/[username].tsx`), and a path written out keeps it.
  * Every link to a thread goes through here, so no screen spells it a second way.
  */
-export function agentThreadHref(handle: string, threadId?: string): string {
-  const path = `/@${handle}`;
+export function agentThreadHref(handle: string, threadId?: string): `/@${string}` {
+  const path = `/@${handle}` as const;
   return threadId === undefined ? path : `${path}?threadId=${encodeURIComponent(threadId)}`;
 }
