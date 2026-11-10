@@ -93,8 +93,9 @@
     },
     "aliaLanguage": {
       "title": "Idioma de respuesta de Alia",
-      "description": "Alia responderá en este idioma",
-      "selectPlaceholder": "Selecciona un idioma"
+      "description": "Alia responde en tu idioma salvo que elijas otro",
+      "selectPlaceholder": "Selecciona un idioma",
+      "auto": "El mismo que el mío"
     },
     "responseTone": {
       "title": "Tono de respuesta",
@@ -406,6 +407,14 @@
       "viewAll": "Ver todo",
       "warning": "Aviso",
       "exportShareTitle": "Exportación de auditoría de Alia ({{format}})"
+    },
+    "responseLength": {
+      "title": "Longitud de respuesta",
+      "description": "Cuánto dice Alia por defecto: al grano, equilibrada o a fondo",
+      "auto": "Que decida Alia",
+      "short": "Breve y al grano",
+      "medium": "Equilibrada",
+      "long": "Detallada y habladora"
     }
   },
   "nav": {
