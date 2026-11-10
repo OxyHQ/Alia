@@ -21,6 +21,20 @@ import {
   type SpaceWithMembers,
 } from '../db/spaces/spaceRepository.js';
 import { getDb } from '../db/index.js';
+import {
+  SpaceNotesConflictError,
+  deleteSpaceNotes,
+  listSpaceNotes,
+  readSpaceNotes,
+  writeSpaceNotes,
+} from '../db/spaces/spaceMemoryRepository.js';
+import { redactSecrets } from '../lib/agent/secret-scanner.js';
+import {
+  AGENT_MEMORY_FILE_MAX_BYTES,
+  AGENT_MEMORY_INDEX,
+  hashAgentMemory,
+  parseAgentMemoryPath,
+} from '../lib/agent/memory-contract.js';
 import { MAX_SPACE_MEMBERS, parseSpaceInstructions, parseSpaceName } from '../domain/spaces.js';
 import { loadAgentForActor, refusalMessage, refusalStatus } from '../lib/agent-account.js';
 import { log } from '../lib/logger.js';
@@ -234,6 +248,98 @@ router.delete('/:id', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.chat.error({ err: error }, 'Could not delete a space');
     res.status(500).json({ error: 'Could not delete the space' });
+  }
+});
+
+// ── The space's shared notes ─────────────────────────────────────────────────
+// The person reads and edits what their agents keep (ADR 0028). The same contract as an agent's own
+// memory: a write names the hash it read, and secrets are redacted from what the person types.
+
+/** A path the notes contract accepts, or null (the response is written). */
+function notesPath(res: Response, value: unknown): string | null {
+  try {
+    return parseAgentMemoryPath(
+      typeof value === 'string' && value !== '' ? value : AGENT_MEMORY_INDEX,
+    ).path;
+  } catch (error: unknown) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid path' });
+    return null;
+  }
+}
+
+router.get('/:id/notes', async (req: Request, res: Response) => {
+  try {
+    const caller = callerOf(req);
+    if (!caller) return res.status(401).json({ error: 'Unauthorized' });
+    const space = await findSpace(getDb(), caller.userId, String(req.params.id));
+    if (!space) return res.status(404).json({ error: 'Space not found' });
+    if (req.query.path === undefined) {
+      return res.json({ documents: await listSpaceNotes(getDb(), space.id) });
+    }
+    const path = notesPath(res, req.query.path);
+    if (path === null) return;
+    const document = await readSpaceNotes(getDb(), space.id, path);
+    res.json({
+      path,
+      content: document?.content ?? '',
+      hash: document?.contentHash ?? hashAgentMemory(''),
+      exists: Boolean(document),
+      lastEditor: document?.lastEditor ?? null,
+    });
+  } catch (error: unknown) {
+    log.chat.error({ err: error }, 'Could not read a space’s notes');
+    res.status(500).json({ error: 'Could not read the notes' });
+  }
+});
+
+router.put('/:id/notes', async (req: Request, res: Response) => {
+  try {
+    const caller = callerOf(req);
+    if (!caller) return res.status(401).json({ error: 'Unauthorized' });
+    const space = await findSpace(getDb(), caller.userId, String(req.params.id));
+    if (!space) return res.status(404).json({ error: 'Space not found' });
+    const path = notesPath(res, req.body?.path);
+    if (path === null) return;
+    const content = typeof req.body?.content === 'string' ? req.body.content : '';
+    const expectedHash = typeof req.body?.expectedHash === 'string' ? req.body.expectedHash : '';
+    if (!expectedHash) return res.status(400).json({ error: 'expectedHash is required' });
+    if (Buffer.byteLength(content, 'utf8') > AGENT_MEMORY_FILE_MAX_BYTES) {
+      return res.status(413).json({ error: 'The notes file is too large' });
+    }
+    const safe = redactSecrets(content);
+    const document = await writeSpaceNotes(getDb(), {
+      spaceId: space.id,
+      path,
+      content: safe.redacted,
+      expectedHash,
+      editor: 'person',
+    });
+    res.json({ document, redactedSecrets: safe.matches.map((match) => match.type) });
+  } catch (error: unknown) {
+    if (error instanceof SpaceNotesConflictError) {
+      return res.status(409).json({
+        error: error.message,
+        currentHash: error.currentHash,
+        currentContent: error.currentContent,
+      });
+    }
+    log.chat.error({ err: error }, 'Could not write a space’s notes');
+    res.status(500).json({ error: 'Could not save the notes' });
+  }
+});
+
+router.delete('/:id/notes', async (req: Request, res: Response) => {
+  try {
+    const caller = callerOf(req);
+    if (!caller) return res.status(401).json({ error: 'Unauthorized' });
+    const space = await findSpace(getDb(), caller.userId, String(req.params.id));
+    if (!space) return res.status(404).json({ error: 'Space not found' });
+    const path = notesPath(res, req.query.path);
+    if (path === null) return;
+    res.json({ removed: await deleteSpaceNotes(getDb(), space.id, path) });
+  } catch (error: unknown) {
+    log.chat.error({ err: error }, 'Could not remove a space’s notes');
+    res.status(500).json({ error: 'Could not remove the notes' });
   }
 });
 

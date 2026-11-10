@@ -221,9 +221,14 @@ holds at most six, and the caller needs standing over each agent (`loadAgentForA
   section of its prompt in a chat with the person, a background run or its own bot — `agentSpacePrompt`), and — for a
   member on `computer_source = 'alia'` used by its owner — one shared workspace
   (`space:<spaceId>:user:<userId>`).
+- **Shared notes**: the space's own memory (`MEMORY.md` plus `memory/<topic>.md`), kept by every member
+  with the `spaceNotes` tool and put in its prompt as labelled data. Writes name the hash they read (a
+  second writer gets a conflict, never a silent overwrite). The person reads and edits them with
+  `GET`/`PUT`/`DELETE /spaces/:id/notes`.
 - **Reach**: a member consults exactly the other members (membership is the permission, no `agent`
   grant needed), and the tools that find, create, manage or hire agents outside the space are not built
-  for it (`ToolPipeline`, `consultSelection`). Alia, outside every space, still consults any agent.
+  for it (`ToolPipeline`, `consultSelection`). Alia, outside every space, still consults any agent, and a
+  member may ask her with `askAlia`: she answers read-only (no tool that sends, writes or acts).
 
 ## Teams and Cowork devices
 
