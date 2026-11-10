@@ -204,6 +204,26 @@ second paid session beside the answer.
   /agents/threads/:threadId/goals/:goalId/verify` requires evidence for every
   criterion before the goal becomes `completed`.
 
+## Spaces (ADR 0028)
+
+A **Space** is a folder that groups a person's own agents. Create one with `POST /spaces`
+(`{name, instructions?, agentIds?}`), put an agent in with `PUT /spaces/:id/members/:agentId` and take it
+out with `DELETE` on the same path; `GET /spaces` lists them with their members and room, `PATCH` renames
+or rewrites the brief, `DELETE /spaces/:id` frees the agents and removes the room. Alia is never a member
+(members are agent rows, and she has none). An agent is in at most one space (`agents.space_id`), a space
+holds at most six, and the caller needs standing over each agent (`loadAgentForActor`).
+
+- **The room** (`spaces.conversation_id`) is an ordinary group conversation (ADR 0025) whose
+  `conversation_members` are kept equal to the space's agents by `syncSpaceRoom`, in the same transaction
+  as every change. The engine is untouched. `GET /conversations` and `/conversations/:id` carry `spaceId`
+  so a client files the room under its space and not among Alia's chats.
+- **Shared context**: the room transcript, the brief (put in every member's room prompt), and — for a
+  member on `computer_source = 'alia'` used by its owner — one shared workspace
+  (`space:<spaceId>:user:<userId>`).
+- **Reach**: a member consults exactly the other members (membership is the permission, no `agent`
+  grant needed), and the tools that find, create, manage or hire agents outside the space are not built
+  for it (`ToolPipeline`, `consultSelection`). Alia, outside every space, still consults any agent.
+
 ## Teams and Cowork devices
 
 Teams are owned resources under `/agents/teams`. A team has exactly one

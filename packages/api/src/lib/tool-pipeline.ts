@@ -83,6 +83,8 @@ import { getWeatherTool } from './tools/weather.js';
 import { getMarketQuoteTool } from './tools/market.js';
 import { getFairCoinTool } from './tools/faircoin.js';
 import { buildMcpTools } from './tools/mcp.js';
+import { getDb } from '../db/index.js';
+import { listSpacePeerIds } from '../db/spaces/spaceRepository.js';
 import { buildConsultAgentTool } from './tools/consult-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
 import {
@@ -443,6 +445,16 @@ export class ToolPipeline {
       inputLimits,
     } = opts;
 
+    /**
+     * The other agents in this agent's SPACE (ADR 0028), or null when it is in none. A member's reach is
+     * cut to them where the tools are built, not asked of the model: it consults only its peers, and the
+     * tools that find or start agents outside the space (`searchAgents`, `createAgent`, delegation) are
+     * not built at all.
+     */
+    const spacePeers: readonly string[] | null = agent?.spaceId
+      ? await listSpacePeerIds(getDb(), agent._id, agent.spaceId)
+      : null;
+
     const toolNameMapping = new Map<string, string>();
 
     /**
@@ -643,7 +655,7 @@ export class ToolPipeline {
     }
 
     // Minting an agent needs the caller's own credential, so only a session has it.
-    if (isDirectSession && !nested && grants.allows('delegation')) {
+    if (isDirectSession && !nested && spacePeers === null && grants.allows('delegation')) {
       aliaTools.createAgent = createAgentTool(userId, accessToken);
       // Managing them needs the same: the bearer decides who may act as each agent's account.
       aliaTools.listMyAgents = listMyAgentsTool(userId);
@@ -684,7 +696,12 @@ export class ToolPipeline {
 
     // The session primitives: only a turn with a live session can act on one,
     // and only the families it was granted — the source decides, not a filter.
-    if (runtime) Object.assign(aliaTools, buildRuntimeTools(runtime, grants));
+    if (runtime) {
+      Object.assign(
+        aliaTools,
+        buildRuntimeTools(runtime, grants, spacePeers === null ? {} : { withoutDelegation: true }),
+      );
+    }
 
     /**
      * 4. The bulk sources — the FOUR INSTANCED FAMILIES. All of them, on every
@@ -798,7 +815,7 @@ export class ToolPipeline {
             payerOxyUserId: userId,
             callerAgentId: agent?._id ?? null,
             attachments,
-            ...consultSelection(grants),
+            ...consultSelection(grants, spacePeers),
             ...(sseEmitter ? { sseEmitter } : {}),
           }).catch(bulkFailure('agent'))
         : {},
@@ -835,7 +852,7 @@ export class ToolPipeline {
     const tools: ToolSet = { ...aliaTools, ...(nested ? {} : editorTools), ...hostTools };
 
     // 6. The catalogue of agents `consultAgent` can reach, for finding a specialist.
-    if (actsForPerson && !nested && grants.allows('delegation')) {
+    if (actsForPerson && !nested && spacePeers === null && grants.allows('delegation')) {
       tools.searchAgents = createSearchAgentsTool(surfaceApplicationId);
     }
 
@@ -892,9 +909,15 @@ function byName(tools: ToolSet): ToolSet {
  * Ordinary Alia, and an agent whose owner wrote the bare `agent` grant, consult
  * any agent the person could open themselves. An agent granted named ids
  * consults only those, and an agent without the grant consults none (`[]`, and
- * the tool is not built).
+ * the tool is not built). A member of a space consults exactly its peers.
  */
-function consultSelection(grants: CapabilityGrantSet): { allowedAgentIds?: readonly string[] } {
+function consultSelection(
+  grants: CapabilityGrantSet,
+  spacePeers: readonly string[] | null,
+): { allowedAgentIds?: readonly string[] } {
+  // In a space, being a member IS the permission to consult the other members, and nothing beyond them
+  // (ADR 0028): the agent's own `agent` grant neither widens it nor is needed.
+  if (spacePeers !== null) return { allowedAgentIds: spacePeers };
   const granted = grants.instances('agent');
   return granted === null ? {} : { allowedAgentIds: granted };
 }

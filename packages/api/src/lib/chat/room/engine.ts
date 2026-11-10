@@ -59,6 +59,8 @@ export interface RoomJobData {
   readonly turns: number;
   readonly lastSpeakerId: string | null;
   readonly surfaceApplicationId: string | null;
+  /** The space this room is the room of (ADR 0028): its name and brief, fixed when the chain started. */
+  readonly space?: { readonly name: string; readonly instructions: string } | null;
 }
 
 /** A stored message as the engine reads it. */
@@ -290,7 +292,14 @@ async function speak(input: {
     });
     const outcome: AgentTurnResult = await deps.runTurn({
       agent,
-      task: roomPrompt({ self: info, roster, personText, since, handedBy }),
+      task: roomPrompt({
+        self: info,
+        roster,
+        personText,
+        since,
+        handedBy,
+        space: data.space ?? null,
+      }),
       history,
       person: {
         oxyUserId: data.userId,

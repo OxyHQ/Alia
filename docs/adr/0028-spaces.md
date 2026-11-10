@@ -35,16 +35,18 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
    makes it part of the conversation and removing one takes it out. An empty space has no room to open.
 5. **Shared context** is three things, in this order of arrival:
    - the **room transcript**, which every member reads whole (ADR 0025);
-   - the **brief and the member list**, put in every member's room prompt (`roomPrompt`) so they act as
-     one team with one purpose;
-   - the **computer**: a member works on the space's own workspace
-     (`space:<spaceId>:user:<userId>`), the same for all of them, when the person is the owner
-     (`resolveComputerActor`; for anyone else it is the agent's own per-person machine, as for
-     `computer_source = 'alia'`). A shared notes memory is a later step (below).
+   - the **brief and the member list**, put in every member's room prompt (`roomPrompt`, carried in the
+     room job as `space`) so they act as one team with one purpose;
+   - the **computer**: a member on the default (`computer_source = 'alia'`) works on the space's own
+     workspace (`space:<spaceId>:user:<userId>`), the same machine for all of them, when the person is
+     the owner (`resolveComputerActor`). A member whose owner chose `own` keeps its own machine; for
+     anyone else it is the agent's own per-person machine. A shared notes memory is a later step.
 6. **"Only each other, or Alia."** A member's reach is cut to its space, server-side, where the tools
-   are assembled (`ToolPipeline`), not asked of the model:
-   - `consultAgent` allows only the OTHER members of its space, narrowed by the agent's own grants;
-   - `searchAgents`, `createAgent` and delegation, which find or start agents outside, are withheld;
+   are assembled (`ToolPipeline`, `consultSelection`), not asked of the model:
+   - `consultAgent` allows exactly the OTHER members of its space. Being a member IS the permission: it
+     needs no `agent` grant, and neither a bare grant nor named agents outside the space widen it;
+   - `searchAgents`, `createAgent`, `updateAgent`, `listMyAgents` and runtime delegation, which find,
+     manage or start agents outside, are not built for a member;
    - a member's room roster is the space's members.
    Alia is outside, so she can consult any agent including a member, and the person talks to a member
    directly as before. A member asking Alia is not modelled by `consultAgent` (she is not an agent id)
@@ -57,8 +59,9 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
 
 ## Phases
 
-1. Model, API and the room (`spaces`, `agents.space_id`, `/spaces`, `syncSpaceRoom`).
-2. Enforcement and context: the peers-only reach, the brief in the room prompt, the space computer.
+1. Model, API and the room (`spaces`, `agents.space_id`, `/spaces`, `syncSpaceRoom`) — with the
+   enforcement and the context (peers-only reach, the brief in the room prompt, the space computer),
+   because a space without them is just a list. **Done.**
 3. The sidebar: the Spaces section, create/edit/move/delete, es/en.
 4. Later, each its own decision: a shared notes memory (`space_memory_documents`), a member addressing
    Alia, a space-wide budget for autonomous activity, more than six members.
@@ -91,7 +94,14 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
 
 ## Enforcement
 
-To be added with each phase: the space routes and ownership tests, a Postgres test that membership is
-unique per agent and that deleting a space frees it, a test that the room's `conversation_members` equal
-the space's members after every change, and a tool-assembler test that a member's `consultAgent`
-allowlist is its peers and that `searchAgents` is withheld.
+- `db/__tests__/spaces.pgdb.test.ts`: membership is unique per agent (moving leaves the old space), the
+  room's members equal the space's agents after every change, six at most with the last seat given to
+  exactly one of several concurrent requests, another person's space and agent are refused, and deleting
+  a space frees its agents and removes its room.
+- `routes/__tests__/spaces.test.ts`: shape, standing over every agent before anything is written, the
+  rollback of a space that cannot be filled, and the same 404 for a space that is not the caller's.
+- `lib/__tests__/capability-grants.test.ts` ("an agent in a space"): the real assembler gives a member
+  `consultAgent` for exactly its peers whatever its grants, builds none of the tools that reach outside,
+  and leaves an agent in no space exactly as it was.
+- `lib/computer/__tests__/computer-actor.test.ts` and `lib/chat/room/__tests__/policy.test.ts`: the space
+  workspace and its owner-only rule, and the brief in the room prompt.

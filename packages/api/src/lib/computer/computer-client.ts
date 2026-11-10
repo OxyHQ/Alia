@@ -174,6 +174,11 @@ export function agentActorId(agentId: string, oxyUserId: string): string {
   return `agent:${agentId}:user:${oxyUserId}`;
 }
 
+/** A space's shared workspace for one person (ADR 0028): the same machine for all of its agents. */
+export function spaceActorId(spaceId: string, oxyUserId: string): string {
+  return `space:${spaceId}:user:${oxyUserId}`;
+}
+
 export function aliaActorId(oxyUserId: string): string {
   return `alia:user:${oxyUserId}`;
 }
