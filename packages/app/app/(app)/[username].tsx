@@ -2,6 +2,8 @@ import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
 import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
 import { useAgentThread } from '@/features/agents/runtime/use-agent-thread';
+import { usePersonProfile } from '@/features/profile/runtime/use-person-profile';
+import { UserProfile } from '@/features/profile/ui/user-profile';
 import { useMyAgents } from '@/features/agents/runtime/use-my-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { AiChatMobileHeader } from '@oxy.so/bloom/ai-chat';
@@ -10,7 +12,14 @@ import { useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
 /**
- * `/@pepe` — the permanent thread with one agent.
+ * `/@pepe` — what the username is: the permanent thread with an agent, or a person's profile.
+ *
+ * Which one is decided by the account. An agent is a `kind: 'bot'` account in Oxy and opens its
+ * thread, as below; a person's account opens their profile (`UserProfile`, Bloom's AI profile
+ * card). Both are looked up at once, so the agent's thread waits for nothing. A username that is
+ * neither (no such account, an agent nobody may reach) is the one agent 404, as before.
+ *
+ * ## The thread
  *
  * The conversation LIVES here. This route does not hand off to `/c/:id`: the
  * pair (person, agent) has one thread, and this URL is its address, so coming
@@ -57,6 +66,10 @@ const AgentThreadPage = () => {
    */
   const handle = username?.replace(/^@+/, '') ?? '';
   const { data: thread, isPending, isError } = useAgentThread(handle, threadId);
+  // A thread asked for by id is an agent's by construction; otherwise the account may be a person.
+  const { person, isPending: profilePending } = usePersonProfile(
+    threadId === undefined ? handle : '',
+  );
   // The agent as the person's own list has it, for the first frame.
   const { data: mine } = useMyAgents();
   const known = mine?.find((agent) => agentHandle(agent) === handle);
@@ -73,7 +86,16 @@ const AgentThreadPage = () => {
    */
   // Both inside the chat's own frame: this is a chat route, so no layout
   // container wraps it, and a phone still needs the menu to leave.
-  if (isError) {
+  // A person's account wins over a thread that does not exist: an agent has a thread or nothing.
+  if (thread === undefined && person !== undefined) {
+    return (
+      <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
+        <UserProfile user={person} />
+      </ChatWorkspace>
+    );
+  }
+
+  if (isError && !profilePending) {
     return (
       <ChatWorkspace header={<AiChatMobileHeader title="Alia" />}>
         <View className="flex-1 justify-center">

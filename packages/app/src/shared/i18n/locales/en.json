@@ -2446,5 +2446,12 @@
     "title": "Shared conversation",
     "open": "Open Alia",
     "footer": "A read-only copy, shared by the person who had this conversation."
+  },
+  "profile": {
+    "kind": {
+      "organization": "Organization",
+      "project": "Project",
+      "channel": "Channel"
+    }
   }
 }
