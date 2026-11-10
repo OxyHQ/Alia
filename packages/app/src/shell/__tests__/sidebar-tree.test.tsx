@@ -592,7 +592,8 @@ const room = (over: Record<string, unknown> = {}) => ({
   spaceId: 's1',
   ...over,
 });
-const spacesSection = () => sections().find((section) => section.key === 'spaces');
+const spaceSections = () => sections().filter((section) => section.key.startsWith('space:'));
+const spaceSection = (id = 's1') => sections().find((section) => section.key === `space:${id}`);
 const keysOf = (items: { key: string }[]) => items.map((item) => item.key);
 const dialogTitled = (title: string) =>
   renderer.root.findAll((n) => is(n, 'Dialog') && n.props.title === title);
@@ -601,18 +602,21 @@ describe('spaces in the sidebar', () => {
   it('draws no section when the person has no space', async () => {
     state.agents = [agent('a1', 'Pepe')];
     await mount();
-    expect(spacesSection()).toBeUndefined();
+    expect(spaceSections()).toEqual([]);
   });
 
-  it('draws one folder per space: its room first, then its agents, which leave the flat list', async () => {
+  it('draws one section per space: its room first, then its agents, which leave the flat list', async () => {
     state.agents = [agent('a1', 'Pepe', 's1'), agent('a2', 'Ana', 's1'), agent('a3', 'Luis')];
     state.spaces = [space()];
     state.conversations = [chat('alpha'), room()];
     await mount();
-    const section = spacesSection();
-    expect(section).toMatchObject({ label: 'sidebar.spaces' });
-    const [folder] = section.folders;
-    expect(folder).toMatchObject({ key: 'space:s1', label: 'Equipo', open: true });
+    const folder = spaceSection();
+    expect(folder).toMatchObject({
+      key: 'space:s1',
+      label: 'Equipo',
+      open: true,
+      collapsible: true,
+    });
     expect(keysOf(folder.items)).toEqual(['room1', 'agent:a1', 'agent:a2']);
     expect(folder.items[0]).toMatchObject({ label: 'spaces.general', description: 'Listo' });
     // Only the agent in no space stays in the flat Agents list; the room is in neither list.
@@ -630,11 +634,11 @@ describe('spaces in the sidebar', () => {
     expect(sections().find((s) => s.key === 'agents')).toBeUndefined();
   });
 
-  it('shows an empty space as a folder with one row that opens the picker, and no room', async () => {
+  it('shows an empty space as a section with one row that opens the picker, and no room', async () => {
     state.agents = [agent('a3', 'Luis')];
     state.spaces = [space({ memberAgentIds: [] })];
     await mount();
-    const [folder] = spacesSection().folders;
+    const folder = spaceSection();
     expect(keysOf(folder.items)).toEqual(['space-add:s1']);
     expect(folder.items[0]).toMatchObject({ label: 'spaces.addAgents' });
     // Pressing it is not a destination.
@@ -655,26 +659,26 @@ describe('spaces in the sidebar', () => {
     expect(state.push).toHaveBeenCalled();
   });
 
-  it('puts the section beside the agents, ahead of Alia’s chats', async () => {
+  it('puts each space’s section beside the agents, ahead of Alia’s chats', async () => {
     state.agents = [agent('a1', 'Pepe', 's1'), agent('a3', 'Luis')];
     state.spaces = [space({ memberAgentIds: ['a1'] })];
     await mount();
-    expect(sections().map((s) => s.key)).toEqual(['agents', 'spaces', 'chats', 'projects']);
+    expect(sections().map((s) => s.key)).toEqual(['agents', 'space:s1', 'chats', 'projects']);
   });
 
-  it('keeps the folder closed on this account once the person closes it', async () => {
+  it('keeps the section closed on this account once the person closes it', async () => {
     state.agents = [agent('a1', 'Pepe', 's1')];
     state.spaces = [space({ memberAgentIds: ['a1'] })];
     await mount();
     await act(async () => {
-      spacesSection().folders[0].onOpenChange(false);
+      spaceSection().onOpenChange(false);
     });
     await settle();
-    expect(spacesSection().folders[0].open).toBe(false);
+    expect(spaceSection().open).toBe(false);
     expect([...state.storage.keys()]).toContain('alia-spaces-closed:user-a');
   });
 
-  it('draws folder-shaped ghost rows, never a spinner, while the spaces load', async () => {
+  it('draws ghost rows, never a spinner, while the spaces load', async () => {
     state.spacesLoading = true;
     await mount();
     expect(renderer.root.findAllByType('SkeletonRegion' as any).length).toBeGreaterThan(0);
@@ -698,9 +702,7 @@ describe('spaces in the sidebar', () => {
       space({ id: 's2', name: 'Otro', conversationId: 'room2', memberAgentIds: [] }),
     ];
     await mount();
-    const member = spacesSection().folders[0].items.find(
-      (i: { key: string }) => i.key === 'agent:a1',
-    );
+    const member = spaceSection().items.find((i: { key: string }) => i.key === 'agent:a1');
     const flatAgent = sections().find((s) => s.key === 'agents')!.items[0];
     expect(flatAgent.actions).toBeDefined();
     let menu!: ReactTestRenderer;
@@ -720,13 +722,13 @@ describe('spaces in the sidebar', () => {
     });
   });
 
-  it('gives the folder a menu: rename, edit the brief, add an agent, delete after confirming', async () => {
+  it('gives the section a menu: rename, edit the brief, add an agent, delete after confirming', async () => {
     state.agents = [agent('a1', 'Pepe', 's1'), agent('a3', 'Luis')];
     state.spaces = [space({ memberAgentIds: ['a1'] })];
     await mount();
     let menu!: ReactTestRenderer;
     await act(async () => {
-      menu = create(spacesSection().folders[0].actions);
+      menu = create(spaceSection().actions);
     });
     await act(async () => menuItem(menu.root, 'spaces.rename').props.onPress());
     expect(dialogTitled('spaces.renameTitle')).toHaveLength(1);

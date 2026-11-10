@@ -60,8 +60,9 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
    and the person's Oxy apps at `read_only` autonomy, enforced by Oxy when a tool runs, and none of what
    sends, writes, acts or runs code. Otherwise a question would be a way to borrow powers she holds and
    the asking agent may not.
-7. **The sidebar shows a Space as a collapsible folder** (Bloom `SidebarTreeFolder`) in a "Spaces"
-   section: the folder's name, its room ("General") and its member agents. An agent in a space no longer
+7. **The sidebar shows each Space as its own collapsible section** (Bloom `SidebarTree`, titled with the
+   space's name, its menu beside it): its room ("General") and its member agents. A section and not a
+   `SidebarTreeFolder`, because Bloom draws a folder's rows with only a label, no avatar and no last line. An agent in a space no longer
    appears in the flat Agents list. Create from the create menu, rename, edit the brief, add agents,
    "Move to space…" on an agent row, delete (agents go back to the flat list). No drag-and-drop in the
    first version: the sidebar has none today.

@@ -206,7 +206,7 @@ second paid session beside the answer.
 
 ## Spaces (ADR 0028)
 
-A **Space** is a folder that groups a person's own agents. Create one with `POST /spaces`
+A **Space** is a section of the sidebar that groups a person's own agents. Create one with `POST /spaces`
 (`{name, instructions?, agentIds?}`), put an agent in with `PUT /spaces/:id/members/:agentId` and take it
 out with `DELETE` on the same path; `GET /spaces` lists them with their members and room, `PATCH` renames
 or rewrites the brief, `DELETE /spaces/:id` frees the agents and removes the room. Alia is never a member
