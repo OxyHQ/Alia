@@ -1,5 +1,12 @@
 # @alia.onl/sdk
 
+## 24.0.1
+
+- **A conversation prefetch never retries.** `prefetchConversation` (the hover/press-in warm-up)
+  now fails once and quietly. It used to retry through the query client's default policy, so a
+  refusal by the API's rate limit (429) was retried twice more, spending the budget that had just
+  refused it; the press that opens the conversation fetches it itself.
+
 ## 24.0.0
 
 - **Breaking.** The web search switch is gone: Alia can always search the web, so

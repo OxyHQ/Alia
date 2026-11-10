@@ -249,6 +249,11 @@ export function usePrefetchConversation(): (id: string) => void {
   return useCallback((id) => prefetchConversation(queryClient, client, id), [queryClient, client]);
 }
 
+/**
+ * A prefetch is a favour to the press that may never come, so it never retries: a refusal (the
+ * rate limit's 429 above all) is answered by the press's own fetch, whereas retrying it spends the
+ * very budget that refused it, and a limiter that counts refused requests then never lets up.
+ */
 export function prefetchConversation(
   queryClient: QueryClient,
   client: ConversationsClient,
@@ -258,6 +263,7 @@ export function prefetchConversation(
     queryKey: aliaQueryKeys.conversations.detail(id),
     queryFn: () => fetchConversation(client, id),
     staleTime: FIVE_MINUTES,
+    retry: false,
   });
 }
 
