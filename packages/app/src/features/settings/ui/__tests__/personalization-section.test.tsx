@@ -2,7 +2,10 @@ import type React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-/** Personalization saves language, tone and voice only: no occupation, location, bio or interests. */
+/**
+ * Personalization saves language, tone and voice only: no occupation, location, bio or interests.
+ * Its Save and Cancel are the page header's (`SettingsPageActions`), never a row of the body.
+ */
 
 const { hosts } = vi.hoisted(() => ({
   hosts: async (...names: string[]) => {
@@ -20,9 +23,10 @@ const { hosts } = vi.hoisted(() => ({
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 
 vi.mock('react-native', async () => hosts('View', 'Text'));
-vi.mock('@oxy.so/bloom/settings-modal', async () => hosts('SettingsCard', 'SettingsRow'));
+vi.mock('@oxy.so/bloom/settings-modal', async () =>
+  hosts('SettingsCard', 'SettingsRow', 'SettingsPageActions'),
+);
 vi.mock('@oxy.so/bloom/settings-modal/rows', async () => hosts('SettingsSelect'));
-vi.mock('@oxy.so/bloom/button-group', async () => hosts('ButtonGroup', 'ButtonGroupItem'));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: toastMock }));
 vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({
@@ -91,13 +95,16 @@ describe('PersonalizationSection', () => {
       'settings.aliaLanguage.title',
       'settings.voicePreference.title',
       'personality',
-      'settings.saveButton',
     ]);
     expect(all(tree, 'SettingsTextField')).toHaveLength(0);
     expect(all(tree, 'Textarea')).toHaveLength(0);
 
-    const save = all(tree, 'ButtonGroupItem')[1]!;
-    await act(async () => save.props.onPress());
+    const actions = all(tree, 'SettingsPageActions')[0]!.props.actions as {
+      key: string;
+      onPress: () => void;
+    }[];
+    expect(actions.map((action) => action.key)).toEqual(['cancel', 'save']);
+    await act(async () => actions.find((action) => action.key === 'save')!.onPress());
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://api.test/memory/preferences');
