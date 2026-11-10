@@ -168,6 +168,7 @@ export const AliaThread = memo(function AliaThread({
     dayLabels,
     seamIds,
     speakers,
+    consulted,
     lastReplyIndex,
     timingOf,
   } = useThreadRows({
@@ -322,6 +323,9 @@ export const AliaThread = memo(function AliaThread({
             )}
           </Divider>
         ) : null}
+        {/* What a consulted agent said is not drawn under its line: the lead answers with it, and
+            the line opens the exchange. Without a way to open it, it stays where it was. */}
+        {onOpenAgentChat !== undefined && consulted.has(message.id) ? null : (
         <ThreadRow
           message={message}
           // Only a message that arrived while this conversation was open animates in; none of the
@@ -345,6 +349,7 @@ export const AliaThread = memo(function AliaThread({
           workStartedAt={timing.startedAt}
           workEndedAt={timing.endedAt}
         />
+        )}
       </Fragment>
     );
   };
