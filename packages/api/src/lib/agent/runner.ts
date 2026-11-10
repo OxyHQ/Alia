@@ -48,6 +48,7 @@ import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
 import { agentIdentityPrompt, oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
 import { agentRemitPrompt } from './archetype-prompts.js';
+import { agentSpacePrompt } from './space-prompt.js';
 import {
   agentPromptName,
   attachAgentIdentity,
@@ -111,8 +112,12 @@ const CONTINUATION_PROMPTS = [
  * else entirely and could contradict it in either direction. What the agent
  * can do is the tools it was handed, each with its own description.
  */
-export function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig): string {
-  return `${agentRemitPrompt(agent)}
+export function buildSystemPrompt(
+  agent: HydratedAgent,
+  config: AgentSessionConfig,
+  spaceSection = '',
+): string {
+  return `${agentRemitPrompt(agent)}${spaceSection}
 
 ## How to Work
 - Multi-step task: create a plan with the plan action, execute it step by step, update it after each step. Simple question: respond directly.
@@ -507,7 +512,7 @@ async function driveAgentSession(
   const memorySection = grantsMemory
     ? await agentMemoryPromptSection(session.oxyUserId, agent._id)
     : '';
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config)}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}${memorySection}`;
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, await agentSpacePrompt(agent))}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}${memorySection}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
   // budget instead of starting a fresh one.

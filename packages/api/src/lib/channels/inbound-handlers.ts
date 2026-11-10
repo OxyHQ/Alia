@@ -6,6 +6,7 @@ import { sendChannelMessage } from '../channels/outbound.js';
 import { ToolPipeline } from '../tool-pipeline.js';
 import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
 import { agentRemitPrompt } from '../agent/archetype-prompts.js';
+import { agentSpacePrompt } from '../agent/space-prompt.js';
 import { buildIdentityGuard } from '../identity-guard.js';
 import { loadPrompt } from '../prompt-loader.js';
 import { getDb } from '../../db/index.js';
@@ -432,7 +433,7 @@ export async function processAgentBotMessage(
      * nothing about Claudio. The remit is what the guard's remit rule points
      * at, so the two have to be the same thing on every surface.
      */
-    const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${agentRemitPrompt(agent)}`;
+    const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${agentRemitPrompt(agent)}${await agentSpacePrompt(agent)}`;
 
     /**
      * The bot owner's REAL tool set, through the ONE assembler.

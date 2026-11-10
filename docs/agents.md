@@ -217,7 +217,8 @@ holds at most six, and the caller needs standing over each agent (`loadAgentForA
   `conversation_members` are kept equal to the space's agents by `syncSpaceRoom`, in the same transaction
   as every change. The engine is untouched. `GET /conversations` and `/conversations/:id` carry `spaceId`
   so a client files the room under its space and not among Alia's chats.
-- **Shared context**: the room transcript, the brief (put in every member's room prompt), and — for a
+- **Shared context**: the room transcript, the brief (in every member's room prompt, and as a "Your space"
+  section of its prompt in a chat with the person, a background run or its own bot — `agentSpacePrompt`), and — for a
   member on `computer_source = 'alia'` used by its owner — one shared workspace
   (`space:<spaceId>:user:<userId>`).
 - **Reach**: a member consults exactly the other members (membership is the permission, no `agent`
