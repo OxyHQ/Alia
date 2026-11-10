@@ -225,7 +225,7 @@ test('packed SDK exposes an opt-in whose version and source hashes match the tar
   fs.writeFileSync(app, '');
   const requireFromApp = createRequire(app);
   const pkg = requireFromApp('@alia.onl/sdk/package.json');
-  assert.equal(pkg.peerDependencies['@oxy.so/bloom'], '>=15.10.1');
+  assert.equal(pkg.peerDependencies['@oxy.so/bloom'], '>=17.41.0');
   const helper = requireFromApp('@alia.onl/sdk/metro');
   assert.equal(typeof helper.withAliaGranularCharts({}).resolver.resolveRequest, 'function');
 });
