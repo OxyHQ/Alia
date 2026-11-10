@@ -45,7 +45,7 @@ vi.mock('../../../lib/agent-identity.js', () => ({
   fallbackAgentUsername: () => 'agent',
 }));
 vi.mock('../../../lib/external-agents/relay.js', () => ({
-  isExternalAgentOnline: (id: string) => state.online.has(id),
+  isExternalAgentReachable: async (id: string) => state.online.has(id),
   disconnectExternalAgent: state.disconnect,
 }));
 vi.mock('../../../lib/logger.js', () => {

@@ -40,7 +40,10 @@ import {
   hashPairingCode,
   isWellFormedPairingCode,
 } from '../../lib/external-agents/pairing-code.js';
-import { disconnectExternalAgent, isExternalAgentOnline } from '../../lib/external-agents/relay.js';
+import {
+  disconnectExternalAgent,
+  isExternalAgentReachable,
+} from '../../lib/external-agents/relay.js';
 
 const router = Router();
 const route =
@@ -173,12 +176,13 @@ router.get(
   route(async (req, res) => {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
     const links = await listExternalLinks(getDb(), req.user.id);
+    const online = await Promise.all(links.map((link) => isExternalAgentReachable(link.agentId)));
     res.json({
-      agents: links.map((link) => ({
+      agents: links.map((link, index) => ({
         agentId: link.agentId,
         cli: link.cli,
         hostName: link.hostName,
-        online: isExternalAgentOnline(link.agentId),
+        online: online[index],
         createdAt: link.createdAt,
         lastConnectedAt: link.lastConnectedAt,
       })),

@@ -1,5 +1,12 @@
 # @alia-codea/cli
 
+## 3.3.1
+
+`codea connect` lets the agent edit files in its working directory by default: read-only made Claude
+Code and Codex answer "I don't have permission" to almost anything. Start it with `--read-only` to
+forbid changes, and the agent then says how to lift that instead of just refusing. Run it from the
+folder you want the agent to work in.
+
 ## 3.3.0
 
 `codea connect` serves Claude Code, Codex or OpenCode to Alia as one of your agents

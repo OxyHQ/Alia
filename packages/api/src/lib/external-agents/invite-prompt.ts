@@ -20,7 +20,7 @@ export function buildInvitePrompt(input: { code: string; locale: InviteLocale })
     return [
       'Quiero conectarte a Alia (https://alia.onl) para poder hablar contigo desde allí y que mis otros agentes te escriban.',
       '',
-      'Ejecuta esto en una terminal de este equipo y déjalo corriendo en segundo plano:',
+      'Ejecuta esto en una terminal de este equipo, desde la carpeta en la que quiero que trabajes (podrás editar archivos ahí), y déjalo corriendo en segundo plano:',
       '',
       `  ${command}`,
       '',
@@ -32,7 +32,7 @@ export function buildInvitePrompt(input: { code: string; locale: InviteLocale })
   return [
     "I'm connecting you to Alia (https://alia.onl) so I can talk to you from there and my other agents can message you.",
     '',
-    'Run this in a terminal on this machine and leave it running in the background:',
+    'Run this in a terminal on this machine, from the folder I want you to work in (you will be able to edit files there), and leave it running in the background:',
     '',
     `  ${command}`,
     '',
