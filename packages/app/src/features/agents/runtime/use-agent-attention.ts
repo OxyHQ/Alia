@@ -112,30 +112,3 @@ export function useAgentSubscriptionMutations(agentId: string) {
 
   return { subscribe, unsubscribe };
 }
-
-/**
- * Whether the person has paused everything that would start on its own: scheduled and event
- * automations, agents' follow-ups and heartbeats (`PUT /automations/pause`). A chat, a run they ask
- * for and work already running are not affected.
- */
-export function useBackgroundPause() {
-  const { isAuthenticated } = useOxy();
-  const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: queryKeys.automations.pause,
-    queryFn: async (): Promise<boolean> => {
-      const response = await apiClient.get<{ paused?: boolean }>(API_ROUTES.automations.pause);
-      return response.data.paused === true;
-    },
-    enabled: isAuthenticated,
-    retry: false,
-  });
-  const change = useMutation({
-    mutationFn: async (paused: boolean): Promise<boolean> => {
-      await apiClient.put(API_ROUTES.automations.pause, { paused });
-      return paused;
-    },
-    onSuccess: (paused) => queryClient.setQueryData(queryKeys.automations.pause, paused),
-  });
-  return { paused: query.data, isPending: query.isPending, isError: query.isError, change };
-}

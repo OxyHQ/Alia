@@ -412,10 +412,6 @@
         }
       },
       "attention": {
-        "pauseTitle": "Pausar todo",
-        "pauseAll": "Pausar todo lo que empieza por su cuenta",
-        "pauseAllDescription": "Mientras esté activado, no se ejecuta ninguna tarea programada, automatización por evento, seguimiento ni latido a tu nombre. Los chats, lo que lances tú y lo que ya esté en marcha no se ven afectados.",
-        "pauseFailed": "No se pudo cambiar la pausa. Inténtalo de nuevo.",
         "loadFailed": "No se pudo cargar. Inténtalo de nuevo."
       },
       "proactive": {
