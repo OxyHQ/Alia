@@ -109,7 +109,8 @@ export function usePrefetchAgentThread(): (username: string, hasThread: boolean)
     (username, hasThread) => {
       if (!hasThread || username === '') return;
       const query = agentThreadQuery(username);
-      void queryClient.prefetchQuery(query).then(() => {
+      // Best effort, never retried: see `prefetchConversation` in the SDK.
+      void queryClient.prefetchQuery({ ...query, retry: false }).then(() => {
         const thread = queryClient.getQueryData<AgentThread>(query.queryKey);
         if (thread) prefetchConversation(thread.conversationId);
       });
