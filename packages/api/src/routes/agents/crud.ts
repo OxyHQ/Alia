@@ -42,6 +42,7 @@ import {
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
 import {
+  DEFAULT_NEW_AGENT_GRANTS,
   formatCapabilityGrant,
   isCapabilityGrant,
   withoutRetiredGrants,
@@ -507,7 +508,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       category: data.category,
       tags: data.tags ?? [],
       price: data.price ?? null,
-      capabilityGrants: data.capabilityGrants ?? [],
+      capabilityGrants: data.capabilityGrants ?? [...DEFAULT_NEW_AGENT_GRANTS],
       skillIds: data.skills ?? [],
       libraryFileIds: data.knowledge ?? [],
       /**

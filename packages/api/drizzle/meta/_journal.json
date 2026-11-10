@@ -862,6 +862,13 @@
       "when": 1794272030302,
       "tag": "0122_agent_computer_source_validate",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1794273948302,
+      "tag": "0123_external_agents",
+      "breakpoints": true
     }
   ]
 }

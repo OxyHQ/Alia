@@ -48,11 +48,19 @@ import { emailOutreachDecisions } from './schema/proactive';
 import { apiKeyUsage } from './schema/telemetry';
 import { oxyFileEvents } from './schema/oxy-files';
 import { chatTurnControls } from './schema/chat-turn-controls';
+import { externalAgentPairings } from './schema/external-agents';
 import { chatHostResults } from './schema/chat-host-results';
 
 const DAY = 24 * 60 * 60;
 
 export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
+  {
+    table: externalAgentPairings,
+    column: externalAgentPairings.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      '10-minute single-use pairing codes (hash only); a redeemed or unused code has no value after its deadline.',
+  },
   {
     table: chatTurnControls,
     column: chatTurnControls.expiresAt,

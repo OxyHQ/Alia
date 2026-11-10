@@ -65,6 +65,9 @@ vi.mock('@/features/settings/ui/accounts-section', () => ({
 vi.mock('@/features/settings/ui/bots-section', () => ({
   BotsSection: () => null,
 }));
+vi.mock('@/features/settings/ui/external-agents-section', () => ({
+  ExternalAgentsSection: () => null,
+}));
 vi.mock('@/features/settings/ui/connectors-section', () => ({
   ConnectorsSection: () => null,
 }));

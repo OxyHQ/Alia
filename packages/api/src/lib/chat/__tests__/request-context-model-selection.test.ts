@@ -882,6 +882,34 @@ describe('personalization', () => {
   );
 });
 
+/** OpenAI's `tool_choice: "none"`: a turn that may only answer in words (a sample phrase). */
+describe('tool_choice', () => {
+  it('offers the turn’s tools when absent or "auto"', async () => {
+    expect((await run(undefined, { directUserId: 'user-1' })).ctx?.toolsEnabled).toBe(true);
+    const auto = await run(undefined, { directUserId: 'user-1', body: { tool_choice: 'auto' } });
+    expect(auto.ctx?.toolsEnabled).toBe(true);
+  });
+
+  it('"none" offers no tool', async () => {
+    const { ctx } = await run(undefined, { directUserId: 'user-1', body: { tool_choice: 'none' } });
+    expect(ctx?.toolsEnabled).toBe(false);
+  });
+
+  it.each([['required'], [{ type: 'function', function: { name: 'x' } }], [0]])(
+    'refuses %j before anything is reserved',
+    async (value) => {
+      const { ctx, captured } = await run(undefined, {
+        directUserId: 'user-1',
+        body: { tool_choice: value },
+      });
+      expect(ctx).toBeNull();
+      expect(captured.status).toBe(400);
+      expect(captured.body?.error).toMatchObject({ param: 'tool_choice', code: 'invalid_request' });
+      expect(reserveCredits).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe('host tools that await their result', () => {
   const host = {
     app: 'astro',
