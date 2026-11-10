@@ -35,9 +35,6 @@ vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ isAuthenticated: true, user: { id: 'A' } }),
   useAuth: () => ({ isAuthenticated: true, signIn: vi.fn() }),
 }));
-vi.mock('@/features/settings/ui/background-pause-section', async () =>
-  hosts('BackgroundPauseSection'),
-);
 vi.mock('@/shared/api/client', () => ({
   default: { get: api.get, put: api.put },
 }));
@@ -93,9 +90,8 @@ describe('Settings → Memory', () => {
     expect(openURL).toHaveBeenCalledWith('https://nilo.so');
   });
 
-  it('keeps the recall switch and the pause for everything, and nothing of the old entries', async () => {
+  it('keeps the recall switch, and nothing of the old entries or of a pause for everything', async () => {
     const tree = await render();
-    expect(all(tree, 'BackgroundPauseSection')).toHaveLength(1);
     await act(async () => all(tree, 'Switch')[0]!.props.onCheckedChange(false));
     expect(api.put).toHaveBeenCalledWith('/memory/settings', { recallEnabled: false });
     expect(useUserDataStore.getState().memory?.settings.recallEnabled).toBe(false);

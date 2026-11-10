@@ -56,7 +56,6 @@ const ALLOWED: Record<string, readonly string[]> = {
   // spaces: the dialogs and rows name agents (`agentDisplayName`).
   spaces: ['agents'],
   settings: [
-    'agents',
     'billing',
     'chat',
     'connections',

@@ -393,10 +393,6 @@
         }
       },
       "attention": {
-        "pauseTitle": "Pause everything",
-        "pauseAll": "Pause everything that starts on its own",
-        "pauseAllDescription": "While this is on, no scheduled task, event automation, follow-up or heartbeat runs for you. Chats, runs you start yourself and work already running are not affected.",
-        "pauseFailed": "Couldn't change the pause. Try again.",
         "loadFailed": "Could not load this. Try again."
       },
       "proactive": {
