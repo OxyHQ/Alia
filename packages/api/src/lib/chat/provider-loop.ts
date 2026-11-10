@@ -467,6 +467,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         assistantResponse = (
           await runTextToolFallback({
             assistantResponse,
+            withheldToolMarkup: streamResult.withheldToolMarkup,
             toolInvocations,
             tools: truncatedTools,
             baseConfig,

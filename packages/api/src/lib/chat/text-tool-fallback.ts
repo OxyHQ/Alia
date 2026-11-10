@@ -4,7 +4,7 @@
  * Some models (Gemini 3 preview, Minimax, etc.) emit tool calls as plain text
  * instead of using the native tool-calling API. After the main stream drains
  * with no native tool invocations, this scans the assistant text for two such
- * formats, executes any matched tool, streams its result, and runs a follow-up
+ * formats (plus DeepSeek's DSML, `tool-markup.ts`), executes any matched tool, streams its result, and runs a follow-up
  * completion so the model produces a natural language reply:
  *   1. `<function(name)>{json}</function>` (XML-ish tag format)
  *   2. the entire response being a single `{ type: 'function', ... }` JSON blob
@@ -23,9 +23,15 @@ import { writeTextChunk, makeChunk } from '../streaming-helpers.js';
 import type { ResolvedModel } from '../chat-core.js';
 import type { ToolInvocation } from './stream-runner.js';
 import { toolRoundTrip } from './tool-calls.js';
+import { createToolMarkupGuard, parseDsmlToolCalls, stripDsmlToolMarkup } from './tool-markup.js';
 
 export interface TextToolFallbackParams {
   assistantResponse: string;
+  /**
+   * What the stream withheld from the person because it was a tool call written as text
+   * (`RunStreamResult.withheldToolMarkup`). It is read here, never shown.
+   */
+  withheldToolMarkup?: string;
   /** Native tool invocations collected during the stream; mutated in place. */
   toolInvocations: ToolInvocation[];
   /** The truncated tool set the model had access to. */
@@ -53,6 +59,8 @@ export async function runTextToolFallback(
   const { toolInvocations, tools, baseConfig, res, requestId, modelId, resolved, onFollowUpUsage } =
     params;
   let assistantResponse = params.assistantResponse;
+  // Where the model's calls may be: in what was shown, or in what the stream withheld.
+  const scanned = assistantResponse + (params.withheldToolMarkup ?? '');
 
   let textToolCallIdx = 0;
   /** Everything the follow-up completions streamed, across every executed call. */
@@ -161,9 +169,12 @@ export async function runTextToolFallback(
           },
         });
 
+        // The follow-up offers no tools: markup in it has nothing to run, and is not shown.
+        const followUpMarkup = createToolMarkupGuard();
         for await (const followUpChunk of followUpResult.fullStream) {
           if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
-            const followUpText = writeTextChunk(res, requestId, modelId, followUpChunk.text);
+            const shown = followUpMarkup.push(followUpChunk.text);
+            const followUpText = shown ? writeTextChunk(res, requestId, modelId, shown) : null;
             if (followUpText) {
               followUpTotal += followUpText;
             }
@@ -179,10 +190,26 @@ export async function runTextToolFallback(
     return true;
   }
 
-  if (assistantResponse && toolInvocations.length === 0) {
+  if (scanned && toolInvocations.length === 0) {
+    // Format 0: DeepSeek's DSML invoke blocks
+    const dsmlCalls = parseDsmlToolCalls(scanned);
+    if (dsmlCalls.length > 0) {
+      log.v1.warn(
+        {
+          matchCount: dsmlCalls.length,
+          format: 'dsml',
+          provider: resolved.provider,
+          modelId: resolved.modelId,
+        },
+        'Detected text-based tool calls — executing fallback',
+      );
+      for (const call of dsmlCalls) await executeTextToolCall(call.name, call.args);
+      assistantResponse = followUpTotal || stripDsmlToolMarkup(params.assistantResponse);
+    }
+
     // Format 1: <function(name)>{json}</function>
-    const textToolMatches = [...assistantResponse.matchAll(TEXT_TOOL_CALL_RE)];
-    if (textToolMatches.length > 0) {
+    const textToolMatches = [...scanned.matchAll(TEXT_TOOL_CALL_RE)];
+    if (toolInvocations.length === 0 && textToolMatches.length > 0) {
       log.v1.warn(
         {
           matchCount: textToolMatches.length,
@@ -201,13 +228,14 @@ export async function runTextToolFallback(
         }
         await executeTextToolCall(match[1], args);
       }
-      assistantResponse = followUpTotal || assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
+      assistantResponse =
+        followUpTotal || params.assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
     }
 
     // Format 2: entire response is a JSON tool call (OpenAI format)
     if (toolInvocations.length === 0) {
       try {
-        const parsed = JSON.parse(assistantResponse.trim());
+        const parsed = JSON.parse(scanned.trim());
         if (parsed?.type === 'function' && typeof parsed.name === 'string' && parsed.parameters) {
           log.v1.warn(
             {

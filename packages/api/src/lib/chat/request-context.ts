@@ -132,6 +132,12 @@ export interface ChatRequestContext {
    */
   personalization: boolean;
   /**
+   * `false` when the caller sent OpenAI's `tool_choice: "none"`: the model is offered no tool, so
+   * it can only answer in words (a sample phrase, a title). Absent or `"auto"` is the turn's
+   * normal tools.
+   */
+  toolsEnabled: boolean;
+  /**
    * What the model reads for each `file` part, by Oxy Files id: read as the
    * person before the turn was admitted (`lib/files/person-files.ts`). The
    * messages themselves keep the reference, which is what is stored.
@@ -368,6 +374,25 @@ export async function buildChatRequestContext(
     return null;
   }
   const personalization = body.personalization !== false;
+
+  /** `"auto"` (or absent) and `"none"` are the two a product turn honours; the rest name a tool. */
+  if (
+    body.tool_choice !== undefined &&
+    body.tool_choice !== 'auto' &&
+    body.tool_choice !== 'none'
+  ) {
+    clearTimeout(globalTimer);
+    res.status(400).json({
+      error: {
+        message: '"tool_choice" must be "auto" or "none"',
+        type: 'invalid_request_error',
+        param: 'tool_choice',
+        code: 'invalid_request',
+      },
+    });
+    return null;
+  }
+  const toolsEnabled = body.tool_choice !== 'none';
 
   /**
    * The `file` parts, by id, refused here when malformed: before the stream
@@ -1168,6 +1193,7 @@ export async function buildChatRequestContext(
       responseMode: body.responseMode === 'voice' ? 'voice' : null,
       host,
       personalization,
+      toolsEnabled,
       files: admitted.files,
       featureUses,
       deepResearch,
