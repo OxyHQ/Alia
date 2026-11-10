@@ -1,5 +1,11 @@
 # @alia.onl/sdk
 
+## 24.2.0
+
+- **Composer loader lifecycle.** `useConversationThread` exposes `composerPhase` separately from
+  `isLoading`; `AliaChatContent` passes the request phase to `AliaComposer`, which forwards it to
+  Bloom's `ComposerLoader`. Direct `AliaComposer` callers may pass `loaderPhase` themselves.
+
 ## 24.1.0
 
 - **A consulted agent's reply is not drawn under its line.** When Alia or an agent asks another

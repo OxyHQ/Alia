@@ -177,6 +177,11 @@ always lives in a conversation: the open one, or one made when the call starts, 
 screen that shows it (`lib/voice-call-request.ts`). The full API, with examples for both, is in
 `packages/alia-chat/README.md`.
 
+The runtime exposes `composerPhase` separately from `isLoading`. It moves through `idle`,
+`submitting`, `streaming`, `stopping`, `error` and `complete`; `isLoading` remains the business state that keeps
+the Stop action active. `AliaChatContent` passes the phase to `AliaComposer`, which forwards it to
+Bloom's `ComposerLoader`. Hosts using `AliaComposer` directly can pass `loaderPhase` themselves.
+
 ### The conversation screen is the SDK's too
 
 The bottom sheet, `AliaChatScreen` and the Alia app are frames around ONE screen, `AliaChatContent`
