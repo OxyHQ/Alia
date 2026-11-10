@@ -17,6 +17,12 @@ const state = vi.hoisted(() => ({
   setAgentSpace: vi.fn(),
   updateSpace: vi.fn(),
   listSpaces: vi.fn(),
+  notes: {
+    list: vi.fn(),
+    read: vi.fn(),
+    write: vi.fn(),
+    remove: vi.fn(),
+  },
 }));
 
 const SPACE = {
@@ -54,6 +60,21 @@ vi.mock('../../db/spaces/spaceRepository.js', () => ({
   listSpaces: state.listSpaces,
   findSpace: vi.fn(async () => state.space),
 }));
+class NotesConflict extends Error {
+  constructor(
+    readonly currentHash: string,
+    readonly currentContent: string,
+  ) {
+    super('The notes changed since they were read');
+  }
+}
+vi.mock('../../db/spaces/spaceMemoryRepository.js', () => ({
+  SpaceNotesConflictError: NotesConflict,
+  listSpaceNotes: state.notes.list,
+  readSpaceNotes: state.notes.read,
+  writeSpaceNotes: state.notes.write,
+  deleteSpaceNotes: state.notes.remove,
+}));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { chat: child, general: child } };
@@ -62,7 +83,7 @@ vi.mock('../../lib/logger.js', () => {
 const { default: router } = await import('../spaces.js');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use('/spaces', router);
 let server: Server;
 let base = '';
@@ -93,6 +114,7 @@ beforeEach(() => {
   state.updateSpace.mockReset().mockResolvedValue({ ...SPACE, name: 'New' });
   state.listSpaces.mockReset().mockResolvedValue([{ ...SPACE }]);
   state.setAgentSpace.mockReset().mockImplementation(async () => state.placement);
+  for (const fn of Object.values(state.notes)) fn.mockReset();
 });
 
 describe('POST /spaces', () => {
@@ -235,5 +257,112 @@ describe('GET and DELETE /spaces', () => {
     expect((await call('DELETE', '/space-1')).status).toBe(204);
     state.deleteSpace.mockResolvedValue(false);
     expect((await call('DELETE', '/space-9')).status).toBe(404);
+  });
+});
+
+describe('/spaces/:id/notes', () => {
+  it('lists the files of the caller’s space', async () => {
+    state.notes.list.mockResolvedValue([{ path: 'MEMORY.md', byteLength: 3 }]);
+    const res = await call('GET', '/space-1/notes');
+    expect(res.status).toBe(200);
+    expect(res.body.documents).toEqual([{ path: 'MEMORY.md', byteLength: 3 }]);
+    expect(state.notes.list).toHaveBeenCalledWith({}, 'space-1');
+  });
+
+  it('reads a file with the hash a write must name, the index by default', async () => {
+    state.notes.read.mockResolvedValue({
+      content: '- a',
+      contentHash: 'h1',
+      lastEditor: 'agent-1',
+    });
+    const res = await call('GET', '/space-1/notes?path=MEMORY.md');
+    expect(res.body).toMatchObject({ path: 'MEMORY.md', content: '- a', hash: 'h1', exists: true });
+    expect(res.body.lastEditor).toBe('agent-1');
+  });
+
+  it('says a file that does not exist is empty, with the hash of nothing', async () => {
+    state.notes.read.mockResolvedValue(undefined);
+    const res = await call('GET', '/space-1/notes?path=memory/x.md');
+    expect(res.body).toMatchObject({ content: '', exists: false, lastEditor: null });
+    expect(typeof res.body.hash).toBe('string');
+  });
+
+  it('is the same 404 for a space that is not the caller’s, on every verb', async () => {
+    state.space = null;
+    expect((await call('GET', '/space-9/notes')).status).toBe(404);
+    expect(
+      (await call('PUT', '/space-9/notes', { path: 'MEMORY.md', content: 'x', expectedHash: 'h' }))
+        .status,
+    ).toBe(404);
+    expect((await call('DELETE', '/space-9/notes?path=MEMORY.md')).status).toBe(404);
+    expect(state.notes.write).not.toHaveBeenCalled();
+    expect(state.notes.remove).not.toHaveBeenCalled();
+  });
+
+  it('saves as the person, with the hash it read, and redacts secrets from what was typed', async () => {
+    state.notes.write.mockResolvedValue({ id: 'd1' });
+
+    const res = await call('PUT', '/space-1/notes', {
+      path: 'MEMORY.md',
+      // Built at run time so that no key-shaped literal sits in the repository for the scanner to ledger.
+      content: `key ${['sk-ant', 'api03', 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJ'].join('-')} done`,
+      expectedHash: 'h1',
+    });
+
+    expect(res.status).toBe(200);
+    const written = state.notes.write.mock.calls[0]![1];
+    expect(written).toMatchObject({
+      spaceId: 'space-1',
+      path: 'MEMORY.md',
+      expectedHash: 'h1',
+      editor: 'person',
+    });
+    expect(written.content).not.toContain('abcdefghijklmnopqrstuvwxyz');
+    expect(res.body.redactedSecrets.length).toBeGreaterThan(0);
+  });
+
+  it('answers 409 with what the file holds now when another writer got there first', async () => {
+    state.notes.write.mockRejectedValue(new NotesConflict('h2', 'newer'));
+
+    const res = await call('PUT', '/space-1/notes', {
+      path: 'MEMORY.md',
+      content: 'x',
+      expectedHash: 'h1',
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ currentHash: 'h2', currentContent: 'newer' });
+  });
+
+  it('refuses a write without the hash it read, an oversized file and a path outside the contract', async () => {
+    expect((await call('PUT', '/space-1/notes', { path: 'MEMORY.md', content: 'x' })).status).toBe(
+      400,
+    );
+    expect(
+      (
+        await call('PUT', '/space-1/notes', {
+          path: 'MEMORY.md',
+          content: 'x'.repeat(300 * 1024),
+          expectedHash: 'h',
+        })
+      ).status,
+    ).toBe(413);
+    expect(
+      (
+        await call('PUT', '/space-1/notes', {
+          path: '../escape.md',
+          content: 'x',
+          expectedHash: 'h',
+        })
+      ).status,
+    ).toBe(400);
+    expect(state.notes.write).not.toHaveBeenCalled();
+  });
+
+  it('removes one file', async () => {
+    state.notes.remove.mockResolvedValue(1);
+    const res = await call('DELETE', '/space-1/notes?path=memory/old.md');
+    expect(res.body).toEqual({ removed: 1 });
+    expect(state.notes.remove).toHaveBeenCalledWith({}, 'space-1', 'memory/old.md');
   });
 });

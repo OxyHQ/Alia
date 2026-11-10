@@ -53,7 +53,7 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  */
 
 import { randomUUID } from 'node:crypto';
-import { stepCountIs, streamText } from 'ai';
+import { stepCountIs, streamText, type ToolSet } from 'ai';
 import {
   checkGatedParts,
   gatedPartsFor,
@@ -63,6 +63,7 @@ import {
 } from '../agent-features.js';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
 import { agentRemitPrompt } from '../agent/archetype-prompts.js';
+import { agentSpacePrompt } from '../agent/space-prompt.js';
 import { buildIdentityGuard } from '../identity-guard.js';
 import { resolveStoredModel, getAIModel } from '../chat-core.js';
 import { evolveAgentSoul } from '../agent/soul.js';
@@ -79,6 +80,39 @@ import { isExternalAgent, runExternalAgentTurn } from '../external-agents/turn.j
 export const AGENT_TIMEOUT_MS = 45_000;
 export const AGENT_MAX_STEPS = 8;
 export const AGENT_MAX_OUTPUT_TOKENS = 4096;
+
+/**
+ * What Alia can use when an agent asks her something: ANSWERING tools only. She holds powers an agent
+ * may not (sending messages, writing memory, connectors that act), and a question must not be a way to
+ * borrow them, so everything that changes something is left out: the built-ins below are the ones that
+ * only read, and the person's Oxy apps are held to `read_only` autonomy, which Oxy enforces when a tool
+ * runs. `loadTools` is the budget's way of loading those apps' tools and is kept with them.
+ */
+const ALIA_CONSULT_BUILTIN_TOOLS = new Set([
+  'getCurrentDate',
+  'getWeather',
+  'getMarketQuote',
+  'getFairCoin',
+  'webSearch',
+  'webScraper',
+  'loadTools',
+]);
+
+/** The tools of a consultation of Alia, from the full set. Pure. */
+export function aliaConsultTools(tools: ToolSet): ToolSet {
+  return Object.fromEntries(
+    Object.entries(tools).filter(
+      ([name]) => ALIA_CONSULT_BUILTIN_TOOLS.has(name) || name.startsWith('oxy_'),
+    ),
+  );
+}
+
+/**
+ * What Alia is told when an agent of a space asks her something (ADR 0028): she answers as the person's
+ * main assistant, with what she knows of them and her tools, briefly, and only what was asked.
+ */
+const ALIA_CONSULT_PROMPT =
+  "An agent that works for the same person, in one of their spaces, is asking you something. Answer it as the person's main assistant: use what you know about them and the tools you have, be concise and factual, and answer only what was asked.";
 
 export interface AgentTurnResult {
   response: string;
@@ -130,7 +164,8 @@ function failed(error: string): AgentTurnResult {
  * @param agent Already resolved and AUTHORISED by the caller (`canReachAgent`).
  */
 export async function runAgentTurn(input: {
-  agent: HydratedAgent;
+  /** `null` runs ALIA, the person's main assistant, as the callee (a space member asking her). */
+  agent: HydratedAgent | null;
   task: string;
   person: AgentTurnPerson;
   payerOxyUserId: string;
@@ -150,7 +185,7 @@ export async function runAgentTurn(input: {
 
   // An external agent (ADR 0030) is answered by the person's own daemon: no model, no tools of
   // ours, no credits. This one branch serves `consultAgent`, group rooms and any other caller.
-  if (await isExternalAgent(agent._id)) {
+  if (agent !== null && (await isExternalAgent(agent._id))) {
     return runExternalAgentTurn({
       agentId: agent._id,
       task,
@@ -160,11 +195,16 @@ export async function runAgentTurn(input: {
     });
   }
 
-  const systemPrompt = `${buildIdentityGuard({
-    agentName: agentPromptName(agent),
-  })}\n\n---\n\n${agentRemitPrompt(agent)}`;
+  // The callee's remit, then — for a member of a SPACE — the space and its shared notes (ADR 0028). This
+  // is the system prompt of every nested turn (a group room, `consultAgent`), so the space reaches the
+  // member here and not only in a chat with the person.
+  const systemPrompt = agent
+    ? `${buildIdentityGuard({
+        agentName: agentPromptName(agent),
+      })}\n\n---\n\n${agentRemitPrompt(agent)}${await agentSpacePrompt(agent)}`
+    : `${buildIdentityGuard()}\n\n---\n\n${ALIA_CONSULT_PROMPT}`;
 
-  const resolved = await resolveStoredModel(agent.modelId).catch(() => null);
+  const resolved = await resolveStoredModel(agent?.modelId ?? null).catch(() => null);
   if (resolved === null) return failed('No model is available for that agent right now');
   const modelId = resolved.modelId;
   const model = getAIModel(resolved, 'agent_run');
@@ -175,7 +215,7 @@ export async function runAgentTurn(input: {
    */
   const { ToolPipeline } = await import('../tool-pipeline.js');
   const {
-    tools: agentTools,
+    tools: allTools,
     routing: toolRouting,
     appCatalogPrompt,
     toolNameMapping,
@@ -193,11 +233,17 @@ export async function runAgentTurn(input: {
     webSearch: true,
     isLocalRuntime: false,
     agent,
+    // A consultation of Alia only reads (see ALIA_CONSULT_BUILTIN_TOOLS); connectors that act are not
+    // even fetched.
+    ...(agent === null
+      ? { oxyAutonomy: 'read_only' as const, instancedSources: ['oxy_service' as const] }
+      : {}),
   });
+  const agentTools = agent === null ? aliaConsultTools(allTools) : allTools;
 
   /** The callee's gates, checked then spent, before anything is reserved. */
-  const gated = gatedPartsFor(agent, input.attachments ?? []);
-  if (gated.length > 0) {
+  const gated = agent === null ? [] : gatedPartsFor(agent, input.attachments ?? []);
+  if (agent !== null && gated.length > 0) {
     const featurePerson = {
       accountId: person.oxyUserId,
       // The person's own bearer only: without one no lane can be authorized.
@@ -228,7 +274,7 @@ export async function runAgentTurn(input: {
   const reservation: CreditReservation | null =
     await reserveBackgroundProductCredits(payerOxyUserId);
   if (!reservation) {
-    log.credits.info({ agentId: agent._id, payerOxyUserId }, 'Consultation refused: no credits');
+    log.credits.info({ agentId: agent?._id, payerOxyUserId }, 'Consultation refused: no credits');
     return failed('Not enough credits to consult that agent');
   }
 
@@ -241,7 +287,7 @@ export async function runAgentTurn(input: {
     try {
       call();
     } catch (error: unknown) {
-      log.general.warn({ err: error, agentId: agent._id }, 'A consultation observer threw');
+      log.general.warn({ err: error, agentId: agent?._id }, 'A consultation observer threw');
     }
   };
 
@@ -305,8 +351,8 @@ export async function runAgentTurn(input: {
 
     log.general.info(
       {
-        agentId: agent._id,
-        agentName: agentPromptName(agent),
+        agentId: agent?._id,
+        agentName: agent ? agentPromptName(agent) : 'Alia',
         tokensUsed,
         creditsCharged,
         payerOxyUserId,
@@ -315,7 +361,7 @@ export async function runAgentTurn(input: {
       'Consultation completed',
     );
 
-    if (tokensUsed > 0 && response && Math.random() < 0.1) {
+    if (agent !== null && tokensUsed > 0 && response && Math.random() < 0.1) {
       evolveAgentSoul(agent._id, task, response).catch((err: unknown) =>
         log.general.warn({ err, agentId: agent._id }, 'Agent soul evolution failed'),
       );
@@ -323,7 +369,7 @@ export async function runAgentTurn(input: {
 
     return { response, tokensUsed, creditsCharged };
   } catch (error: unknown) {
-    log.general.error({ err: error, agentId: agent._id }, 'Consultation failed');
+    log.general.error({ err: error, agentId: agent?._id }, 'Consultation failed');
     return failed(
       controller.signal.aborted
         ? `The agent took too long (${Math.round(limitMs / 1000)}s)`

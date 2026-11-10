@@ -85,6 +85,8 @@ import { getFairCoinTool } from './tools/faircoin.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { getDb } from '../db/index.js';
 import { listSpacePeerIds } from '../db/spaces/spaceRepository.js';
+import { SPACE_NOTES_TOOL, buildSpaceNotesTool } from './agent/space-notes-tool.js';
+import { buildAskAliaTool } from './tools/ask-alia.js';
 import { buildConsultAgentTool } from './tools/consult-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
 import {
@@ -700,6 +702,30 @@ export class ToolPipeline {
       Object.assign(
         aliaTools,
         buildRuntimeTools(runtime, grants, spacePeers === null ? {} : { withoutDelegation: true }),
+      );
+    }
+    // A member keeps its space's shared notes. Membership is the permission, as it is for consulting.
+    if (agent?.spaceId && actsForPerson && !nested) {
+      aliaTools[SPACE_NOTES_TOOL] = buildSpaceNotesTool({
+        spaceId: agent.spaceId,
+        agentId: agent._id,
+      });
+    }
+    // ...and may ask Alia, who stays outside every space. A consultation runs hosted inference, so not on
+    // an unreserved local turn, for the reason `consultAgent` is withheld there.
+    if (spacePeers !== null && actsForPerson && !nested && !isLocalRuntime) {
+      Object.assign(
+        aliaTools,
+        buildAskAliaTool({
+          person: {
+            oxyUserId: userId,
+            ...(accessToken ? { accessToken } : {}),
+            isDirectSession,
+            taskId: oxyTaskId,
+            surfaceApplicationId,
+          },
+          payerOxyUserId: userId,
+        }),
       );
     }
 

@@ -909,6 +909,26 @@ describe('an agent in a space', () => {
     expect(names).not.toContain('delegate');
   });
 
+  it('keeps the space’s shared notes, with no grant needed, and an agent outside a space has no such tool', async () => {
+    space.peers = ['peer-1'];
+
+    expect(await memberNames([])).toContain('spaceNotes');
+    expect(await namesFor([])).not.toContain('spaceNotes');
+    expect(await namesFor(['memory'])).not.toContain('spaceNotes');
+    // Not inside a consultation: a nested turn has no tools of its own to keep notes with.
+    expect(await memberNames([], { nested: true })).not.toContain('spaceNotes');
+  });
+
+  it('can ask Alia, who is outside every space, and an agent outside a space has no such door', async () => {
+    space.peers = ['peer-1'];
+
+    expect(await memberNames([])).toContain('askAlia');
+    expect(await namesFor(['agent'])).not.toContain('askAlia');
+    expect(await memberNames([], { nested: true })).not.toContain('askAlia');
+    expect(await memberNames([], { isLocalRuntime: true })).not.toContain('askAlia');
+    expect(await memberNames([], { actsForPerson: false })).not.toContain('askAlia');
+  });
+
   it('has no consult tool at all when it is alone in its space', async () => {
     space.peers = [];
 

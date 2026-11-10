@@ -40,7 +40,12 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
    - the **computer**: a member on the default (`computer_source = 'alia'`) works on the space's own
      workspace (`space:<spaceId>:user:<userId>`), the same machine for all of them, when the person is
      the owner (`resolveComputerActor`). A member whose owner chose `own` keeps its own machine; for
-     anyone else it is the agent's own per-person machine. A shared notes memory is a later step.
+     anyone else it is the agent's own per-person machine;
+   - the space's **shared notes** (`space_memory_documents`): a `MEMORY.md` index and `memory/<topic>.md`
+     files, the same contract and hash-checked writes as an agent's own memory, but the SPACE's. Every
+     member keeps them with the `spaceNotes` tool (membership is the permission) and reads the index in
+     its prompt as labelled data (`agentSpacePrompt`); the person reads and edits them through
+     `/spaces/:id/notes`, which redacts the secrets they type. They go with the space.
 6. **"Only each other, or Alia."** A member's reach is cut to its space, server-side, where the tools
    are assembled (`ToolPipeline`, `consultSelection`), not asked of the model:
    - `consultAgent` allows exactly the OTHER members of its space. Being a member IS the permission: it
@@ -49,8 +54,12 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
      manage or start agents outside, are not built for a member;
    - a member's room roster is the space's members.
    Alia is outside, so she can consult any agent including a member, and the person talks to a member
-   directly as before. A member asking Alia is not modelled by `consultAgent` (she is not an agent id)
-   and is a later step.
+   directly as before. **A member can ask Alia** with `askAlia`, a nested turn in which she is the callee
+   (`runAgentTurn` with `agent: null`): her own prompt and the person's memory, billed like any
+   consultation. She only ANSWERS: the turn holds her read-only built-ins (date, weather, quotes, web)
+   and the person's Oxy apps at `read_only` autonomy, enforced by Oxy when a tool runs, and none of what
+   sends, writes, acts or runs code. Otherwise a question would be a way to borrow powers she holds and
+   the asking agent may not.
 7. **The sidebar shows a Space as a collapsible folder** (Bloom `SidebarTreeFolder`) in a "Spaces"
    section: the folder's name, its room ("General") and its member agents. An agent in a space no longer
    appears in the flat Agents list. Create from the create menu, rename, edit the brief, add agents,
@@ -63,8 +72,9 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
    enforcement and the context (peers-only reach, the brief in the room prompt, the space computer),
    because a space without them is just a list. **Done.**
 3. The sidebar: the Spaces section, create/edit/move/delete, es/en. **Done** (`shell/use-sidebar-spaces.tsx`, `features/spaces`).
-4. Later, each its own decision: a shared notes memory (`space_memory_documents`), a member addressing
-   Alia, a space-wide budget for autonomous activity, more than six members.
+4. The shared notes memory (`space_memory_documents`, `spaceNotes`). **Done.**
+5. A member addressing Alia (`askAlia`, read-only). **Done.**
+6. Later, each its own decision: a space-wide budget for autonomous activity, more than six members.
 
 ## Consequences
 
@@ -103,5 +113,9 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
 - `lib/__tests__/capability-grants.test.ts` ("an agent in a space"): the real assembler gives a member
   `consultAgent` for exactly its peers whatever its grants, builds none of the tools that reach outside,
   and leaves an agent in no space exactly as it was.
+- `lib/tools/__tests__/agent-turn-alia-and-space.test.ts`: the space reaches a member in the nested turn's
+  system prompt (every room turn and consultation), and a consultation of Alia holds read-only tools and
+  `read_only` Oxy autonomy and none of the tools that act. `ask-alia.test.ts` and the assembler tests:
+  only a member is given the door.
 - `lib/computer/__tests__/computer-actor.test.ts` and `lib/chat/room/__tests__/policy.test.ts`: the space
   workspace and its owner-only rule, and the brief in the room prompt.
