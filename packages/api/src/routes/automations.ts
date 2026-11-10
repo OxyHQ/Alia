@@ -11,7 +11,6 @@ import {
   listAutomationRunSteps,
   setAutomationEnabled,
 } from '../db/automation/automationDefinitionRepository.js';
-import { isBackgroundPaused, setBackgroundPaused } from '../db/agents/agentInboxRepository.js';
 import { getDb } from '../db/index.js';
 import { revokeAutomationAuthorizations } from '../lib/automation-authority.js';
 import { dispatchStructuredAutomation } from '../lib/automation-dispatcher.js';
@@ -74,36 +73,6 @@ async function stopAutomation(input: {
   }
   return { automation: stopped, revoked: result.revoked.length, failed: result.failed.length };
 }
-
-/**
- * Pause or resume everything that would START on its own for the caller: scheduled and event
- * automations, agents' follow-ups and heartbeats. A run the caller asks for, a chat and work already
- * running are untouched. Registered before `/:id`, which would otherwise read `pause` as an id.
- */
-router.get('/pause', async (request: Request, response: Response) => {
-  try {
-    const ownerAccountId = request.user?.id;
-    if (!ownerAccountId) return response.status(401).json({ error: 'Unauthorized' });
-    response.json({ paused: await isBackgroundPaused(getDb(), ownerAccountId) });
-  } catch (error: unknown) {
-    log.triggers.error({ err: error }, 'Could not read the background pause');
-    response.status(500).json({ error: 'Could not read the pause' });
-  }
-});
-
-router.put('/pause', async (request: Request, response: Response) => {
-  try {
-    const ownerAccountId = request.user?.id;
-    if (!ownerAccountId) return response.status(401).json({ error: 'Unauthorized' });
-    const parsed = z.object({ paused: z.boolean() }).strict().safeParse(request.body);
-    if (!parsed.success) return response.status(400).json({ error: 'paused must be a boolean' });
-    await setBackgroundPaused(getDb(), ownerAccountId, parsed.data.paused);
-    response.json({ paused: parsed.data.paused });
-  } catch (error: unknown) {
-    log.triggers.error({ err: error }, 'Could not change the background pause');
-    response.status(500).json({ error: 'Could not change the pause' });
-  }
-});
 
 router.get('/', async (request: Request, response: Response) => {
   const ownerAccountId = userId(request);

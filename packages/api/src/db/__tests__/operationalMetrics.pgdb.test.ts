@@ -2,7 +2,7 @@ import { uuidv7 } from '@oxy.so/db';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { databaseGauges } from '../../lib/observability/operational-metrics';
-import { addInboxItem, setBackgroundPaused } from '../agents/agentInboxRepository';
+import { addInboxItem } from '../agents/agentInboxRepository';
 import { claimAutomationEvent } from '../automation/automationDefinitionRepository';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { registerBot, upsertBotUser } from '../integrations/botRepository';
@@ -40,7 +40,6 @@ describe('databaseGauges', () => {
     expect((await databaseGauges(db, NOW)).map((g) => g.name).sort()).toEqual([
       'alia_agent_inbox_pending',
       'alia_automation_events_stalled',
-      'alia_background_paused_people',
       'alia_channel_inbound_failed_total',
       'alia_channel_inbound_stalled',
     ]);
@@ -127,12 +126,5 @@ describe('databaseGauges', () => {
       summary: {},
     });
     expect(await gauge('alia_agent_inbox_pending')).toBe(inboxBefore + 1);
-
-    const pausedBefore = await gauge('alia_background_paused_people');
-    const person = `metrics-paused-${uuidv7()}`;
-    await setBackgroundPaused(db, person, true);
-    expect(await gauge('alia_background_paused_people')).toBe(pausedBefore + 1);
-    await setBackgroundPaused(db, person, false);
-    expect(await gauge('alia_background_paused_people')).toBe(pausedBefore);
   });
 });

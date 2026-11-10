@@ -10,8 +10,6 @@ import {
   countPendingInboxItems,
   deleteAgentSubscription,
   dueHeartbeats,
-  isBackgroundPaused,
-  setBackgroundPaused,
   listAgentSubscriptions,
   listInboxItems,
   matchingAgentSubscriptions,
@@ -253,26 +251,6 @@ describe('the heartbeat', () => {
     await updateAgent(db, id, { scheduleInterval: null });
     expect((await findAgentById(db, id))?.scheduleInterval).toBeNull();
     expect((await dueHeartbeats(db, T0)).map((c) => c.agentId)).not.toContain(id);
-  });
-
-  it('is not due for a person who paused their background work, and is again once they resume', async () => {
-    const id = await agent({ scheduleInterval: 15 });
-    await addInboxItem(db, item(id));
-    expect((await dueHeartbeats(db, T0)).map((c) => c.agentId)).toContain(id);
-
-    expect(await isBackgroundPaused(db, OWNER)).toBe(false);
-    await setBackgroundPaused(db, OWNER, true);
-    await setBackgroundPaused(db, OWNER, true);
-    try {
-      expect(await isBackgroundPaused(db, OWNER)).toBe(true);
-      expect((await dueHeartbeats(db, T0)).map((c) => c.agentId)).not.toContain(id);
-      // Their inbox keeps what arrives meanwhile.
-      expect(await countPendingInboxItems(db, id)).toBe(1);
-    } finally {
-      await setBackgroundPaused(db, OWNER, false);
-    }
-    expect(await isBackgroundPaused(db, OWNER)).toBe(false);
-    expect((await dueHeartbeats(db, T0)).map((c) => c.agentId)).toContain(id);
   });
 
   it('waits out its interval after a wake-up', async () => {
