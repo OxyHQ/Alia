@@ -169,6 +169,20 @@ Own tools use the requester account and live catalogue, without per-app consent.
 | `GET /v1/agents/:id/profile` | The lead participant an embedding app draws: `{ id, name, handle, character, color, description, greeting, starters, access, features: [{ key, gated }] }` (`routes/v1/agents.ts`); `404` for any agent the person may not use |
 | `GET /v1/agents/:id/features` | `{ features: [{ key, state: 'available' \| 'locked', remaining? }] }`, asked of the app behind each gate under the person's own lane; `503 feature_check_unavailable` when an app cannot answer |
 
+### External agents
+
+A coding-agent CLI on the person's own computer (Claude Code, Codex, OpenCode) served to Alia as one
+of their agents ([ADR 0028](./adr/0028-external-agents.md)). All routes take the person's Oxy
+session (`authenticateToken`).
+
+| Route | Purpose |
+|---|---|
+| `POST /agents/external/pair` | Mint a single-use code (10 minutes) and the text to paste into the agent. Body `{ locale?: 'en' \| 'es' }`. 429 above five codes a minute. |
+| `POST /agents/external/redeem` | The daemon trades a code for an agent. Body `{ code, cli: 'claude' \| 'codex' \| 'opencode', hostName }`. Creates a private, unlisted agent and its link; 400 `invalid_or_expired_code` for an unknown, used, expired or foreign code. |
+| `GET /agents/external` | The person's external agents with `online` presence. |
+| `DELETE /agents/external/:agentId` | Revoke: the link dies and the daemon is disconnected. |
+| `WS /ws/external-agent` | The daemon's socket. First frame `{ type: 'auth', token, agentId }`; then `turn` frames down and `delta` / `end` / `error` frames back. |
+
 ### Structured automations
 
 `/automations` is the only control plane for proactive work. It stores explicit actors,

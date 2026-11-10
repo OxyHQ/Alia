@@ -38,6 +38,8 @@ import {
   requestCreditReconciliation,
   retireTerminalCreditReconciliation,
 } from '../../lib/credit-reconciliation.js';
+import { isExternalAgent } from '../../lib/external-agents/turn.js';
+import { serveExternalDirectTurn } from '../../lib/external-agents/direct-turn.js';
 import {
   AgentTurnCoordinator,
   type CoordinatedAgentTurn,
@@ -345,6 +347,53 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           })}\n\n`,
         );
       }
+    }
+
+    // An external agent (ADR 0028) answers from the person's own machine: no tools of ours, no
+    // system prompt, no model. The reservation stays unsettled, so the release point refunds it.
+    if (
+      linkedAgent &&
+      req.user?.id &&
+      isDirectUserSession &&
+      (await isExternalAgent(linkedAgent._id))
+    ) {
+      clearTimeout(globalTimer);
+      const answered = await serveExternalDirectTurn({
+        req,
+        res,
+        sse,
+        requestId,
+        modelId: state.modelId,
+        stream: Boolean(body.stream),
+        agentId: linkedAgent._id,
+        messages,
+        signal: providerAbort.signal,
+        lifecycle: {
+          userId: req.user.id,
+          conversationId,
+          assistantMessageId,
+          messages,
+          modelId: state.modelId,
+          requestedModel,
+          reasoningEffort,
+          creditReservation: null,
+          tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          requestStartTime,
+          autonomyRuntime,
+          agentTurn: true,
+          ...(personalization ? {} : { personalization: false as const }),
+          ...(host === undefined ? {} : { originApp: host.app }),
+        },
+        beforeFinish: observation?.beginFinish,
+      });
+      if (answered) {
+        completed = true;
+        await coordinatedTurn?.complete();
+      } else {
+        await coordinatedTurn?.fail(new Error('The external agent did not answer'));
+      }
+      coordinatedTurn = null;
+      return;
     }
 
     // Assemble all tools via the unified pipeline

@@ -1,5 +1,15 @@
 # @alia-codea/cli
 
+## 3.3.0
+
+`codea connect` serves Claude Code, Codex or OpenCode to Alia as one of your agents
+([ADR 0028](../../docs/adr/0028-external-agents.md)). Create a code in Alia (Settings → Connect an
+external agent), paste the text it gives you into your agent, and it runs
+`codea connect --code <code> --cli <claude|codex|opencode>`. The process dials Alia outbound with your
+Oxy session and answers the messages Alia sends it by running the CLI you are already signed in to, in
+the current directory, read-only unless started with `--write`. Run `codea connect` again to serve the
+agents this machine is paired with.
+
 ## 3.2.0
 
 `codea login` prints the request's short comparison code (`CE7F-B31F`,

@@ -185,7 +185,8 @@
       "localModels": "Local models",
       "profile": "Profile",
       "storage": "Storage",
-      "proactive": "Notifications"
+      "proactive": "Notifications",
+      "externalAgents": "Connect external agent"
     },
     "accentColor": {
       "title": "App Color",
@@ -327,6 +328,25 @@
         "disconnectDescription": "Are you sure you want to disconnect this account? You can reconnect it anytime.",
         "disconnectedToast": "Account disconnected",
         "disconnectFailed": "Failed to disconnect account"
+      },
+      "externalAgents": {
+        "title": "Connect an external agent",
+        "description": "Use Claude Code, Codex or OpenCode on your own computer as one of your Alia agents. They answer with your own subscription, and your other agents can talk to them.",
+        "createLabel": "New connection",
+        "createHint": "Creates a single-use code and copies the text to paste into your agent.",
+        "create": "Create code",
+        "copy": "Copy text",
+        "copied": "Copied. Paste it into Claude Code, Codex or OpenCode.",
+        "createFailed": "Couldn't create the code. Try again in a minute.",
+        "codeHint": "Single use. Expires at {{time}}.",
+        "promptLabel": "Text to paste into your agent",
+        "connectedTitle": "Connected agents",
+        "online": "Online",
+        "offline": "Offline: its computer isn't connected to Alia",
+        "remove": "Remove",
+        "removed": "Agent removed.",
+        "removeFailed": "Couldn't remove the agent.",
+        "empty": "No external agents yet."
       }
     },
     "assistant": {

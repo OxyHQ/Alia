@@ -65,6 +65,10 @@ import { initChannels } from './lib/channels/index.js';
 import { initSocket } from './socket.js';
 // MCP relay for local MCP tool calls via WebSocket
 import { mcpRelayRoute, shutdownMcpRelay } from './lib/mcp-relay.js';
+import {
+  externalAgentRelayRoute,
+  shutdownExternalAgentRelay,
+} from './lib/external-agents/relay.js';
 import { disposeClarityClient } from './lib/clarity-client.js';
 // Voice calls: `GET /v1/voice/session`, a WebSocket of its own (ADR 0017)
 import {
@@ -134,6 +138,7 @@ routeWebSocketUpgrades(server, {
   socketIoPath: io.path(),
   routes: [
     mcpRelayRoute(observeAiSocket),
+    externalAgentRelayRoute(observeAiSocket),
     voiceSessionRoute(observeAiSocket),
     voiceResumePeerRoute(),
     dictationStreamRoute(observeAiSocket),
@@ -554,6 +559,7 @@ const shutdown = async (signal: string) => {
 
     // Close MCP relay connections
     shutdownMcpRelay();
+    shutdownExternalAgentRelay();
     disposeClarityClient();
 
     // Stop sweeping before the pool closes, so a sweep in flight is not cut off

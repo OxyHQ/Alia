@@ -70,6 +70,7 @@ import { finalizeCredits, refundReservation, type CreditReservation } from '../c
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { servedModelId, servedReferenceOf } from '../models/power-levels.js';
+import { isExternalAgent, runExternalAgentTurn } from '../external-agents/turn.js';
 
 /**
  * Bounded so a consultation fits inside the outer request's own limit
@@ -146,6 +147,18 @@ export async function runAgentTurn(input: {
 }): Promise<AgentTurnResult> {
   const { agent, task, person, payerOxyUserId, observer } = input;
   const start = Date.now();
+
+  // An external agent (ADR 0028) is answered by the person's own daemon: no model, no tools of
+  // ours, no credits. This one branch serves `consultAgent`, group rooms and any other caller.
+  if (await isExternalAgent(agent._id)) {
+    return runExternalAgentTurn({
+      agentId: agent._id,
+      task,
+      ...(input.history ? { history: input.history } : {}),
+      ...(observer?.onTextDelta ? { onTextDelta: observer.onTextDelta } : {}),
+      ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+    });
+  }
 
   const systemPrompt = `${buildIdentityGuard({
     agentName: agentPromptName(agent),

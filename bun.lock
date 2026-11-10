@@ -150,8 +150,10 @@
       "devDependencies": {
         "@types/node": "^22.20.1",
         "@types/react": "^19.2.17",
+        "@types/ws": "^8.18.1",
         "tsup": "^8.5.1",
         "typescript": "^5.9.3",
+        "ws": "^8.21.0",
       },
     },
     "packages/alia-codea/webview-ui": {

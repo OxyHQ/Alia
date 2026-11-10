@@ -10,6 +10,7 @@ import { BillingSection } from './billing-section';
 import { BotsSection } from './bots-section';
 import { ConnectorDetailSection } from './connector-detail-section';
 import { ConnectorsSection } from './connectors-section';
+import { ExternalAgentsSection } from './external-agents-section';
 import { GeneralSection } from './general-section';
 import { IntegrationsSection } from './integrations-section';
 import { LocalModelsSection } from './local-models-section';
@@ -32,6 +33,7 @@ const CONTENT: Record<string, ReactNode> = {
   personalization: <PersonalizationSection />,
   accounts: <AccountsSection />,
   bots: <BotsSection />,
+  'external-agents': <ExternalAgentsSection />,
   connectors: <ConnectorsSection />,
   integrations: <IntegrationsSection />,
   'local-models': <LocalModelsSection />,
