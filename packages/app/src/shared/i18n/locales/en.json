@@ -93,8 +93,9 @@
     },
     "aliaLanguage": {
       "title": "Alia's Response Language",
-      "description": "Alia will respond in this language",
-      "selectPlaceholder": "Select a language"
+      "description": "Alia answers in your language unless you choose another",
+      "selectPlaceholder": "Select a language",
+      "auto": "Same as my language"
     },
     "responseTone": {
       "title": "Response Tone",
@@ -445,6 +446,14 @@
         "limitsDescription": "At most three messages a day each, and none while their last two are unanswered.",
         "loadFailed": "Could not load these settings."
       }
+    },
+    "responseLength": {
+      "title": "Response length",
+      "description": "How much Alia says by default: to the point, balanced or in depth",
+      "auto": "Let Alia decide",
+      "short": "Brief and to the point",
+      "medium": "Balanced",
+      "long": "Detailed and chatty"
     }
   },
   "nav": {

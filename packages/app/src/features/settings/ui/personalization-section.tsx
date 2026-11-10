@@ -15,6 +15,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { usePersonalityStyleRow } from './personality-style-picker';
 
+/** How much Alia says by default: the closed set the API stores (`short`, `medium`, `long`). */
+const RESPONSE_LENGTHS = ['short', 'medium', 'long'] as const;
+type ResponseLength = (typeof RESPONSE_LENGTHS)[number];
+
 const LANGUAGES = [
   { value: 'en-US', label: 'English' },
   { value: 'es-ES', label: 'Español' },
@@ -40,12 +44,15 @@ export function PersonalizationSection() {
   const [language, setLanguage] = useState('');
   const [tone, setTone] = useState('');
   const [voice, setVoice] = useState('');
+  // '' is no choice: the person gets Alia's own measure.
+  const [length, setLength] = useState<ResponseLength | ''>('');
 
   useEffect(() => {
     if (memory) {
       setLanguage(memory.preferences?.language || '');
       setTone(memory.preferences?.tone || '');
       setVoice(memory.preferences?.voice || '');
+      setLength(memory.preferences?.responseLength || '');
     }
   }, [memory]);
 
@@ -54,6 +61,7 @@ export function PersonalizationSection() {
       setLanguage(memory.preferences?.language || '');
       setTone(memory.preferences?.tone || '');
       setVoice(memory.preferences?.voice || '');
+      setLength(memory.preferences?.responseLength || '');
     }
   };
 
@@ -71,7 +79,14 @@ export function PersonalizationSection() {
       const response = await fetch(generateAPIUrl('/memory/preferences'), {
         method: 'PUT',
         headers: authHeaders,
-        body: JSON.stringify({ language, tone, voice }),
+        // The preferences are replaced as a whole, so the length goes with them or a save
+        // would clear it. No choice is left out (the stored set has no empty value).
+        body: JSON.stringify({
+          language,
+          tone,
+          voice,
+          ...(length ? { responseLength: length } : {}),
+        }),
       });
 
       if (response.ok) {
@@ -93,7 +108,8 @@ export function PersonalizationSection() {
     memory != null &&
     (language !== (memory?.preferences?.language || '') ||
       tone !== (memory?.preferences?.tone || '') ||
-      voice !== (memory?.preferences?.voice || ''));
+      voice !== (memory?.preferences?.voice || '') ||
+      length !== (memory?.preferences?.responseLength || ''));
   const pageActions = useMemo(
     () => [
       {
@@ -111,7 +127,7 @@ export function PersonalizationSection() {
     ],
     // `handleCancel` and `handleSave` close over this render's state; the actions follow it.
     // biome-ignore lint/correctness/useExhaustiveDependencies: see above
-    [t, saving, dirty, language, tone, voice, memory],
+    [t, saving, dirty, language, tone, voice, length, memory],
   );
 
   const personalityRow = usePersonalityStyleRow({
@@ -129,7 +145,28 @@ export function PersonalizationSection() {
           label={t('settings.aliaLanguage.title')}
           value={language}
           onChange={setLanguage}
-          items={LANGUAGES}
+          // The default is no language chosen: Alia answers in the language the person writes in,
+          // which is their own (nothing is added to the prompt). Picking one overrides that.
+          items={[{ value: '', label: t('settings.aliaLanguage.auto') }, ...LANGUAGES]}
+        />
+      ),
+    },
+    {
+      key: 'length',
+      label: t('settings.responseLength.title'),
+      description: t('settings.responseLength.description'),
+      control: (
+        <SettingsSelect
+          label={t('settings.responseLength.title')}
+          value={length}
+          onChange={(value) => setLength(value as ResponseLength | '')}
+          items={[
+            { value: '', label: t('settings.responseLength.auto') },
+            ...RESPONSE_LENGTHS.map((value) => ({
+              value,
+              label: t(`settings.responseLength.${value}`),
+            })),
+          ]}
         />
       ),
     },

@@ -68,7 +68,7 @@ beforeEach(() => {
   useUserDataStore.setState({
     memory: {
       settings: { recallEnabled: true },
-      preferences: { language: 'es-ES', tone: 'friendly', voice: 'male' },
+      preferences: { language: 'es-ES', tone: 'friendly', voice: 'male', responseLength: 'short' },
     },
   });
   fetchMock.mockReset().mockResolvedValue({
@@ -86,13 +86,14 @@ afterEach(() => {
 });
 
 describe('PersonalizationSection', () => {
-  it('renders only language, voice and personality, and saves just those', async () => {
+  it('renders only language, length, voice and personality, and saves just those', async () => {
     await act(async () => {
       renderer = create(<PersonalizationSection />);
     });
     const tree = renderer!;
     expect(all(tree, 'SettingsRow').map((row) => row.props.label)).toEqual([
       'settings.aliaLanguage.title',
+      'settings.responseLength.title',
       'settings.voicePreference.title',
       'personality',
     ]);
@@ -108,7 +109,64 @@ describe('PersonalizationSection', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://api.test/memory/preferences');
-    expect(JSON.parse(init.body)).toEqual({ language: 'es-ES', tone: 'friendly', voice: 'male' });
+    // The stored length goes back with the rest: the preferences are replaced as a whole.
+    expect(JSON.parse(init.body)).toEqual({
+      language: 'es-ES',
+      tone: 'friendly',
+      voice: 'male',
+      responseLength: 'short',
+    });
     expect(toastMock.success).toHaveBeenCalled();
+  });
+
+  it('offers the language of the person as the default, first, and saving it clears the choice', async () => {
+    await act(async () => {
+      renderer = create(<PersonalizationSection />);
+    });
+    const tree = renderer!;
+    const select = all(tree, 'SettingsSelect').find(
+      (node) => node.props.label === 'settings.aliaLanguage.title',
+    )!;
+    const items = select.props.items as { value: string; label: string }[];
+    // The default is "no language chosen": the first option, with an empty value.
+    expect(items[0]).toEqual({ value: '', label: 'settings.aliaLanguage.auto' });
+    expect(items.slice(1).every((item) => item.value !== '')).toBe(true);
+    // The stored choice is shown as it is, and picking the default empties it again.
+    expect(select.props.value).toBe('es-ES');
+    await act(async () => select.props.onChange(''));
+    const actions = all(tree, 'SettingsPageActions')[0]!.props.actions as {
+      key: string;
+      onPress: () => void;
+    }[];
+    await act(async () => actions.find((action) => action.key === 'save')!.onPress());
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(init.body)).toEqual({
+      language: '',
+      tone: 'friendly',
+      voice: 'male',
+      responseLength: 'short',
+    });
+  });
+
+  it('offers a response length, none by default, and leaves it out of the save when none is chosen', async () => {
+    await act(async () => {
+      renderer = create(<PersonalizationSection />);
+    });
+    const tree = renderer!;
+    const select = all(tree, 'SettingsSelect').find(
+      (node) => node.props.label === 'settings.responseLength.title',
+    )!;
+    const items = select.props.items as { value: string; label: string }[];
+    expect(items.map((item) => item.value)).toEqual(['', 'short', 'medium', 'long']);
+    expect(select.props.value).toBe('short');
+    await act(async () => select.props.onChange(''));
+    const actions = all(tree, 'SettingsPageActions')[0]!.props.actions as {
+      key: string;
+      onPress: () => void;
+    }[];
+    await act(async () => actions.find((action) => action.key === 'save')!.onPress());
+    const [, init] = fetchMock.mock.calls[0]!;
+    // The stored set has no empty value, so "none" is the absence of the key.
+    expect(JSON.parse(init.body)).toEqual({ language: 'es-ES', tone: 'friendly', voice: 'male' });
   });
 });
