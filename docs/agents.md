@@ -204,6 +204,32 @@ second paid session beside the answer.
   /agents/threads/:threadId/goals/:goalId/verify` requires evidence for every
   criterion before the goal becomes `completed`.
 
+## Spaces (ADR 0028)
+
+A **Space** is a section of the sidebar that groups a person's own agents. Create one with `POST /spaces`
+(`{name, instructions?, agentIds?}`), put an agent in with `PUT /spaces/:id/members/:agentId` and take it
+out with `DELETE` on the same path; `GET /spaces` lists them with their members and room, `PATCH` renames
+or rewrites the brief, `DELETE /spaces/:id` frees the agents and removes the room. Alia is never a member
+(members are agent rows, and she has none). An agent is in at most one space (`agents.space_id`), a space
+holds at most six, and the caller needs standing over each agent (`loadAgentForActor`).
+
+- **The room** (`spaces.conversation_id`) is an ordinary group conversation (ADR 0025) whose
+  `conversation_members` are kept equal to the space's agents by `syncSpaceRoom`, in the same transaction
+  as every change. The engine is untouched. `GET /conversations` and `/conversations/:id` carry `spaceId`
+  so a client files the room under its space and not among Alia's chats.
+- **Shared context**: the room transcript, the brief (in every member's room prompt, and as a "Your space"
+  section of its prompt in a chat with the person, a background run or its own bot — `agentSpacePrompt`), and — for a
+  member on `computer_source = 'alia'` used by its owner — one shared workspace
+  (`space:<spaceId>:user:<userId>`).
+- **Shared notes**: the space's own memory (`MEMORY.md` plus `memory/<topic>.md`), kept by every member
+  with the `spaceNotes` tool and put in its prompt as labelled data. Writes name the hash they read (a
+  second writer gets a conflict, never a silent overwrite). The person reads and edits them with
+  `GET`/`PUT`/`DELETE /spaces/:id/notes`.
+- **Reach**: a member consults exactly the other members (membership is the permission, no `agent`
+  grant needed), and the tools that find, create, manage or hire agents outside the space are not built
+  for it (`ToolPipeline`, `consultSelection`). Alia, outside every space, still consults any agent, and a
+  member may ask her with `askAlia`: she answers read-only (no tool that sends, writes or acts).
+
 ## Teams and Cowork devices
 
 Teams are owned resources under `/agents/teams`. A team has exactly one
@@ -473,6 +499,11 @@ Two properties are worth stating outright, because both reverse what came before
 another conversation. Ordinary Alia always has it; an agent has it through the
 `agent` family, separate from `delegation` (which finds and creates agents in the
 catalogue, `searchAgents` / `createAgent`).
+
+A NEW agent is created with the bare `agent` grant when its creator names no grants
+(`DEFAULT_NEW_AGENT_GRANTS`: the server's `POST /agents` and the chat `createAgent` tool), so it can
+consult any agent the person could open from the start. A list the creator does send — an empty one
+included — is kept, and agents that already exist are never changed by it.
 
 Reach is the ordinary rule: an agent can be consulted exactly when the person
 present could open it themselves (`canReachAgent`) — their own agents, agents

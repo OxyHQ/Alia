@@ -63,10 +63,7 @@ describe("the agent page's Chat", () => {
     act(() => {
       void actions.handleChat();
     });
-    expect(fx.push).toHaveBeenCalledWith({
-      pathname: '/(app)/[username]',
-      params: { username: '@lumenbot' },
-    });
+    expect(fx.push).toHaveBeenCalledWith('/@lumenbot');
     expect(fx.post).not.toHaveBeenCalled();
   });
 

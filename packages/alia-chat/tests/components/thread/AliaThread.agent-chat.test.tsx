@@ -254,3 +254,17 @@ it('draws the line in the past tense and as a button that opens that agent excha
 it('keeps the line as plain text where there is nowhere to open it', () => {
   expect(buttons(mount({}))).toHaveLength(0);
 });
+
+/** Every string the tree draws, in order. */
+const drawn = (r: ReactTestRenderer) => JSON.stringify(r.toJSON());
+
+it('draws nothing of what the consulted agent said under its line: the line opens it', () => {
+  const r = mount({ onOpenAgentChat: () => undefined });
+  expect(buttons(r)).toHaveLength(1);
+  expect(drawn(r)).toContain('Asking Sindi.');
+  expect(drawn(r)).not.toContain('Three options.');
+});
+
+it('still draws what the agent said where there is nowhere to open the exchange', () => {
+  expect(drawn(mount({}))).toContain('Three options.');
+});

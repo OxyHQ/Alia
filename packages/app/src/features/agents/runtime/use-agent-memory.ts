@@ -8,33 +8,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 /**
  * Memory is per actor: Alia's is `GET /memory` (`use-user-data.ts`), and each
  * agent keeps its own files about the person (`agent_memory_documents`). These
- * hooks are the agents' half — which agents remember something, what one of
- * them remembers, editing it and forgetting it.
+ * hooks are the agents' half — what one of them remembers, editing it and forgetting it (in that
+ * agent's editor).
  */
-
-/** One agent that remembers something about the caller, as `GET /memory/agents` lists it. */
-export interface RememberingAgent {
-  agentId: string;
-  name: string | null;
-  handle: string | null;
-  color: string | null;
-  files: number;
-  updatedAt: string | null;
-}
-
-export function useRememberingAgents() {
-  const { isAuthenticated } = useOxy();
-  return useQuery({
-    queryKey: queryKeys.agents.remembering,
-    queryFn: async (): Promise<RememberingAgent[]> => {
-      const response = await apiClient.get<{ agents: RememberingAgent[] }>(
-        API_ROUTES.memory.agents,
-      );
-      return response.data.agents ?? [];
-    },
-    enabled: isAuthenticated,
-  });
-}
 
 /** One memory file, as `GET /agents/:id/memory` lists it. */
 export interface AgentMemoryFile {
@@ -90,10 +66,7 @@ export function useAgentMemoryDocument(agentId: string, path: string | null) {
 export function useAgentMemoryMutations(agentId: string) {
   const queryClient = useQueryClient();
   const invalidate = () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.memory(agentId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.remembering }),
-    ]);
+    queryClient.invalidateQueries({ queryKey: queryKeys.agents.memory(agentId) });
 
   const save = useMutation({
     mutationFn: async (input: { path: string; content: string; expectedHash: string }) => {

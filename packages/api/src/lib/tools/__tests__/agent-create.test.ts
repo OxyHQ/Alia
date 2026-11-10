@@ -340,3 +340,27 @@ describe('the prompt an agent is born with', () => {
     expect(String(created.rows[0].systemPrompt)).not.toMatch(/\bYou are\b/);
   });
 });
+
+describe('what a new agent may do with other agents', () => {
+  it('is born able to consult the agents the person could open, unless the creator says otherwise', async () => {
+    await create({ name: 'Nadia', description: 'Books travel and tracks itineraries.' });
+
+    expect(created.rows[0].capabilityGrants).toEqual(['agent']);
+  });
+
+  it('keeps an explicit list as it is, an empty one included', async () => {
+    await create({
+      name: 'Nadia',
+      description: 'Books travel and tracks itineraries.',
+      capabilityGrants: [],
+    } as never);
+    await create({
+      name: 'Bruno',
+      description: 'Keeps the books.',
+      capabilityGrants: ['web'],
+    } as never);
+
+    expect(created.rows[0].capabilityGrants).toEqual([]);
+    expect(created.rows[1].capabilityGrants).toEqual(['web']);
+  });
+});

@@ -139,6 +139,11 @@ vi.mock('../logger.js', () => {
   };
 });
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
+/** The peers of a space member: set per test, since the rows are in a database this test lacks. */
+const space = vi.hoisted(() => ({ peers: [] as string[] }));
+vi.mock('../../db/spaces/spaceRepository.js', () => ({
+  listSpacePeerIds: vi.fn(async () => space.peers),
+}));
 
 const { ToolPipeline } = await import('../tool-pipeline.js');
 const { buildConsultAgentTool } = await import('../tools/consult-agent.js');
@@ -290,6 +295,27 @@ describe('an agent reaches exactly what it was granted', () => {
       ownerAccountId: 'user-1',
       actor: { type: 'agent', accountId: 'bot-account-1' },
     });
+  });
+
+  it('lets a member of a space that was woken on its own keep the space’s notes, and nobody else', async () => {
+    const unattended = {
+      isDirectSession: false,
+      toolScope: 'preauthorized_oxy_automation' as const,
+      oxyExecutionAuthorizations: {},
+    };
+    space.peers = ['peer-1'];
+
+    const member = await namesFor(null, {
+      ...unattended,
+      agent: { ...agentWith([...EVERY_GRANT]), spaceId: 'space-1' },
+    });
+    const outsider = await namesFor([...EVERY_GRANT], unattended);
+
+    expect(member).toContain('spaceNotes');
+    expect(outsider).not.toContain('spaceNotes');
+    // Still unattended and thin: no consultation, no ask-Alia, no computer.
+    expect(member).not.toContain('consultAgent');
+    expect(member).not.toContain('askAlia');
   });
 
   it('never substitutes the listing author for an unreconciled Oxy owner', async () => {
@@ -857,5 +883,88 @@ describe('the retired shell and files families stay gone', () => {
     ]);
     // An unknown family is NOT retired: it stays, so the wire can still refuse it.
     expect(withoutRetiredGrants(['not-a-family'])).toEqual(['not-a-family']);
+  });
+});
+
+/**
+ * A member of a SPACE (ADR 0028) reaches only its space: that is enforced where the tools are built,
+ * so these run the real assembler and read what the consult source was ASKED and which tools exist.
+ */
+describe('an agent in a space', () => {
+  const member = (grants: readonly string[]) => ({
+    ...agentWith(grants),
+    spaceId: 'space-1',
+  });
+  const memberNames = (grants: readonly string[], over = {}) =>
+    namesFor(null, { agent: member(grants), ...over });
+
+  it('consults exactly its peers, even with no `agent` grant at all', async () => {
+    space.peers = ['peer-1', 'peer-2'];
+    asked.agent.length = 0;
+
+    const names = await memberNames([]);
+
+    expect(names).toContain('consultAgent');
+    expect(asked.agent).toEqual([['peer-1', 'peer-2']]);
+  });
+
+  it('is not widened by a bare `agent` grant, nor by named agents outside the space', async () => {
+    space.peers = ['peer-1'];
+    asked.agent.length = 0;
+
+    await memberNames(['agent']);
+    await memberNames(['agent:outsider-9']);
+
+    expect(asked.agent).toEqual([['peer-1'], ['peer-1']]);
+  });
+
+  it('cannot find, create or hire agents outside: those tools are not built', async () => {
+    space.peers = ['peer-1'];
+
+    const names = await memberNames(['agent', 'delegation']);
+
+    expect(names).not.toContain('searchAgents');
+    expect(names).not.toContain('createAgent');
+    expect(names).not.toContain('updateAgent');
+    expect(names).not.toContain('listMyAgents');
+    expect(names).not.toContain('delegate');
+  });
+
+  it('keeps the space’s shared notes, with no grant needed, and an agent outside a space has no such tool', async () => {
+    space.peers = ['peer-1'];
+
+    expect(await memberNames([])).toContain('spaceNotes');
+    expect(await namesFor([])).not.toContain('spaceNotes');
+    expect(await namesFor(['memory'])).not.toContain('spaceNotes');
+    // Not inside a consultation: a nested turn has no tools of its own to keep notes with.
+    expect(await memberNames([], { nested: true })).not.toContain('spaceNotes');
+  });
+
+  it('can ask Alia, who is outside every space, and an agent outside a space has no such door', async () => {
+    space.peers = ['peer-1'];
+
+    expect(await memberNames([])).toContain('askAlia');
+    expect(await namesFor(['agent'])).not.toContain('askAlia');
+    expect(await memberNames([], { nested: true })).not.toContain('askAlia');
+    expect(await memberNames([], { isLocalRuntime: true })).not.toContain('askAlia');
+    expect(await memberNames([], { actsForPerson: false })).not.toContain('askAlia');
+  });
+
+  it('has no consult tool at all when it is alone in its space', async () => {
+    space.peers = [];
+
+    expect(await memberNames(['agent'])).not.toContain('consultAgent');
+  });
+
+  it('is unchanged for an agent in no space: the same grants still reach what they reached', async () => {
+    space.peers = ['peer-1'];
+    asked.agent.length = 0;
+
+    const names = await namesFor(['agent', 'delegation']);
+
+    expect(names).toContain('consultAgent');
+    expect(names).toContain('searchAgents');
+    expect(names).toContain('createAgent');
+    expect(asked.agent).toEqual([undefined]);
   });
 });

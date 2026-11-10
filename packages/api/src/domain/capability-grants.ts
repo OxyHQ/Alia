@@ -112,6 +112,18 @@ export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
 export const EVERY_ROW_FAMILIES = ['agent'] as const;
 
 /**
+ * What a NEW agent is granted when its creator names no grants: to consult any agent the person present
+ * could open themselves. Agents are meant to talk to each other (ADR 0020 §5), and an agent born with no
+ * grant answers "I have no tool for that" to the plainest request, as one did. The argument above for
+ * {@link EVERY_ROW_FAMILIES} is why this one family may be the default: it authorises a conversation
+ * with agents the person could open anyway, billed to them, one level deep.
+ *
+ * Only for a creator that sends no grants. An explicit list — empty included — is the owner's choice
+ * and is kept, and agents that already exist are never changed by this.
+ */
+export const DEFAULT_NEW_AGENT_GRANTS: readonly string[] = ['agent'];
+
+/**
  * Families that EXISTED and were retired, so a stored or echoed grant naming
  * one is known debris rather than a typo.
  *

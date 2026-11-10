@@ -36,3 +36,5 @@ export * from './product-credit-allocations';
 export * from './oxy-files';
 export * from './chat-turn-controls';
 export * from './chat-host-results';
+export * from './external-agents';
+export * from './spaces';

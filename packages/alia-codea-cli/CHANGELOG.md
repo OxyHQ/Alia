@@ -1,5 +1,29 @@
 # @alia-codea/cli
 
+## 3.4.0
+
+`codea connect` continues the CLI's own session for each Alia conversation (Claude Code
+`--resume`, Codex `exec resume`), so the agent keeps its tool context between messages and no longer
+gets the whole conversation re-sent. If the CLI lost the session it starts a new one on its own.
+Sessions are remembered across restarts of the daemon.
+
+## 3.3.1
+
+`codea connect` lets the agent edit files in its working directory by default: read-only made Claude
+Code and Codex answer "I don't have permission" to almost anything. Start it with `--read-only` to
+forbid changes, and the agent then says how to lift that instead of just refusing. Run it from the
+folder you want the agent to work in.
+
+## 3.3.0
+
+`codea connect` serves Claude Code, Codex or OpenCode to Alia as one of your agents
+([ADR 0030](../../docs/adr/0030-external-agents.md)). Create a code in Alia (Settings → Connect an
+external agent), paste the text it gives you into your agent, and it runs
+`codea connect --code <code> --cli <claude|codex|opencode>`. The process dials Alia outbound with your
+Oxy session and answers the messages Alia sends it by running the CLI you are already signed in to, in
+the current directory, read-only unless started with `--write`. Run `codea connect` again to serve the
+agents this machine is paired with.
+
 ## 3.2.0
 
 `codea login` prints the request's short comparison code (`CE7F-B31F`,

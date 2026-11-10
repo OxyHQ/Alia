@@ -7,7 +7,10 @@ import { createAgentBotAccount } from '../agent-account.js';
 import { fallbackAgentUsername, suggestAgentUsername } from '../agent-identity.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
-import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
+import {
+  DEFAULT_NEW_AGENT_GRANTS,
+  FIXED_CAPABILITY_FAMILIES,
+} from '../../domain/capability-grants.js';
 import { AGENT_COLORS, agentColorFor } from '../../domain/agent-color.js';
 import { accountCategoryChoices, isOfferedAccountCategory } from '../account-category.js';
 
@@ -187,7 +190,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
           authorOxyUserId: userId,
           category: category || 'Assistant',
           tags: tags || [],
-          capabilityGrants: capabilityGrants ?? [],
+          capabilityGrants: capabilityGrants ?? [...DEFAULT_NEW_AGENT_GRANTS],
           isPublished: true,
           systemPrompt: finalSystemPrompt,
         });

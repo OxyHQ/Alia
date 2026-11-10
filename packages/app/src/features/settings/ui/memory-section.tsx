@@ -10,8 +10,7 @@ import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { AttentionAgentsSection } from './agent-attention-section';
-import { RememberingAgentsSection } from './agent-memory-section';
+import { BackgroundPauseSection } from './background-pause-section';
 
 /** This page's own strings. */
 const K = 'settings.assistant.memory';
@@ -73,9 +72,8 @@ export function MemorySection() {
         </SettingsRow>
       </SettingsCard>
 
-      {/* Memory is per actor: Alia's lives in Nilo, each agent's own below. */}
-      <RememberingAgentsSection />
-      <AttentionAgentsSection />
+      {/* Each agent's own memory is edited with the agent; what starts on its own is paused here. */}
+      <BackgroundPauseSection />
     </View>
   );
 }

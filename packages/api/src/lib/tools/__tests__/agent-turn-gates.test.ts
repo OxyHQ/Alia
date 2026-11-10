@@ -52,6 +52,10 @@ vi.mock('../../credits-manager.js', () => ({
   finalizeCredits: async () => ({ creditsCharged: 0 }),
   refundReservation: async () => undefined,
 }));
+vi.mock('../../external-agents/turn.js', () => ({
+  isExternalAgent: async () => false,
+  runExternalAgentTurn: async () => ({ response: '', tokensUsed: 0, creditsCharged: 0 }),
+}));
 vi.mock('../../agent/soul.js', () => ({ evolveAgentSoul: async () => undefined }));
 vi.mock('../../agent/archetype-prompts.js', () => ({ agentRemitPrompt: () => 'remit' }));
 vi.mock('../../logger.js', () => {

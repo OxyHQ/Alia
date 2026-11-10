@@ -28,7 +28,7 @@ import { View } from 'react-native';
 const NONE = '';
 
 /** The ⋯ button every sidebar menu opens from. */
-function MoreTrigger({ label }: { label: string }) {
+export function MoreTrigger({ label }: { label: string }) {
   return (
     <DropdownMenuTrigger asChild label={label}>
       <Button
@@ -139,12 +139,18 @@ export const ConversationActions = React.memo(function ConversationActions({
   );
 });
 
-/** The spinner beside the chat that is being answered right now. */
+/**
+ * The spinner beside the chat that is being answered right now.
+ *
+ * Bloom's `inline` variant at its smallest size: a 16px spinner and nothing else. The `spinner`
+ * variant is a page-level loader with 16px of padding on every side, which made this a 46px box
+ * in a 34px row — the row grew, the title lost its room and the rows below it moved.
+ */
 export function StreamingIndicator() {
   const { t } = useTranslation();
   return (
     <View accessible accessibilityLabel={t('sidebar.responding')} style={{ paddingHorizontal: 4 }}>
-      <Loading variant="spinner" iconSize={14} />
+      <Loading variant="inline" size="xs" />
     </View>
   );
 }

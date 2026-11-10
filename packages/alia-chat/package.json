@@ -1,6 +1,6 @@
 {
   "name": "@alia.onl/sdk",
-  "version": "24.0.1",
+  "version": "24.2.0",
   "description": "Alia AI chat SDK \u2014 the conversation runtime, chat UI, voice calls and dictation for Oxy apps",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
@@ -17,6 +17,10 @@
     "./csp": "./src/csp.ts",
     "./dictation": "./src/dictation.ts",
     "./model": "./src/runtime/model.ts",
+    "./metro": {
+      "types": "./src/metro/index.d.cts",
+      "default": "./src/metro/index.cjs"
+    },
     "./runtime": "./src/runtime/index.ts",
     "./text": "./src/text.ts",
     "./tools": "./src/tools.ts",
@@ -44,6 +48,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:metro": "node --test scripts/metro/opt-in.node.cjs",
     "check:entries": "node scripts/check-entry-isolation.mjs",
     "check:entry-types": "node scripts/check-entry-types.mjs"
   },
@@ -57,7 +62,7 @@
     "react": "^19.2.3",
     "react-native": "^0.86.0 || ^0.88.0",
     "@expo/vector-icons": "^15.1.1",
-    "@oxy.so/bloom": ">=17.22.0",
+    "@oxy.so/bloom": ">=17.41.0",
     "@oxy.so/core": ">=7.1.0 <8",
     "@oxy.so/services": ">=13.0.0 <15",
     "@tanstack/react-query": "^5.101",
@@ -90,6 +95,7 @@
   },
   "devDependencies": {
     "@types/react-test-renderer": "^19.1.0",
+    "metro-resolver": "0.87.1",
     "react-test-renderer": "19.3.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10",

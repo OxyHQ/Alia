@@ -251,6 +251,8 @@ export function roomPrompt(input: {
   readonly since: readonly { readonly name: string; readonly content: string }[];
   /** The member that handed the floor to this one, or `null` for the person's own question. */
   readonly handedBy: string | null;
+  /** The space this room belongs to (ADR 0028), if any: its name and the brief its members share. */
+  readonly space?: { readonly name: string; readonly instructions: string } | null;
 }): string {
   const others = input.roster
     .filter((info) => info.id !== input.self.id)
@@ -266,9 +268,16 @@ export function roomPrompt(input: {
     input.handedBy === null
       ? 'The person is asking you.'
       : `${input.handedBy} addressed you in the chat. If you have nothing of your own to add, answer with exactly ${PASS_SENTINEL} and nothing else: it will not be shown.`;
+  const space = input.space
+    ? `You are working in the space "${input.space.name}", together with ${others}.${
+        input.space.instructions === ''
+          ? ''
+          : ` What this space is for, in the person's words:\n\n${input.space.instructions}\n\n`
+      }Work as one team toward it. `
+    : '';
   return [
     input.personText,
     '---',
-    `This is a group chat: the person and these agents are in it with you, ${others}. In this chat you go by ${input.self.name}. Anyone may talk to anyone: write @name or @handle to hand the floor to another agent, and the person sees everything. Speak in your own voice, as in a chat: short, add only what is yours to add, and do not repeat or summarize what others said. Do not write other agents' lines. ${turn}${said}`,
+    `${space}This is a group chat: the person and these agents are in it with you, ${others}. In this chat you go by ${input.self.name}. Anyone may talk to anyone: write @name or @handle to hand the floor to another agent, and the person sees everything. Speak in your own voice, as in a chat: short, add only what is yours to add, and do not repeat or summarize what others said. Do not write other agents' lines. ${turn}${said}`,
   ].join('\n\n');
 }

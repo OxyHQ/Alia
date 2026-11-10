@@ -4,12 +4,11 @@ import { SettingsModal, type SettingsModalPage } from '@oxy.so/bloom/settings-mo
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccountsSection } from './accounts-section';
-import { AgentAttentionSection } from './agent-attention-section';
-import { AgentMemorySection } from './agent-memory-section';
 import { BillingSection } from './billing-section';
 import { BotsSection } from './bots-section';
 import { ConnectorDetailSection } from './connector-detail-section';
 import { ConnectorsSection } from './connectors-section';
+import { ExternalAgentsSection } from './external-agents-section';
 import { GeneralSection } from './general-section';
 import { IntegrationsSection } from './integrations-section';
 import { LocalModelsSection } from './local-models-section';
@@ -32,6 +31,7 @@ const CONTENT: Record<string, ReactNode> = {
   personalization: <PersonalizationSection />,
   accounts: <AccountsSection />,
   bots: <BotsSection />,
+  'external-agents': <ExternalAgentsSection />,
   connectors: <ConnectorsSection />,
   integrations: <IntegrationsSection />,
   'local-models': <LocalModelsSection />,
@@ -76,14 +76,6 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
             'connector-detail': {
               title: t('connectors.detailTitle'),
               content: <ConnectorDetailSection />,
-            },
-            'agent-memory': {
-              title: t('settings.assistant.agentMemory.title'),
-              content: <AgentMemorySection />,
-            },
-            'agent-attention': {
-              title: t('settings.assistant.attention.title'),
-              content: <AgentAttentionSection />,
             },
           }
         : {}),

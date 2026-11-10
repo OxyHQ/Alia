@@ -277,4 +277,28 @@ describe('roomPrompt', () => {
     expect(handed).toContain(PASS_SENTINEL);
     expect(handed).toContain('Bruno: ask @nadia');
   });
+
+  it('tells a member of a space what the space is for, and says nothing of one otherwise', () => {
+    const base = { self: nadia, roster, personText: 'go', since: [], handedBy: null };
+
+    const inSpace = roomPrompt({
+      ...base,
+      space: { name: 'Marketing', instructions: 'Launch the newsletter by Friday.' },
+    });
+    expect(inSpace).toContain('the space "Marketing"');
+    expect(inSpace).toContain('Launch the newsletter by Friday.');
+    expect(inSpace).toContain('Work as one team');
+    // The space comes first, then the group chat the room already was.
+    expect(inSpace.indexOf('the space "Marketing"')).toBeLessThan(inSpace.indexOf('group chat'));
+
+    const noBrief = roomPrompt({ ...base, space: { name: 'Marketing', instructions: '' } });
+    expect(noBrief).toContain('the space "Marketing"');
+    expect(noBrief).not.toContain('in the person');
+
+    for (const outside of [undefined, null]) {
+      const plain = roomPrompt({ ...base, space: outside });
+      expect(plain).not.toContain('space');
+      expect(plain).toContain('group chat');
+    }
+  });
 });

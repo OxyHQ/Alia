@@ -6,6 +6,7 @@ import { configuredModel } from './utils/config.js';
 import { startRepl } from './commands/repl.js';
 import { runPrompt } from './commands/run.js';
 import { login, logout } from './commands/auth.js';
+import { connect } from './commands/connect.js';
 import { listSessions, resumeSession } from './commands/sessions.js';
 import chalk from 'chalk';
 import { restoreSession } from './utils/oxy-session.js';
@@ -114,6 +115,26 @@ program
   .description('Sign out of Oxy on this machine')
   .action(async () => {
     await logout();
+  });
+
+// Serve a coding-agent CLI to Alia as one of the person's agents (ADR 0030)
+program
+  .command('connect')
+  .description('Connect Claude Code, Codex or OpenCode to Alia as one of your agents')
+  .option(
+    '--code <code>',
+    'Single-use pairing code from Alia (Settings → Connect an external agent)',
+  )
+  .option('--cli <cli>', 'Which CLI this machine serves: claude, codex or opencode')
+  .option('--agent <id>', 'Serve only this paired agent')
+  .option('--cwd <dir>', 'Working directory the agent runs in (default: the current one)')
+  .option(
+    '--read-only',
+    'Do not let the agent change anything (default: it may edit files in the working directory)',
+  )
+  .option('--write', 'Deprecated: editing is the default')
+  .action(async (options) => {
+    await connect(options);
   });
 
 // Session management

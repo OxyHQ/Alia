@@ -29,6 +29,9 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0023](./0023-cookie-free-voice-resume.md) | Voice reconnects through its owner without browser cookies | Accepted; receiver-first deployment required | 2026-10-26 |
 | [0024](./0024-streaming-dictation-is-a-transcription-session.md) | Streaming dictation is a transcription session through Kaana | Accepted; after Kaana ADR 0006's canary | 2026-10-28 |
 | [0025](./0025-group-rooms.md) | A group chat is a room the agents live in, not a request | Accepted (phase 1: API) | 2026-11-09 |
+| [0030](./0030-external-agents.md) | A coding-agent CLI on a person's own computer can be one of their agents | Accepted | 2026-11-10 |
+| [0031](./0031-external-agents-edit-by-default-and-span-instances.md) | External agents edit their working directory by default and are reachable from any instance | Accepted | 2026-11-10 |
+| [0032](./0032-external-agents-resume-sessions-and-leave-with-their-link.md) | External agents continue the CLI's own session and are deleted with their link | Accepted | 2026-11-10 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates — for paths (a) and (c); path (b) left the window under ADR 0010.
 
@@ -76,3 +79,7 @@ ADR 0019 applies Oxy ADR 0043 to Alia: who owns each kind of stored bytes, how e
 - [0022 — Own platform authority and original-requester tasks](./0022-first-party-platform-authority.md).
 - [0026 — An agent has an inbox and a heartbeat](./0026-agent-inbox-and-heartbeat.md).
 - [0027 — Always-on agents: what is decided](./0027-always-on-agents-what-is-decided.md).
+- [0030 — A coding-agent CLI on a person's own computer can be one of their agents](./0030-external-agents.md).
+- [0028 — A Space groups a person's agents](./0028-spaces.md).
+- [0031 — External agents edit their working directory by default and are reachable from any instance](./0031-external-agents-edit-by-default-and-span-instances.md).
+- [0032 — External agents continue the CLI's own session and are deleted with their link](./0032-external-agents-resume-sessions-and-leave-with-their-link.md).

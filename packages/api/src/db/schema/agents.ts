@@ -77,6 +77,7 @@ import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
+import { spaces } from './spaces';
 import {
   AGENT_ACCESS,
   AGENT_ARCHETYPES,
@@ -205,6 +206,11 @@ export const agents = pgTable(
     isTrending: boolean().notNull().default(false),
     isPublished: boolean().notNull().default(true),
     /** Whose computer it works on: `alia`'s shared workspace (default) or its `own`. See the domain enum. */
+    /**
+     * The space this agent is in (ADR 0028), or null. At most one; deleting the space frees the agent.
+     * Maintained only by `db/spaces/spaceRepository.ts`, which keeps the space's room in step.
+     */
+    spaceId: text().references(() => spaces.id, { onDelete: 'set null' }),
     computerSource: text({ enum: AGENT_COMPUTER_SOURCES as unknown as [string, ...string[]] })
       .notNull()
       .default('alia'),
@@ -266,6 +272,7 @@ export const agents = pgTable(
     index('agents_category_published_idx').on(t.category, t.isPublished),
     checkOneOf('agents_status_check', t.status, AGENT_STATUSES),
     checkOneOf('agents_computer_source_check', t.computerSource, AGENT_COMPUTER_SOURCES),
+    index('agents_space_idx').on(t.spaceId).where(sql`${t.spaceId} is not null`),
     checkOneOf('agents_access_check', t.access, AGENT_ACCESS),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),
     /**

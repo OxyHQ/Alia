@@ -10,12 +10,6 @@ export const API_ROUTES = {
     resetPassword: '/auth/reset-password',
   },
 
-  // Memory routes
-  memory: {
-    /** Every agent that remembers something about the caller (memory per actor). */
-    agents: '/memory/agents',
-  },
-
   /** "Avísame de emails importantes", per actor: Alia and each owned agent. */
   emailAlerts: '/notifications/email-alerts',
 
@@ -58,10 +52,24 @@ export const API_ROUTES = {
     pause: '/automations/pause',
   },
 
+  /** Spaces: folders that group the person's agents (ADR 0028). */
+  spaces: {
+    list: '/spaces',
+    detail: (id: string) => `/spaces/${encodeURIComponent(id)}`,
+    member: (id: string, agentId: string) =>
+      `/spaces/${encodeURIComponent(id)}/members/${encodeURIComponent(agentId)}`,
+  },
+
   // Agents routes
   agents: {
     list: '/agents',
     me: '/agents/me',
+    /** External agents: coding-agent CLIs the person connected (ADR 0030). */
+    external: {
+      list: '/agents/external',
+      pair: '/agents/external/pair',
+      remove: (agentId: string) => `/agents/external/${encodeURIComponent(agentId)}`,
+    },
     get: (id: string) => `/agents/${id}`,
     /**
      * The permanent thread between the caller and one agent, resolved-or-created

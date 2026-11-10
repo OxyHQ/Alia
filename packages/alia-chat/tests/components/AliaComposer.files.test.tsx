@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const panel = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
 const toastError = vi.hoisted(() => vi.fn());
-const loader = vi.hoisted(() => ({ active: null as boolean | null }));
+const loader = vi.hoisted(() => ({ phase: null as string | null }));
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
@@ -33,8 +33,8 @@ vi.mock('@oxy.so/bloom/composer-panel', () => ({
   },
 }));
 vi.mock('@oxy.so/bloom/composer-loader', () => ({
-  ComposerLoader: ({ active, children }: React.PropsWithChildren<{ active?: boolean }>) => {
-    loader.active = active ?? null;
+  ComposerLoader: ({ phase, children }: React.PropsWithChildren<{ phase?: string }>) => {
+    loader.phase = phase ?? null;
     return children;
   },
 }));
@@ -103,7 +103,7 @@ beforeEach(() => {
   listeners = new Map();
   lookedUp = [];
   panel.props = null;
-  loader.active = null;
+  loader.phase = null;
   toastError.mockClear();
   const element = {
     addEventListener: (type: string, listener: Listener) => {
@@ -160,14 +160,20 @@ const overlay = () =>
 describe('the composer while a turn runs', () => {
   it('lights the loader around the pill, which hands it its surface and frosts its controls', () => {
     mount({ busy: true });
-    expect(loader.active).toBe(true);
+    expect(loader.phase).toBe('streaming');
     expect(panel.props).toMatchObject({ busy: true, surface: false, frosted: true });
   });
 
   it('leaves the loader dark when idle', () => {
     mount();
-    expect(loader.active).toBe(false);
+    expect(loader.phase).toBe('idle');
     expect(panel.props).toMatchObject({ busy: false, surface: false, frosted: false });
+  });
+
+  it('passes the request phase to the loader without changing composer busy behavior', () => {
+    mount({ busy: true, loaderPhase: 'error' });
+    expect(loader.phase).toBe('error');
+    expect(panel.props).toMatchObject({ busy: true, frosted: true });
   });
 });
 

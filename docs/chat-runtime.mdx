@@ -69,7 +69,9 @@ region or permissive fallback may be invented in Alia.
 ```
 
 `personalization: false` turns personalization off for the turn: no memory profile, no recall,
-no memory tools and nothing learned from it; the conversation is still stored. A host tool may
+no memory tools and nothing learned from it; the conversation is still stored.
+`tool_choice: "none"` (OpenAI's field; `"auto"` is the default, anything else is a 400) offers the turn
+no tool at all, for a call that only needs words, such as a sample phrase. A host tool may
 declare `awaitsResult: true` to be answered within the same turn on
 `POST /v1/chat/turns/:turnId/host-results` (needs `turnId` and a stream); its result may be an
 image the model sees. Both are specified in [Embedding an agent](./agent-embedding.md) §2.
@@ -174,6 +176,11 @@ a turn is shown) and what they put around the conversation (see below). A voice 
 always lives in a conversation: the open one, or one made when the call starts, opening on the
 screen that shows it (`lib/voice-call-request.ts`). The full API, with examples for both, is in
 `packages/alia-chat/README.md`.
+
+The runtime exposes `composerPhase` separately from `isLoading`. It moves through `idle`,
+`submitting`, `streaming`, `stopping`, `error` and `complete`; `isLoading` remains the business state that keeps
+the Stop action active. `AliaChatContent` passes the phase to `AliaComposer`, which forwards it to
+Bloom's `ComposerLoader`. Hosts using `AliaComposer` directly can pass `loaderPhase` themselves.
 
 ### The conversation screen is the SDK's too
 

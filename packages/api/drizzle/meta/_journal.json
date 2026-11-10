@@ -862,6 +862,41 @@
       "when": 1794272030302,
       "tag": "0122_agent_computer_source_validate",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1794273948302,
+      "tag": "0123_external_agents",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1794275848168,
+      "tag": "0124_spaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1794275861404,
+      "tag": "0125_agents_space_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1794275877018,
+      "tag": "0126_spaces_validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1794279257978,
+      "tag": "0127_space_notes",
+      "breakpoints": true
     }
   ]
 }

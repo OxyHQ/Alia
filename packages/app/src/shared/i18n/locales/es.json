@@ -166,7 +166,8 @@
       "profile": "Perfil",
       "storage": "Almacenamiento",
       "security": "Seguridad",
-      "proactive": "Avisos"
+      "proactive": "Avisos",
+      "externalAgents": "Agente externo"
     },
     "accentColor": {
       "title": "Color de la app",
@@ -308,6 +309,25 @@
         "disconnectDescription": "¿Seguro que quieres desconectar esta cuenta? Puedes volver a conectarla cuando quieras.",
         "disconnectedToast": "Cuenta desconectada",
         "disconnectFailed": "No se pudo desconectar la cuenta"
+      },
+      "externalAgents": {
+        "title": "Conectar un agente externo",
+        "description": "Usa un agente de código de tu ordenador (por ejemplo Codex u OpenCode) como uno de tus agentes de Alia. Responde con tu propia suscripción y tus otros agentes pueden hablar con él.",
+        "createLabel": "Nueva conexión",
+        "createHint": "Crea un código de un solo uso y copia el texto para pegarlo en tu agente.",
+        "create": "Crear código",
+        "copy": "Copiar texto",
+        "copied": "Copiado. Pégalo en tu agente de código.",
+        "createFailed": "No se pudo crear el código. Inténtalo de nuevo en un minuto.",
+        "codeHint": "Un solo uso. Caduca a las {{time}}.",
+        "promptLabel": "Texto para pegar en tu agente",
+        "connectedTitle": "Agentes conectados",
+        "online": "En línea",
+        "offline": "Desconectado: su ordenador no está conectado a Alia",
+        "remove": "Quitar",
+        "removed": "Agente eliminado.",
+        "removeFailed": "No se pudo eliminar el agente.",
+        "empty": "Todavía no hay agentes externos."
       }
     },
     "assistant": {
@@ -391,84 +411,17 @@
           "de": "Alemán"
         }
       },
-      "agentMemory": {
-        "title": "Lo que recuerda un agente",
-        "agentsTitle": "Lo que recuerdan tus agentes",
-        "agentsEmpty": "Ningún agente recuerda nada de ti todavía",
-        "agentsEmptyDescription": "Cada agente guarda su propia memoria de ti, aparte de la de Alia.",
-        "unnamedAgent": "Agente",
-        "fileCount": {
-          "one": "1 nota",
-          "other": "{{count}} notas"
-        },
-        "open": "Ver",
-        "description": "Lo que {{name}} recuerda de ti. Es su propia memoria, no la de Alia: edítala o haz que la olvide.",
-        "back": "Memoria",
-        "empty": "{{name}} no recuerda nada de ti.",
-        "forget": "Olvidar",
-        "forgetAll": "Olvidarlo todo",
-        "forgetAllTitle": "Que {{name}} lo olvide todo",
-        "forgetAllDescription": "Borra todas las notas que este agente guarda sobre ti.",
-        "forgetFileTitle": "Olvidar {{path}}",
-        "forgetDescription": "{{name}} dejará de recordarlo. No se puede deshacer.",
-        "forgotten": "Olvidado",
-        "forgetFailed": "No se pudo olvidar. Inténtalo de nuevo.",
-        "changedMeanwhile": "El agente cambió esta nota mientras la editabas. Se muestra su última versión."
-      },
       "attention": {
-        "title": "Lo que nota un agente",
         "pauseTitle": "Pausar todo",
         "pauseAll": "Pausar todo lo que empieza por su cuenta",
         "pauseAllDescription": "Mientras esté activado, no se ejecuta ninguna tarea programada, automatización por evento, seguimiento ni latido a tu nombre. Los chats, lo que lances tú y lo que ya esté en marcha no se ven afectados.",
         "pauseFailed": "No se pudo cambiar la pausa. Inténtalo de nuevo.",
-        "agentsTitle": "Lo que notan tus agentes",
-        "agentsEmpty": "Todavía no tienes agentes",
-        "agentsEmptyDescription": "Crea un agente para elegir de qué se entera por su cuenta.",
-        "agentsDescription": "Cada cuánto mira y de qué se entera.",
-        "unnamedAgent": "Agente",
-        "open": "Gestionar",
-        "description": "Lo que {{name}} nota sin que se lo pidas: cuándo mira, de qué se entera y qué le espera.",
-        "back": "Memoria",
-        "heartbeatTitle": "Latido",
-        "computerTitle": "Ordenador",
-        "computer": "Ordenador",
-        "computerDescription": "Dónde trabaja {{name}} cuando usa un ordenador. El de Alia es el espacio de trabajo compartido de todos tus agentes, así que lo que crea uno lo tiene el siguiente. Solo lo ves tú: cualquier otra persona que use a {{name}} tiene una máquina propia y separada.",
-        "computerAlia": "El ordenador de Alia",
-        "computerOwn": "El ordenador propio de {{name}}",
-        "heartbeat": "Mirar por su cuenta",
-        "heartbeatDescription": "{{name}} despierta de vez en cuando, solo si hay algo esperando en su bandeja.",
-        "frequency": "Cada cuánto",
-        "frequencyDescription": "Lo máximo que espera antes de mirar lo que ha llegado.",
-        "every": {
-          "one": "Cada minuto",
-          "other": "Cada {{count}} minutos"
-        },
-        "subscriptionsTitle": "De qué se entera",
-        "newEmailOwner": "Avisar a {{name}} de emails nuevos",
-        "newEmailOwnerDescription": "Los emails que llegan a tu Inbox.",
-        "newEmailAgent": "…y de emails nuevos en su propio buzón",
-        "newEmailAgentDescription": "Los emails que llegan a la dirección propia de {{name}}.",
-        "sourceOwner": "Tus eventos",
-        "sourceAgent": "Su propio buzón",
-        "remove": "Quitar",
-        "inboxTitle": "Esperando en su bandeja",
-        "inboxEmpty": "No hay nada esperando a {{name}}.",
-        "lastLooked": "Última vez que miró su bandeja: {{when}}",
-        "neverLooked": "{{name}} todavía no ha mirado su bandeja.",
-        "loadFailed": "No se pudo cargar. Inténtalo de nuevo.",
-        "limitReached": "Este agente ya se entera de todo lo que puede (25). Quita algo primero.",
-        "subscribeFailed": "No se pudo cambiar de qué se entera. Inténtalo de nuevo.",
-        "unsubscribeFailed": "No se pudo quitar. Inténtalo de nuevo."
+        "loadFailed": "No se pudo cargar. Inténtalo de nuevo."
       },
       "proactive": {
         "emailTitle": "Emails importantes",
         "aliaEmailLabel": "Avísame de emails importantes",
         "aliaEmailDescription": "Alia te escribe cuando llega a tu Inbox algo que te necesita. Solo lee el remitente, el asunto y la primera línea.",
-        "agentsTitle": "Los buzones de tus agentes",
-        "agentEmailLabel": "Que {{name}} me avise de emails importantes",
-        "agentEmailDescription": "{{name}} te escribe cuando a su propio buzón llega algo que deberías ver, como una verificación o una respuesta.",
-        "noAgents": "Todavía no tienes agentes.",
-        "unnamedAgent": "Agente",
         "limitsLabel": "Nunca te agobian",
         "limitsDescription": "Como mucho tres mensajes al día cada uno, y ninguno mientras sus dos últimos sigan sin respuesta.",
         "loadFailed": "No se pudieron cargar estos ajustes."
@@ -556,7 +509,9 @@
       "agent": "Agente nuevo",
       "agentHint": "Personaliza a un nuevo compañero",
       "group": "Chat de grupo",
-      "groupHint": "Reúne a tus agentes en un solo chat"
+      "groupHint": "Reúne a tus agentes en un solo chat",
+      "space": "Nuevo espacio",
+      "spaceHint": "Una carpeta donde tus agentes trabajan juntos"
     },
     "chats": "Chats",
     "support": "Soporte",
@@ -615,7 +570,8 @@
       "yellow": "Ámbar",
       "lime": "Verde",
       "cyan": "Cian"
-    }
+    },
+    "externalOffline": "Desconectado: su ordenador no está conectado"
   },
   "billing": {
     "title": "Facturación",
@@ -1557,6 +1513,61 @@
           "download": "Descargó un archivo"
         }
       }
+    },
+    "editor": {
+      "work": {
+        "title": "Trabaja por su cuenta",
+        "heartbeat": "Latido",
+        "heartbeatLabel": "Mirar por su cuenta: {{name}} despierta de vez en cuando, solo si hay algo esperando en su bandeja.",
+        "frequency": "Cada cuánto",
+        "frequencyLabel": "Lo máximo que espera antes de mirar lo que ha llegado",
+        "every": {
+          "one": "Cada minuto",
+          "other": "Cada {{count}} minutos"
+        },
+        "computer": "Ordenador",
+        "computerLabel": "Dónde trabaja {{name}} cuando usa un ordenador",
+        "computerAlia": "El ordenador de Alia",
+        "computerOwn": "El ordenador propio de {{name}}",
+        "computerNote": "El de Alia es el espacio de trabajo compartido de todos tus agentes, así que lo que crea uno lo tiene el siguiente. Solo lo ves tú: cualquier otra persona que use a {{name}} tiene una máquina propia y separada."
+      },
+      "hears": {
+        "title": "De qué se entera",
+        "newEmailOwner": "Tu email",
+        "newEmailOwnerLabel": "Avisar a {{name}} de emails nuevos en tu Inbox",
+        "newEmailAgent": "Su email",
+        "newEmailAgentLabel": "Avisar a {{name}} de emails nuevos en su propio buzón",
+        "important": "Avisos",
+        "importantLabel": "Que {{name}} me avise de emails importantes en su propio buzón, como una verificación o una respuesta",
+        "sourceOwner": "Tus eventos",
+        "sourceAgent": "Su propio buzón",
+        "remove": "Quitar",
+        "loadFailed": "No se pudo cargar. Inténtalo de nuevo.",
+        "limitReached": "Este agente ya se entera de todo lo que puede (25). Quita algo primero.",
+        "subscribeFailed": "No se pudo cambiar de qué se entera. Inténtalo de nuevo.",
+        "unsubscribeFailed": "No se pudo quitar. Inténtalo de nuevo."
+      },
+      "inbox": {
+        "title": "Esperando en su bandeja",
+        "looked": "Última vez",
+        "waiting": "Esperando",
+        "empty": "No hay nada esperando a {{name}}.",
+        "lastLooked": "Última vez que miró su bandeja: {{when}}",
+        "neverLooked": "{{name}} todavía no ha mirado su bandeja.",
+        "loadFailed": "No se pudo cargar. Inténtalo de nuevo."
+      },
+      "memory": {
+        "title": "Lo que recuerda",
+        "empty": "{{name}} no recuerda nada de ti.",
+        "forget": "Olvidar",
+        "forgetAll": "Todo",
+        "forgetAllTitle": "Que {{name}} lo olvide todo",
+        "forgetFileTitle": "Olvidar {{path}}",
+        "forgetDescription": "{{name}} dejará de recordarlo. No se puede deshacer.",
+        "forgotten": "Olvidado",
+        "forgetFailed": "No se pudo olvidar. Inténtalo de nuevo.",
+        "changedMeanwhile": "El agente cambió esta nota mientras la editabas. Se muestra su última versión."
+      }
     }
   },
   "authorize": {
@@ -2020,6 +2031,34 @@
     "start": "Empezar el grupo ({{count}})",
     "startFailed": "No se pudo empezar el grupo",
     "needTwo": "Un grupo necesita al menos dos agentes."
+  },
+  "spaces": {
+    "createTitle": "Nuevo espacio",
+    "renameTitle": "Renombrar espacio",
+    "briefTitle": "Editar descripción",
+    "addAgentsTitle": "Añadir agentes",
+    "name": "Nombre",
+    "brief": "Descripción",
+    "briefPlaceholder": "¿Para qué sirve este espacio?",
+    "briefHint": "Todos los agentes del espacio la leen.",
+    "chooseAgents": "Elige los agentes que entran (hasta {{count}})",
+    "noFreeAgents": "Todos tus agentes ya están en un espacio.",
+    "general": "General",
+    "addAgents": "Añade agentes",
+    "options": "Opciones de {{name}}",
+    "rename": "Renombrar",
+    "editBrief": "Editar descripción",
+    "addAgent": "Añadir agente",
+    "delete": "Eliminar espacio",
+    "deleteTitle": "¿Eliminar este espacio?",
+    "deleteDescription": "Se elimina «{{name}}» y su conversación General. Sus agentes se conservan y vuelven a la lista de Agentes.",
+    "deleteFailed": "No se pudo eliminar el espacio. Inténtalo de nuevo.",
+    "agentOptions": "Opciones de {{name}}",
+    "moveToSpace": "Mover a un espacio…",
+    "noSpace": "Sin espacio",
+    "full": "Un espacio admite hasta {{count}} agentes.",
+    "inOtherSpace": "Ese agente ya está en otro espacio.",
+    "saveFailed": "No se pudo guardar el espacio. Inténtalo de nuevo."
   },
   "panel": {
     "editor": "Editar agente",

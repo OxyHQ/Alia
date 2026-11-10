@@ -41,6 +41,7 @@ import canvasRouter from './routes/canvas/index.js';
 import catalogueRouter from './routes/catalogue.js';
 import localRuntimesRouter from './routes/local-runtimes.js';
 import internalRouter from './routes/internal.js';
+import spacesRouter from './routes/spaces.js';
 import skillsRouter from './routes/skills.js';
 import analyticsRouter from './routes/analytics.js';
 import webhooksRouter from './routes/webhooks.js';
@@ -65,6 +66,10 @@ import { initChannels } from './lib/channels/index.js';
 import { initSocket } from './socket.js';
 // MCP relay for local MCP tool calls via WebSocket
 import { mcpRelayRoute, shutdownMcpRelay } from './lib/mcp-relay.js';
+import {
+  externalAgentRelayRoute,
+  shutdownExternalAgentRelay,
+} from './lib/external-agents/relay.js';
 import { disposeClarityClient } from './lib/clarity-client.js';
 // Voice calls: `GET /v1/voice/session`, a WebSocket of its own (ADR 0017)
 import {
@@ -134,6 +139,7 @@ routeWebSocketUpgrades(server, {
   socketIoPath: io.path(),
   routes: [
     mcpRelayRoute(observeAiSocket),
+    externalAgentRelayRoute(observeAiSocket),
     voiceSessionRoute(observeAiSocket),
     voiceResumePeerRoute(),
     dictationStreamRoute(observeAiSocket),
@@ -335,6 +341,7 @@ app.use('/webhooks/oxy', oxyServiceEventsRouter);
 app.use('/webhooks', webhooksRouter);
 app.use('/referrals', referralsRouter);
 app.use('/agents', agentsRouter);
+app.use('/spaces', spacesRouter);
 app.use('/library', libraryRouter);
 app.use('/shows', showsRouter);
 app.use('/suggestions', suggestionsRouter);
@@ -554,6 +561,7 @@ const shutdown = async (signal: string) => {
 
     // Close MCP relay connections
     shutdownMcpRelay();
+    shutdownExternalAgentRelay();
     disposeClarityClient();
 
     // Stop sweeping before the pool closes, so a sweep in flight is not cut off

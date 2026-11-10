@@ -8,7 +8,7 @@ vi.mock('expo-router', () => ({ useRouter: () => ({}) }));
 vi.mock('react-native', () => ({ Share: { share: async () => ({}) } }));
 
 import { agentCategoryLabel } from '@/features/agents/model/category';
-import { agentChatRoute } from '@/features/agents/model/identity';
+import { agentChatRoute, agentThreadHref } from '@/features/agents/model/identity';
 import { agentShareMessage } from '@/features/agents/runtime/use-agent-detail-actions';
 import { translator } from '@/shared/testing/translate';
 
@@ -19,10 +19,14 @@ import { translator } from '@/shared/testing/translate';
 
 describe('Chat, on a catalogue card', () => {
   it('opens the agent’s own thread, not the profile the card already opens', () => {
-    expect(agentChatRoute({ _id: 'a1', name: 'Pepe', handle: 'pepe' })).toEqual({
-      pathname: '/(app)/[username]',
-      params: { username: '@pepe' },
-    });
+    expect(agentChatRoute({ _id: 'a1', name: 'Pepe', handle: 'pepe' })).toBe('/@pepe');
+  });
+
+  it('keeps the @ in the address: a path, not a route object whose value Expo Router encodes', () => {
+    const route = agentChatRoute({ _id: 'a1', name: 'Pepe', handle: 'pepe' });
+    expect(typeof route).toBe('string');
+    expect(route).not.toContain('%40');
+    expect(agentThreadHref('pepe', 'th 1')).toBe('/@pepe?threadId=th%201');
   });
 
   it('falls back to the profile only when the thread has no address', () => {

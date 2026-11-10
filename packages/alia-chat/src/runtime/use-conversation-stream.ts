@@ -1,3 +1,4 @@
+import type { ComposerLoaderPhase } from '@oxy.so/bloom/composer-loader';
 import { ASK_USER_QUESTION_TOOL } from '../tools';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -195,6 +196,12 @@ export function useConversationStream({
   const labels = useLabels();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [composerPhase, setComposerPhaseState] = useState<ComposerLoaderPhase>('idle');
+  const composerPhaseRef = useRef<ComposerLoaderPhase>('idle');
+  const setComposerPhase = useCallback((phase: ComposerLoaderPhase) => {
+    composerPhaseRef.current = phase;
+    setComposerPhaseState(phase);
+  }, []);
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
   /**
@@ -360,8 +367,9 @@ export function useConversationStream({
       abortControllerRef.current = null;
       dropPendingUpdates();
       setIsLoading(false);
+      setComposerPhase('idle');
     }
-  }, [conversationId, dropPendingUpdates]);
+  }, [conversationId, dropPendingUpdates, setComposerPhase]);
 
   /**
    * A different account is a different person: the thread on screen is not
@@ -387,6 +395,7 @@ export function useConversationStream({
     hostOutcomesRef.current.clear();
     setMessagesAndRef([]);
     setIsLoading(false);
+    setComposerPhase('idle');
     setError(null);
     setConversationTitle(null);
     setSuggestedNewConversation(null);
@@ -394,12 +403,13 @@ export function useConversationStream({
     setFailedTurn(null);
     retryRef.current = null;
     turnOptionsRef.current.clear();
-  }, [accountId, setMessagesAndRef, dropPendingUpdates]);
+  }, [accountId, setMessagesAndRef, dropPendingUpdates, setComposerPhase]);
 
   const append = useCallback(
     async (message: Omit<Message, 'id'>, options?: SendOptions): Promise<SendOutcome> => {
       const turnGeneration = ++turnGenerationRef.current;
       setIsLoading(true);
+      setComposerPhase('submitting');
       setError(null);
       // A new send answers the old failure, whether it is the retry or a fresh
       // message: either way the card comes down.
@@ -460,6 +470,7 @@ export function useConversationStream({
        * parked in `retryRef`, and the whole thing is one state update.
        */
       const keepFailedTurn = (retryable: boolean, detail?: string): SendOutcome => {
+        setComposerPhase('error');
         const partial = hasUsableStreamOutput(outputEvidence);
         if (partial) {
           // The output is kept, so what is still batched is part of it: an
@@ -846,6 +857,7 @@ export function useConversationStream({
         if (!response.body) {
           throw new Error('No response received from server');
         }
+        setComposerPhase('streaming');
         // The server has the outcomes this request carried: they are its calls' results now.
         hostOutcomesRef.current.delivered(outcomes);
 
@@ -1398,6 +1410,7 @@ export function useConversationStream({
         // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
         if (e instanceof UsageLimitError || errorName(e) === 'UsageLimitError') {
           setError(e instanceof Error ? e : new Error(getErrorMessage(e)));
+          setComposerPhase('error');
           return settleError();
         }
 
@@ -1430,6 +1443,7 @@ export function useConversationStream({
               suggestedAction: errBody?.suggestedAction || (isCredits ? 'upgrade' : 'wait'),
             });
             setError(usageError);
+            setComposerPhase('error');
             return settleError();
           }
         }
@@ -1444,6 +1458,7 @@ export function useConversationStream({
                 typeof e === 'string' ? e : getErrorMessage(e) || 'An unexpected error occurred',
               );
         setError(finalError);
+        setComposerPhase('error');
         return keepFailedTurn(true, finalError.message);
       } finally {
         // Batches belong to the current turn. An older finally must not flush or clear
@@ -1467,6 +1482,9 @@ export function useConversationStream({
         // Recheck after the await: another turn, thread, account or mount may now own UI.
         if (mountedRef.current && turnGenerationRef.current === turnGeneration) {
           setIsLoading(false);
+          if (composerPhaseRef.current !== 'error' && composerPhaseRef.current !== 'idle') {
+            setComposerPhase('complete');
+          }
           // The sidebar preview and completion notification belong to this visible turn.
           if (replyText !== '') host.onTurnPreview?.(agentId, replyText);
           host.onTurnEnd?.();
@@ -1490,6 +1508,7 @@ export function useConversationStream({
       flushPendingUpdates,
       dropPendingUpdates,
       setMessagesAndRef,
+      setComposerPhase,
     ],
   );
 
@@ -1499,12 +1518,14 @@ export function useConversationStream({
       abortControllerRef.current = null;
     }
     setIsLoading(false);
-  }, []);
+    setComposerPhase('idle');
+  }, [setComposerPhase]);
 
   const stop = useCallback(() => {
     const turn = turnControlRef.current;
     const turnGeneration = turnGenerationRef.current;
     if (!turn) return;
+    setComposerPhase('stopping');
     void turn.stop().catch((error: unknown) => {
       if (
         turnControlRef.current === turn &&
@@ -1512,11 +1533,15 @@ export function useConversationStream({
         mountedRef.current
       ) {
         setError(error instanceof Error ? error : new Error('Generation could not be stopped.'));
+        setComposerPhase('streaming');
       }
     });
-  }, []);
+  }, [setComposerPhase]);
 
-  const clearError = useCallback(() => setError(null), []);
+  const clearError = useCallback(() => {
+    setError(null);
+    if (!isLoading) setComposerPhase('idle');
+  }, [isLoading, setComposerPhase]);
 
   /**
    * Send the failed turn again: the same content and attachments, the same
@@ -1543,7 +1568,8 @@ export function useConversationStream({
   const clearFailedTurn = useCallback(() => {
     setFailedTurn(null);
     retryRef.current = null;
-  }, []);
+    if (!isLoading) setComposerPhase('idle');
+  }, [isLoading, setComposerPhase]);
 
   /** Put the offer away. It wrote nothing, so there is nothing else to undo. */
   const dismissSuggestedNewConversation = useCallback(() => {
@@ -1559,6 +1585,7 @@ export function useConversationStream({
   return {
     messages,
     isLoading,
+    composerPhase,
     error,
     append,
     stop,

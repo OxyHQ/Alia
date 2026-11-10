@@ -23,6 +23,8 @@ const state = vi.hoisted(() => ({
   latestCalls: [] as { oxyUserId: string; agentIds: readonly string[] }[],
   latestRows: [] as { agentId: string; lastMessage: string | null; updatedAt: Date }[],
   owned: [] as { _id: string }[],
+  links: [] as { agentId: string; cli: string }[],
+  online: new Set<string>(),
 }));
 
 function signIn(req: Request, _res: Response, next: NextFunction): void {
@@ -87,6 +89,13 @@ vi.mock('../../../db/chat/conversationRepository.js', () => ({
 }));
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
+vi.mock('../../../db/agents/externalAgentRepository.js', () => ({
+  listExternalLinks: async () => state.links,
+}));
+vi.mock('../../../lib/external-agents/presence.js', () => ({
+  externalAgentPresence: async (ids: string[]) =>
+    new Map(ids.map((id) => [id, state.online.has(id)])),
+}));
 vi.mock('../../../lib/logger.js', () => ({
   log: {
     agents: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -136,6 +145,8 @@ beforeEach(() => {
   state.latestCalls = [];
   state.latestRows = [];
   state.owned = [];
+  state.links = [];
+  state.online = new Set();
 });
 
 async function listMine(): Promise<{ agents: Record<string, unknown>[] }> {
@@ -143,6 +154,23 @@ async function listMine(): Promise<{ agents: Record<string, unknown>[] }> {
   expect(response.status).toBe(200);
   return (await response.json()) as { agents: Record<string, unknown>[] };
 }
+
+describe('GET /agents/me external agents', () => {
+  it('marks an external agent with its CLI and whether its computer is connected', async () => {
+    state.owned = [{ _id: 'a1' }, { _id: 'ext-on' }, { _id: 'ext-off' }];
+    state.links = [
+      { agentId: 'ext-on', cli: 'codex' },
+      { agentId: 'ext-off', cli: 'claude' },
+    ];
+    state.online = new Set(['ext-on']);
+
+    const byId = new Map((await listMine()).agents.map((agent) => [agent._id, agent]));
+
+    expect(byId.get('a1')?.external).toBeNull();
+    expect(byId.get('ext-on')?.external).toEqual({ cli: 'codex', online: true });
+    expect(byId.get('ext-off')?.external).toEqual({ cli: 'claude', online: false });
+  });
+});
 
 describe('GET /agents/me', () => {
   it('asks for every thread’s last line in ONE call, however many agents there are', async () => {
