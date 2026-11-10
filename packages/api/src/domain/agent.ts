@@ -17,6 +17,19 @@ export const AGENT_STATUSES = ['active', 'idle', 'offline'] as const;
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
 /**
+ * Whose computer an agent works on when it has the `computer` capability.
+ *
+ *  - `alia` (the default): the person's own shared workspace, the same machine Alia's `alia:user:<id>`
+ *    actor names — what the agents of one person share, so a file one made is there for the next.
+ *  - `own`: a machine of the agent's own, per person (`agent:<id>:user:<id>`).
+ *
+ * `alia` only ever applies for the agent's OWNER (`resolveComputerActor`): a stranger using a public
+ * agent never has it work on their personal workspace, whatever the owner chose.
+ */
+export const AGENT_COMPUTER_SOURCES = ['alia', 'own'] as const;
+export type AgentComputerSource = (typeof AGENT_COMPUTER_SOURCES)[number];
+
+/**
  * Who may USE an agent — a different question from whether it is listed.
  *
  * `is_published` answers "does it appear in the catalogue", and until now it

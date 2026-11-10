@@ -33,6 +33,7 @@ import { latestMessagePerAgent } from '../../db/chat/conversationRepository.js';
 import {
   AGENT_ACCESS,
   AGENT_ARCHETYPES,
+  AGENT_COMPUTER_SOURCES,
   AGENT_STATUSES,
   type AgentAccess,
   type AgentArchetype,
@@ -602,6 +603,8 @@ const updateAgentSchema = z
     capabilityGrants: capabilityGrantsSchema.optional(),
     isPublished: z.boolean().optional(),
     status: statusSchema.optional(),
+    /** Whose computer it works on: `alia` (the default, owner only) or its `own`. */
+    computerSource: z.enum(AGENT_COMPUTER_SOURCES).optional(),
     access: accessSchema.optional(),
     systemPrompt: z.string().optional(),
     /** A power level, a `publisher/model` from `GET /catalogue`, or null for `auto`. */

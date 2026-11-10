@@ -841,6 +841,20 @@
       "when": 1794265934824,
       "tag": "0119_agent_memory_journal_actor",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1794271443968,
+      "tag": "0120_agent_computer_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1794271461355,
+      "tag": "0121_agent_computer_source_validate",
+      "breakpoints": true
     }
   ]
 }

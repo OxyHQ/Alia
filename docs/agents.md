@@ -344,8 +344,15 @@ tools (and the browser below)
 `lib/computer/computer-tools.ts`). Built only on a runtime turn, only when
 `ALIA_COMPUTER_HOST_URL` is set, and never in a preauthorized automation stage.
 
-- **One computer per agent per person** (`agent:<agentId>:user:<oxyUserId>`):
-  a public agent never shows one person's files to another.
+- **Whose computer is the owner's choice** (`agents.computer_source`, set in Settings → Memory →
+  Attention, `PATCH /agents/:id`): `alia` (the default) is the person's shared workspace
+  (`alia:user:<oxyUserId>`), the same for all of their agents, so what one makes is there for the next;
+  `own` is a machine of the agent's, per person (`agent:<agentId>:user:<oxyUserId>`).
+  `lib/computer/computer-actor.ts` decides it for the tools and the live view alike. **`alia` only
+  applies to the agent's owner**: anyone else using a public agent always gets the agent's own
+  per-person machine, so an agent never reaches a stranger's personal workspace and a public agent never
+  shows one person's files to another. Agents that already held the `computer` capability when this
+  shipped (migration 0120) stay on `own`, so their `/workspace` did not move.
 - **The machine** is a container on `packages/alia-computer-host`: gVisor
   (`runsc`), read-only root, every capability dropped, `--network none`,
   512 MiB / 1 CPU / 128 pids, uid 1000. The host re-inspects it before every

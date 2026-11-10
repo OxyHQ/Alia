@@ -63,6 +63,7 @@ import { postAgentMessage } from './agent-outreach.js';
 import type { AgentRuntimeContext } from './actions.js';
 import { scheduleAgentFollowUp } from './follow-ups.js';
 import { agentMemoryPromptSection } from './agent-memory-runtime.js';
+import { resolveComputerActor } from '../computer/computer-actor.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
@@ -484,6 +485,7 @@ async function driveAgentSession(
     },
     runtime: {
       session,
+      computerActorId: resolveComputerActor({ agent, oxyUserId: session.oxyUserId }),
       agentAccountId: agent.oxyAccountId,
       onComplete,
       onHireAgent,

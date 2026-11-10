@@ -87,6 +87,10 @@ async function render(element: React.ReactElement): Promise<ReactTestRenderer> {
 const all = (tree: ReactTestRenderer, type: string): ReactTestInstance[] =>
   tree.root.findAll((node) => (node.type as unknown) === type);
 
+/** The heartbeat's frequency select: the page also has a computer select, so never index by position. */
+const frequencySelect = (tree: ReactTestRenderer) =>
+  all(tree, 'SettingsSelect').find((node) => node.props.label === 'How often');
+
 const switchLabelled = (tree: ReactTestRenderer, label: string) =>
   all(tree, 'Switch').find((node) => String(node.props.accessibilityLabel).includes(label));
 
@@ -176,10 +180,52 @@ describe('pausing everything that starts on its own', () => {
   });
 });
 
+describe('whose computer the agent works on', () => {
+  it('shows the default as Alia’s and changes it to the agent’s own', async () => {
+    const tree = await render(<AgentAttentionSection />);
+    const select = all(tree, 'SettingsSelect').find((node) => node.props.label === 'Computer');
+    expect(select?.props.value).toBe('alia');
+    expect(select?.props.items.map((item: { value: string }) => item.value)).toEqual([
+      'alia',
+      'own',
+    ]);
+    await act(async () => select?.props.onChange('own'));
+    expect(updateAgent).toHaveBeenCalledWith({ id: 'agent-1', updates: { computerSource: 'own' } });
+  });
+
+  it('shows an agent that keeps its own machine as such, and moves it back', async () => {
+    mine.agents = [
+      {
+        _id: 'agent-1',
+        name: 'Scout',
+        handle: 'scout',
+        scheduleInterval: null,
+        computerSource: 'own',
+      },
+    ];
+    const tree = await render(<AgentAttentionSection />);
+    const select = all(tree, 'SettingsSelect').find((node) => node.props.label === 'Computer');
+    expect(select?.props.value).toBe('own');
+    await act(async () => select?.props.onChange('alia'));
+    expect(updateAgent).toHaveBeenCalledWith({
+      id: 'agent-1',
+      updates: { computerSource: 'alia' },
+    });
+  });
+
+  it('tells the person when the change fails', async () => {
+    updateAgent.mockRejectedValueOnce(new Error('offline'));
+    const tree = await render(<AgentAttentionSection />);
+    const select = all(tree, 'SettingsSelect').find((node) => node.props.label === 'Computer');
+    await act(async () => select?.props.onChange('own'));
+    expect(toast.error).toHaveBeenCalled();
+  });
+});
+
 describe('the heartbeat', () => {
   it('is off with no frequency row when the agent has no interval; turning it on starts at an hour', async () => {
     const tree = await render(<AgentAttentionSection />);
-    expect(all(tree, 'SettingsSelect')).toHaveLength(0);
+    expect(frequencySelect(tree)).toBeUndefined();
     await act(async () => switchLabelled(tree, 'Check on its own')?.props.onCheckedChange(true));
     expect(updateAgent).toHaveBeenCalledWith({ id: 'agent-1', updates: { scheduleInterval: 60 } });
   });
@@ -187,9 +233,9 @@ describe('the heartbeat', () => {
   it('turning it off sends null', async () => {
     mine.agents = [{ _id: 'agent-1', name: 'Scout', handle: 'scout', scheduleInterval: 240 }];
     const tree = await render(<AgentAttentionSection />);
-    const select = all(tree, 'SettingsSelect')[0];
-    expect(select.props.value).toBe('240');
-    expect(select.props.items.map((item: { value: string }) => item.value)).toEqual([
+    const select = frequencySelect(tree);
+    expect(select?.props.value).toBe('240');
+    expect(select?.props.items.map((item: { value: string }) => item.value)).toEqual([
       '15',
       '30',
       '60',
@@ -206,7 +252,7 @@ describe('the heartbeat', () => {
   it('picking a frequency sends its minutes', async () => {
     mine.agents = [{ _id: 'agent-1', name: 'Scout', handle: 'scout', scheduleInterval: 60 }];
     const tree = await render(<AgentAttentionSection />);
-    await act(async () => all(tree, 'SettingsSelect')[0].props.onChange('1440'));
+    await act(async () => frequencySelect(tree)?.props.onChange('1440'));
     expect(updateAgent).toHaveBeenCalledWith({
       id: 'agent-1',
       updates: { scheduleInterval: 1440 },
@@ -216,7 +262,7 @@ describe('the heartbeat', () => {
   it('keeps an interval set elsewhere visible as a choice', async () => {
     mine.agents = [{ _id: 'agent-1', name: 'Scout', handle: 'scout', scheduleInterval: 5 }];
     const tree = await render(<AgentAttentionSection />);
-    expect(all(tree, 'SettingsSelect')[0].props.items[0].value).toBe('5');
+    expect(frequencySelect(tree)?.props.items[0].value).toBe('5');
   });
 
   it('tells the person when the save fails', async () => {
