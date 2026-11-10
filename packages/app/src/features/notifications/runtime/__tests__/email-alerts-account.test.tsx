@@ -57,7 +57,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 
-import { useEmailAlerts } from '@/features/settings/runtime/use-email-alerts';
+import { useEmailAlerts } from '@/features/notifications/runtime/use-email-alerts';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
 import { getAccountProjection } from '@/shared/state/account-epoch';
 

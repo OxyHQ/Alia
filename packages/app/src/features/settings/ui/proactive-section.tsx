@@ -1,4 +1,4 @@
-import { useEmailAlerts } from '@/features/settings/runtime/use-email-alerts';
+import { useEmailAlerts } from '@/features/notifications/runtime/use-email-alerts';
 import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
@@ -11,9 +11,8 @@ const K = 'settings.assistant.proactive';
 /**
  * When Alia and the agents may write first.
  *
- * Today one thing: an important email. Alia about the person's own Inbox; each
- * agent the person owns about its OWN mailbox (a sign-up verification, a reply
- * to something it sent). On by default; the limits (three a day, none while
+ * Today one thing: an important email, Alia about the person's own Inbox. Each agent's own mailbox
+ * is a switch in that agent's editor. On by default; the limits (three a day, none while
  * the last two are unanswered) are the same for everybody and not a setting.
  */
 export function ProactiveSection() {
@@ -45,32 +44,6 @@ export function ProactiveSection() {
               onCheckedChange={(enabled) => setEnabled(null, enabled)}
             />
           </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
-
-      <SettingsSection label={t(`${K}.agentsTitle`)}>
-        <SettingsCard>
-          {alerts.agents.length === 0 ? (
-            <SettingsRow label={t(`${K}.noAgents`)} />
-          ) : (
-            alerts.agents.map((agent) => {
-              const name =
-                agent.name ?? (agent.handle ? `@${agent.handle}` : t(`${K}.unnamedAgent`));
-              return (
-                <SettingsRow
-                  key={agent.agentId}
-                  label={name}
-                  description={t(`${K}.agentEmailDescription`, { name })}
-                >
-                  <Switch
-                    accessibilityLabel={t(`${K}.agentEmailLabel`, { name })}
-                    checked={agent.enabled}
-                    onCheckedChange={(enabled) => setEnabled(agent.agentId, enabled)}
-                  />
-                </SettingsRow>
-              );
-            })
-          )}
         </SettingsCard>
       </SettingsSection>
 

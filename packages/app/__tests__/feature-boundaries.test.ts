@@ -63,10 +63,12 @@ const ALLOWED: Record<string, readonly string[]> = {
     'library',
     'local-models',
     'memory',
+    'notifications',
     'skills',
   ],
   automations: ['agents'],
-  agents: ['chat'],
+  // notifications: an agent's own mailbox alert is a switch in its editor.
+  agents: ['chat', 'notifications'],
   chat: [
     'billing',
     'connections',

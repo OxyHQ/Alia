@@ -295,6 +295,10 @@ vi.mock('@oxy.so/bloom/agent-creator', async () => {
       ReactModule.createElement('AgentCreatorField', props),
   };
 });
+// The cards below the details card are their own suite (`edit/__tests__/agent-editor-sections`).
+vi.mock('@/features/agents/ui/edit/sections/agent-editor-sections', () => ({
+  AgentEditorSections: () => null,
+}));
 vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
 }));
