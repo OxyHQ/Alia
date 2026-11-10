@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error the Worker is plain JavaScript with no declaration file
 import worker from '../worker/index.js';
 
 /**
