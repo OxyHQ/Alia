@@ -300,6 +300,19 @@ export async function spaceIdsForConversations(
   return result;
 }
 
+/** A space's name and brief, by id, for a prompt. Null when the space is gone. */
+export async function findSpaceBrief(
+  db: Executor,
+  spaceId: string,
+): Promise<{ name: string; instructions: string } | null> {
+  const [row] = await db
+    .select({ name: spaces.name, instructions: spaces.instructions })
+    .from(spaces)
+    .where(eq(spaces.id, spaceId))
+    .limit(1);
+  return row ?? null;
+}
+
 /** The space whose room this conversation is, or null for any other conversation. */
 export async function findSpaceByConversation(
   db: Executor,

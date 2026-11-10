@@ -9,6 +9,7 @@ import { buildIdentityGuard } from './identity-guard.js';
 import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-services.js';
 import { ALIA_MEMORY_RECALL_TOOL } from './tools/oxy-tool-names.js';
 import { agentRemitPrompt } from './agent/archetype-prompts.js';
+import { agentSpacePrompt } from './agent/space-prompt.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
 import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
 import type { CatalogueModel } from './models/catalogue.js';
@@ -398,7 +399,7 @@ export class SystemPromptBuilder {
      * disagree.
      */
     if (linkedAgent) {
-      systemMessage = `${agentRemitPrompt(linkedAgent)}\n\n---\n\n${systemMessage}`;
+      systemMessage = `${agentRemitPrompt(linkedAgent)}${await agentSpacePrompt(linkedAgent)}\n\n---\n\n${systemMessage}`;
       log.general.info(
         { agentName: agentPromptName(linkedAgent), archetype: linkedAgent.archetype },
         'Agent prompt injected',
