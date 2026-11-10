@@ -54,6 +54,18 @@ codea run "fix the bug in auth.ts"
 codea r "add unit tests for the User class" -y  # Auto-approve changes
 ```
 
+### Connect an external agent
+
+```bash
+codea connect --code AB12-CD34-EF56 --cli codex   # pair this computer, then serve it
+codea connect                                     # serve the agents this computer is paired with
+```
+
+Serves Claude Code, Codex or OpenCode to Alia as one of your agents. Create the code in Alia
+(Settings → Connect an external agent). The process dials Alia outbound with your Oxy session and
+runs the CLI you are already signed in to, so the answers use your own subscription. It runs in the
+current directory (`--cwd` to change it) and is read-only unless you pass `--write`.
+
 ### Session Management
 ```bash
 codea sessions     # List recent sessions

@@ -62,6 +62,12 @@ export const API_ROUTES = {
   agents: {
     list: '/agents',
     me: '/agents/me',
+    /** External agents: coding-agent CLIs the person connected (ADR 0028). */
+    external: {
+      list: '/agents/external',
+      pair: '/agents/external/pair',
+      remove: (agentId: string) => `/agents/external/${encodeURIComponent(agentId)}`,
+    },
     get: (id: string) => `/agents/${id}`,
     /**
      * The permanent thread between the caller and one agent, resolved-or-created

@@ -166,7 +166,8 @@
       "profile": "Perfil",
       "storage": "Almacenamiento",
       "security": "Seguridad",
-      "proactive": "Avisos"
+      "proactive": "Avisos",
+      "externalAgents": "Agente externo"
     },
     "accentColor": {
       "title": "Color de la app",
@@ -308,6 +309,25 @@
         "disconnectDescription": "¿Seguro que quieres desconectar esta cuenta? Puedes volver a conectarla cuando quieras.",
         "disconnectedToast": "Cuenta desconectada",
         "disconnectFailed": "No se pudo desconectar la cuenta"
+      },
+      "externalAgents": {
+        "title": "Conectar un agente externo",
+        "description": "Usa un agente de código de tu ordenador (por ejemplo Codex u OpenCode) como uno de tus agentes de Alia. Responde con tu propia suscripción y tus otros agentes pueden hablar con él.",
+        "createLabel": "Nueva conexión",
+        "createHint": "Crea un código de un solo uso y copia el texto para pegarlo en tu agente.",
+        "create": "Crear código",
+        "copy": "Copiar texto",
+        "copied": "Copiado. Pégalo en tu agente de código.",
+        "createFailed": "No se pudo crear el código. Inténtalo de nuevo en un minuto.",
+        "codeHint": "Un solo uso. Caduca a las {{time}}.",
+        "promptLabel": "Texto para pegar en tu agente",
+        "connectedTitle": "Agentes conectados",
+        "online": "En línea",
+        "offline": "Desconectado: su ordenador no está conectado a Alia",
+        "remove": "Quitar",
+        "removed": "Agente eliminado.",
+        "removeFailed": "No se pudo eliminar el agente.",
+        "empty": "Todavía no hay agentes externos."
       }
     },
     "assistant": {
