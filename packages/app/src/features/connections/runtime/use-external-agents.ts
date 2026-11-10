@@ -5,7 +5,7 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 
-export type ExternalCli = 'claude' | 'codex' | 'opencode';
+type ExternalCli = 'claude' | 'codex' | 'opencode';
 
 /** One coding-agent CLI the person connected, and whether its computer is reachable right now. */
 export interface ExternalAgent {
@@ -76,5 +76,5 @@ export function useExternalAgents(locale: string) {
     [queryClient],
   );
 
-  return { agents, loading, invite, createInvite, remove, refresh };
+  return { agents, loading, invite, createInvite, remove };
 }

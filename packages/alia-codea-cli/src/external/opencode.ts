@@ -11,7 +11,6 @@ const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
  */
 export function opencodeRuntime(command = 'opencode'): ExternalRuntime {
   return {
-    cli: 'opencode',
     resumes: false,
     async run({ prompt, cwd, signal, onDelta }) {
       let streamed = false;

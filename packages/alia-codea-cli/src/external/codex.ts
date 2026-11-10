@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runProcess, tail } from './process.js';
+import { lineSplitter, runProcess, tail } from './process.js';
 import type { ExternalRuntime } from './types.js';
 
 /**
@@ -14,7 +14,6 @@ import type { ExternalRuntime } from './types.js';
  */
 export function codexRuntime(command = 'codex'): ExternalRuntime {
   return {
-    cli: 'codex',
     resumes: true,
     async run({ prompt, cwd, write, signal, onDelta, resumeId, onSession }) {
       const dir = await mkdtemp(join(tmpdir(), 'alia-codex-'));
@@ -34,7 +33,6 @@ export function codexRuntime(command = 'codex'): ExternalRuntime {
         ];
         const args = resumeId ? [...common, 'resume', resumeId, '-'] : [...common, '-'];
 
-        let buffer = '';
         const onLine = (line: string) => {
           try {
             const event = JSON.parse(line) as { type?: string; thread_id?: string };
@@ -45,20 +43,16 @@ export function codexRuntime(command = 'codex'): ExternalRuntime {
             // Not an event line.
           }
         };
+        const lines = lineSplitter(onLine);
         const out = await runProcess({
           command,
           args,
           cwd,
           stdin: prompt,
           signal,
-          onStdout: (chunk) => {
-            buffer += chunk;
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-            for (const line of lines) onLine(line);
-          },
+          onStdout: lines.push,
         });
-        onLine(buffer);
+        lines.flush();
         const answer = await readFile(answerFile, 'utf8').catch(() => '');
         if (out.code !== 0 && answer.trim() === '') {
           throw new Error(`codex exited with ${out.code}: ${tail(out.stderr)}`);

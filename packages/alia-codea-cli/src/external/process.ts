@@ -1,5 +1,25 @@
 import { spawn } from 'node:child_process';
 
+/** Feeds whole lines to `onLine` from a stream that arrives in arbitrary chunks. */
+export function lineSplitter(onLine: (line: string) => void): {
+  push(chunk: string): void;
+  flush(): void;
+} {
+  let buffer = '';
+  return {
+    push(chunk) {
+      buffer += chunk;
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) onLine(line);
+    },
+    flush() {
+      if (buffer !== '') onLine(buffer);
+      buffer = '';
+    },
+  };
+}
+
 export interface ProcessResult {
   readonly code: number | null;
   readonly stdout: string;

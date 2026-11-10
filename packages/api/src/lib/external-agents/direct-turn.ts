@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { makeChunk } from '../streaming-helpers.js';
+import { makeChunk, writeContentChunk, writeStopChunk } from '../streaming-helpers.js';
 import { buildCompletionResponse } from '../chat/response-shapes.js';
 import type { SSEWriter } from '../chat/sse-writer.js';
 import { saveConversationResult, type LifecycleContext } from '../chat-lifecycle.js';
@@ -48,9 +48,7 @@ export async function serveExternalDirectTurn(input: {
       ? {
           onTextDelta: (text: string) => {
             if (res.writableEnded) return;
-            res.write(
-              `data: ${JSON.stringify(makeChunk(requestId, modelId, [{ index: 0, delta: { content: text }, finish_reason: null }]))}\n\n`,
-            );
+            writeContentChunk(res, requestId, modelId, text);
           },
         }
       : {}),
@@ -73,9 +71,7 @@ export async function serveExternalDirectTurn(input: {
   await saveConversationResult(input.lifecycle, result.response);
 
   if (input.stream) {
-    res.write(
-      `data: ${JSON.stringify(makeChunk(requestId, modelId, [{ index: 0, delta: {}, finish_reason: 'stop' }]))}\n\n`,
-    );
+    writeStopChunk(res, requestId, modelId);
     sse.done();
   } else {
     res.json(

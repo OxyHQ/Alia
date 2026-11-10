@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../db/agents/externalAgentRepository.js', () => ({
-  findExternalLink: async () => state.link,
+  hasExternalLink: async () => state.link !== undefined,
 }));
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };

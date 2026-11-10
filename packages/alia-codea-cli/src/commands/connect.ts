@@ -31,8 +31,6 @@ export interface ConnectOptions {
   cwd?: string;
   /** Commander turns `--read-only` into `readOnly`. */
   readOnly?: boolean;
-  /** Accepted for compatibility: editing is the default now. */
-  write?: boolean;
 }
 
 const WRITE_NOTICE =

@@ -1,5 +1,6 @@
 import { getDb } from '../../db/index.js';
-import { findExternalLink } from '../../db/agents/externalAgentRepository.js';
+import { hasExternalLink } from '../../db/agents/externalAgentRepository.js';
+import type { ChatTurn } from '../../domain/external-agent.js';
 import { log } from '../logger.js';
 
 export interface ExternalTurnResult {
@@ -11,7 +12,7 @@ export interface ExternalTurnResult {
 
 /** True when `agentId` is served by a person's daemon rather than by Alia's models. */
 export async function isExternalAgent(agentId: string): Promise<boolean> {
-  return (await findExternalLink(getDb(), agentId)) !== undefined;
+  return hasExternalLink(getDb(), agentId);
 }
 
 /**
@@ -24,7 +25,7 @@ export async function isExternalAgent(agentId: string): Promise<boolean> {
 export async function runExternalAgentTurn(input: {
   agentId: string;
   task: string;
-  history?: readonly { role: 'user' | 'assistant'; content: string }[];
+  history?: readonly ChatTurn[];
   threadKey?: string;
   onTextDelta?: (text: string) => void;
   timeoutMs?: number;

@@ -76,7 +76,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.userId = 'owner-1';
   state.online.clear();
-  state.redeemPairing.mockResolvedValue({ id: 'p1' });
+  state.redeemPairing.mockResolvedValue(true);
   state.createBot.mockResolvedValue({ oxyAccountId: 'bot-1', username: 'codexbot' });
   state.createAgent.mockResolvedValue({ _id: 'agent-1' });
   state.revoke.mockResolvedValue(true);
@@ -139,7 +139,7 @@ describe('POST /agents/external/redeem', () => {
   });
 
   it('creates nothing when the code is unknown, expired, used, or not the caller’s', async () => {
-    state.redeemPairing.mockResolvedValue(null);
+    state.redeemPairing.mockResolvedValue(false);
     const response = await post('/redeem', valid);
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: 'invalid_or_expired_code' });

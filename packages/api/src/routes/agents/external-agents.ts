@@ -24,9 +24,9 @@ import {
   revokeExternalLink,
 } from '../../db/agents/externalAgentRepository.js';
 import {
+  EXTERNAL_AGENT_CLI_LABELS,
   EXTERNAL_AGENT_CLIS,
   EXTERNAL_PAIRING_TTL_MS,
-  type ExternalAgentCli,
 } from '../../domain/external-agent.js';
 import { agentColorFor } from '../../domain/agent-color.js';
 import { authenticateToken } from '../../middleware/auth.js';
@@ -52,12 +52,6 @@ const route =
     void handler(req, res).catch(next);
   };
 
-const CLI_LABELS: Record<ExternalAgentCli, string> = {
-  claude: 'Claude Code',
-  codex: 'Codex',
-  opencode: 'OpenCode',
-};
-
 const redeemSchema = z
   .object({
     code: z.string().min(1).max(64),
@@ -66,21 +60,19 @@ const redeemSchema = z
   })
   .strict();
 
-const MAX_PENDING_PAIRINGS_WINDOW_MS = 60_000;
+const PAIRING_WINDOW_MS = 60_000;
+const PAIRING_LIMIT = 5;
 const recentPairings = new Map<string, number[]>();
 
 /** Five codes a minute per account is far more than a person pairing machines needs. */
 function pairingRateLimited(userId: string, now: number): boolean {
-  const recent = (recentPairings.get(userId) ?? []).filter(
-    (at) => now - at < MAX_PENDING_PAIRINGS_WINDOW_MS,
-  );
-  if (recent.length >= 5) {
-    recentPairings.set(userId, recent);
-    return true;
-  }
-  recent.push(now);
-  recentPairings.set(userId, recent);
-  return false;
+  const recent = (recentPairings.get(userId) ?? []).filter((at) => now - at < PAIRING_WINDOW_MS);
+  const limited = recent.length >= PAIRING_LIMIT;
+  if (!limited) recent.push(now);
+  // An account that stops asking leaves nothing behind.
+  if (recent.length === 0) recentPairings.delete(userId);
+  else recentPairings.set(userId, recent);
+  return limited;
 }
 
 router.post(
@@ -127,15 +119,16 @@ router.post(
       ownerOxyUserId: userId,
       now: new Date(),
     });
-    if (redeemed === null) {
+    if (!redeemed) {
       return res.status(400).json({ error: 'invalid_or_expired_code' });
     }
 
     try {
-      const name = `${CLI_LABELS[cli]} · ${hostName}`;
-      const username = suggestAgentUsername(CLI_LABELS[cli]) ?? fallbackAgentUsername();
+      const name = `${EXTERNAL_AGENT_CLI_LABELS[cli]} · ${hostName}`;
+      const username =
+        suggestAgentUsername(EXTERNAL_AGENT_CLI_LABELS[cli]) ?? fallbackAgentUsername();
       const character = avatarCharacterFor(username);
-      const tagline = `${CLI_LABELS[cli]} on ${hostName}`;
+      const tagline = `${EXTERNAL_AGENT_CLI_LABELS[cli]} on ${hostName}`;
       const account = await createAgentBotAccount({
         accessToken: req.accessToken,
         username,
@@ -149,7 +142,7 @@ router.post(
         ownerOxyAccountId: userId,
         character,
         tagline,
-        description: `${CLI_LABELS[cli]} running on ${hostName}, connected to Alia through the Codea daemon.`,
+        description: `${EXTERNAL_AGENT_CLI_LABELS[cli]} running on ${hostName}, connected to Alia through the Codea daemon.`,
         authorOxyUserId: userId,
         category: 'Assistant',
         isPublished: false,
@@ -176,17 +169,17 @@ router.get(
   route(async (req, res) => {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
     const links = await listExternalLinks(getDb(), req.user.id);
-    const online = await Promise.all(links.map((link) => isExternalAgentReachable(link.agentId)));
-    res.json({
-      agents: links.map((link, index) => ({
+    const agents = await Promise.all(
+      links.map(async (link) => ({
         agentId: link.agentId,
         cli: link.cli,
         hostName: link.hostName,
-        online: online[index],
+        online: await isExternalAgentReachable(link.agentId),
         createdAt: link.createdAt,
         lastConnectedAt: link.lastConnectedAt,
       })),
-    });
+    );
+    res.json({ agents });
   }),
 );
 
