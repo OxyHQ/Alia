@@ -19,7 +19,7 @@ already sets, not by a new preference, so they are recorded here to stop being "
    Two guards: **`alia` applies only to the agent's owner** — anyone else using a public agent gets its
    own per-person machine, so an agent never reaches a stranger's personal workspace and the owner's
    choice cannot do that to them — and **agents that already held the `computer` capability stay on
-   `own`** (migration 0120), because re-keying would have orphaned their `/workspace`.
+   `own`** (migration 0121), because re-keying would have orphaned their `/workspace`.
 2. **A woken agent notices and tells; it does not act.** The heartbeat run has a follow-up's authority:
    no computer, no MCP, Oxy apps only through exact authorization (ADR 0022). Acting on an event is
    what an **event automation with declared actions** already is: the owner names the exact tool calls
