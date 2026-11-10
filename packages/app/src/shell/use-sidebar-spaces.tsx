@@ -1,6 +1,6 @@
 import {
   agentsOutsideSpaces,
-  buildSpacesSection,
+  buildSpaceSections,
   planSpaces,
   type SpacePlan,
 } from '@/features/spaces/model/space-rows';
@@ -125,8 +125,8 @@ export function useSidebarSpaces({
     [enabled, spaces, move],
   );
 
-  /** The Spaces section, or `undefined` when the person has no space (or a search finds none). */
-  const buildSection = React.useCallback(
+  /** One section per space; none when the person has no space (or a search finds none). */
+  const buildSections = React.useCallback(
     ({
       conversations,
       query,
@@ -137,16 +137,15 @@ export function useSidebarSpaces({
       query: string;
       agentRow: (agent: Agent) => SidebarTreeItem;
       roomRow: (plan: SpacePlan) => SidebarTreeItem;
-    }): SidebarTree | undefined =>
+    }): SidebarTree[] =>
       spaces.length === 0
-        ? undefined
-        : buildSpacesSection({
+        ? []
+        : buildSpaceSections({
             plans: planSpaces(spaces, agents ?? [], conversations),
-            label: t('sidebar.spaces'),
             query,
             closedIds,
             onOpenChange: (spaceId, open) => void setSpaceOpen(spaceId, open),
-            folderActions: (space) => (
+            sectionActions: (space) => (
               <SpaceActions
                 space={space}
                 onRename={rename}
@@ -182,7 +181,7 @@ export function useSidebarSpaces({
     isLoading: enabled && isLoading,
     openCreate,
     agentMenu,
-    buildSection,
+    buildSections,
     dialogs,
   };
 }

@@ -2,7 +2,7 @@ import { agentIdentityMatches } from '@/features/agents/model/identity';
 import type { Agent } from '@/shared/contracts/agents';
 import type { Space } from '@/shared/contracts/spaces';
 import type { Conversation } from '@alia.onl/sdk/model';
-import type { SidebarTree, SidebarTreeFolder, SidebarTreeItem } from '@oxy.so/bloom/sidebar';
+import type { SidebarTree, SidebarTreeItem } from '@oxy.so/bloom/sidebar';
 import type { ReactNode } from 'react';
 
 /**
@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
  * tested without a screen.
  */
 
-/** The tree key of a space's folder. */
+/** The tree key of a space's section. */
 export const SPACE_KEY = 'space:';
 /** The tree key of the muted row an empty space shows ("Add agents"). */
 export const SPACE_ADD_KEY = 'space-add:';
@@ -59,36 +59,36 @@ export function planSpaces(
 }
 
 /**
- * The Spaces section: one collapsible folder per space, its room first ("General") and then one
- * row per member, built by the same row builder as the flat Agents list. Absent when the person has
- * no space (the section is not drawn), and while a search leaves nothing in it.
+ * The Spaces, one SECTION each (not one folder inside a shared section): a section's rows are the same
+ * rich rows as the Agents list — the agent's picture and its last line — which Bloom does not draw for a
+ * folder's rows (label and chip only). Each is collapsible, with its menu beside the name, its room first
+ * ("General") and then one row per member, built by the same row builder as the flat Agents list. Empty
+ * when the person has no space, and for a space a search leaves nothing in.
  *
- * A search keeps a folder whose NAME matches whole, and otherwise only the members that match; an
- * empty space is found by its name alone.
+ * A search keeps a space whose NAME matches whole, and otherwise only the members that match; an empty
+ * space is found by its name alone.
  */
-export function buildSpacesSection({
+export function buildSpaceSections({
   plans,
-  label,
   query,
   closedIds,
   onOpenChange,
-  folderActions,
+  sectionActions,
   agentRow,
   roomRow,
   addAgentsRow,
 }: {
   plans: readonly SpacePlan[];
-  label: string;
   query: string;
   closedIds: readonly string[];
   onOpenChange: (spaceId: string, open: boolean) => void;
-  folderActions: (space: Space) => ReactNode;
+  sectionActions: (space: Space) => ReactNode;
   agentRow: (agent: Agent) => SidebarTreeItem;
   roomRow: (plan: SpacePlan) => SidebarTreeItem;
   addAgentsRow: (space: Space) => SidebarTreeItem;
-}): SidebarTree | undefined {
+}): SidebarTree[] {
   const needle = query.trim().toLowerCase();
-  const folders = plans.flatMap(({ space, members, room, showRoom }): SidebarTreeFolder[] => {
+  return plans.flatMap(({ space, members, room, showRoom }): SidebarTree[] => {
     const nameMatches = !needle || space.name.toLowerCase().includes(needle);
     const shown = nameMatches
       ? members
@@ -103,12 +103,12 @@ export function buildSpacesSection({
       {
         key: `${SPACE_KEY}${space.id}`,
         label: space.name,
+        collapsible: true,
         open: !closedIds.includes(space.id),
         onOpenChange: (open: boolean) => onOpenChange(space.id, open),
-        actions: folderActions(space),
+        actions: sectionActions(space),
         items,
       },
     ];
   });
-  return folders.length ? { key: 'spaces', label, folders } : undefined;
 }

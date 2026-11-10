@@ -489,13 +489,13 @@ function useSidebarProps() {
     [t, onHoverIntent, prefetchConversation],
   );
 
-  // Spaces (ADR 0028): one folder per space with its room and its agents, beside the agents.
-  const spacesSection = React.useMemo(
+  // Spaces (ADR 0028): one section per space — its room and its agents, drawn like the Agents list.
+  const spaceSections = React.useMemo(
     () =>
       isAuthenticated
-        ? spacesUi.buildSection({ conversations, query: searchQuery, agentRow, roomRow })
-        : undefined,
-    [isAuthenticated, spacesUi.buildSection, conversations, searchQuery, agentRow, roomRow],
+        ? spacesUi.buildSections({ conversations, query: searchQuery, agentRow, roomRow })
+        : [],
+    [isAuthenticated, spacesUi.buildSections, conversations, searchQuery, agentRow, roomRow],
   );
 
   // Agents are contacts, each with its own thread: a section of their own, one row per agent with its
@@ -591,7 +591,7 @@ function useSidebarProps() {
       })),
     ];
     // Signed in, the tree stands even while empty: it holds "new project/folder".
-    const sectionsAbove = [agentSection, spacesSection, chatSection].filter(
+    const sectionsAbove = [agentSection, ...spaceSections, chatSection].filter(
       (s): s is SidebarTree => s !== undefined,
     );
     if (!treeFolders.length && !isAuthenticated)
@@ -611,7 +611,7 @@ function useSidebarProps() {
   }, [
     sections,
     agentSection,
-    spacesSection,
+    spaceSections,
     chatSection,
     toggleProject,
     toggleFolder,
