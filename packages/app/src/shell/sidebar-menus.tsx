@@ -28,7 +28,7 @@ import { View } from 'react-native';
 const NONE = '';
 
 /** The ⋯ button every sidebar menu opens from. */
-function MoreTrigger({ label }: { label: string }) {
+export function MoreTrigger({ label }: { label: string }) {
   return (
     <DropdownMenuTrigger asChild label={label}>
       <Button

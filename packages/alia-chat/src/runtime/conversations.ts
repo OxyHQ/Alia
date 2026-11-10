@@ -555,6 +555,7 @@ export function useCreateConversation() {
           source: data.source,
           agentId: data.agentId,
           memberAgentIds: data.memberAgentIds,
+          spaceId: data.spaceId,
           app: data.app,
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),

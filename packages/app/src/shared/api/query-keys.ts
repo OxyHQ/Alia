@@ -9,6 +9,7 @@ export const EMAIL_ALERTS_MUTATION_KEY = ['email-alerts-update'] as const;
  *  - `agents`: the person's agents, an agent's page and the catalogue they browsed.
  *  - `agent-thread`: an agent's thread (its identity and the conversation it is on), which is what
  *    opens `/@handle` at once.
+ *  - `spaces`: the folders that group the person's agents, which the sidebar draws.
  *  - `conversations`: the list the sidebar draws (titles and times, never the messages).
  *  - `alia-agent-profile`: the lead of an agent's chat (name, look, greeting, starters).
  *  - `skills`: the catalogue and the person's installed skills.
@@ -18,7 +19,7 @@ export const EMAIL_ALERTS_MUTATION_KEY = ['email-alerts-update'] as const;
  * anything signed. `useAccountLifecycle` drops all of Alia's queries when the account changes.
  */
 export const ALIA_ACCOUNT_QUERIES = {
-  roots: ['agents', 'agent-thread', 'conversations', 'alia-agent-profile', 'skills'],
+  roots: ['agents', 'agent-thread', 'spaces', 'conversations', 'alia-agent-profile', 'skills'],
   mutationKeys: [EMAIL_ALERTS_MUTATION_KEY],
 } as const;
 
@@ -69,6 +70,10 @@ export const queryKeys = {
   automations: {
     overview: ['automations', 'overview'] as const,
     pause: ['automations', 'pause'] as const,
+  },
+  /** The person's spaces (ADR 0028), with their members and rooms. */
+  spaces: {
+    all: ['spaces'] as const,
   },
   conversations: {
     all: ['conversations'] as const,

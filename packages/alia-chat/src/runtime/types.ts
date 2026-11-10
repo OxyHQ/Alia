@@ -100,6 +100,12 @@ export interface Conversation {
    * no lead: every message is answered by each member in turn (`agentId` is `null`).
    */
   memberAgentIds?: string[];
+  /**
+   * The space this conversation is the ROOM of (ADR 0028), or `null`. Set only on a space's room, a
+   * group conversation whose `memberAgentIds` are the space's agents; a client files it under its
+   * space instead of among Alia's chats or the group chats.
+   */
+  spaceId?: string | null;
   /** The app the conversation started in, by its slug, or `null` for Alia's own surfaces. */
   app?: string | null;
   createdAt: Date;

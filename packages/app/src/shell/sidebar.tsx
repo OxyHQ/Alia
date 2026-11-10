@@ -1,3 +1,12 @@
+import {
+  conversationsOutsideSpaces,
+  agentsOutsideSpaces,
+  SPACE_ADD_KEY,
+  SPACE_KEY,
+  type SpacePlan,
+} from '@/features/spaces/model/space-rows';
+import { FolderRowsSkeleton } from '@/shared/ui/skeletons/folder-rows-skeleton';
+import { useSidebarSpaces } from '@/shell/use-sidebar-spaces';
 import { GroupPickerDialog } from '@/features/agents/ui/group-picker-dialog';
 import { InviteDialog } from '@/features/onboarding/ui/invite-dialog';
 import {
@@ -52,6 +61,7 @@ import {
   type ConversationSidebarCreateOption,
 } from '@oxy.so/bloom/conversation-sidebar';
 import { useNewAgentConversation } from '@/features/agents/runtime/use-new-agent-conversation';
+import { RiFolderLine } from '@oxy.so/bloom/icons/RiFolderLine';
 import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
@@ -148,6 +158,7 @@ function useSidebarProps() {
     useConversations();
   const { data: myAgents } = useMyAgents();
   const { isAuthenticated } = useOxy();
+  const spacesUi = useSidebarSpaces({ enabled: isAuthenticated, agents: myAgents });
   const { signIn } = useAuth();
   const projects = useProjectsStore((state) => state.projects);
   const toggleProject = useProjectsStore((state) => state.toggleProject);
@@ -408,7 +419,9 @@ function useSidebarProps() {
   const { chatConversations, groupConversations } = React.useMemo(() => {
     const groups: Conversation[] = [];
     const chats: Conversation[] = [];
-    for (const conv of conversations) (isGroupConversation(conv) ? groups : chats).push(conv);
+    // A space's room is listed inside its space (ADR 0028), neither as a group chat nor as Alia's.
+    for (const conv of conversationsOutsideSpaces(conversations))
+      (isGroupConversation(conv) ? groups : chats).push(conv);
     return { chatConversations: chats, groupConversations: groups };
   }, [conversations]);
 
@@ -422,6 +435,64 @@ function useSidebarProps() {
         favoriteIds,
       }),
     [chatConversations, projects, folders, pinnedIds, favoriteIds],
+  );
+
+  /** One agent as a contact row: the flat list and every space folder draw it the same way. */
+  const agentRow = React.useCallback(
+    (agent: Agent): SidebarTreeItem => ({
+      // Handles may be unresolved or missing; the database id is stable and unique.
+      key: `${AGENT_KEY}${agent._id}`,
+      label: agentDisplayName(agent),
+      // The agent's own character, alive: it idles, follows the pointer and reacts when its row
+      // is pressed.
+      leading: (
+        <AgentRowAvatar
+          agentId={agent._id}
+          character={readAgentCharacter(agent.character)}
+          size={AGENT_ROW_AVATAR}
+        />
+      ),
+      // The last line of the thread, under the name; before anything was said, the invitation.
+      description: agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
+      // Ahead of the press: its thread and conversation, when there is a conversation to read.
+      onPrefetch: () =>
+        onHoverIntent(() =>
+          prefetchAgentThread(agentHandle(agent), Boolean(agent.lastMessage?.trim())),
+        ),
+      // Move it to a space, or out of the one it is in.
+      actions: spacesUi.agentMenu(agent),
+    }),
+    [t, onHoverIntent, prefetchAgentThread, spacesUi.agentMenu],
+  );
+
+  /** A space's room ("General"): its members' avatars together and the last thing said there. */
+  const roomRow = React.useCallback(
+    ({ space, members, room }: SpacePlan): SidebarTreeItem => ({
+      key: space.conversationId,
+      label: t('spaces.general'),
+      leading: (
+        <AgentStack
+          size={AGENT_ROW_AVATAR}
+          agents={members.slice(0, 3).map((agent) => ({
+            id: agent._id,
+            name: agentDisplayName(agent),
+            avatar: readAgentCharacter(agent.character),
+          }))}
+        />
+      ),
+      description: room?.lastMessage?.trim() || t('sidebar.noAgentMessages'),
+      onPrefetch: () => onHoverIntent(() => prefetchConversation(space.conversationId)),
+    }),
+    [t, onHoverIntent, prefetchConversation],
+  );
+
+  // Spaces (ADR 0028): one folder per space with its room and its agents, beside the agents.
+  const spacesSection = React.useMemo(
+    () =>
+      isAuthenticated
+        ? spacesUi.buildSection({ conversations, query: searchQuery, agentRow, roomRow })
+        : undefined,
+    [isAuthenticated, spacesUi.buildSection, conversations, searchQuery, agentRow, roomRow],
   );
 
   // Agents are contacts, each with its own thread: a section of their own, one row per agent with its
@@ -465,41 +536,13 @@ function useSidebarProps() {
         },
       ];
     });
-    const agentRows = (myAgents ?? [])
+    // An agent in a space is listed under its space, not here.
+    const agentRows = agentsOutsideSpaces(myAgents ?? [])
       .filter((agent) => !query || agentIdentityMatches(agent, query))
-      .map((agent) => ({
-        // Handles may be unresolved or missing; the database id is stable and unique.
-        key: `${AGENT_KEY}${agent._id}`,
-        label: agentDisplayName(agent),
-        // The agent's own character, alive: it idles, follows the pointer and reacts when its row
-        // is pressed.
-        leading: (
-          <AgentRowAvatar
-            agentId={agent._id}
-            character={readAgentCharacter(agent.character)}
-            size={AGENT_ROW_AVATAR}
-          />
-        ),
-        // The last line of the thread, under the name; before anything was said, the invitation.
-        description: agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
-        // Ahead of the press: its thread and conversation, when there is a conversation to read.
-        onPrefetch: () =>
-          onHoverIntent(() =>
-            prefetchAgentThread(agentHandle(agent), Boolean(agent.lastMessage?.trim())),
-          ),
-      }));
+      .map(agentRow);
     const rows = [...groupRows, ...agentRows];
     return rows.length ? { key: 'agents', label: t('sidebar.agents'), items: rows } : undefined;
-  }, [
-    isAuthenticated,
-    myAgents,
-    groupConversations,
-    row,
-    searchQuery,
-    t,
-    prefetchAgentThread,
-    onHoverIntent,
-  ]);
+  }, [isAuthenticated, myAgents, groupConversations, row, agentRow, searchQuery, t]);
 
   // Alia's own chats: a section of title-only rows, the ones filed nowhere, pinned and favourites first.
   const chatSection = React.useMemo<SidebarTree | undefined>(() => {
@@ -545,7 +588,7 @@ function useSidebarProps() {
       })),
     ];
     // Signed in, the tree stands even while empty: it holds "new project/folder".
-    const sectionsAbove = [agentSection, chatSection].filter(
+    const sectionsAbove = [agentSection, spacesSection, chatSection].filter(
       (s): s is SidebarTree => s !== undefined,
     );
     if (!treeFolders.length && !isAuthenticated)
@@ -565,6 +608,7 @@ function useSidebarProps() {
   }, [
     sections,
     agentSection,
+    spacesSection,
     chatSection,
     toggleProject,
     toggleFolder,
@@ -740,6 +784,15 @@ function useSidebarProps() {
   ) : isFetchingNextPage ? (
     <HistorySkeleton rows={2} />
   ) : undefined;
+  // The spaces' first read has the shape of the folders it will bring, not a spinner.
+  const after = spacesUi.isLoading ? (
+    <>
+      <FolderRowsSkeleton />
+      {content}
+    </>
+  ) : (
+    content
+  );
 
   const selectedAgentKey = selectedTreeItemForPath(pathname, myAgents);
 
@@ -785,8 +838,18 @@ function useSidebarProps() {
           useUIStore.getState().setGroupPickerOpen(true);
         },
       },
+      {
+        key: 'space',
+        label: t('sidebar.create.space'),
+        description: t('sidebar.create.spaceHint'),
+        leading: <RiFolderLine size="xl" />,
+        onPress: () => {
+          closeNav?.();
+          spacesUi.openCreate();
+        },
+      },
     ],
-    [t, closeNav, router, newAgent, myAgents],
+    [t, closeNav, router, newAgent, myAgents, spacesUi.openCreate],
   );
 
   const props = {
@@ -818,13 +881,15 @@ function useSidebarProps() {
     // The "+" opens Bloom's create menu, as the multi-agent chat does: a chat with Alia, a new
     // agent (made by talking to her), and a group chat of the person's agents.
     createOptions,
-    after: content,
+    after,
     items,
     secondaryItems,
     selected: selectedItemForPath(pathname),
     tree,
     selectedTreeItem: selectedAgentKey ?? chatId?.id,
     onTreeItemPress: (item: { key: string }) => {
+      // The muted row of an empty space opens the picker itself; a folder is not a destination.
+      if (item.key.startsWith(SPACE_ADD_KEY) || item.key.startsWith(SPACE_KEY)) return;
       if (!item.key.startsWith(AGENT_KEY)) return openConversation(item.key);
       const agent = myAgents?.find((candidate) => `${AGENT_KEY}${candidate._id}` === item.key);
       if (agent) {
@@ -857,6 +922,7 @@ function useSidebarProps() {
       />
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
       <GroupPickerDialog />
+      {spacesUi.dialogs}
     </>
   );
 

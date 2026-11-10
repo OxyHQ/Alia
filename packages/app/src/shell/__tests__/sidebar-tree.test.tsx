@@ -24,6 +24,15 @@ const state = vi.hoisted(() => ({
   isLoading: false,
   isFetchingNextPage: false,
   agents: [] as any[],
+  spaces: [] as any[],
+  spacesLoading: false,
+  mutations: {
+    createSpace: { mutateAsync: vi.fn() },
+    updateSpace: { mutateAsync: vi.fn() },
+    deleteSpace: { mutateAsync: vi.fn() },
+    moveAgent: { mutateAsync: vi.fn() },
+    removeAgent: { mutateAsync: vi.fn() },
+  },
   push: vi.fn(),
   replace: vi.fn(),
 }));
@@ -107,6 +116,21 @@ vi.mock('@alia.onl/sdk/runtime', async () => ({
 vi.mock('@/features/agents/runtime/use-my-agents', () => ({
   useMyAgents: () => ({ data: state.agents }),
 }));
+vi.mock('@/features/spaces/runtime/use-spaces', () => ({
+  useSpaces: () => ({
+    data: state.spacesLoading ? undefined : state.spaces,
+    isLoading: state.spacesLoading,
+  }),
+  useSpaceMutations: () => state.mutations,
+  spaceErrorCode: () => undefined,
+}));
+vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock('@oxy.so/bloom/textarea', async () => {
+  const ReactModule = await import('react');
+  return {
+    Textarea: (props: Record<string, unknown>) => ReactModule.createElement('Textarea', props),
+  };
+});
 vi.mock('@/features/notifications/runtime/use-notifications', () => ({
   useUnreadCount: () => ({ data: undefined }),
 }));
@@ -223,12 +247,19 @@ vi.mock('@oxy.so/bloom/loading', async () => {
 });
 vi.mock('@oxy.so/bloom/skeleton', async () => {
   const ReactModule = await import('react');
-  return { Box: () => ReactModule.createElement('SkeletonBox') };
+  return {
+    Box: () => ReactModule.createElement('SkeletonBox'),
+    Circle: () => ReactModule.createElement('SkeletonBox'),
+    Region: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('SkeletonRegion', null, children),
+  };
 });
 vi.mock('@oxy.so/bloom/typography', async () => {
   const ReactModule = await import('react');
   return {
     Text: ({ children }: React.PropsWithChildren) =>
+      ReactModule.createElement('Text', null, children),
+    Muted: ({ children }: React.PropsWithChildren) =>
       ReactModule.createElement('Text', null, children),
   };
 });
@@ -240,6 +271,7 @@ import { useConversationStore } from '@alia.onl/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
+import { useSpacesOpenStore } from '@/features/spaces/runtime/spaces-open-store';
 
 const NOW = new Date();
 
@@ -306,10 +338,16 @@ beforeEach(async () => {
   state.isLoading = false;
   state.isFetchingNextPage = false;
   state.agents = [];
+  state.spaces = [];
+  state.spacesLoading = false;
+  for (const mutation of Object.values(state.mutations)) mutation.mutateAsync.mockReset();
   useStore.setState({ chatId: null });
   useConversationStore.setState({ streamingConversationId: null });
   await useProjectsStore.getState().loadProjects('user-a');
   await useFoldersStore.getState().loadFolders('user-a');
+  await useSpacesOpenStore.getState().loadSpacesOpen('user-a');
+  state.replace.mockClear();
+  state.push.mockClear();
   await usePinnedStore.getState().loadPinned('user-a');
   await useFavoritesStore.getState().loadFavorites('user-a');
 });
@@ -479,6 +517,7 @@ describe('the sidebar list', () => {
       'chat',
       'agent',
       'group',
+      'space',
     ]);
     act(() => {
       props.createOptions[0].onPress();
@@ -528,5 +567,178 @@ describe('the sidebar list', () => {
     );
     expect(shipped.size).toBeGreaterThan(50);
     for (const item of items) expect(shipped.has(item.icon ?? '')).toBe(true);
+  });
+});
+
+const space = (over: Record<string, unknown> = {}) => ({
+  id: 's1',
+  name: 'Equipo',
+  instructions: '',
+  conversationId: 'room1',
+  memberAgentIds: ['a1', 'a2'],
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+  ...over,
+});
+const agent = (id: string, name: string, spaceId: string | null = null) => ({
+  _id: id,
+  name,
+  handle: name.toLowerCase(),
+  lastMessageAt: null,
+  spaceId,
+});
+const room = (over: Record<string, unknown> = {}) => ({
+  ...chat('room1'),
+  title: 'Equipo',
+  lastMessage: 'Listo',
+  memberAgentIds: ['a1', 'a2'],
+  spaceId: 's1',
+  ...over,
+});
+const spacesSection = () => sections().find((section) => section.key === 'spaces');
+const keysOf = (items: { key: string }[]) => items.map((item) => item.key);
+const dialogTitled = (title: string) =>
+  renderer.root.findAll((n) => is(n, 'Dialog') && n.props.title === title);
+
+describe('spaces in the sidebar', () => {
+  it('draws no section when the person has no space', async () => {
+    state.agents = [agent('a1', 'Pepe')];
+    await mount();
+    expect(spacesSection()).toBeUndefined();
+  });
+
+  it('draws one folder per space: its room first, then its agents, which leave the flat list', async () => {
+    state.agents = [agent('a1', 'Pepe', 's1'), agent('a2', 'Ana', 's1'), agent('a3', 'Luis')];
+    state.spaces = [space()];
+    state.conversations = [chat('alpha'), room()];
+    await mount();
+    const section = spacesSection();
+    expect(section).toMatchObject({ label: 'sidebar.spaces' });
+    const [folder] = section.folders;
+    expect(folder).toMatchObject({ key: 'space:s1', label: 'Equipo', open: true });
+    expect(keysOf(folder.items)).toEqual(['room1', 'agent:a1', 'agent:a2']);
+    expect(folder.items[0]).toMatchObject({ label: 'spaces.general', description: 'Listo' });
+    // Only the agent in no space stays in the flat Agents list; the room is in neither list.
+    const agents = sections().find((s) => s.key === 'agents')!;
+    expect(keysOf(agents.items)).toEqual(['agent:a3']);
+    expect(chatIds()).toEqual(['alpha']);
+  });
+
+  it('keeps a one-member room out of the group chats and Alia’s chats', async () => {
+    state.agents = [agent('a1', 'Pepe', 's1')];
+    state.spaces = [space({ memberAgentIds: ['a1'] })];
+    state.conversations = [chat('alpha'), room({ memberAgentIds: ['a1'] })];
+    await mount();
+    expect(chatIds()).toEqual(['alpha']);
+    expect(sections().find((s) => s.key === 'agents')).toBeUndefined();
+  });
+
+  it('shows an empty space as a folder with one row that opens the picker, and no room', async () => {
+    state.agents = [agent('a3', 'Luis')];
+    state.spaces = [space({ memberAgentIds: [] })];
+    await mount();
+    const [folder] = spacesSection().folders;
+    expect(keysOf(folder.items)).toEqual(['space-add:s1']);
+    expect(folder.items[0]).toMatchObject({ label: 'spaces.addAgents' });
+    // Pressing it is not a destination.
+    act(() => state.sidebarProps!.onTreeItemPress({ key: 'space-add:s1' }));
+    expect(state.replace).not.toHaveBeenCalled();
+    await act(async () => folder.items[0].onPress());
+    expect(dialogTitled('spaces.addAgentsTitle')).toHaveLength(1);
+  });
+
+  it('opens the room like a group chat and an agent row like the flat list does', async () => {
+    state.agents = [agent('a1', 'Pepe', 's1'), agent('a2', 'Ana', 's1')];
+    state.spaces = [space()];
+    state.conversations = [room()];
+    await mount();
+    act(() => state.sidebarProps!.onTreeItemPress({ key: 'room1' }));
+    expect(state.replace).toHaveBeenCalledWith('/(app)/c/room1');
+    act(() => state.sidebarProps!.onTreeItemPress({ key: 'agent:a1' }));
+    expect(state.push).toHaveBeenCalled();
+  });
+
+  it('puts the section beside the agents, ahead of Alia’s chats', async () => {
+    state.agents = [agent('a1', 'Pepe', 's1'), agent('a3', 'Luis')];
+    state.spaces = [space({ memberAgentIds: ['a1'] })];
+    await mount();
+    expect(sections().map((s) => s.key)).toEqual(['agents', 'spaces', 'chats', 'projects']);
+  });
+
+  it('keeps the folder closed on this account once the person closes it', async () => {
+    state.agents = [agent('a1', 'Pepe', 's1')];
+    state.spaces = [space({ memberAgentIds: ['a1'] })];
+    await mount();
+    await act(async () => {
+      spacesSection().folders[0].onOpenChange(false);
+    });
+    await settle();
+    expect(spacesSection().folders[0].open).toBe(false);
+    expect([...state.storage.keys()]).toContain('alia-spaces-closed:user-a');
+  });
+
+  it('draws folder-shaped ghost rows, never a spinner, while the spaces load', async () => {
+    state.spacesLoading = true;
+    await mount();
+    expect(renderer.root.findAllByType('SkeletonRegion' as any).length).toBeGreaterThan(0);
+    expect(renderer.root.findAll((node) => is(node, 'Loading'))).toHaveLength(0);
+  });
+
+  it('offers "New space" in the create menu, which opens the dialog', async () => {
+    await mount();
+    const option = state.sidebarProps!.createOptions.find(
+      (o: { key: string }) => o.key === 'space',
+    );
+    expect(option.label).toBe('sidebar.create.space');
+    await act(async () => option.onPress());
+    expect(dialogTitled('spaces.createTitle')).toHaveLength(1);
+  });
+
+  it('gives a member’s row a menu to move it, and takes it out of its space', async () => {
+    state.agents = [agent('a1', 'Pepe', 's1'), agent('a3', 'Luis')];
+    state.spaces = [
+      space({ memberAgentIds: ['a1'] }),
+      space({ id: 's2', name: 'Otro', conversationId: 'room2', memberAgentIds: [] }),
+    ];
+    await mount();
+    const member = spacesSection().folders[0].items.find(
+      (i: { key: string }) => i.key === 'agent:a1',
+    );
+    const flatAgent = sections().find((s) => s.key === 'agents')!.items[0];
+    expect(flatAgent.actions).toBeDefined();
+    let menu!: ReactTestRenderer;
+    await act(async () => {
+      menu = create(member.actions);
+    });
+    const group = menu.root.find((n) => is(n, 'RadioGroup'));
+    await act(async () => group.props.onValueChange(''));
+    expect(state.mutations.removeAgent.mutateAsync).toHaveBeenCalledWith({
+      spaceId: 's1',
+      agentId: 'a1',
+    });
+    await act(async () => group.props.onValueChange('s2'));
+    expect(state.mutations.moveAgent.mutateAsync).toHaveBeenCalledWith({
+      spaceId: 's2',
+      agentId: 'a1',
+    });
+  });
+
+  it('gives the folder a menu: rename, edit the brief, add an agent, delete after confirming', async () => {
+    state.agents = [agent('a1', 'Pepe', 's1'), agent('a3', 'Luis')];
+    state.spaces = [space({ memberAgentIds: ['a1'] })];
+    await mount();
+    let menu!: ReactTestRenderer;
+    await act(async () => {
+      menu = create(spacesSection().folders[0].actions);
+    });
+    await act(async () => menuItem(menu.root, 'spaces.rename').props.onPress());
+    expect(dialogTitled('spaces.renameTitle')).toHaveLength(1);
+    await act(async () => menuItem(menu.root, 'spaces.editBrief').props.onPress());
+    expect(dialogTitled('spaces.briefTitle')).toHaveLength(1);
+    await act(async () => menuItem(menu.root, 'spaces.addAgent').props.onPress());
+    expect(dialogTitled('spaces.addAgentsTitle')).toHaveLength(1);
+    await act(async () => menuItem(menu.root, 'spaces.delete').props.onPress());
+    await settle();
+    expect(state.mutations.deleteSpace.mutateAsync).toHaveBeenCalledWith('s1');
   });
 });

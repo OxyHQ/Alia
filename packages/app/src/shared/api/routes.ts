@@ -58,6 +58,14 @@ export const API_ROUTES = {
     pause: '/automations/pause',
   },
 
+  /** Spaces: folders that group the person's agents (ADR 0028). */
+  spaces: {
+    list: '/spaces',
+    detail: (id: string) => `/spaces/${encodeURIComponent(id)}`,
+    member: (id: string, agentId: string) =>
+      `/spaces/${encodeURIComponent(id)}/members/${encodeURIComponent(agentId)}`,
+  },
+
   // Agents routes
   agents: {
     list: '/agents',

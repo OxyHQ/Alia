@@ -110,6 +110,11 @@ export interface Agent {
    */
   lastMessage?: string | null;
   lastMessageAt?: string | null;
+  /**
+   * The space (ADR 0028) this agent is in, or `null`. Served by `GET /agents/me`; an agent in a
+   * space is listed under it and not in the flat Agents list. Absent on an older answer reads as none.
+   */
+  spaceId?: string | null;
   knowledge: Array<{ _id: string; name: string; type: string; category: string; url: string }>;
   isFeatured: boolean;
   isTrending: boolean;
