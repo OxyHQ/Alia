@@ -12,11 +12,16 @@ import { Button } from '@oxy.so/bloom/button';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import { RiArrowLeftLine } from '@oxy.so/bloom/icons/RiArrowLeftLine';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
-import { SettingsCard, SettingsRow, SettingsSection } from '@oxy.so/bloom/settings-modal';
+import {
+  SettingsCard,
+  SettingsPageActions,
+  SettingsRow,
+  SettingsSection,
+} from '@oxy.so/bloom/settings-modal';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { Textarea } from '@oxy.so/bloom/textarea';
 import { toast } from '@oxy.so/bloom/toast';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useAliaSettings } from './settings-context';
 
@@ -77,15 +82,25 @@ export function RememberingAgentsSection() {
   );
 }
 
-/** One file: read, edit in place, save with the hash it was read at, or forget. */
+/** What one file's editor tells the page header: whether it has an edit to save, and how to save it. */
+interface FileEdit {
+  dirty: boolean;
+  saving: boolean;
+  save: () => Promise<void>;
+}
+
+/** One file: read, edit in place (saved from the page header with the hash it was read at), or forget. */
 function MemoryFileEditor({
   agentId,
   path,
   onForget,
+  onEdit,
 }: {
   agentId: string;
   path: string;
   onForget: (path: string) => void;
+  /** Reports the file's edit state; `null` once the file is gone from the page. */
+  onEdit: (path: string, edit: FileEdit | null) => void;
 }) {
   const { t } = useTranslation();
   const { data: document, isPending, refetch } = useAgentMemoryDocument(agentId, path);
@@ -102,7 +117,6 @@ function MemoryFileEditor({
     try {
       await save.mutateAsync({ path, content: draft, expectedHash: document.hash });
       await refetch();
-      toast.success(t('settings.saveSuccess'));
     } catch (error) {
       // 409: the agent wrote to it meanwhile. Show what it holds now.
       if (errorStatus(error) === 409) {
@@ -111,8 +125,17 @@ function MemoryFileEditor({
         return;
       }
       toast.error(t('settings.saveFailed'));
+      throw error;
     }
   };
+
+  // The page header saves; this file only says whether it has something to save.
+  const latestSave = useRef(handleSave);
+  latestSave.current = handleSave;
+  useEffect(() => {
+    onEdit(path, { dirty, saving: save.isPending, save: () => latestSave.current() });
+  }, [onEdit, path, dirty, save.isPending]);
+  useEffect(() => () => onEdit(path, null), [onEdit, path]);
 
   return (
     <SettingsSection label={path}>
@@ -131,9 +154,6 @@ function MemoryFileEditor({
             />
             <View className="flex-row justify-end">
               <ButtonGroup size="sm" accessibilityLabel={path}>
-                <ButtonGroupItem onPress={handleSave} disabled={!dirty || save.isPending}>
-                  {t('settings.saveButton')}
-                </ButtonGroupItem>
                 <ButtonGroupItem
                   iconOnly
                   leadingIcon={RiDeleteBinLine}
@@ -161,6 +181,41 @@ export function AgentMemorySection() {
   const { data: files, isPending } = useAgentMemoryFiles(agentId);
   const { forget } = useAgentMemoryMutations(agentId);
 
+  // Every file's edit state, for the one Save the page header offers.
+  const [edits, setEdits] = useState<Record<string, FileEdit>>({});
+  const onEdit = useCallback((path: string, edit: FileEdit | null) => {
+    setEdits((previous) => {
+      if (edit === null) {
+        if (!(path in previous)) return previous;
+        const { [path]: _gone, ...rest } = previous;
+        return rest;
+      }
+      return { ...previous, [path]: edit };
+    });
+  }, []);
+  const changed = Object.values(edits).filter((edit) => edit.dirty);
+  const saving = Object.values(edits).some((edit) => edit.saving);
+  const pageActions = useMemo(
+    () => [
+      {
+        key: 'save',
+        label: t('settings.saveButton'),
+        disabled: changed.length === 0 || saving,
+        onPress: () => {
+          void (async () => {
+            try {
+              for (const edit of changed) await edit.save();
+              toast.success(t('settings.saveSuccess'));
+            } catch {
+              // Each file reported its own failure.
+            }
+          })();
+        },
+      },
+    ],
+    [t, changed, saving],
+  );
+
   const goBack = () => settings.open('memory');
 
   const handleForget = async (path?: string) => {
@@ -186,6 +241,7 @@ export function AgentMemorySection() {
 
   return (
     <View className="w-full gap-6">
+      <SettingsPageActions label={name} actions={pageActions} />
       <SettingsCard>
         <SettingsRow label={name} description={t(`${K}.description`, { name })}>
           <Button
@@ -214,6 +270,7 @@ export function AgentMemorySection() {
               agentId={agentId}
               path={file.path}
               onForget={handleForget}
+              onEdit={onEdit}
             />
           ))}
           <SettingsCard>

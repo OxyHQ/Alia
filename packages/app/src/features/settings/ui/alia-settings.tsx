@@ -139,6 +139,7 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
         onPageChange={setPage}
         initialView={request.initialView}
         labels={{ dialog: t('settings.title') }}
+        headerPresentation="floating"
         onClose={() => {
           const action = pending.current;
           pending.current = null;
