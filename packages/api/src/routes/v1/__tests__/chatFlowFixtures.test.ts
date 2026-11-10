@@ -1246,7 +1246,8 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(bytes).toContain('Voy a abrir Mention y mirar las tendencias.');
     expect(H.timeline).toContain('sse:chunk:tool_calls');
     expect(H.timeline).toContain('sse:event:alia.tool_result');
-    expect(H.timeline.filter((entry) => entry === 'model:doStream')).toHaveLength(2);
+    // The failed step, then the tools-disabled recovery (nothing scripted, so it fails too).
+    expect(H.timeline.filter((entry) => entry === 'model:doStream')).toHaveLength(3);
 
     // The stream ends with the typed error frame, then [DONE] — no stop chunk.
     const ending = H.timeline.filter(
@@ -1281,6 +1282,34 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(H.timeline.filter((entry) => entry === 'credits:refund')).toHaveLength(1);
     expect(H.afterChat).toHaveLength(1);
     expect(H.afterChat[0].errorClass).toBe('PROVIDER_UNAVAILABLE');
+  });
+
+  it('answers from the tool results when the failed step came after narration that preceded the tool', async () => {
+    H.state.streamTurns = [
+      [
+        streamStart,
+        ...say('t1', 'Voy a mirar la fecha.'),
+        ...callTool('call-1', 'getCurrentDate', '{}'),
+        finish('tool-calls'),
+      ],
+      [streamStart, { type: 'error', error: new Error('upstream exploded') }, finish('error')],
+      [streamStart, ...say('t2', 'Hoy es martes.'), finish('stop')],
+    ];
+    const res = recordingRes();
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'que dia es?' }],
+          model: CHAT_MODEL,
+          stream: true,
+        },
+      }),
+      res,
+    );
+
+    expect(res.raw.join('')).toContain('Hoy es martes.');
+    expect(H.timeline.some((entry) => entry.startsWith('sse:error'))).toBe(false);
+    expect(H.timeline).toContain('credits:finalize');
   });
 
   it('still answers from the tool results when the failed step streamed nothing and no text came before', async () => {
