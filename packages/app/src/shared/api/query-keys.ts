@@ -53,7 +53,6 @@ export const queryKeys = {
     subscriptions: (id: string) => ['agents', 'subscriptions', id] as const,
     inbox: (id: string) => ['agents', 'inbox', id] as const,
     /** The agents that remember something about the caller. */
-    remembering: ['agents', 'remembering'] as const,
     /**
      * Keyed by the USERNAME the URL carries, not by the agent id, because the
      * id is part of what the query answers — `/a/pepe` is resolvable before

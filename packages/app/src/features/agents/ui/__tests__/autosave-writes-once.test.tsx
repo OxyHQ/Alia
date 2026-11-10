@@ -70,6 +70,10 @@ vi.mock('@oxy.so/bloom/button-group', async () => {
       ReactModule.createElement(name, props, children);
   return { ButtonGroup: host('ButtonGroup'), ButtonGroupItem: host('ButtonGroupItem') };
 });
+// The cards below the details card are their own suite (`edit/__tests__/agent-editor-sections`).
+vi.mock('@/features/agents/ui/edit/sections/agent-editor-sections', () => ({
+  AgentEditorSections: () => null,
+}));
 vi.mock('expo-router', () => ({
   // The header is the layout's; the page only declares it.
   Stack: { Screen: () => null },
