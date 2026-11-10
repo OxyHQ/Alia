@@ -8,7 +8,8 @@ import type { ExternalRuntime } from './types.js';
 export function claudeRuntime(command = 'claude'): ExternalRuntime {
   return {
     cli: 'claude',
-    async run({ prompt, cwd, write, signal, onDelta }) {
+    resumes: true,
+    async run({ prompt, cwd, write, signal, onDelta, resumeId, onSession }) {
       let streamed = '';
       let result: { text: string; isError: boolean } | null = null;
       let buffer = '';
@@ -33,6 +34,7 @@ export function claudeRuntime(command = 'claude'): ExternalRuntime {
             onDelta(inner.delta.text);
           }
         } else if (e.type === 'result') {
+          if (typeof e.session_id === 'string') onSession?.(e.session_id);
           result = {
             text: typeof e.result === 'string' ? e.result : '',
             isError: e.is_error === true,
@@ -49,6 +51,7 @@ export function claudeRuntime(command = 'claude'): ExternalRuntime {
           '--include-partial-messages',
           '--permission-mode',
           write ? 'acceptEdits' : 'default',
+          ...(resumeId ? ['--resume', resumeId] : []),
         ],
         cwd,
         stdin: prompt,

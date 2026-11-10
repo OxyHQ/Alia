@@ -1,5 +1,5 @@
 /**
- * External agents (ADR 0028): pair a person's coding-agent CLI with Alia so it appears as one of
+ * External agents (ADR 0030): pair a person's coding-agent CLI with Alia so it appears as one of
  * their agents.
  *
  *   POST   /agents/external/pair          the app mints a single-use code + the prompt to paste
@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { avatarCharacterFor } from '@oxy.so/contracts';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
-import { createAgent } from '../../db/agents/agentRepository.js';
+import { createAgent, deleteAgent } from '../../db/agents/agentRepository.js';
 import {
   createExternalLink,
   createPairing,
@@ -199,6 +199,11 @@ router.delete(
     const revoked = await revokeExternalLink(getDb(), req.user.id, agentId);
     if (!revoked) return res.status(404).json({ error: 'Not found' });
     disconnectExternalAgent(agentId);
+    // The agent goes too: without its link it would answer as an ordinary agent, with Alia's model.
+    // The Oxy `bot` account survives, as for every deleted agent (`DELETE /agents/:id`).
+    await deleteAgent(getDb(), agentId).catch((err: unknown) => {
+      log.general.error({ err, agentId }, 'Could not delete the agent of a revoked external link');
+    });
     res.status(204).end();
   }),
 );

@@ -638,7 +638,8 @@
       "yellow": "Ámbar",
       "lime": "Verde",
       "cyan": "Cian"
-    }
+    },
+    "externalOffline": "Desconectado: su ordenador no está conectado"
   },
   "billing": {
     "title": "Facturación",

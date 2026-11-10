@@ -70,7 +70,7 @@ export const API_ROUTES = {
   agents: {
     list: '/agents',
     me: '/agents/me',
-    /** External agents: coding-agent CLIs the person connected (ADR 0028). */
+    /** External agents: coding-agent CLIs the person connected (ADR 0030). */
     external: {
       list: '/agents/external',
       pair: '/agents/external/pair',

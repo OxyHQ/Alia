@@ -349,7 +349,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }
     }
 
-    // An external agent (ADR 0028) answers from the person's own machine: no tools of ours, no
+    // An external agent (ADR 0030) answers from the person's own machine: no tools of ours, no
     // system prompt, no model. The reservation stays unsettled, so the release point refunds it.
     if (
       linkedAgent &&

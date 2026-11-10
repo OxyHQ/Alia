@@ -16,7 +16,14 @@ export function framePrompt(input: {
   history: readonly ChatTurn[];
   /** False when the person started the daemon with `--read-only`. */
   write?: boolean;
+  /** The CLI is continuing its own session for this conversation: it already has the rest. */
+  resumed?: boolean;
 }): string {
+  if (input.resumed) {
+    return input.write === false
+      ? `(This connection is read-only; if asked to change something, say the person must restart \`codea connect\` without \`--read-only\`.)\n\n${input.task}`
+      : input.task;
+  }
   const lines: string[] = [];
   let used = 0;
   for (let i = input.history.length - 1; i >= 0; i--) {

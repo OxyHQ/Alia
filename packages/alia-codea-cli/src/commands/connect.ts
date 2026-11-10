@@ -1,5 +1,5 @@
 /**
- * `codea connect` — serve a coding-agent CLI to Alia as one of the person's agents (ADR 0028).
+ * `codea connect` — serve a coding-agent CLI to Alia as one of the person's agents (ADR 0030).
  *
  *   codea connect --code AB12-CD34-EF56 --cli codex     pair this machine, then serve it
  *   codea connect                                       serve the agents this machine is paired with
@@ -15,7 +15,13 @@ import { linkedAliaClient } from '../utils/oxy-session.js';
 import { startDaemon, type Daemon } from '../external/daemon.js';
 import { runProcess } from '../external/process.js';
 import { runtimeFor } from '../external/registry.js';
-import { forgetAgent, pairedAgents, rememberAgent, type PairedAgent } from '../external/state.js';
+import {
+  forgetAgent,
+  pairedAgents,
+  rememberAgent,
+  sessionStore,
+  type PairedAgent,
+} from '../external/state.js';
 import { EXTERNAL_CLIS, isExternalCli, type ExternalCli } from '../external/types.js';
 
 export interface ConnectOptions {
@@ -138,6 +144,7 @@ export async function connect(options: ConnectOptions): Promise<void> {
       agentId: agent.agentId,
       agentName: agent.name,
       runtime: runtimeFor(agent.cli),
+      sessions: sessionStore(),
       cwd,
       write,
       getToken: () => linked.getAccessToken(wsUrl),

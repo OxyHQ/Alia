@@ -117,7 +117,7 @@ program
     await logout();
   });
 
-// Serve a coding-agent CLI to Alia as one of the person's agents (ADR 0028)
+// Serve a coding-agent CLI to Alia as one of the person's agents (ADR 0030)
 program
   .command('connect')
   .description('Connect Claude Code, Codex or OpenCode to Alia as one of your agents')

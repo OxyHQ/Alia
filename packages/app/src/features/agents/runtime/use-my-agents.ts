@@ -23,6 +23,9 @@ import type { Agent } from '@/shared/contracts/agents';
  * keeps that true between loads; nothing else may sort it, because a second
  * order would only disagree with the one the next fetch brings.
  */
+/** How often the sidebar re-reads who is connected, when it lists an external agent. */
+const EXTERNAL_PRESENCE_REFRESH_MS = 30_000;
+
 export function useMyAgents() {
   const { isAuthenticated } = useOxy();
 
@@ -34,5 +37,8 @@ export function useMyAgents() {
     },
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 5,
+    // A connected computer comes and goes: while any of the agents is one, look again now and then.
+    refetchInterval: (query) =>
+      query.state.data?.some((agent) => agent.external) ? EXTERNAL_PRESENCE_REFRESH_MS : false,
   });
 }

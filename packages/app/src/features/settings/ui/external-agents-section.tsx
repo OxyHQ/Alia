@@ -20,7 +20,7 @@ const CLI_LABELS: Record<ExternalAgent['cli'], string> = {
 
 /**
  * Connect a coding-agent CLI (Claude Code, Codex, OpenCode) to Alia as one of the person's agents
- * (ADR 0028): mint a single-use code, hand over the text to paste, and list what is connected.
+ * (ADR 0030): mint a single-use code, hand over the text to paste, and list what is connected.
  */
 export function ExternalAgentsSection() {
   const { t, locale } = useTranslation();

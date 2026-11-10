@@ -1,4 +1,4 @@
-# 28. A coding-agent CLI on a person's own computer can be one of their agents
+# 30. A coding-agent CLI on a person's own computer can be one of their agents
 
 Status: Accepted (2026-11-10, the owner's decision: a person pastes a short text into Claude Code,
 Codex or OpenCode and the agent shows up in Alia's sidebar, answering with the person's own

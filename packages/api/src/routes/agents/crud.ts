@@ -1,3 +1,5 @@
+import { listExternalLinks } from '../../db/agents/externalAgentRepository.js';
+import { externalAgentPresence } from '../../lib/external-agents/presence.js';
 import { avatarCharacterFor, parseAvatarCharacter, type AvatarCharacter } from '@oxy.so/contracts';
 import { Router } from 'express';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
@@ -142,15 +144,19 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
      * HTTP call to Oxy: a database round trip queued behind a network one, on
      * every sidebar load.
      */
-    const [identified, latest] = await Promise.all([
+    const [identified, latest, externalLinks] = await Promise.all([
       Promise.all(owned.map(withChildLists)).then(attachAgentIdentities),
       latestMessagePerAgent(
         getDb(),
         req.user.id,
         owned.map((agent) => agent._id),
       ),
+      listExternalLinks(getDb(), req.user.id),
     ]);
     const byAgent = new Map(latest.map((row) => [row.agentId, row]));
+    // External agents (ADR 0030) carry whether their computer is connected, for the sidebar.
+    const linkOf = new Map(externalLinks.map((link) => [link.agentId, link]));
+    const presence = await externalAgentPresence([...linkOf.keys()]);
 
     res.json({
       agents: identified.map((agent) => {
@@ -162,6 +168,9 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
           // as its own line rather than as a gap.
           lastMessage: thread?.lastMessage ?? null,
           lastMessageAt: thread?.updatedAt.toISOString() ?? null,
+          external: linkOf.has(agent._id)
+            ? { cli: linkOf.get(agent._id)?.cli, online: presence.get(agent._id) === true }
+            : null,
         };
       }),
     });

@@ -1,6 +1,7 @@
 import { WebSocketServer, type WebSocket as ServerSocket } from 'ws';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { startDaemon, type Daemon } from '../daemon.js';
+import type { SessionStore } from '../state.js';
 import { framePrompt } from '../prompt.js';
 import { runProcess } from '../process.js';
 import type { ExternalRuntime, RuntimeRun } from '../types.js';
@@ -60,6 +61,7 @@ function start(runtime: ExternalRuntime, extra: Partial<Parameters<typeof startD
 
 const echo: ExternalRuntime = {
   cli: 'codex',
+  resumes: false,
   async run({ prompt, onDelta }: RuntimeRun) {
     onDelta('he');
     onDelta('llo');
@@ -90,6 +92,7 @@ describe('daemon', () => {
   it('reports a runtime failure as an error frame', async () => {
     start({
       cli: 'codex',
+      resumes: false,
       async run() {
         throw new Error('codex exited with 2');
       },
@@ -108,6 +111,7 @@ describe('daemon', () => {
     let peak = 0;
     start({
       cli: 'codex',
+      resumes: false,
       async run() {
         running++;
         peak = Math.max(peak, running);
@@ -128,6 +132,7 @@ describe('daemon', () => {
     let aborted = false;
     start({
       cli: 'codex',
+      resumes: false,
       run: ({ signal }) =>
         new Promise((_, reject) => {
           signal.addEventListener('abort', () => {
@@ -183,6 +188,128 @@ describe('daemon', () => {
   });
 });
 
+function memorySessions(): SessionStore & { map: Map<string, string> } {
+  const map = new Map<string, string>();
+  return {
+    map,
+    get: (key) => map.get(key),
+    set: (key, id) => void map.set(key, id),
+    delete: (key) => void map.delete(key),
+  };
+}
+
+describe('session resume', () => {
+  const turn = (turnId: string, threadKey?: string) =>
+    JSON.stringify({
+      type: 'turn',
+      turnId,
+      task: 'next',
+      history: [{ role: 'user', content: 'earlier' }],
+      ...(threadKey ? { threadKey } : {}),
+    });
+
+  it('stores the CLI session of a conversation and resumes it, sending only the new message', async () => {
+    const sessions = memorySessions();
+    const seen: { resumeId?: string; prompt: string }[] = [];
+    start(
+      {
+        cli: 'claude',
+        resumes: true,
+        async run({ prompt, resumeId, onSession }) {
+          seen.push({ prompt, ...(resumeId ? { resumeId } : {}) });
+          onSession?.('sess-1');
+          return 'ok';
+        },
+      },
+      { sessions },
+    );
+    await until(() => peers.length > 0 && received.length > 0);
+    peers[0].send(turn('t1', 'conv-1'));
+    await until(() => received.filter((f) => f.type === 'end').length === 1);
+    peers[0].send(turn('t2', 'conv-1'));
+    await until(() => received.filter((f) => f.type === 'end').length === 2);
+
+    expect(sessions.map.get('agent-1:conv-1')).toBe('sess-1');
+    expect(seen[0].resumeId).toBeUndefined();
+    expect(seen[0].prompt).toContain('[person] earlier');
+    expect(seen[1].resumeId).toBe('sess-1');
+    expect(seen[1].prompt).not.toContain('earlier');
+    expect(seen[1].prompt).toContain('next');
+  });
+
+  it('keeps conversations apart and does nothing without a thread key or for a CLI that cannot resume', async () => {
+    const sessions = memorySessions();
+    const resumeIds: (string | undefined)[] = [];
+    start(
+      {
+        cli: 'claude',
+        resumes: true,
+        async run({ resumeId, onSession }) {
+          resumeIds.push(resumeId);
+          onSession?.(`s-${resumeIds.length}`);
+          return 'ok';
+        },
+      },
+      { sessions },
+    );
+    await until(() => peers.length > 0 && received.length > 0);
+    peers[0].send(turn('a', 'conv-a'));
+    peers[0].send(turn('b', 'conv-b'));
+    peers[0].send(turn('c'));
+    await until(() => received.filter((f) => f.type === 'end').length === 3);
+    expect(resumeIds).toEqual([undefined, undefined, undefined]);
+    expect([...sessions.map.keys()]).toEqual(['agent-1:conv-a', 'agent-1:conv-b']);
+  });
+
+  it('starts over with the full conversation when the CLI lost the session', async () => {
+    const sessions = memorySessions();
+    sessions.map.set('agent-1:conv-1', 'gone');
+    const prompts: string[] = [];
+    start(
+      {
+        cli: 'claude',
+        resumes: true,
+        async run({ prompt, resumeId, onSession }) {
+          prompts.push(prompt);
+          if (resumeId === 'gone') throw new Error('No conversation found with session ID: gone');
+          onSession?.('fresh');
+          return 'recovered';
+        },
+      },
+      { sessions },
+    );
+    await until(() => peers.length > 0 && received.length > 0);
+    peers[0].send(turn('t1', 'conv-1'));
+    await until(() => received.some((f) => f.type === 'end'));
+    expect(received.find((f) => f.type === 'end')).toMatchObject({ text: 'recovered' });
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain('[person] earlier');
+    expect(sessions.map.get('agent-1:conv-1')).toBe('fresh');
+  });
+
+  it('does not retry a resumed turn that already streamed text', async () => {
+    const sessions = memorySessions();
+    sessions.map.set('agent-1:conv-1', 'sess');
+    let calls = 0;
+    start(
+      {
+        cli: 'claude',
+        resumes: true,
+        async run({ onDelta }) {
+          calls++;
+          onDelta('partial');
+          throw new Error('crashed midway');
+        },
+      },
+      { sessions },
+    );
+    await until(() => peers.length > 0 && received.length > 0);
+    peers[0].send(turn('t1', 'conv-1'));
+    await until(() => received.some((f) => f.type === 'error'));
+    expect(calls).toBe(1);
+  });
+});
+
 describe('framePrompt', () => {
   it('names the agent, marks the conversation as untrusted and ends with the new message', () => {
     const prompt = framePrompt({
@@ -206,6 +333,13 @@ describe('framePrompt', () => {
     expect(framePrompt({ ...base, write: false })).toContain('--read-only');
     expect(framePrompt({ ...base, write: true })).not.toContain('READ-ONLY');
     expect(framePrompt(base)).not.toContain('READ-ONLY');
+  });
+
+  it('sends only the message to a resumed session, plus the read-only note when it applies', () => {
+    expect(framePrompt({ agentName: 'A', task: 'go', history: [], resumed: true })).toBe('go');
+    expect(
+      framePrompt({ agentName: 'A', task: 'go', history: [], resumed: true, write: false }),
+    ).toContain('--read-only');
   });
 
   it('drops the oldest turns of a very long conversation, never the new message', () => {
