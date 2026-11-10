@@ -9,12 +9,12 @@ import { agents } from '../schema/agents';
 import { TEST_CHARACTER } from './support/agent-character';
 
 /**
- * `agents.computer_source`: the default, the CHECK, the update path, and migration 0120's UPDATE that
+ * `agents.computer_source`: the default, the CHECK, the update path, and migration 0121's UPDATE that
  * leaves agents which already hold the `computer` capability on the machine they were using.
  */
 
 const MIGRATION = fileURLToPath(
-  new URL('../../../drizzle/0120_agent_computer_source.sql', import.meta.url),
+  new URL('../../../drizzle/0121_agent_computer_source_keep_own.sql', import.meta.url),
 );
 
 let db: ApiDatabase;
@@ -64,7 +64,7 @@ describe('agents.computer_source', () => {
   });
 });
 
-describe('migration 0120: agents that already have a computer keep it', () => {
+describe('migration 0121: agents that already have a computer keep it', () => {
   it('moves only the agents holding the computer capability to their own machine', async () => {
     const withComputer = await newAgent(['web', 'computer']);
     const withoutComputer = await newAgent(['web']);

@@ -352,7 +352,7 @@ tools (and the browser below)
   applies to the agent's owner**: anyone else using a public agent always gets the agent's own
   per-person machine, so an agent never reaches a stranger's personal workspace and a public agent never
   shows one person's files to another. Agents that already held the `computer` capability when this
-  shipped (migration 0120) stay on `own`, so their `/workspace` did not move.
+  shipped (migration 0121) stay on `own`, so their `/workspace` did not move.
 - **The machine** is a container on `packages/alia-computer-host`: gVisor
   (`runsc`), read-only root, every capability dropped, `--network none`,
   512 MiB / 1 CPU / 128 pids, uid 1000. The host re-inspects it before every
