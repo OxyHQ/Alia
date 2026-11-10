@@ -326,29 +326,29 @@ export const AliaThread = memo(function AliaThread({
         {/* What a consulted agent said is not drawn under its line: the lead answers with it, and
             the line opens the exchange. Without a way to open it, it stays where it was. */}
         {onOpenAgentChat !== undefined && consulted.has(message.id) ? null : (
-        <ThreadRow
-          message={message}
-          // Only a message that arrived while this conversation was open animates in; none of the
-          // history ever does.
-          isNew={!fromHistory && arrived.has(message.id)}
-          isLastReply={isLastReply}
-          // Only the last reply reads it: handing it to every row would re-render the whole thread
-          // when a turn starts and when it ends.
-          isLoading={isLastReply ? isLoading : false}
-          conversationId={conversationOf(index)}
-          onLayout={index === focusIndex ? handleFocusLayout : undefined}
-          actions={actions}
-          readAloudState={readAloud.stateOf(message.id)}
-          readAloudBlocked={readAloud.blocked}
-          onRegenerate={canRegenerate(message, index) ? onRegenerate : undefined}
-          // A question of an earlier conversation is not in the list an edit cuts, so the "edit"
-          // would silently become a new turn.
-          onStartEdit={
-            message.role === 'user' && !fromHistory && !callActive ? onStartEdit : undefined
-          }
-          workStartedAt={timing.startedAt}
-          workEndedAt={timing.endedAt}
-        />
+          <ThreadRow
+            message={message}
+            // Only a message that arrived while this conversation was open animates in; none of the
+            // history ever does.
+            isNew={!fromHistory && arrived.has(message.id)}
+            isLastReply={isLastReply}
+            // Only the last reply reads it: handing it to every row would re-render the whole thread
+            // when a turn starts and when it ends.
+            isLoading={isLastReply ? isLoading : false}
+            conversationId={conversationOf(index)}
+            onLayout={index === focusIndex ? handleFocusLayout : undefined}
+            actions={actions}
+            readAloudState={readAloud.stateOf(message.id)}
+            readAloudBlocked={readAloud.blocked}
+            onRegenerate={canRegenerate(message, index) ? onRegenerate : undefined}
+            // A question of an earlier conversation is not in the list an edit cuts, so the "edit"
+            // would silently become a new turn.
+            onStartEdit={
+              message.role === 'user' && !fromHistory && !callActive ? onStartEdit : undefined
+            }
+            workStartedAt={timing.startedAt}
+            workEndedAt={timing.endedAt}
+          />
         )}
       </Fragment>
     );
