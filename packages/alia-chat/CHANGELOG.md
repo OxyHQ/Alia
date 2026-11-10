@@ -1,5 +1,14 @@
 # @alia.onl/sdk
 
+## 24.1.0
+
+- **A consulted agent's reply is not drawn under its line.** When Alia or an agent asks another
+  agent (`consultAgent`), the thread shows "Chatted with …" and no longer the agent's answer
+  beneath it: the lead already answers the person with it, and the line opens the exchange
+  (`onOpenAgentChat`) to read it. A host that passes no `onOpenAgentChat` keeps the answer where it
+  was, since there would be no way to reach it. Members of a group chat are never consulted
+  agents: they speak as themselves. New `consultedReplies` beside `speakerChanges`.
+
 ## 24.0.1
 
 - **A conversation prefetch never retries.** `prefetchConversation` (the hover/press-in warm-up)
