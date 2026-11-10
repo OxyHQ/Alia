@@ -46,6 +46,7 @@ import { AgentAvatar } from '@oxy.so/bloom/agent-avatar';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { AgentStack } from '@oxy.so/bloom/agent-reply';
 import { AgentRowAvatar, reactAgentRow } from '@/shell/agent-row-avatar';
+import { useHoverIntent } from '@/shell/hover-intent';
 import {
   ConversationSidebar,
   type ConversationSidebarCreateOption,
@@ -139,6 +140,7 @@ function useSidebarProps() {
   const queryClient = useQueryClient();
   const prefetchConversation = usePrefetchConversation();
   const prefetchAgentThread = usePrefetchAgentThread();
+  const onHoverIntent = useHoverIntent();
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
   const streamingChatId = useConversationStore((state) => state.streamingConversationId);
@@ -370,7 +372,7 @@ function useSidebarProps() {
         // A pinned chat says so with its glyph; the rest are title-only.
         icon: pinnedIds.includes(conv.id) ? RiPushpinLine : undefined,
         meta: shortTime(conv.updatedAt),
-        onPrefetch: () => prefetchConversation(conv.id),
+        onPrefetch: () => onHoverIntent(() => prefetchConversation(conv.id)),
         actions:
           streaming && menu ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -386,6 +388,7 @@ function useSidebarProps() {
     },
     [
       prefetchConversation,
+      onHoverIntent,
       t,
       isAuthenticated,
       streamingChatId,
@@ -481,11 +484,22 @@ function useSidebarProps() {
         description: agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
         // Ahead of the press: its thread and conversation, when there is a conversation to read.
         onPrefetch: () =>
-          prefetchAgentThread(agentHandle(agent), Boolean(agent.lastMessage?.trim())),
+          onHoverIntent(() =>
+            prefetchAgentThread(agentHandle(agent), Boolean(agent.lastMessage?.trim())),
+          ),
       }));
     const rows = [...groupRows, ...agentRows];
     return rows.length ? { key: 'agents', label: t('sidebar.agents'), items: rows } : undefined;
-  }, [isAuthenticated, myAgents, groupConversations, row, searchQuery, t, prefetchAgentThread]);
+  }, [
+    isAuthenticated,
+    myAgents,
+    groupConversations,
+    row,
+    searchQuery,
+    t,
+    prefetchAgentThread,
+    onHoverIntent,
+  ]);
 
   // Alia's own chats: a section of title-only rows, the ones filed nowhere, pinned and favourites first.
   const chatSection = React.useMemo<SidebarTree | undefined>(() => {

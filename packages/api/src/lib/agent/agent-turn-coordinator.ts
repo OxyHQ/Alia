@@ -6,6 +6,7 @@ import { getDb } from '../../db/index.js';
 import { findConversation } from '../../db/chat/conversationRepository.js';
 import { createAgentSession, updateAgentSession } from '../../db/agents/agentSessionRepository.js';
 import type { HydratedAgent } from '../agent-identity.js';
+import { resolveComputerActor } from '../computer/computer-actor.js';
 import type { AgentRuntimeContext } from './actions.js';
 import { TodoManager } from './todo-manager.js';
 import { BrowserSession } from './browser-session.js';
@@ -67,6 +68,7 @@ export class AgentTurnCoordinator {
     let completedResult: string | undefined;
     const runtime: AgentRuntimeContext = {
       session,
+      computerActorId: resolveComputerActor({ agent: input.agent, oxyUserId: input.oxyUserId }),
       todoManager,
       browserSession,
       eventStream,

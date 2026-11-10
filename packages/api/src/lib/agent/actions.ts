@@ -72,15 +72,16 @@ import {
 import type { EventStream } from './event-stream.js';
 import { buildAgentMemoryTool } from './agent-memory-runtime.js';
 import { RepeatDetector, repeatedToolCallKey } from './repeat-detector.js';
-import {
-  agentActorId,
-  getComputerClient,
-  type ComputerClient,
-} from '../computer/computer-client.js';
+import { getComputerClient, type ComputerClient } from '../computer/computer-client.js';
 import { buildComputerTools } from '../computer/computer-tools.js';
 
 export interface AgentRuntimeContext {
   session: AgentSessionRecord;
+  /**
+   * The computer this run works on, decided once by `resolveComputerActor` so the tools and the live
+   * view name the same machine.
+   */
+  computerActorId: string;
   /**
    * The agent's Oxy `bot` account: who the memory journal names as the writer of what the agent
    * remembers. Not `session.agentId`, which is Alia's row id for the agent and not an account.
@@ -272,7 +273,7 @@ export function buildRuntimeTools(
       actions,
       buildComputerTools({
         client: computer,
-        actorId: agentActorId(session.agentId, session.oxyUserId),
+        actorId: ctx.computerActorId,
         scope: session._id,
       }),
     );

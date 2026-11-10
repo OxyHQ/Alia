@@ -43,10 +43,10 @@ import { appSurfaceOf } from '../../lib/app-surface.js';
 import { readCapabilityGrants } from '../../domain/capability-grants.js';
 import {
   ComputerHostError,
-  agentActorId,
   getComputerClient,
   type ComputerClient,
 } from '../../lib/computer/computer-client.js';
+import { resolveComputerActor } from '../../lib/computer/computer-actor.js';
 import { BROWSER_KEYS } from '../../lib/computer/browser-tools.js';
 import { authenticateToken } from '../../middleware/auth.js';
 
@@ -122,7 +122,7 @@ export async function ownComputer(req: Request, res: Response): Promise<Owned | 
   }
   return {
     client,
-    actorId: agentActorId(agent._id, oxyUserId),
+    actorId: resolveComputerActor({ agent, oxyUserId }),
     granted: readCapabilityGrants(agent.capabilityGrants).allows('computer'),
   };
 }

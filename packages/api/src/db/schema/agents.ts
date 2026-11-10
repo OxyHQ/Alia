@@ -77,7 +77,12 @@ import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
-import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
+import {
+  AGENT_ACCESS,
+  AGENT_ARCHETYPES,
+  AGENT_COMPUTER_SOURCES,
+  AGENT_STATUSES,
+} from '../../domain/agent.js';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 
 import type { AgentFeatureGates, AgentStarter } from '../../domain/agent-features.js';
@@ -199,6 +204,10 @@ export const agents = pgTable(
     isFeatured: boolean().notNull().default(false),
     isTrending: boolean().notNull().default(false),
     isPublished: boolean().notNull().default(true),
+    /** Whose computer it works on: `alia`'s shared workspace (default) or its `own`. See the domain enum. */
+    computerSource: text({ enum: AGENT_COMPUTER_SOURCES as unknown as [string, ...string[]] })
+      .notNull()
+      .default('alia'),
     status: text({ enum: AGENT_STATUSES as unknown as [string, ...string[]] })
       .notNull()
       .default('active'),
@@ -256,6 +265,7 @@ export const agents = pgTable(
     ),
     index('agents_category_published_idx').on(t.category, t.isPublished),
     checkOneOf('agents_status_check', t.status, AGENT_STATUSES),
+    checkOneOf('agents_computer_source_check', t.computerSource, AGENT_COMPUTER_SOURCES),
     checkOneOf('agents_access_check', t.access, AGENT_ACCESS),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),
     /**

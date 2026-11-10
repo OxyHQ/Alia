@@ -75,3 +75,4 @@ ADR 0019 applies Oxy ADR 0043 to Alia: who owns each kind of stored bytes, how e
 
 - [0022 — Own platform authority and original-requester tasks](./0022-first-party-platform-authority.md).
 - [0026 — An agent has an inbox and a heartbeat](./0026-agent-inbox-and-heartbeat.md).
+- [0027 — Always-on agents: what is decided](./0027-always-on-agents-what-is-decided.md).
