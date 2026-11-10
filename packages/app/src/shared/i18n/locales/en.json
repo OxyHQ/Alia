@@ -177,9 +177,7 @@
       "personalization": "Personalization",
       "memory": "Memory",
       "accounts": "Connected Accounts",
-      "bots": "Bots",
       "connectors": "Connectors",
-      "integrations": "Integrations",
       "security": "Security",
       "writingStyle": "Writing Style",
       "localModels": "Local models",
@@ -273,43 +271,6 @@
       },
       "disconnect": "Disconnect",
       "disconnectNamed": "Disconnect {{name}}",
-      "integrations": {
-        "connected": "Connected",
-        "available": "Available",
-        "empty": "No integrations connected yet.",
-        "status": {
-          "active": "Active",
-          "expired": "Expired",
-          "revoked": "Revoked",
-          "error": "Error"
-        },
-        "oauthError": "Connection was cancelled or failed",
-        "connectedToast": "{{name}} connected successfully",
-        "finishFailed": "Failed to finish connection",
-        "startFailed": "Failed to start connection",
-        "disconnectTitle": "Disconnect Integration",
-        "disconnectDescription": "Are you sure you want to disconnect this integration? You can reconnect it anytime.",
-        "disconnectedToast": "Integration disconnected",
-        "disconnectFailed": "Failed to disconnect integration"
-      },
-      "bots": {
-        "title": "System bots",
-        "description": "System bots allow others to interact with Alia and enable Alia to send messages on your behalf. To give one of your own agents a dedicated Telegram bot, open the agent and use its Telegram bot section.",
-        "empty": "No system bots available.",
-        "status": {
-          "active": "Active",
-          "inactive": "Inactive",
-          "error": "Error"
-        },
-        "linkedAs": "Linked as @{{username}}",
-        "link": "Link",
-        "unlink": "Unlink",
-        "linkUnsupported": "Linking not supported for {{platform}} yet",
-        "cannotOpen": "Cannot open {{platform}}",
-        "openFailed": "Failed to open link",
-        "unlinkedToast": "Bot unlinked",
-        "unlinkFailed": "Failed to unlink bot"
-      },
       "accounts": {
         "title": "Connected accounts",
         "description": "Link your messaging accounts so Alia can read and respond on your behalf.",
@@ -469,9 +430,7 @@
     "usage": "Usage",
     "personalization": "Personalization",
     "accounts": "Connected Accounts",
-    "bots": "Bots",
     "mcp": "MCP Servers",
-    "integrations": "Integrations",
     "notifications": "Notifications",
     "resetPassword": "Reset Password",
     "writingStyle": "Writing Style",

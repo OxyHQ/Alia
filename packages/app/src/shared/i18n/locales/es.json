@@ -158,9 +158,7 @@
       "personalization": "Personalización",
       "memory": "Memoria",
       "accounts": "Cuentas conectadas",
-      "bots": "Bots",
       "connectors": "Conectores",
-      "integrations": "Integraciones",
       "writingStyle": "Estilo de Escritura",
       "localModels": "Modelos locales",
       "profile": "Perfil",
@@ -254,43 +252,6 @@
       },
       "disconnect": "Desconectar",
       "disconnectNamed": "Desconectar {{name}}",
-      "integrations": {
-        "connected": "Conectadas",
-        "available": "Disponibles",
-        "empty": "Aún no hay integraciones conectadas.",
-        "status": {
-          "active": "Activa",
-          "expired": "Caducada",
-          "revoked": "Revocada",
-          "error": "Error"
-        },
-        "oauthError": "La conexión se canceló o falló",
-        "connectedToast": "{{name}} se conectó correctamente",
-        "finishFailed": "No se pudo completar la conexión",
-        "startFailed": "No se pudo iniciar la conexión",
-        "disconnectTitle": "Desconectar integración",
-        "disconnectDescription": "¿Seguro que quieres desconectar esta integración? Puedes volver a conectarla cuando quieras.",
-        "disconnectedToast": "Integración desconectada",
-        "disconnectFailed": "No se pudo desconectar la integración"
-      },
-      "bots": {
-        "title": "Bots del sistema",
-        "description": "Los bots del sistema permiten que otras personas interactúen con Alia y que Alia envíe mensajes en tu nombre. Para dar a uno de tus agentes su propio bot de Telegram, abre el agente y usa su sección de bot de Telegram.",
-        "empty": "No hay bots del sistema disponibles.",
-        "status": {
-          "active": "Activo",
-          "inactive": "Inactivo",
-          "error": "Error"
-        },
-        "linkedAs": "Vinculado como @{{username}}",
-        "link": "Vincular",
-        "unlink": "Desvincular",
-        "linkUnsupported": "Aún no se puede vincular con {{platform}}",
-        "cannotOpen": "No se puede abrir {{platform}}",
-        "openFailed": "No se pudo abrir el enlace",
-        "unlinkedToast": "Bot desvinculado",
-        "unlinkFailed": "No se pudo desvincular el bot"
-      },
       "accounts": {
         "title": "Cuentas conectadas",
         "description": "Vincula tus cuentas de mensajería para que Alia pueda leer y responder en tu nombre.",
@@ -469,9 +430,7 @@
     "usage": "Uso",
     "personalization": "Personalización",
     "accounts": "Cuentas conectadas",
-    "bots": "Bots",
     "mcp": "Servidores MCP",
-    "integrations": "Integraciones",
     "notifications": "Notificaciones",
     "resetPassword": "Restablecer contraseña",
     "writingStyle": "Estilo de Escritura",
