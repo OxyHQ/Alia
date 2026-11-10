@@ -78,3 +78,4 @@ ADR 0019 applies Oxy ADR 0043 to Alia: who owns each kind of stored bytes, how e
 - [0026 — An agent has an inbox and a heartbeat](./0026-agent-inbox-and-heartbeat.md).
 - [0027 — Always-on agents: what is decided](./0027-always-on-agents-what-is-decided.md).
 - [0028 — A coding-agent CLI on a person's own computer can be one of their agents](./0028-external-agents.md).
+- [0028 — A Space groups a person's agents](./0028-spaces.md).
