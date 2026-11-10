@@ -15,7 +15,6 @@ vi.mock('../../db/memory/userMemoryRepository.js', () => ({
   updateSettings: vi.fn(),
 }));
 
-
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: vi.fn((_req: any, _res: any, next: any) => next()),
 }));
