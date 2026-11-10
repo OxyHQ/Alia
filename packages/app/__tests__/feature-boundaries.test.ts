@@ -65,7 +65,6 @@ const ALLOWED: Record<string, readonly string[]> = {
     'notifications',
     'skills',
   ],
-  automations: ['agents'],
   // notifications: an agent's own mailbox alert is a switch in its editor.
   agents: ['chat', 'notifications'],
   chat: [

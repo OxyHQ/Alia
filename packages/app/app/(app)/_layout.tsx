@@ -44,7 +44,7 @@ const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]/index']);
  * and close): the layout puts the surface under them and no `ShellPageHeader` above, so the screen
  * has one header, not two.
  */
-const OWN_HEADER_ROUTES = new Set(['[username]/edit', 'agents/edit/[id]']);
+const OWN_HEADER_ROUTES = new Set(['[username]/edit']);
 
 /**
  * A chat route — or a local visual fixture (`__*.tsx`, never committed), which
@@ -57,7 +57,6 @@ const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('
 
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
-  tasks: 'sidebar.tasks',
   shows: 'sidebar.shows',
   agents: 'sidebar.agents',
   notifications: 'sidebar.notifications',

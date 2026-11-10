@@ -62,7 +62,6 @@ import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
-import { RiListCheck3 } from '@oxy.so/bloom/icons/RiListCheck3';
 import { RiMicLine } from '@oxy.so/bloom/icons/RiMicLine';
 import { RiSettings4Line } from '@oxy.so/bloom/icons/RiSettings4Line';
 import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
@@ -330,8 +329,10 @@ function useSidebarProps() {
 
   const openAgent = React.useCallback(
     (agent: NonNullable<typeof myAgents>[number]) => {
+      const route = agentChatRoute(agent);
+      if (route === null) return;
       closeNav?.();
-      router.push(agentChatRoute(agent));
+      router.push(route);
     },
     [router, closeNav],
   );
@@ -622,12 +623,6 @@ function useSidebarProps() {
 
   // New chat and Agents are the toolbar's "+" and store button, not rows.
   const items: SidebarNavItem[] = [
-    {
-      key: 'tasks',
-      label: t('sidebar.tasks'),
-      icon: RiListCheck3,
-      onPress: () => go('/(app)/tasks'),
-    },
     { key: 'shows', label: t('sidebar.shows'), icon: RiMicLine, onPress: () => go('/(app)/shows') },
   ];
 

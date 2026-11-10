@@ -13,8 +13,7 @@ import { useCallback } from 'react';
  * screen, `/@handle/edit`, on a phone — a panel there would be a drawer over the chat it edits.
  *
  * The handle is read from what the app already holds of the agent (its page or the person's own
- * list); an agent not held, or one with no handle, goes by id (`/agents/edit/:id`), which sends a
- * handled agent on to its address.
+ * list). An agent not held, or one with no handle, has no editor screen to go to.
  */
 export function useOpenAgentEditor(): (agentId: string) => void {
   const router = useRouter();
@@ -31,9 +30,8 @@ export function useOpenAgentEditor(): (agentId: string) => void {
         queryClient
           .getQueryData<Agent[]>(queryKeys.agents.mine)
           ?.find((agent) => agent._id === agentId);
-      router.push(
-        agentEditRoute({ _id: agentId, name: known?.name ?? null, handle: known?.handle ?? null }),
-      );
+      const route = agentEditRoute({ name: known?.name ?? null, handle: known?.handle ?? null });
+      if (route !== null) router.push(route);
     },
     [isLargeScreen, router, queryClient],
   );

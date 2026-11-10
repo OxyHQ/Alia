@@ -34,10 +34,6 @@ const ACTION_SPINNERS = new Map<string, string>([
     'linking an account: an action the person started, with its own title and description',
   ],
   ['src/shell/sidebar-menus.tsx', 'the chat that is being answered right now (StreamingIndicator)'],
-  [
-    'src/features/automations/ui/task-timeline-step.tsx',
-    'a task step that is running: the step is the action',
-  ],
   ['src/features/shows/ui/episode-row.tsx', 'an episode being generated: the action itself'],
   ['../alia-chat/src/components/voice/VoiceControls.tsx', 'a call connecting: the action itself'],
   ['../alia-chat/src/components/thought/ToolStep.tsx', 'a tool call that is running'],
