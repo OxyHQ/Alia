@@ -1,12 +1,19 @@
+import {
+  CELL_SIZE,
+  GAP,
+  MAX_WEEKS,
+  interactionsIn,
+  localDay,
+  weeksThatFit,
+} from '@/features/agents/model/activity-window';
 import { useActivityGrid } from '@/features/agents/runtime/use-activity-grid';
-import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { ActivityHeatmap } from '@oxy.so/bloom/activity-heatmap';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
 import { toast } from '@oxy.so/bloom/toast';
 import { Muted } from '@oxy.so/bloom/typography';
-import { useMemo } from 'react';
-import { ScrollView, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { View, type LayoutChangeEvent } from 'react-native';
 
 function formatDisplayDate(dateStr: string): string {
   const [y, m, d] = dateStr.split('-');
@@ -31,53 +38,59 @@ function levelsFor(maxCount: number): number[] | undefined {
   return [...new Set(steps)];
 }
 
-interface ActivityGridProps {
-  agentId: string;
-  weeks?: number;
-}
-
-/** An agent's interactions per day, as Bloom's `ActivityHeatmap`. */
-export function ActivityGrid({ agentId, weeks: weeksProp }: ActivityGridProps) {
+/**
+ * An agent's interactions per day, as Bloom's `ActivityHeatmap`: as many recent weeks as fit the
+ * width the section has, ending today (`model/activity-window.ts` says why). A year is asked of the
+ * API once; what is drawn and counted is the part of it that fits.
+ */
+export function ActivityGrid({ agentId }: { agentId: string }) {
   const { t } = useTranslation();
-  const isLargeScreen = useIsLargeScreen();
-  const weeks = weeksProp ?? (isLargeScreen ? 52 : 20);
-
-  const { data, isLoading } = useActivityGrid(agentId, weeks);
+  const [width, setWidth] = useState(0);
+  const { data, isLoading } = useActivityGrid(agentId, MAX_WEEKS);
   const grid = useMemo(() => data?.grid ?? [], [data?.grid]);
-  const totalSessions = data?.totalSessions ?? 0;
+  // The day is read once per mount: a page left open past midnight keeps yesterday's edge until it
+  // is opened again, which costs one empty cell.
+  const today = useMemo(() => localDay(new Date()), []);
 
-  if (isLoading) {
-    return <Skeleton.Box width="100%" height={96} />;
-  }
+  const onLayout = (event: LayoutChangeEvent) => {
+    const next = Math.floor(event.nativeEvent.layout.width);
+    if (next !== width) setWidth(next);
+  };
+
+  const weeks = weeksThatFit(width);
+  const interactions = useMemo(() => interactionsIn(grid, today, weeks), [grid, today, weeks]);
 
   return (
-    <View className="gap-1.5">
-      <Muted>
-        {t('agents.activityGrid.summary', {
-          interactions: t('agents.activityGrid.interactions', {
-            count: totalSessions,
-          }),
-          weeks,
-        })}
-      </Muted>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <ActivityHeatmap
-          data={grid}
-          numDays={weeks * 7}
-          weekStartsOn={1}
-          levels={levelsFor(data?.maxCount ?? 0)}
-          onPressDay={(day) =>
-            toast(
-              t('agents.activityGrid.day', {
-                interactions: t('agents.activityGrid.interactions', {
-                  count: day.count,
+    <View className="gap-1.5" onLayout={onLayout}>
+      {isLoading || width === 0 ? (
+        <Skeleton.Box width="100%" height={96} />
+      ) : (
+        <>
+          <Muted>
+            {t('agents.activityGrid.summary', {
+              interactions: t('agents.activityGrid.interactions', { count: interactions }),
+              weeks,
+            })}
+          </Muted>
+          <ActivityHeatmap
+            data={grid}
+            numDays={weeks * 7}
+            endDate={today}
+            cellSize={CELL_SIZE}
+            gap={GAP}
+            weekStartsOn={1}
+            levels={levelsFor(data?.maxCount ?? 0)}
+            onPressDay={(day) =>
+              toast(
+                t('agents.activityGrid.day', {
+                  interactions: t('agents.activityGrid.interactions', { count: day.count }),
+                  date: formatDisplayDate(day.date),
                 }),
-                date: formatDisplayDate(day.date),
-              }),
-            )
-          }
-        />
-      </ScrollView>
+              )
+            }
+          />
+        </>
+      )}
     </View>
   );
 }

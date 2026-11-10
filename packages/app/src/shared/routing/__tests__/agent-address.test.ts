@@ -4,7 +4,6 @@ import {
   agentDetailsRoute,
   agentEditRoute,
   agentHandle,
-  agentSharePath,
   agentThreadHref,
 } from '@/shared/routing/agent-address';
 
@@ -14,8 +13,8 @@ import {
  * put `/%40pepe` in the address bar.
  */
 
-const pepe = { _id: 'a1', name: 'Pepe', handle: 'pepe' };
-const nameless = { _id: 'a2', name: null, handle: null };
+const pepe = { name: 'Pepe', handle: 'pepe' };
+const nameless = { name: null, handle: null };
 
 describe('an agent’s addresses', () => {
   it('are strings with the @ in them: the thread, the page and the editor', () => {
@@ -39,24 +38,10 @@ describe('an agent’s addresses', () => {
     expect(agentHandle({ name: null, handle: '   ' })).toBe('');
   });
 
-  it('fall back to the page by id only for an agent with no handle', () => {
-    expect(agentDetailsRoute(nameless)).toEqual({
-      pathname: '/(app)/agents/[id]',
-      params: { id: 'a2' },
-    });
-    expect(agentEditRoute(nameless)).toEqual({
-      pathname: '/(app)/agents/edit/[id]',
-      params: { id: 'a2' },
-    });
-    // The thread has no id address at all: the agent's own page is where its chat falls back to.
-    expect(agentChatRoute(nameless)).toEqual({
-      pathname: '/(app)/agents/[id]',
-      params: { id: 'a2' },
-    });
-  });
-
-  it('give the link that leaves the app the same address as the page', () => {
-    expect(agentSharePath(pepe)).toBe('/@pepe/details');
-    expect(agentSharePath(nameless)).toBe('/agents/a2');
+  it('do not exist for an agent with no handle: it has no address, and no route by id stands in', () => {
+    expect(agentChatRoute(nameless)).toBeNull();
+    expect(agentDetailsRoute(nameless)).toBeNull();
+    expect(agentEditRoute(nameless)).toBeNull();
+    expect(agentChatRoute({ name: 'Pepe', handle: '   ' })).toBeNull();
   });
 });

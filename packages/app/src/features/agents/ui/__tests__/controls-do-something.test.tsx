@@ -116,10 +116,8 @@ describe('the agent header', () => {
   const props = {
     isOwner: true,
     canChat: true,
-    price: 12,
     onEdit: vi.fn(),
     onChat: vi.fn(),
-    onStartTask: vi.fn(),
     onShare: vi.fn(),
   };
 
@@ -129,7 +127,6 @@ describe('the agent header', () => {
     expect(items.map((item) => item.props.accessibilityLabel ?? texts(item).join(''))).toEqual([
       'Edit',
       'Chat',
-      'Start task · 12 credits',
       'Share',
     ]);
     expect(items.every((item) => typeof item.props.onPress === 'function')).toBe(true);
@@ -140,7 +137,12 @@ describe('the agent header', () => {
     const labels = all(root, 'ButtonGroupItem').map(
       (item) => item.props.accessibilityLabel ?? texts(item).join(''),
     );
-    expect(labels).toEqual(['Start task · 12 credits', 'Share']);
+    expect(labels).toEqual(['Share']);
+  });
+
+  it('has no Start task: there is no task to start from an agent’s page', () => {
+    const root = render(<AgentHeaderActions {...props} />);
+    expect(texts(root).join(' ')).not.toMatch(/start task/i);
   });
 
   it('has no Report or Bookmark: nothing received a report, nothing read a bookmark', () => {

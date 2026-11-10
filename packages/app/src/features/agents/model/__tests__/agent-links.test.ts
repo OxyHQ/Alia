@@ -19,24 +19,19 @@ import { translator } from '@/shared/testing/translate';
 
 describe('Chat, on a catalogue card', () => {
   it('opens the agent’s own thread, not the profile the card already opens', () => {
-    expect(agentChatRoute({ _id: 'a1', name: 'Pepe', handle: 'pepe' })).toBe('/@pepe');
+    expect(agentChatRoute({ name: 'Pepe', handle: 'pepe' })).toBe('/@pepe');
   });
 
   it('keeps the @ in the address: a path, not a route object whose value Expo Router encodes', () => {
-    const route = agentChatRoute({ _id: 'a1', name: 'Pepe', handle: 'pepe' });
+    const route = agentChatRoute({ name: 'Pepe', handle: 'pepe' });
     expect(typeof route).toBe('string');
     expect(route).not.toContain('%40');
     expect(agentThreadHref('pepe', 'th 1')).toBe('/@pepe?threadId=th%201');
   });
 
-  it('falls back to the profile only when the thread has no address', () => {
-    expect(agentChatRoute({ _id: 'a1', name: 'Pepe', handle: null })).toEqual({
-      pathname: '/(app)/agents/[id]',
-      params: { id: 'a1' },
-    });
-    expect(agentChatRoute({ _id: 'a1', name: 'Pepe', handle: '  ' })).toMatchObject({
-      pathname: '/(app)/agents/[id]',
-    });
+  it('offers nothing when the thread has no address', () => {
+    expect(agentChatRoute({ name: 'Pepe', handle: null })).toBeNull();
+    expect(agentChatRoute({ name: 'Pepe', handle: '  ' })).toBeNull();
   });
 });
 
@@ -52,9 +47,9 @@ describe('Share', () => {
     expect(message).not.toContain('alia.app');
   });
 
-  it('falls back to the id’s address for an agent with no handle', () => {
+  it('shares an agent with no handle by who it is alone: it has no page to link to', () => {
     const message = agentShareMessage({ _id: 'a1', name: 'Pepe', handle: null, tagline: '' });
-    expect(message).toBe('Pepe\nhttps://alia.onl/agents/a1');
+    expect(message).toBe('Pepe');
   });
 
   it('never prints a null name', () => {

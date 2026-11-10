@@ -11,10 +11,7 @@ import { describe, expect, it } from 'vitest';
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8');
 
 const layout = read('../_layout.tsx');
-const EDIT_ROUTES = [
-  { file: '../[username]/edit.tsx', name: '[username]/edit' },
-  { file: '../agents/edit/[id].tsx', name: 'agents/edit/[id]' },
-];
+const EDIT_ROUTES = [{ file: '../[username]/edit.tsx', name: '[username]/edit' }];
 
 describe('the agent editor screen has one header', () => {
   it('is left bare by the layout: no shell page header above the editor’s own', () => {

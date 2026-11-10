@@ -44,11 +44,8 @@ export default function AgentsScreen() {
   const handleSelectAgent = useCallback(
     (agentId: string) => {
       const agent = agents.find((entry) => entry._id === agentId);
-      router.push(
-        agent === undefined
-          ? { pathname: '/(app)/agents/[id]', params: { id: agentId } }
-          : agentDetailsRoute(agent),
-      );
+      const route = agent === undefined ? null : agentDetailsRoute(agent);
+      if (route !== null) router.push(route);
     },
     [agents, router],
   );
@@ -56,20 +53,10 @@ export default function AgentsScreen() {
   const handleChat = useCallback(
     (agentId: string) => {
       const agent = agents.find((entry) => entry._id === agentId);
-      router.push(
-        agent === undefined
-          ? { pathname: '/(app)/agents/[id]', params: { id: agentId } }
-          : agentChatRoute(agent),
-      );
+      const route = agent === undefined ? null : agentChatRoute(agent);
+      if (route !== null) router.push(route);
     },
     [agents, router],
-  );
-
-  const handleHire = useCallback(
-    (agentId: string) => {
-      router.push(`/(app)/agents/${agentId}`);
-    },
-    [router],
   );
 
   const handleCreateAgent = useNewAgentConversation();

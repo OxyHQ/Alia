@@ -5,53 +5,10 @@ import type { Agent } from '@/shared/contracts/agents';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 /**
- * Durable threads with an agent, and the work started in them.
- *
- * The agent screen creates agent THREADS, never bare conversation rows — a
- * thread with an agent is many ordinary conversations, addressed by the
- * agent's handle (`/@handle?threadId=…`).
+ * What the agent screen writes: whether the agent accepts hires. A thread with an agent is never
+ * created from here; it is many ordinary conversations, addressed by the agent's handle
+ * (`/@handle?threadId=…`) and begun by the API when the two first speak.
  */
-
-async function createThread(agentId: string, title: string): Promise<string> {
-  const response = await apiClient.post(API_ROUTES.agents.threads(agentId), {
-    title,
-    executionTarget: 'sandbox',
-  });
-  return String(response.data.thread.id);
-}
-
-/**
- * Priced work, started through a GOAL in a thread of its own rather than a
- * hire.
- *
- * The goal carries an idempotency key, so a retried request cannot start the
- * same task twice. Resolves to the thread and, when the run began at once, the
- * session running it.
- */
-export function useStartAgentTask() {
-  return useMutation({
-    mutationFn: async ({
-      agentId,
-      objective,
-    }: {
-      agentId: string;
-      objective: string;
-    }): Promise<{ threadId: string; sessionId: string | null }> => {
-      const threadId = await createThread(agentId, objective.slice(0, 120));
-      const response = await apiClient.post(
-        API_ROUTES.agents.goals(threadId),
-        { objective },
-        {
-          headers: {
-            'Idempotency-Key': `${agentId}:${Date.now()}:${Math.random()}`,
-          },
-        },
-      );
-      const sessionId = response.data?.sessionId;
-      return { threadId, sessionId: sessionId ? String(sessionId) : null };
-    },
-  });
-}
 
 /** Whether the agent accepts hires. The cached record is updated in place. */
 export function useSetAgentStatus() {

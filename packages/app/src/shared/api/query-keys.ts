@@ -68,9 +68,6 @@ export const queryKeys = {
      */
     threadMessages: (username: string) => ['agent-thread-messages', username] as const,
   },
-  automations: {
-    overview: ['automations', 'overview'] as const,
-  },
   /** The person's spaces (ADR 0028), with their members and rooms. */
   spaces: {
     all: ['spaces'] as const,

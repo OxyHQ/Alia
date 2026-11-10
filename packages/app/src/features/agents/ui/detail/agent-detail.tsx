@@ -3,8 +3,6 @@ import { AgentHeaderActions } from '@/features/agents/ui/detail/agent-header-act
 import { AgentIdentitySummary } from '@/features/agents/ui/detail/agent-identity-summary';
 import { AgentReviewsSection } from '@/features/agents/ui/detail/agent-reviews-section';
 import { AgentThreadsList } from '@/features/agents/ui/detail/agent-threads-list';
-import { AliaComposer } from '@alia.onl/sdk';
-import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { ActivityGrid } from '@/features/agents/ui/detail/activity-grid';
 import { agentDisplayName } from '@/features/agents/model/identity';
 import { agentHandle } from '@/shared/routing/agent-address';
@@ -46,7 +44,6 @@ export function AgentDetail({ agent }: { agent: Agent }) {
   const router = useRouter();
   const openAgentEditor = useOpenAgentEditor();
   const { t } = useTranslation();
-  const composerHost = useComposerHost();
   const { user } = useOxy();
   const { data: agentThreads = [] } = useAgentThreads(agent._id);
   const actions = useAgentDetailActions(agent);
@@ -84,21 +81,6 @@ export function AgentDetail({ agent }: { agent: Agent }) {
               }
             />
           </SettingsListGroup>,
-        ]
-      : []),
-    // The task for this agent, written in the app's composer.
-    ...(actions.showHireInput
-      ? [
-          <AliaComposer
-            key="hire"
-            {...composerHost}
-            value={actions.taskInput}
-            onValueChange={actions.setTaskInput}
-            onSubmit={actions.handleHireSubmit}
-            busy={actions.hiring}
-            disabled={actions.hiring}
-            placeholder={t('agents.taskPlaceholder')}
-          />,
         ]
       : []),
     // Only when there are threads: a cell that draws nothing would still take its gap in the column.
@@ -154,10 +136,8 @@ export function AgentDetail({ agent }: { agent: Agent }) {
             <AgentHeaderActions
               isOwner={isOwner}
               canChat={agent.access === 'public' || isOwner}
-              price={agent.price}
               onEdit={() => openAgentEditor(agent._id)}
               onChat={actions.handleChat}
-              onStartTask={actions.handleHirePress}
               onShare={actions.handleShare}
               hasComputer={
                 (agent.access === 'public' || isOwner) &&

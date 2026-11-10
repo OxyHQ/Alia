@@ -4,7 +4,7 @@ import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 
 /**
  * The agent screen's header: edit (owner only), chat (when this person may
- * talk to it), its computer (when it has one), start a task, share.
+ * talk to it), its computer (when it has one), share.
  *
  * A private agent is in the catalogue for everyone but answers only its own
  * account (`canReachAgent` in the API): for anyone else its thread is "Agent
@@ -23,10 +23,8 @@ export function AgentHeaderActions({
   isOwner,
   canChat,
   hasComputer = false,
-  price,
   onEdit,
   onChat,
-  onStartTask,
   onShare,
   onComputer,
 }: {
@@ -39,11 +37,8 @@ export function AgentHeaderActions({
    * the agent).
    */
   hasComputer?: boolean;
-  /** Credits per use, or null for a free agent. */
-  price: number | null;
   onEdit: () => void;
   onChat: () => void;
-  onStartTask: () => void;
   onShare: () => void;
   onComputer?: () => void;
 }) {
@@ -56,9 +51,6 @@ export function AgentHeaderActions({
       {hasComputer && onComputer ? (
         <ButtonGroupItem onPress={onComputer}>{t('agents.computer.open')}</ButtonGroupItem>
       ) : null}
-      <ButtonGroupItem onPress={onStartTask}>
-        {price != null ? t('agents.startTaskPriced', { count: price }) : t('agents.startTask')}
-      </ButtonGroupItem>
       <ButtonGroupItem
         iconOnly
         leadingIcon={RiShare2Line}

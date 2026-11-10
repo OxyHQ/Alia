@@ -41,15 +41,6 @@ export const API_ROUTES = {
     install: (id: string) => `/skills/${id}/install`,
   },
 
-  // Structured automations are the only product control plane for proactive work.
-  automations: {
-    list: '/automations',
-    runs: '/automations/runs',
-    update: (id: string) => `/automations/${id}`,
-    stop: (id: string) => `/automations/${id}`,
-    run: (id: string) => `/automations/${id}/run`,
-  },
-
   /** Spaces: folders that group the person's agents (ADR 0028). */
   spaces: {
     list: '/spaces',
@@ -92,7 +83,6 @@ export const API_ROUTES = {
     delete: (id: string) => `/agents/${id}`,
     threads: (id: string) => `/agents/${id}/threads`,
     threadById: (threadId: string) => `/agents/threads/${threadId}`,
-    goals: (threadId: string) => `/agents/threads/${threadId}/goals`,
     memory: (id: string) => `/agents/${id}/memory`,
     /** What the agent subscribes to, and what is waiting in its inbox (ADR 0026). */
     subscriptions: (id: string) => `/agents/${id}/subscriptions`,
