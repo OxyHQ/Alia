@@ -700,8 +700,7 @@ a notification that opens `/@handle`.
 
 An agent can subscribe to events (its owner's, or its own mailbox's). They collect in its inbox, and an
 opt-in heartbeat (`schedule_interval`) wakes it once with the list, only when something is waiting.
-The owner manages it in Settings → Memory → Attention (heartbeat, subscriptions, what is waiting, and
-a switch that pauses everything that would start on its own). Design and bounds: ADR 0026 and
+The owner manages it in the agent's own editor (heartbeat, subscriptions, what is waiting). Design and bounds: ADR 0026 and
 [Background work](./proactive-intelligence.md#an-agent-that-notices-things-adr-0026).
 
 ### Work longer than a chat turn

@@ -7,7 +7,7 @@
 
 import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
-import { agentInboxItems, agentSubscriptions, backgroundPauses } from '../schema/agent-runtime';
+import { agentInboxItems, agentSubscriptions } from '../schema/agent-runtime';
 import { agents } from '../schema/agents';
 
 type Executor = Pick<ApiDatabase, 'select' | 'insert' | 'update' | 'delete'>;
@@ -289,8 +289,6 @@ export async function dueHeartbeats(db: Executor, now: Date): Promise<HeartbeatC
           sql`${agents.lastHeartbeatAt} is null`,
           sql`${agents.lastHeartbeatAt} <= ${now.toISOString()}::timestamptz - (${agents.scheduleInterval} * interval '1 minute')`,
         ),
-        // A person who paused their background work is not woken for, whatever their agents hold.
-        sql`not exists (select 1 from ${backgroundPauses} where ${backgroundPauses.ownerAccountId} = ${agents.ownerOxyAccountId})`,
         sql`exists (select 1 from ${agentInboxItems} where ${agentInboxItems.agentId} = ${agents.id} and ${agentInboxItems.status} = 'pending')`,
       ),
     )
@@ -324,29 +322,6 @@ export async function claimHeartbeat(
     )
     .returning({ id: agents.id });
   return rows.length === 1;
-}
-
-/** Whether this person has paused everything that would start on its own. */
-export async function isBackgroundPaused(db: Executor, ownerAccountId: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: backgroundPauses.ownerAccountId })
-    .from(backgroundPauses)
-    .where(eq(backgroundPauses.ownerAccountId, ownerAccountId))
-    .limit(1);
-  return rows.length === 1;
-}
-
-/** Pause or resume. Idempotent either way. */
-export async function setBackgroundPaused(
-  db: Executor,
-  ownerAccountId: string,
-  paused: boolean,
-): Promise<void> {
-  if (paused) {
-    await db.insert(backgroundPauses).values({ ownerAccountId }).onConflictDoNothing();
-    return;
-  }
-  await db.delete(backgroundPauses).where(eq(backgroundPauses.ownerAccountId, ownerAccountId));
 }
 
 export interface HeartbeatState {

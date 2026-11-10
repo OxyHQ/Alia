@@ -135,8 +135,8 @@ and finished from the store:
 text: what the process counted plus gauges read from the stores
 (`lib/observability/operational-metrics.ts`) — `alia_automation_events_stalled` and
 `alia_channel_inbound_stalled` (anything above zero for more than a minute means a sweep is not taking
-them), `alia_channel_inbound_failed_total`, `alia_agent_inbox_pending`,
-`alia_background_paused_people` and `alia_queue_jobs{queue,state}` for the agent-session and Alia-task
+them), `alia_channel_inbound_failed_total`, `alia_agent_inbox_pending`
+and `alia_queue_jobs{queue,state}` for the agent-session and Alia-task
 queues. A queue that cannot be counted is left out so the rest still answers. Nothing scrapes it yet.
 
 ## An agent that notices things (ADR 0026)
@@ -157,10 +157,8 @@ a run. A **heartbeat** wakes the agent once with the list, and only when somethi
   result is not posted: the agent speaks through the budgeted `sendMessageToUser`.
 - **A woken agent has the follow-up run's authority and no more**: no computer, no MCP, Oxy apps only
   through exact authorization. Widening it is a decision about authority (ADR 0022), not plumbing.
-- **Pausing**: an agent whose `status` is `idle` or `offline` is not woken. A person can pause
-  everything that would start on its own with `PUT /automations/pause` (`background_pauses`): no
-  scheduled or event automation, follow-up or heartbeat runs for them while it is set; their inboxes
-  keep filling. A run they ask for (`manual`), a chat and work already running are not affected.
+- **Pausing**: an agent whose `status` is `idle` or `offline` is not woken, and an automation can be
+  disabled. There is no switch for everything at once (it was removed, ADR 0026 §8).
 - **Bounds**: at most 100 enabled automations per person (`MAX_ENABLED_AUTOMATIONS_PER_OWNER`); items
   older than three days are dismissed; deleting an agent removes its inbox, subscriptions and memory
   and disables the automations that name it.

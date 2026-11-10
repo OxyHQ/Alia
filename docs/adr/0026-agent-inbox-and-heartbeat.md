@@ -52,13 +52,11 @@ woken once with the list.
    `pending` if the wake-up cannot be scheduled. Items older than three days are dismissed, and settled
    rows are purged after a week.
 
-8. **A person can pause everything that would start on its own** (`background_pauses`, one row per
-   paused person; `GET`/`PUT /automations/pause`, a switch in Settings → Memory → Attention). While it
-   exists `dispatchStructuredAutomation` denies every scheduled, event and agent-started run (silently:
-   they asked for quiet) and `dueHeartbeats` skips their agents; their inboxes keep filling. A run the
-   person asks for (`manual`), a chat and work already running are untouched: pausing stops what would
-   *start*, not what was asked for. Per agent, `status` `idle`/`offline` already does the same for that
-   agent's heartbeat.
+8. **Retired: "pause everything".** A switch that paused everything a person's agents and automations
+   start on their own (`background_pauses`, `GET`/`PUT /automations/pause`) existed briefly. Nobody used
+   it, so it was cut cleanly: the switch, the endpoint, the table (migration `0128`), the heartbeat and
+   dispatcher checks and the `alia_background_paused_people` gauge are gone. What remains is per agent:
+   `status` `idle`/`offline` stops that agent's heartbeat, and an automation can be disabled.
 
 ## Consequences
 
