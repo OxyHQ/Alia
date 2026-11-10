@@ -1,7 +1,8 @@
 import { AgentListingRow } from '@/features/agents/ui/agent-listing-row';
 import { catalogueItems, type CatalogueItem } from '@/features/agents/model/catalogue-items';
 import { agentCategoryLabel } from '@/features/agents/model/category';
-import { agentChatRoute, agentIdentityMatches } from '@/features/agents/model/identity';
+import { agentIdentityMatches } from '@/features/agents/model/identity';
+import { agentChatRoute, agentDetailsRoute } from '@/shared/routing/agent-address';
 import { useAgentCatalogue } from '@/features/agents/runtime/use-agents';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
@@ -42,9 +43,14 @@ export default function AgentsScreen() {
 
   const handleSelectAgent = useCallback(
     (agentId: string) => {
-      router.push(`/(app)/agents/${agentId}`);
+      const agent = agents.find((entry) => entry._id === agentId);
+      router.push(
+        agent === undefined
+          ? { pathname: '/(app)/agents/[id]', params: { id: agentId } }
+          : agentDetailsRoute(agent),
+      );
     },
-    [router],
+    [agents, router],
   );
 
   const handleChat = useCallback(

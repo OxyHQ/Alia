@@ -89,7 +89,8 @@ Every reach path takes the surface: opening an agent (`loadTurnAgent`,
 assertion as `appAssertion` in its `auth` frame), `consultAgent`,
 `searchAgents`, `/v1/agents/:id/profile|features`, `POST /conversations/new`
 with an `agentId`, its threads, teams, computer and suggestions, and its card
-(`GET /agents/:id`, except for its editors: editing is not opening). The owner
+(`GET /agents/:id` and `GET /agents/handle/:username`, except for their editors: editing is not
+opening). The owner
 is not exempt: a confined agent is invisible outside its app to everybody.
 What runs with no person's app around it — an automation, a delegation inside
 an agent session — has no surface, so a confined agent never runs there.
@@ -138,7 +139,8 @@ An agent is edited in two places, and they do different things.
   look, the name, the label (the agent's `tagline`), the description and the username. From the
   `md` breakpoint it is the right panel beside the conversation (opened from the header avatar,
   the chat menu's "Edit {agent}" or the agent's page, and it follows the agent on screen); on a
-  phone it is the screen `/agents/edit/:id`. Edits autosave: the look, label and description to
+  phone it is the screen `/@handle/edit` (`/agents/edit/:id` for an agent with no handle, and the
+  old address, which sends a handled agent on). Edits autosave: the look, label and description to
   the agent row, the name and username to the bot account at Oxy.
 - **Everything else** (instructions, `capabilityGrants`, `modelId`, `category`, `tags`,
   publishing, `access`, and the starters, gates and primary tools) is changed with
@@ -261,6 +263,12 @@ Alia already has (per-conversation model choice, titles) applies unchanged. One
 row forever would grow the context without limit and make "start a new
 conversation" a line that draws and changes nothing.
 
+- **An agent's addresses** are its Oxy handle's: `/@handle` is its thread (or a person's profile,
+  when the account is not a bot), `/@handle/details` its page and `/@handle/edit` its editor
+  screen. `GET /agents/handle/:username` is the card those two read, with the rules of
+  `GET /agents/:id`. An agent with no handle keeps `/agents/:id` and `/agents/edit/:id`, which also
+  receive the links shared before the pages moved and redirect a handled agent to its address.
+  The builders are `shared/routing/agent-address.ts`: strings with the `@` written out.
 - `GET /agents/thread/:username` answers `{ agent, conversationId }`, where
   `conversationId` is the **active** stretch: the most recent conversation of
   the pair, or a new one when the two have never spoken. There is no unique

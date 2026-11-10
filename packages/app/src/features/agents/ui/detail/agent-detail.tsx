@@ -1,4 +1,3 @@
-import { AgentTerminal } from '@/features/chat/ui/workspace/agent-terminal';
 import { AgentDetailSection, ChipList } from '@/features/agents/ui/detail/agent-detail-section';
 import { AgentHeaderActions } from '@/features/agents/ui/detail/agent-header-actions';
 import { AgentIdentitySummary } from '@/features/agents/ui/detail/agent-identity-summary';
@@ -7,20 +6,21 @@ import { AgentThreadsList } from '@/features/agents/ui/detail/agent-threads-list
 import { AliaComposer } from '@alia.onl/sdk';
 import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { ActivityGrid } from '@/features/agents/ui/detail/activity-grid';
-import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
+import { agentDisplayName } from '@/features/agents/model/identity';
+import { agentHandle } from '@/shared/routing/agent-address';
 import { CAPABILITY_FAMILIES } from '@/features/chat/model/capability-families';
 import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
 import { useAgentDetailActions } from '@/features/agents/runtime/use-agent-detail-actions';
 import { useAgentThreads } from '@/features/agents/runtime/use-agent-threads';
-import { useIsLargeScreen } from '@/shared/platform/use-is-large-screen';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { Agent } from '@/shared/contracts/agents';
-import { Divider } from '@oxy.so/bloom/divider';
+import { ResponsiveGrid } from '@oxy.so/bloom/grid';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Switch } from '@oxy.so/bloom/switch';
 import { Text } from '@oxy.so/bloom/typography';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { Stack, useRouter } from 'expo-router';
+import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 
 /**
@@ -36,6 +36,11 @@ export function grantedFamilyLabels(grants: readonly string[]): string[] {
   });
 }
 
+/** The narrowest a section is drawn before the grid drops a column. */
+const SECTION_MIN_WIDTH = 320;
+/** The widest the page's column grows: three sections of a readable width, never stretched wider. */
+const PAGE_MAX_WIDTH = 1120;
+
 /** One loaded agent's page: who it is, what it has done, what people said. */
 export function AgentDetail({ agent }: { agent: Agent }) {
   const router = useRouter();
@@ -43,7 +48,6 @@ export function AgentDetail({ agent }: { agent: Agent }) {
   const { t } = useTranslation();
   const composerHost = useComposerHost();
   const { user } = useOxy();
-  const isLargeScreen = useIsLargeScreen();
   const { data: agentThreads = [] } = useAgentThreads(agent._id);
   const actions = useAgentDetailActions(agent);
 
@@ -51,8 +55,97 @@ export function AgentDetail({ agent }: { agent: Agent }) {
   const handle = agentHandle(agent);
   const capabilityLabels = grantedFamilyLabels(agent.capabilityGrants ?? []).map((key) => t(key));
 
+  /**
+   * The page's sections, each one a cell of a grid whose columns follow the room it has: as many as
+   * fit at a readable width (`SECTION_MIN_WIDTH`), up to three, one on a phone, in a column no wider
+   * than `PAGE_MAX_WIDTH` so a section is never stretched across a big screen. `flow="columns"`
+   * stacks them in independent columns, so a tall section (the reviews) leaves no gap under a short
+   * one beside it.
+   */
+  const sections: ReactNode[] = [
+    ...(isOwner
+      ? [
+          <SettingsListGroup key="owner">
+            <SettingsListItem
+              title={
+                agent.status === 'active' ? t('agents.statusActive') : t('agents.statusPaused')
+              }
+              description={
+                agent.status === 'active'
+                  ? t('agents.acceptingHires')
+                  : t('agents.notAcceptingHires')
+              }
+              rightElement={
+                <Switch
+                  accessibilityLabel={t('agents.acceptingHires')}
+                  checked={agent.status === 'active'}
+                  onCheckedChange={(on) => actions.handleStatusToggle(on ? 'active' : 'idle')}
+                />
+              }
+            />
+          </SettingsListGroup>,
+        ]
+      : []),
+    // The task for this agent, written in the app's composer.
+    ...(actions.showHireInput
+      ? [
+          <AliaComposer
+            key="hire"
+            {...composerHost}
+            value={actions.taskInput}
+            onValueChange={actions.setTaskInput}
+            onSubmit={actions.handleHireSubmit}
+            busy={actions.hiring}
+            disabled={actions.hiring}
+            placeholder={t('agents.taskPlaceholder')}
+          />,
+        ]
+      : []),
+    // Only when there are threads: a cell that draws nothing would still take its gap in the column.
+    ...(agentThreads.length > 0
+      ? [
+          <AgentThreadsList
+            key="threads"
+            threads={agentThreads}
+            onOpen={(thread) => {
+              if (handle) actions.openThread(handle, thread.id);
+            }}
+          />,
+        ]
+      : []),
+    <AgentDetailSection key="activity" title={t('agents.activity')}>
+      <ActivityGrid agentId={agent._id} />
+    </AgentDetailSection>,
+    <AgentDetailSection key="about" title={t('agents.about')}>
+      <Text variant="body-regular">{agent.description}</Text>
+    </AgentDetailSection>,
+    // Capabilities — the families this agent was granted, by their own labels. A connector grant
+    // (`mcp:<id>`) is deliberately not shown: the id is meaningless to a reader and the connector
+    // belongs to the owner, not to this public listing.
+    ...(capabilityLabels.length > 0
+      ? [
+          <AgentDetailSection key="capabilities" title={t('agents.capabilities')}>
+            <ChipList items={capabilityLabels} />
+          </AgentDetailSection>,
+        ]
+      : []),
+    ...(agent.tags.length > 0
+      ? [
+          <AgentDetailSection key="tags" title={t('agents.tags')}>
+            <ChipList items={agent.tags} />
+          </AgentDetailSection>,
+        ]
+      : []),
+    <AgentReviewsSection
+      key="reviews"
+      agentId={agent._id}
+      viewerId={user?.id ?? null}
+      isOwner={isOwner}
+    />,
+  ];
+
   return (
-    <View className={isLargeScreen ? 'flex-1 flex-row' : 'flex-1 flex-col'}>
+    <View className="flex-1">
       <Stack.Screen
         options={{
           title: agentDisplayName(agent),
@@ -80,116 +173,22 @@ export function AgentDetail({ agent }: { agent: Agent }) {
           ),
         }}
       />
-      {/* Agent details (full width on mobile) */}
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className={isLargeScreen ? 'w-full max-w-[672px] gap-5 p-4' : 'w-full gap-5 p-4'}>
-          <AgentIdentitySummary agent={agent} />
-
-          {/* Owner controls */}
-          {isOwner && (
-            <SettingsListGroup>
-              <SettingsListItem
-                title={
-                  agent.status === 'active' ? t('agents.statusActive') : t('agents.statusPaused')
-                }
-                description={
-                  agent.status === 'active'
-                    ? t('agents.acceptingHires')
-                    : t('agents.notAcceptingHires')
-                }
-                rightElement={
-                  <Switch
-                    accessibilityLabel={t('agents.acceptingHires')}
-                    checked={agent.status === 'active'}
-                    onCheckedChange={(on) => actions.handleStatusToggle(on ? 'active' : 'idle')}
-                  />
-                }
-              />
-            </SettingsListGroup>
-          )}
-
-          {/* The task for this agent, written in the app's composer. */}
-          {actions.showHireInput && (
-            <AliaComposer
-              {...composerHost}
-              value={actions.taskInput}
-              onValueChange={actions.setTaskInput}
-              onSubmit={actions.handleHireSubmit}
-              busy={actions.hiring}
-              disabled={actions.hiring}
-              placeholder={t('agents.taskPlaceholder')}
-            />
-          )}
-
-          {/* Overview */}
-          <AgentThreadsList
-            threads={agentThreads}
-            onOpen={(thread) => {
-              if (handle) actions.openThread(handle, thread.id);
-            }}
-          />
-
-          <AgentDetailSection title={t('agents.activity')}>
-            <ActivityGrid agentId={agent._id} />
-          </AgentDetailSection>
-
-          <Divider />
-
-          <AgentDetailSection title={t('agents.about')}>
-            <Text variant="body-regular">{agent.description}</Text>
-          </AgentDetailSection>
-
-          {/* Capabilities — the families this agent was granted, by their
-              own labels. A connector grant (`mcp:<id>`) is deliberately not
-              shown: the id is meaningless to a reader and the connector
-              belongs to the owner, not to this public listing. */}
-          {capabilityLabels.length > 0 && (
-            <>
-              <Divider />
-              <AgentDetailSection title={t('agents.capabilities')}>
-                <ChipList items={capabilityLabels} />
-              </AgentDetailSection>
-            </>
-          )}
-
-          {agent.tags.length > 0 && (
-            <>
-              <Divider />
-              <AgentDetailSection title={t('agents.tags')}>
-                <ChipList items={agent.tags} />
-              </AgentDetailSection>
-            </>
-          )}
-
-          <Divider />
-          <AgentReviewsSection agentId={agent._id} viewerId={user?.id ?? null} isOwner={isOwner} />
-
-          {/* Activity terminal — mobile only; desktop has it beside. */}
-          {!isLargeScreen && (
-            <>
-              <Divider />
-              <AgentDetailSection title={t('agents.activity')}>
-                <View className="h-[300px]">
-                  <AgentTerminal agentId={agent._id} />
-                </View>
-              </AgentDetailSection>
-            </>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Activity terminal beside the details — desktop only */}
-      {isLargeScreen && (
-        <View className="flex-1 gap-2 p-4">
-          {/* No status dot beside the title: it was a green dot drawn
-              unconditionally, a "live" signal that knew nothing about the
-              terminal's connection (#608, rule 6). */}
-          <Text variant="headline-semibold">{t('agents.activity')}</Text>
-          <View className="flex-1">
-            <AgentTerminal agentId={agent._id} />
+        <View className="w-full items-center p-4">
+          <View className="w-full gap-6" style={{ maxWidth: PAGE_MAX_WIDTH }}>
+            <AgentIdentitySummary agent={agent} />
+            <ResponsiveGrid
+              flow="columns"
+              minItemWidth={SECTION_MIN_WIDTH}
+              maxColumns={3}
+              gap={24}
+              testID="agent-details-grid"
+            >
+              {sections}
+            </ResponsiveGrid>
           </View>
         </View>
-      )}
+      </ScrollView>
     </View>
   );
 }

@@ -56,7 +56,7 @@
  * was there proves the distinction is not academic: `agent-create.ts` froze
  * `name` into the stored `system_prompt` column while `agentPromptName` goes on
  * reading Oxy's live `displayName`. Rename the agent in the editor — which
- * `app/(app)/agents/edit/[id].tsx` does, via `updateAccount` — and the guard
+ * `app/(app)/[username]/edit.tsx` does, via `updateAccount` — and the guard
  * says Pepe while the section under it says Claudio.
  *
  * ## It reads the tracked tree, and files must be STAGED to be seen

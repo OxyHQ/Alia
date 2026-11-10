@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest';
  * buttons call, which is where the requests live since the route was thinned.
  */
 const SOURCE = [
-  '../app/(app)/agents/[id].tsx',
+  '../app/(app)/[username]/details.tsx',
+  '../src/features/agents/ui/detail/agent-details-page.tsx',
   '../src/features/agents/ui/detail/agent-detail.tsx',
   '../src/features/agents/runtime/use-agent-detail-actions.ts',
   '../src/features/agents/runtime/use-agent-thread-actions.ts',
@@ -32,7 +33,8 @@ describe('the agent detail screen', () => {
 
   it('creates and opens an independently addressable agent thread', () => {
     expect(SOURCE).toContain('API_ROUTES.agents.threads');
-    expect(SOURCE).toContain('[username]');
+    // The thread is opened at the agent's address, `/@handle?threadId=…` (`agentThreadHref`).
+    expect(SOURCE).toContain('agentThreadHref');
     expect(SOURCE).toContain('threadId');
     expect(SOURCE).not.toMatch(/pathname:\s*["'][^"']*\/c\/\[id\]/);
   });

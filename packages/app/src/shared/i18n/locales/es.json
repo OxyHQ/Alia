@@ -2431,5 +2431,12 @@
     "title": "Conversación compartida",
     "open": "Abrir Alia",
     "footer": "Una copia de solo lectura, compartida por quien tuvo esta conversación."
+  },
+  "profile": {
+    "kind": {
+      "organization": "Organización",
+      "project": "Proyecto",
+      "channel": "Canal"
+    }
   }
 }

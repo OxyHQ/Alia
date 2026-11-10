@@ -1,3 +1,4 @@
+import { agentDetailsRoute } from '@/shared/routing/agent-address';
 import { WorkItemRow } from '@/features/automations/ui/work-item-row';
 import { WorkListHeader } from '@/features/automations/ui/work-list-header';
 import type { WorkItem } from '@/features/automations/model/work-items';
@@ -38,12 +39,7 @@ export default function TasksPage() {
 
   const handleTaskPress = useCallback(
     (task: TaskSession) => {
-      if (task.agentId?._id) {
-        router.push({
-          pathname: '/(app)/agents/[id]',
-          params: { id: task.agentId._id },
-        });
-      }
+      if (task.agentId?._id) router.push(agentDetailsRoute(task.agentId));
     },
     [router],
   );

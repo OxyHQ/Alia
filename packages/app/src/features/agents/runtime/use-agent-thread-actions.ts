@@ -9,7 +9,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
  *
  * The agent screen creates agent THREADS, never bare conversation rows — a
  * thread with an agent is many ordinary conversations, addressed by the
- * agent's handle (`/(app)/[username]?threadId=…`).
+ * agent's handle (`/@handle?threadId=…`).
  */
 
 async function createThread(agentId: string, title: string): Promise<string> {

@@ -44,6 +44,8 @@ export const queryKeys = {
     catalogue: (params?: object) => ['agents', 'catalogue', params ?? {}] as const,
     /** One agent, whole, as the detail and edit screens read it. */
     detail: (id: string) => ['agents', 'detail', id] as const,
+    /** The same card, asked for by handle (`/@username/details`, `/@username/edit`). */
+    byHandle: (handle: string) => ['agents', 'by-handle', handle] as const,
     /** One agent's reviews, and the caller's own among them. */
     reviews: (id: string) => ['agents', 'reviews', id] as const,
     /** What one agent remembers about the caller: its files, and one file's content. */

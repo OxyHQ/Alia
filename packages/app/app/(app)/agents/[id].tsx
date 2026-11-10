@@ -1,59 +1,20 @@
-import { AgentDetail } from '@/features/agents/ui/detail/agent-detail';
-import { useAgentReviews } from '@/features/agents/runtime/use-agent-reviews';
-import { useAgentThreads } from '@/features/agents/runtime/use-agent-threads';
+import { agentDetailsRoute, agentHandle } from '@/shared/routing/agent-address';
 import { useAgent } from '@/features/agents/runtime/use-agents';
-import { useTranslation } from '@/shared/i18n/use-translation';
-import { EmptyState } from '@/shared/stickers/empty-state';
-import { DetailSkeleton } from '@/shared/ui/skeletons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { View } from 'react-native';
+import { AgentDetailsPage } from '@/features/agents/ui/detail/agent-details-page';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 /**
- * An agent's page. The route reads the id and loads the agent; the page itself
- * is `src/features/agents/ui/detail/agent-detail.tsx`, and what its buttons do is
- * `src/features/agents/runtime/use-agent-detail-actions.ts` — which opens and starts work
- * in agent THREADS, never bare conversations.
+ * `/agents/:id` — the old address of an agent's page, and still the one of an agent with no handle.
+ *
+ * Links shared before the page moved (`agentShareMessage` printed this URL) land here: an agent
+ * with a handle is sent on to `/@handle/details`, its address now. An agent Oxy resolved no handle
+ * for has no such address, so its page is drawn here, by id.
  */
-export default function AgentDetailScreen() {
+export default function AgentByIdScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { t } = useTranslation();
-  /*
-   * One cache, not two. This screen used to copy the fetched agent into local
-   * state and then hand-patch that copy after a write — a third place holding
-   * the same record, and the reason a change made here could go unseen
-   * elsewhere. The query IS the state; a write updates it where it lives.
-   */
-  const { data: agent, isPending: loading } = useAgent(id);
-  // Asked for alongside the agent rather than after it; the page reads the
-  // same cached answers.
-  useAgentThreads(id);
-  useAgentReviews(id);
-
-  if (loading) {
-    return (
-      <View className="flex-1">
-        <Stack.Screen options={{ headerBackVisible: true }} />
-        <DetailSkeleton />
-      </View>
-    );
+  const { data: agent, isPending } = useAgent(id);
+  if (agent && agentHandle(agent) !== '') {
+    return <Redirect href={agentDetailsRoute(agent) as `/@${string}/details`} />;
   }
-
-  if (!agent) {
-    return (
-      <>
-        <Stack.Screen options={{ headerBackVisible: true }} />
-        <EmptyState
-          sticker="agentNotFound"
-          title={t('agents.notFound')}
-          action={{
-            label: t('agents.backToAgents'),
-            onPress: () => router.back(),
-          }}
-        />
-      </>
-    );
-  }
-
-  return <AgentDetail agent={agent} />;
+  return <AgentDetailsPage agent={agent} pending={isPending} />;
 }

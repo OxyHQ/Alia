@@ -1,5 +1,5 @@
 import type { Agent } from '@/shared/contracts/agents';
-import { agentHandle } from './identity';
+import { agentHandle } from '@/shared/routing/agent-address';
 
 /**
  * The agent whose thread or conversation the path shows, if any: `/@handle` is the agent's

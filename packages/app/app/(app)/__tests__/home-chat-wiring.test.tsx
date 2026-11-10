@@ -128,7 +128,7 @@ describe('the new-chat route', () => {
 describe('the three doors onto one chat', () => {
   const route = (file: string) => readFileSync(join(APP_ROOT, 'app/(app)', file), 'utf8');
 
-  it.each(['index.tsx', 'c/[id]/index.tsx', '[username].tsx'])(
+  it.each(['index.tsx', 'c/[id]/index.tsx', '[username]/index.tsx'])(
     '%s mounts the conversation screen and draws no thread of its own',
     (file) => {
       const source = route(file);
