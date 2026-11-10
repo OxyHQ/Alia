@@ -197,6 +197,9 @@ export default function AppLayout() {
       defaultPanelWidth={rightPanel === 'editor' ? EDITOR_PANEL_WIDTH : rightPanelWidth}
       // The editor has a width of its own; every other panel is dragged.
       panelResizable={rightPanel !== 'editor'}
+      // The editor is worked in beside the agent it edits: it stays a panel wherever the sidebar,
+      // the conversation and its 380px fit (from `lg`) rather than becoming a modal at `xl`.
+      panelFloatingBelow={rightPanel === 'editor' ? 'lg' : 'xl'}
       // The panel exists only while something has opened it: the agent at
       // work (its tools, the files it writes, a run) or the chat's menu.
       // Closed, the conversation has the whole width.
