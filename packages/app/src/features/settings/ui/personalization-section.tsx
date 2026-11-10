@@ -2,12 +2,16 @@ import { generateAPIUrl } from '@/shared/api/generate-api-url';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUserData } from '@/features/memory/runtime/use-user-data';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
-import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
-import { SettingsCard, SettingsRow, type SettingsRowData } from '@oxy.so/bloom/settings-modal';
+import {
+  SettingsCard,
+  SettingsPageActions,
+  SettingsRow,
+  type SettingsRowData,
+} from '@oxy.so/bloom/settings-modal';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { usePersonalityStyleRow } from './personality-style-picker';
 
@@ -84,6 +88,32 @@ export function PersonalizationSection() {
     }
   };
 
+  // What changed since the stored preferences, so the header offers Save only when there is one.
+  const dirty =
+    memory != null &&
+    (language !== (memory?.preferences?.language || '') ||
+      tone !== (memory?.preferences?.tone || '') ||
+      voice !== (memory?.preferences?.voice || ''));
+  const pageActions = useMemo(
+    () => [
+      {
+        key: 'cancel',
+        label: t('common.cancel'),
+        onPress: handleCancel,
+        disabled: saving || !dirty,
+      },
+      {
+        key: 'save',
+        label: saving ? t('settings.saving') : t('settings.saveButton'),
+        onPress: handleSave,
+        disabled: saving || !dirty,
+      },
+    ],
+    // `handleCancel` and `handleSave` close over this render's state; the actions follow it.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: see above
+    [t, saving, dirty, language, tone, voice, memory],
+  );
+
   const personalityRow = usePersonalityStyleRow({
     selectedStyle: tone,
     onSelectStyle: setTone,
@@ -124,24 +154,13 @@ export function PersonalizationSection() {
 
   return (
     <View className="w-full gap-6">
+      <SettingsPageActions label={t('settings.title')} actions={pageActions} />
       <SettingsCard>
         {rows.map((row) => (
           <SettingsRow key={row.key} label={row.label} description={row.description}>
             {row.control}
           </SettingsRow>
         ))}
-      </SettingsCard>
-      <SettingsCard>
-        <SettingsRow label={t('settings.saveButton')}>
-          <ButtonGroup size="sm" accessibilityLabel={t('settings.saveButton')}>
-            <ButtonGroupItem onPress={handleCancel} disabled={saving}>
-              {t('common.cancel')}
-            </ButtonGroupItem>
-            <ButtonGroupItem onPress={handleSave} disabled={saving}>
-              {saving ? t('settings.saving') : t('settings.saveButton')}
-            </ButtonGroupItem>
-          </ButtonGroup>
-        </SettingsRow>
       </SettingsCard>
     </View>
   );
