@@ -410,84 +410,17 @@
           "de": "German"
         }
       },
-      "agentMemory": {
-        "title": "What an agent remembers",
-        "agentsTitle": "What your agents remember",
-        "agentsEmpty": "No agent remembers anything about you yet",
-        "agentsEmptyDescription": "Each agent keeps its own memory of you, separate from Alia's.",
-        "unnamedAgent": "Agent",
-        "fileCount": {
-          "one": "1 note",
-          "other": "{{count}} notes"
-        },
-        "open": "View",
-        "description": "What {{name}} remembers about you. It is its own memory, not Alia's: edit it or make it forget.",
-        "back": "Memory",
-        "empty": "{{name}} does not remember anything about you.",
-        "forget": "Forget",
-        "forgetAll": "Forget everything",
-        "forgetAllTitle": "Make {{name}} forget everything",
-        "forgetAllDescription": "Deletes every note this agent keeps about you.",
-        "forgetFileTitle": "Forget {{path}}",
-        "forgetDescription": "{{name}} will not remember it any more. This cannot be undone.",
-        "forgotten": "Forgotten",
-        "forgetFailed": "Could not forget it. Try again.",
-        "changedMeanwhile": "The agent changed this note while you were editing. Its latest version is shown."
-      },
       "attention": {
-        "title": "What an agent notices",
         "pauseTitle": "Pause everything",
         "pauseAll": "Pause everything that starts on its own",
         "pauseAllDescription": "While this is on, no scheduled task, event automation, follow-up or heartbeat runs for you. Chats, runs you start yourself and work already running are not affected.",
         "pauseFailed": "Couldn't change the pause. Try again.",
-        "agentsTitle": "What your agents notice",
-        "agentsEmpty": "You have no agents yet",
-        "agentsEmptyDescription": "Create an agent to choose what it notices on its own.",
-        "agentsDescription": "How often it checks and what it hears about.",
-        "unnamedAgent": "Agent",
-        "open": "Manage",
-        "description": "What {{name}} notices without being asked: when it checks, what it hears about and what is waiting for it.",
-        "back": "Memory",
-        "heartbeatTitle": "Heartbeat",
-        "computerTitle": "Computer",
-        "computer": "Computer",
-        "computerDescription": "Where {{name}} works when it uses a computer. Alia's is the shared workspace of all your agents, so what one makes is there for the next. Only you ever see it: anyone else who uses {{name}} gets a separate machine of their own.",
-        "computerAlia": "Alia's computer",
-        "computerOwn": "{{name}}'s own computer",
-        "heartbeat": "Check on its own",
-        "heartbeatDescription": "{{name}} wakes up now and then, only if something is waiting in its inbox.",
-        "frequency": "How often",
-        "frequencyDescription": "The longest it waits before looking at what arrived.",
-        "every": {
-          "one": "Every minute",
-          "other": "Every {{count}} minutes"
-        },
-        "subscriptionsTitle": "What it hears about",
-        "newEmailOwner": "Tell {{name}} about new emails",
-        "newEmailOwnerDescription": "Emails that reach your Inbox.",
-        "newEmailAgent": "…and about new emails in its own mailbox",
-        "newEmailAgentDescription": "Emails that reach {{name}}'s own address.",
-        "sourceOwner": "Your events",
-        "sourceAgent": "Its own mailbox",
-        "remove": "Remove",
-        "inboxTitle": "Waiting in its inbox",
-        "inboxEmpty": "Nothing is waiting for {{name}}.",
-        "lastLooked": "Last looked at its inbox: {{when}}",
-        "neverLooked": "{{name}} hasn't looked at its inbox yet.",
-        "loadFailed": "Could not load this. Try again.",
-        "limitReached": "This agent already hears about as many things as it can (25). Remove one first.",
-        "subscribeFailed": "Could not change what it hears about. Try again.",
-        "unsubscribeFailed": "Could not remove it. Try again."
+        "loadFailed": "Could not load this. Try again."
       },
       "proactive": {
         "emailTitle": "Important emails",
         "aliaEmailLabel": "Tell me about important emails",
         "aliaEmailDescription": "Alia writes to you when something that needs you arrives in your Inbox. She only reads the sender, the subject and the first line.",
-        "agentsTitle": "Your agents' own mailboxes",
-        "agentEmailLabel": "Let {{name}} tell me about important emails",
-        "agentEmailDescription": "{{name}} writes to you when its own mailbox gets something you should see, such as a verification or a reply.",
-        "noAgents": "You have no agents yet.",
-        "unnamedAgent": "Agent",
         "limitsLabel": "They never pester you",
         "limitsDescription": "At most three messages a day each, and none while their last two are unanswered.",
         "loadFailed": "Could not load these settings."
@@ -1556,6 +1489,61 @@
           "close": "Closed the browser",
           "download": "Downloaded a file"
         }
+      }
+    },
+    "editor": {
+      "work": {
+        "title": "Works on its own",
+        "heartbeat": "Heartbeat",
+        "heartbeatLabel": "Check on its own: {{name}} wakes up now and then, only if something is waiting in its inbox.",
+        "frequency": "How often",
+        "frequencyLabel": "The longest it waits before looking at what arrived",
+        "every": {
+          "one": "Every minute",
+          "other": "Every {{count}} minutes"
+        },
+        "computer": "Computer",
+        "computerLabel": "Where {{name}} works when it uses a computer",
+        "computerAlia": "Alia's computer",
+        "computerOwn": "{{name}}'s own computer",
+        "computerNote": "Alia's is the shared workspace of all your agents, so what one makes is there for the next. Only you ever see it: anyone else who uses {{name}} gets a separate machine of their own."
+      },
+      "hears": {
+        "title": "What it hears about",
+        "newEmailOwner": "Your email",
+        "newEmailOwnerLabel": "Tell {{name}} about new emails in your Inbox",
+        "newEmailAgent": "Its email",
+        "newEmailAgentLabel": "Tell {{name}} about new emails in its own mailbox",
+        "important": "Alerts",
+        "importantLabel": "Let {{name}} tell me about important emails in its own mailbox, such as a verification or a reply",
+        "sourceOwner": "Your events",
+        "sourceAgent": "Its own mailbox",
+        "remove": "Remove",
+        "loadFailed": "Could not load this. Try again.",
+        "limitReached": "This agent already hears about as many things as it can (25). Remove one first.",
+        "subscribeFailed": "Could not change what it hears about. Try again.",
+        "unsubscribeFailed": "Could not remove it. Try again."
+      },
+      "inbox": {
+        "title": "Waiting in its inbox",
+        "looked": "Last look",
+        "waiting": "Waiting",
+        "empty": "Nothing is waiting for {{name}}.",
+        "lastLooked": "Last looked at its inbox: {{when}}",
+        "neverLooked": "{{name}} hasn't looked at its inbox yet.",
+        "loadFailed": "Could not load this. Try again."
+      },
+      "memory": {
+        "title": "What it remembers",
+        "empty": "{{name}} does not remember anything about you.",
+        "forget": "Forget",
+        "forgetAll": "Everything",
+        "forgetAllTitle": "Make {{name}} forget everything",
+        "forgetFileTitle": "Forget {{path}}",
+        "forgetDescription": "{{name}} will not remember it any more. This cannot be undone.",
+        "forgotten": "Forgotten",
+        "forgetFailed": "Could not forget it. Try again.",
+        "changedMeanwhile": "The agent changed this note while you were editing. Its latest version is shown."
       }
     }
   },

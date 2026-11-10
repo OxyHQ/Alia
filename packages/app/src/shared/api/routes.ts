@@ -10,12 +10,6 @@ export const API_ROUTES = {
     resetPassword: '/auth/reset-password',
   },
 
-  // Memory routes
-  memory: {
-    /** Every agent that remembers something about the caller (memory per actor). */
-    agents: '/memory/agents',
-  },
-
   /** "Avísame de emails importantes", per actor: Alia and each owned agent. */
   emailAlerts: '/notifications/email-alerts',
 

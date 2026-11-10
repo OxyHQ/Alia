@@ -57,7 +57,7 @@ it.each(['projection', 'shell-unmount'] as const)(
     world.sessionId = 'session-A';
     const api = await import('@/shared/api/client');
     api.default.defaults.baseURL = world.origin;
-    const { useEmailAlerts } = await import('@/features/settings/runtime/use-email-alerts');
+    const { useEmailAlerts } = await import('@/features/notifications/runtime/use-email-alerts');
     const { useAccountLifecycle } = await import('@/shell/account-lifecycle');
     const oxy = new OxyServices({ baseURL: world.origin });
     const token = `h.${Buffer.from(JSON.stringify({ userId: 'A', sessionId: 'session-A', exp: 4102444800 })).toString('base64url')}.s`;
@@ -182,7 +182,7 @@ it('drops an old response after an already dispatched request changes owner', as
   world.toastError.mockClear();
   const api = await import('@/shared/api/client');
   api.default.defaults.baseURL = world.origin;
-  const { useEmailAlerts } = await import('@/features/settings/runtime/use-email-alerts');
+  const { useEmailAlerts } = await import('@/features/notifications/runtime/use-email-alerts');
   const { useAccountLifecycle } = await import('@/shell/account-lifecycle');
   const oxy = new OxyServices({ baseURL: world.origin });
   const token = (userId: string) =>
