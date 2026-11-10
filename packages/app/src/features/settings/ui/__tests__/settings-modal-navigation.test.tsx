@@ -62,17 +62,11 @@ vi.mock('@/features/settings/ui/personalization-section', () => ({
 vi.mock('@/features/settings/ui/accounts-section', () => ({
   AccountsSection: () => null,
 }));
-vi.mock('@/features/settings/ui/bots-section', () => ({
-  BotsSection: () => null,
-}));
 vi.mock('@/features/settings/ui/external-agents-section', () => ({
   ExternalAgentsSection: () => null,
 }));
 vi.mock('@/features/settings/ui/connectors-section', () => ({
   ConnectorsSection: () => null,
-}));
-vi.mock('@/features/settings/ui/integrations-section', () => ({
-  IntegrationsSection: () => null,
 }));
 vi.mock('@/features/settings/ui/local-models-section', () => ({
   LocalModelsSection: () => null,

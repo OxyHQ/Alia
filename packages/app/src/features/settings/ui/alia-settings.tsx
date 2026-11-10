@@ -5,12 +5,10 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccountsSection } from './accounts-section';
 import { BillingSection } from './billing-section';
-import { BotsSection } from './bots-section';
 import { ConnectorDetailSection } from './connector-detail-section';
 import { ConnectorsSection } from './connectors-section';
 import { ExternalAgentsSection } from './external-agents-section';
 import { GeneralSection } from './general-section';
-import { IntegrationsSection } from './integrations-section';
 import { LocalModelsSection } from './local-models-section';
 import { MemorySection } from './memory-section';
 import { PersonalizationSection } from './personalization-section';
@@ -30,10 +28,8 @@ const CONTENT: Record<string, ReactNode> = {
   storage: <StorageSection />,
   personalization: <PersonalizationSection />,
   accounts: <AccountsSection />,
-  bots: <BotsSection />,
   'external-agents': <ExternalAgentsSection />,
   connectors: <ConnectorsSection />,
-  integrations: <IntegrationsSection />,
   'local-models': <LocalModelsSection />,
   usage: <BillingSection />,
   limits: <UsageSection />,
