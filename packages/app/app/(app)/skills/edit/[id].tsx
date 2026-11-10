@@ -12,6 +12,7 @@ import { Field } from '@oxy.so/bloom/field';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
 import { DetailSkeleton } from '@/shared/ui/skeletons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
+import { ResponsiveGrid } from '@oxy.so/bloom/grid';
 import { Switch } from '@oxy.so/bloom/switch';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Textarea } from '@oxy.so/bloom/textarea';
@@ -36,6 +37,11 @@ import { ScrollView } from 'react-native';
  * `name` is not editable at all: it is what Alia says to load the skill, and
  * changing it makes a different skill rather than editing this one.
  */
+
+/** The narrowest a field is drawn before the grid drops a column. */
+const FIELD_MIN_WIDTH = 340;
+/** The widest the form grows: two columns of a readable width. */
+const PAGE_MAX_WIDTH = 1040;
 
 export default function EditSkillScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -182,98 +188,107 @@ export default function EditSkillScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerClassName="w-full max-w-[768px] self-center gap-4 px-4 pb-12 pt-4"
+        contentContainerClassName="w-full self-center px-4 pb-12 pt-4"
+        contentContainerStyle={{ maxWidth: PAGE_MAX_WIDTH }}
       >
-        <Field label={t('skills.nameLabel')} description={t('skills.nameHint')}>
-          <Text variant="body-regular" selectable>
-            {skill.name}
-          </Text>
-        </Field>
+        <ResponsiveGrid
+          flow="columns"
+          minItemWidth={FIELD_MIN_WIDTH}
+          maxColumns={2}
+          gap={16}
+          testID="skill-edit-grid"
+        >
+          <Field label={t('skills.nameLabel')} description={t('skills.nameHint')}>
+            <Text variant="body-regular" selectable>
+              {skill.name}
+            </Text>
+          </Field>
 
-        <Field label={t('skills.displayNameLabel')}>
-          <TextFieldInput
-            label={t('skills.displayNameLabel')}
-            placeholder={null}
-            value={displayName}
-            onChangeText={setDisplayName}
-          />
-        </Field>
+          <Field label={t('skills.displayNameLabel')}>
+            <TextFieldInput
+              label={t('skills.displayNameLabel')}
+              placeholder={null}
+              value={displayName}
+              onChangeText={setDisplayName}
+            />
+          </Field>
 
-        {/* The server refuses a description over 1024 characters, so the field
+          {/* The server refuses a description over 1024 characters, so the field
           stops there and counts toward it. */}
-        <Textarea
-          label={t('skills.descriptionLabel')}
-          hint={t('skills.descriptionHint')}
-          value={description}
-          onChangeText={setDescription}
-          autoResize
-          rows={5}
-          maxLength={1024}
-          showCount
-        />
-
-        <Textarea
-          label={t('skills.bodyLabel')}
-          hint={t('skills.bodyHint')}
-          value={body}
-          onChangeText={setBody}
-          autoResize
-          rows={13}
-        />
-
-        <Field label={t('skills.licenseLabel')}>
-          <TextFieldInput
-            label={t('skills.licenseLabel')}
-            value={license}
-            onChangeText={setLicense}
-            placeholder="Apache-2.0"
-            autoCapitalize="none"
+          <Textarea
+            label={t('skills.descriptionLabel')}
+            hint={t('skills.descriptionHint')}
+            value={description}
+            onChangeText={setDescription}
+            autoResize
+            rows={5}
+            maxLength={1024}
+            showCount
           />
-        </Field>
 
-        <Field label={t('skills.compatibilityLabel')}>
-          <TextFieldInput
-            label={t('skills.compatibilityLabel')}
-            placeholder={null}
-            value={compatibility}
-            onChangeText={setCompatibility}
+          <Textarea
+            label={t('skills.bodyLabel')}
+            hint={t('skills.bodyHint')}
+            value={body}
+            onChangeText={setBody}
+            autoResize
+            rows={13}
           />
-        </Field>
 
-        <Field label={t('skills.allowedToolsLabel')}>
-          <TextFieldInput
-            label={t('skills.allowedToolsLabel')}
-            placeholder={null}
-            value={allowedTools}
-            onChangeText={setAllowedTools}
-            autoCapitalize="none"
-          />
-        </Field>
+          <Field label={t('skills.licenseLabel')}>
+            <TextFieldInput
+              label={t('skills.licenseLabel')}
+              value={license}
+              onChangeText={setLicense}
+              placeholder="Apache-2.0"
+              autoCapitalize="none"
+            />
+          </Field>
 
-        <SettingsListGroup>
-          <SettingsListItem
-            title={t('skills.publish')}
-            description={t('skills.publishHint')}
-            rightElement={
-              <Switch
-                accessibilityLabel={t('skills.publish')}
-                checked={isPublic}
-                onCheckedChange={setIsPublic}
-              />
-            }
-          />
-        </SettingsListGroup>
+          <Field label={t('skills.compatibilityLabel')}>
+            <TextFieldInput
+              label={t('skills.compatibilityLabel')}
+              placeholder={null}
+              value={compatibility}
+              onChangeText={setCompatibility}
+            />
+          </Field>
 
-        <SettingsListGroup>
-          <SettingsListItem
-            icon={<RiDeleteBinLine width={18} height={18} fill={colors.error} />}
-            title={confirmingDelete ? t('skills.deleteSkillConfirm') : t('skills.deleteSkill')}
-            destructive
-            showChevron={false}
-            disabled={remove.isPending}
-            onPress={() => (confirmingDelete ? void handleDelete() : setConfirmingDelete(true))}
-          />
-        </SettingsListGroup>
+          <Field label={t('skills.allowedToolsLabel')}>
+            <TextFieldInput
+              label={t('skills.allowedToolsLabel')}
+              placeholder={null}
+              value={allowedTools}
+              onChangeText={setAllowedTools}
+              autoCapitalize="none"
+            />
+          </Field>
+
+          <SettingsListGroup>
+            <SettingsListItem
+              title={t('skills.publish')}
+              description={t('skills.publishHint')}
+              rightElement={
+                <Switch
+                  accessibilityLabel={t('skills.publish')}
+                  checked={isPublic}
+                  onCheckedChange={setIsPublic}
+                />
+              }
+            />
+          </SettingsListGroup>
+
+          <SettingsListGroup>
+            <SettingsListItem
+              icon={<RiDeleteBinLine width={18} height={18} fill={colors.error} />}
+              title={confirmingDelete ? t('skills.deleteSkillConfirm') : t('skills.deleteSkill')}
+              destructive
+              showChevron={false}
+              disabled={remove.isPending}
+              onPress={() => (confirmingDelete ? void handleDelete() : setConfirmingDelete(true))}
+            />
+          </SettingsListGroup>
+        </ResponsiveGrid>
       </ScrollView>
     </>
   );
