@@ -12,6 +12,7 @@ import {
 } from '../db/chat/conversationMemberRepository.js';
 import { parseGroupMembers } from '../domain/conversation-groups.js';
 import { canReachAgent } from '../lib/agent-account.js';
+import { spaceIdsForConversations } from '../db/spaces/spaceRepository.js';
 import { appSurfaceOf } from '../lib/app-surface.js';
 import { purgeConversationSpeechClips } from '../lib/speech-clips.js';
 import {
@@ -405,6 +406,14 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
       results.map((c) => c.conversationId),
     );
 
+    // Which of these are a space's room (ADR 0028), so a client files them under the space and never
+    // among Alia's own chats.
+    const spaceIds = await spaceIdsForConversations(
+      getDb(),
+      localAccountId,
+      results.map((c) => c.conversationId),
+    );
+
     const nextCursor =
       hasMore && results.length > 0 ? results[results.length - 1].updatedAt.toISOString() : null;
 
@@ -416,6 +425,7 @@ router.get('/', authenticateTokenOrApiKey, async (req: Request, res: Response) =
         source: c.source,
         agentId: c.agentId,
         memberAgentIds: groupMembers.get(c.conversationId) ?? [],
+        spaceId: spaceIds.get(c.conversationId) ?? null,
         app: c.originApp,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
@@ -447,6 +457,9 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
 
     const rows = await listMessages(getDb(), userId, conversationId);
     const memberAgentIds = await listGroupMembers(getDb(), userId, conversationId);
+    const spaceId =
+      (await spaceIdsForConversations(getDb(), userId, [conversationId])).get(conversationId) ??
+      null;
 
     res.json({
       id: conversation.conversationId,
@@ -455,6 +468,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       source: conversation.source,
       agentId: conversation.agentId,
       memberAgentIds,
+      spaceId,
       app: conversation.originApp,
       messages: rows.map(toStoredMessage),
       createdAt: conversation.createdAt,

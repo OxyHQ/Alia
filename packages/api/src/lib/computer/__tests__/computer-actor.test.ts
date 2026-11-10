@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { resolveComputerActor } from '../computer-actor.js';
 
-const agent = (over: Partial<Parameters<typeof resolveComputerActor>[0]['agent']> = {}) => ({
+type Agent = Parameters<typeof resolveComputerActor>[0]['agent'];
+const agent = (over: Partial<Agent> = {}): Agent => ({
   _id: 'agent-1',
   ownerOxyAccountId: 'owner-1',
-  computerSource: 'alia' as const,
+  computerSource: 'alia',
+  spaceId: null,
   ...over,
 });
 
@@ -47,5 +49,48 @@ describe('resolveComputerActor', () => {
       oxyUserId: 'owner-1',
     });
     expect(ownA).not.toBe(ownB);
+  });
+
+  describe('an agent in a space (ADR 0028)', () => {
+    it('works on the space’s shared workspace when its owner uses it on the default', () => {
+      expect(
+        resolveComputerActor({ agent: agent({ spaceId: 'space-1' }), oxyUserId: 'owner-1' }),
+      ).toBe('space:space-1:user:owner-1');
+    });
+
+    it('gives every member of the space the SAME machine, and a different space a different one', () => {
+      const a = resolveComputerActor({
+        agent: agent({ _id: 'a', spaceId: 's1' }),
+        oxyUserId: 'owner-1',
+      });
+      const b = resolveComputerActor({
+        agent: agent({ _id: 'b', spaceId: 's1' }),
+        oxyUserId: 'owner-1',
+      });
+      const c = resolveComputerActor({
+        agent: agent({ _id: 'c', spaceId: 's2' }),
+        oxyUserId: 'owner-1',
+      });
+      expect(a).toBe(b);
+      expect(c).not.toBe(a);
+    });
+
+    it('keeps its own machine when its owner chose that, even inside a space', () => {
+      expect(
+        resolveComputerActor({
+          agent: agent({ spaceId: 'space-1', computerSource: 'own' }),
+          oxyUserId: 'owner-1',
+        }),
+      ).toBe('agent:agent-1:user:owner-1');
+    });
+
+    it('never gives a stranger’s workspace to the owner’s space: someone else gets the agent’s own machine', () => {
+      const actor = resolveComputerActor({
+        agent: agent({ spaceId: 'space-1' }),
+        oxyUserId: 'stranger-9',
+      });
+      expect(actor).toBe('agent:agent-1:user:stranger-9');
+      expect(actor).not.toContain('space:');
+    });
   });
 });

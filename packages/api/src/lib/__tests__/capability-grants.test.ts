@@ -139,6 +139,11 @@ vi.mock('../logger.js', () => {
   };
 });
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
+/** The peers of a space member: set per test, since the rows are in a database this test lacks. */
+const space = vi.hoisted(() => ({ peers: [] as string[] }));
+vi.mock('../../db/spaces/spaceRepository.js', () => ({
+  listSpacePeerIds: vi.fn(async () => space.peers),
+}));
 
 const { ToolPipeline } = await import('../tool-pipeline.js');
 const { buildConsultAgentTool } = await import('../tools/consult-agent.js');
@@ -857,5 +862,68 @@ describe('the retired shell and files families stay gone', () => {
     ]);
     // An unknown family is NOT retired: it stays, so the wire can still refuse it.
     expect(withoutRetiredGrants(['not-a-family'])).toEqual(['not-a-family']);
+  });
+});
+
+/**
+ * A member of a SPACE (ADR 0028) reaches only its space: that is enforced where the tools are built,
+ * so these run the real assembler and read what the consult source was ASKED and which tools exist.
+ */
+describe('an agent in a space', () => {
+  const member = (grants: readonly string[]) => ({
+    ...agentWith(grants),
+    spaceId: 'space-1',
+  });
+  const memberNames = (grants: readonly string[], over = {}) =>
+    namesFor(null, { agent: member(grants), ...over });
+
+  it('consults exactly its peers, even with no `agent` grant at all', async () => {
+    space.peers = ['peer-1', 'peer-2'];
+    asked.agent.length = 0;
+
+    const names = await memberNames([]);
+
+    expect(names).toContain('consultAgent');
+    expect(asked.agent).toEqual([['peer-1', 'peer-2']]);
+  });
+
+  it('is not widened by a bare `agent` grant, nor by named agents outside the space', async () => {
+    space.peers = ['peer-1'];
+    asked.agent.length = 0;
+
+    await memberNames(['agent']);
+    await memberNames(['agent:outsider-9']);
+
+    expect(asked.agent).toEqual([['peer-1'], ['peer-1']]);
+  });
+
+  it('cannot find, create or hire agents outside: those tools are not built', async () => {
+    space.peers = ['peer-1'];
+
+    const names = await memberNames(['agent', 'delegation']);
+
+    expect(names).not.toContain('searchAgents');
+    expect(names).not.toContain('createAgent');
+    expect(names).not.toContain('updateAgent');
+    expect(names).not.toContain('listMyAgents');
+    expect(names).not.toContain('delegate');
+  });
+
+  it('has no consult tool at all when it is alone in its space', async () => {
+    space.peers = [];
+
+    expect(await memberNames(['agent'])).not.toContain('consultAgent');
+  });
+
+  it('is unchanged for an agent in no space: the same grants still reach what they reached', async () => {
+    space.peers = ['peer-1'];
+    asked.agent.length = 0;
+
+    const names = await namesFor(['agent', 'delegation']);
+
+    expect(names).toContain('consultAgent');
+    expect(names).toContain('searchAgents');
+    expect(names).toContain('createAgent');
+    expect(asked.agent).toEqual([undefined]);
   });
 });

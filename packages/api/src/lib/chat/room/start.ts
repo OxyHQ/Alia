@@ -9,6 +9,7 @@
 
 import { findAgentById } from '../../../db/agents/agentRepository.js';
 import { findLatestUserMessage } from '../../../db/chat/messageRepository.js';
+import { findSpaceByConversation } from '../../../db/spaces/spaceRepository.js';
 import { getDb } from '../../../db/index.js';
 import type { AgentInfo } from '../../../domain/conversation.js';
 import { canReachAgent } from '../../agent-account.js';
@@ -131,6 +132,10 @@ export const prepareRoom: PrepareRoom = async (input) => {
   );
   const taskIds = roster.flatMap((member) => (member.oxyTaskId ? [member.oxyTaskId] : []));
 
+  // The space this room belongs to, if any: its brief goes to every member's prompt (ADR 0028).
+  const space = await findSpaceByConversation(getDb(), userId, conversationId);
+  const spaceBrief = space ? { name: space.name, instructions: space.instructions } : null;
+
   const queue = firstRound(
     lastUserText(input.messages),
     roster.map((member) => member.info),
@@ -154,6 +159,7 @@ export const prepareRoom: PrepareRoom = async (input) => {
         turns: 0,
         lastSpeakerId: null,
         surfaceApplicationId: input.surfaceApplicationId,
+        space: spaceBrief,
       } satisfies RoomJobData),
     abandon: async () => {
       await Promise.allSettled(taskIds.map((id) => revokeOxyTask(id)));

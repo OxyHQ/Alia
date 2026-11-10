@@ -351,7 +351,7 @@ export async function clearConversationPreview(
  * them itself.
  */
 export async function deleteConversation(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   conversationId: string,
 ): Promise<number> {

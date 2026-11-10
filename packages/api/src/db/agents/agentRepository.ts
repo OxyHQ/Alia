@@ -162,6 +162,8 @@ export interface AgentRecord {
   status: AgentStatus;
   /** Whose computer it works on; see `AGENT_COMPUTER_SOURCES`. */
   computerSource: AgentComputerSource;
+  /** The space (ADR 0028) this agent is in, or null. Changed only by the space repository. */
+  spaceId: string | null;
   access: AgentAccess;
   systemPrompt: string | null;
   /** The agent's power level or `publisher/model`; null runs `auto`. */
@@ -258,6 +260,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     isPublished: row.isPublished,
     status: row.status as AgentStatus,
     computerSource: row.computerSource as AgentComputerSource,
+    spaceId: row.spaceId,
     access: row.access as AgentAccess,
     systemPrompt: row.systemPrompt,
     modelId: row.modelId,
