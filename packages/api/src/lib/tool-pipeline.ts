@@ -513,6 +513,17 @@ export class ToolPipeline {
         getCurrentDate: getCurrentDateTool,
         ...buildRuntimeTools(runtime, grants, { withoutDelegation: true, withoutComputer: true }),
         ...oxyServiceTools,
+        // A member of a space woken on its own (a heartbeat, a follow-up) may keep the space's shared
+        // notes: what it learned is for its teammates too, and they are its own space's, not an authority
+        // over anything outside it (ADR 0028).
+        ...(agent.spaceId
+          ? {
+              [SPACE_NOTES_TOOL]: buildSpaceNotesTool({
+                spaceId: agent.spaceId,
+                agentId: agent._id,
+              }),
+            }
+          : {}),
       };
       await applyRuntimePolicy(tools, runtime, new Set());
       // Exactly authorized steps are few, but the budget is not a matter of
