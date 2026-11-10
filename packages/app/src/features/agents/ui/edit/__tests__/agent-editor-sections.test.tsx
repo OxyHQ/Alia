@@ -36,7 +36,9 @@ const mine = vi.hoisted(() => ({ agents: undefined as unknown, pending: false })
 const updateAgent = vi.hoisted(() => vi.fn());
 
 vi.mock('react-native', async () => hosts('View', 'Text'));
-vi.mock('@oxy.so/bloom/agent-creator', async () => hosts('AgentCreatorField', 'AgentCreatorSection'));
+vi.mock('@oxy.so/bloom/agent-creator', async () =>
+  hosts('AgentCreatorField', 'AgentCreatorSection'),
+);
 vi.mock('@oxy.so/bloom/typography', async () => hosts('Text'));
 vi.mock('@/features/agents/ui/edit/sections/editor-select', async () => hosts('EditorSelect'));
 vi.mock('@oxy.so/bloom/switch', async () => hosts('Switch'));
@@ -140,25 +142,34 @@ beforeEach(() => {
     alia: { enabled: true },
     agents: [{ agentId: 'agent-1', name: 'Scout', handle: 'scout', color: null, enabled: false }],
   };
-  api.get.mockReset().mockImplementation(async (url: string, config?: { params?: { path?: string } }) => {
-    if (url === '/notifications/email-alerts') return { data: alerts };
-    if (url.endsWith('/inbox'))
-      return { data: { items, heartbeat: { intervalMinutes: 60, lastHeartbeatAt } } };
-    if (url.endsWith('/subscriptions')) return { data: { subscriptions } };
-    if (url.endsWith('/memory'))
-      return config?.params?.path
-        ? { data: { path: config.params.path, content: '- likes tea\n', hash: 'h1', exists: true } }
-        : {
-            data: {
-              documents: documents.map((d) => ({
-                ...d,
-                byteLength: 12,
-                updatedAt: '2026-10-06T00:00:00.000Z',
-              })),
-            },
-          };
-    throw new Error(`unexpected GET ${url}`);
-  });
+  api.get
+    .mockReset()
+    .mockImplementation(async (url: string, config?: { params?: { path?: string } }) => {
+      if (url === '/notifications/email-alerts') return { data: alerts };
+      if (url.endsWith('/inbox'))
+        return { data: { items, heartbeat: { intervalMinutes: 60, lastHeartbeatAt } } };
+      if (url.endsWith('/subscriptions')) return { data: { subscriptions } };
+      if (url.endsWith('/memory'))
+        return config?.params?.path
+          ? {
+              data: {
+                path: config.params.path,
+                content: '- likes tea\n',
+                hash: 'h1',
+                exists: true,
+              },
+            }
+          : {
+              data: {
+                documents: documents.map((d) => ({
+                  ...d,
+                  byteLength: 12,
+                  updatedAt: '2026-10-06T00:00:00.000Z',
+                })),
+              },
+            };
+      throw new Error(`unexpected GET ${url}`);
+    });
   api.put.mockReset().mockResolvedValue({ data: {} });
   api.post.mockReset().mockResolvedValue({ data: { subscription: subscription() } });
   api.delete.mockReset().mockResolvedValue({ data: undefined });
@@ -189,7 +200,13 @@ describe('whose computer the agent works on', () => {
 
   it('shows an agent that keeps its own machine as such, and moves it back', async () => {
     mine.agents = [
-      { _id: 'agent-1', name: 'Scout', handle: 'scout', scheduleInterval: null, computerSource: 'own' },
+      {
+        _id: 'agent-1',
+        name: 'Scout',
+        handle: 'scout',
+        scheduleInterval: null,
+        computerSource: 'own',
+      },
     ];
     const tree = await render();
     const computer = select(tree, 'Where Scout works');
@@ -204,7 +221,9 @@ describe('whose computer the agent works on', () => {
   it('explains what the shared computer is, and tells the person when the change fails', async () => {
     updateAgent.mockRejectedValueOnce(new Error('offline'));
     const tree = await render();
-    expect(texts(tree).some((text) => text.startsWith("Alia's is the shared workspace"))).toBe(true);
+    expect(texts(tree).some((text) => text.startsWith("Alia's is the shared workspace"))).toBe(
+      true,
+    );
     await act(async () => select(tree, 'Where Scout works')?.props.onChange('own'));
     expect(toast.error).toHaveBeenCalled();
   });
@@ -231,14 +250,20 @@ describe('the heartbeat', () => {
       '1440',
     ]);
     await act(async () => switchLabelled(tree, 'Check on its own')?.props.onCheckedChange(false));
-    expect(updateAgent).toHaveBeenCalledWith({ id: 'agent-1', updates: { scheduleInterval: null } });
+    expect(updateAgent).toHaveBeenCalledWith({
+      id: 'agent-1',
+      updates: { scheduleInterval: null },
+    });
   });
 
   it('picking a frequency sends its minutes', async () => {
     mine.agents = [{ _id: 'agent-1', name: 'Scout', handle: 'scout', scheduleInterval: 60 }];
     const tree = await render();
     await act(async () => select(tree, 'The longest')?.props.onChange('1440'));
-    expect(updateAgent).toHaveBeenCalledWith({ id: 'agent-1', updates: { scheduleInterval: 1440 } });
+    expect(updateAgent).toHaveBeenCalledWith({
+      id: 'agent-1',
+      updates: { scheduleInterval: 1440 },
+    });
   });
 
   it('keeps an interval set elsewhere visible as a choice', async () => {
@@ -269,7 +294,9 @@ describe('what it hears about', () => {
 
   it("subscribes to the agent's own mailbox with the second toggle", async () => {
     const tree = await render();
-    await act(async () => switchLabelled(tree, 'new emails in its own')?.props.onCheckedChange(true));
+    await act(async () =>
+      switchLabelled(tree, 'new emails in its own')?.props.onCheckedChange(true),
+    );
     expect(api.post).toHaveBeenCalledWith('/agents/agent-1/subscriptions', {
       appId: 'inbox',
       eventType: 'new_email',
@@ -278,17 +305,24 @@ describe('what it hears about', () => {
   });
 
   it('reads each toggle from the subscription, and turning one off deletes it', async () => {
-    subscriptions = [subscription({ id: 'mine' }), subscription({ id: 'its', sourceAccountId: 'bot' })];
+    subscriptions = [
+      subscription({ id: 'mine' }),
+      subscription({ id: 'its', sourceAccountId: 'bot' }),
+    ];
     const tree = await render();
     expect(switchLabelled(tree, 'in your Inbox')?.props.checked).toBe(true);
     expect(switchLabelled(tree, 'new emails in its own')?.props.checked).toBe(true);
-    await act(async () => switchLabelled(tree, 'new emails in its own')?.props.onCheckedChange(false));
+    await act(async () =>
+      switchLabelled(tree, 'new emails in its own')?.props.onCheckedChange(false),
+    );
     expect(api.delete).toHaveBeenCalledWith('/agents/agent-1/subscriptions/its');
     expect(api.delete).not.toHaveBeenCalledWith('/agents/agent-1/subscriptions/mine');
   });
 
   it('lists the others with a remove button', async () => {
-    subscriptions = [subscription({ id: 'api-made', appId: 'calendar', eventType: 'event_created' })];
+    subscriptions = [
+      subscription({ id: 'api-made', appId: 'calendar', eventType: 'event_created' }),
+    ];
     const tree = await render();
     expect(all(tree, 'AgentCreatorField').some((row) => row.props.label === 'calendar')).toBe(true);
     await act(async () =>
@@ -306,7 +340,7 @@ describe('what it hears about', () => {
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('25'));
   });
 
-  it("lets the agent tell the person about important mail in its own mailbox, and saves a flip", async () => {
+  it('lets the agent tell the person about important mail in its own mailbox, and saves a flip', async () => {
     const tree = await render();
     const important = switchLabelled(tree, 'important emails');
     expect(important?.props.checked).toBe(false);
@@ -323,11 +357,18 @@ describe('what it hears about', () => {
 describe('the inbox', () => {
   it('asks for pending items and renders each as one plain line', async () => {
     items = [
-      { id: 'i1', appId: 'inbox', eventType: 'new_email', summary: { subject: 'Hola', from: 'ana@x.com' } },
+      {
+        id: 'i1',
+        appId: 'inbox',
+        eventType: 'new_email',
+        summary: { subject: 'Hola', from: 'ana@x.com' },
+      },
       { id: 'i2', appId: 'inbox', eventType: 'new_email', summary: 42 },
     ];
     const tree = await render();
-    expect(api.get).toHaveBeenCalledWith('/agents/agent-1/inbox', { params: { status: 'pending' } });
+    expect(api.get).toHaveBeenCalledWith('/agents/agent-1/inbox', {
+      params: { status: 'pending' },
+    });
     expect(texts(tree)).toContain('Hola · ana@x.com');
     expect(texts(tree)).toContain('inbox · new_email');
   });
@@ -379,14 +420,17 @@ describe('what the agent remembers', () => {
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({ destructive: true, title: 'Forget MEMORY.md' }),
     );
-    expect(api.delete).toHaveBeenCalledWith('/agents/agent-1/memory', { params: { path: 'MEMORY.md' } });
+    expect(api.delete).toHaveBeenCalledWith('/agents/agent-1/memory', {
+      params: { path: 'MEMORY.md' },
+    });
   });
 
   it('forgets everything only after the person confirms', async () => {
     documents = [{ path: 'MEMORY.md' }];
     const tree = await render();
     const forgetAll = all(tree, 'Button').find(
-      (node) => node.props.tone === 'danger' && String(node.props.children).includes('forget everything'),
+      (node) =>
+        node.props.tone === 'danger' && String(node.props.children).includes('forget everything'),
     )!;
 
     confirm.mockResolvedValueOnce(false);
