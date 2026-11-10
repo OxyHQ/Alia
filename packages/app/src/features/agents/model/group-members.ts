@@ -1,7 +1,8 @@
 import type { AliaParticipant } from '@alia.onl/sdk';
 import { readAgentCharacter } from '@alia.onl/sdk';
 import type { Agent } from '@/shared/contracts/agents';
-import { agentDisplayName, agentHandle } from './identity';
+import { agentDisplayName } from './identity';
+import { agentHandle } from '@/shared/routing/agent-address';
 
 /**
  * The members of a group conversation as the chat draws them, in the order they answer.

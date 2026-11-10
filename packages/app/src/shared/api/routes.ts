@@ -86,6 +86,8 @@ export const API_ROUTES = {
      * which is what makes a result reachable rather than just visible.
      */
     create: '/agents',
+    /** One agent's card by its Oxy handle: what `/@username/details` and `/@username/edit` read. */
+    byHandle: (username: string) => `/agents/handle/${encodeURIComponent(username)}`,
     update: (id: string) => `/agents/${id}`,
     delete: (id: string) => `/agents/${id}`,
     threads: (id: string) => `/agents/${id}/threads`,

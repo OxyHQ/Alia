@@ -1,10 +1,11 @@
 import { WEB_ORIGIN } from '@/shared/platform/web-origin';
+import { agentDisplayName } from '@/features/agents/model/identity';
 import {
   agentChatRoute,
-  agentDisplayName,
   agentHandle,
+  agentSharePath,
   agentThreadHref,
-} from '@/features/agents/model/identity';
+} from '@/shared/routing/agent-address';
 import {
   errorResponseData,
   errorStatus,
@@ -34,7 +35,7 @@ export function agentShareMessage(
   const who = agent.tagline
     ? `${agentDisplayName(agent)} — ${agent.tagline}`
     : agentDisplayName(agent);
-  return `${who}\n${WEB_ORIGIN}/agents/${agent._id}`;
+  return `${who}\n${WEB_ORIGIN}${agentSharePath(agent)}`;
 }
 
 /**

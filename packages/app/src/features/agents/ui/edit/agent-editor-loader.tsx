@@ -7,7 +7,7 @@ import {
 
 /**
  * Load the agent, then hand it to the editor. Shared by the panel and by the phone's screen
- * (`app/(app)/agents/edit/[id].tsx`), so neither carries the other's chrome.
+ * (`app/(app)/[username]/edit.tsx`), so neither carries the other's chrome.
  */
 export function AgentEditorLoader({
   agentId,

@@ -1,4 +1,5 @@
-import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
+import { agentDisplayName } from '@/features/agents/model/identity';
+import { agentHandle } from '@/shared/routing/agent-address';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { formatCompactNumber } from '@oxy.so/bloom/locale';
 import type { Agent } from '@/shared/contracts/agents';

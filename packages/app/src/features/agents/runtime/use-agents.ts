@@ -112,6 +112,33 @@ export function useAgent(id: string | undefined) {
   });
 }
 
+/**
+ * One agent's card, found by its handle (`GET /agents/handle/:username`): how `/@username/details`
+ * and `/@username/edit` reach an agent, since its address is its handle.
+ *
+ * The card is also put where `useAgent(id)` reads it, so a screen that goes on to ask for the agent
+ * by its id (the editor does) finds it already there instead of asking again, and follows every
+ * later write to that one cache entry. `retry` leaves a 404 alone: it is the answer.
+ */
+export function useAgentByHandle(handle: string) {
+  const queryClient = useQueryClient();
+  const { isPrivateApiPending } = useOxy();
+
+  return useQuery({
+    queryKey: queryKeys.agents.byHandle(handle),
+    queryFn: async (): Promise<Agent> => {
+      const response = await apiClient.get<{ agent: Agent }>(API_ROUTES.agents.byHandle(handle));
+      queryClient.setQueryData(
+        queryKeys.agents.detail(response.data.agent._id),
+        response.data.agent,
+      );
+      return response.data.agent;
+    },
+    enabled: handle !== '' && !isPrivateApiPending,
+    retry: (failureCount, error) => errorStatus(error) !== 404 && failureCount < 3,
+  });
+}
+
 export function useCreateAgent() {
   const queryClient = useQueryClient();
 

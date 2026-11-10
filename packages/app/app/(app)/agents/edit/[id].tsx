@@ -1,20 +1,29 @@
+import { agentEditRoute, agentHandle } from '@/shared/routing/agent-address';
+import { useAgent } from '@/features/agents/runtime/use-agents';
 import { AgentEditorLoader } from '@/features/agents/ui/edit/agent-editor-loader';
-import { useTranslation } from '@/shared/i18n/use-translation';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 
 /**
- * The agent editor as a screen, for a phone. From the `md` breakpoint up the editor is the right
- * panel beside the conversation (`useOpenAgentEditor`); this route is the same editor where a
- * panel would be a drawer over the chat.
+ * `/agents/edit/:id` — the old address of the editor screen, and still the one of an agent with no
+ * handle. An agent with a handle is sent on to `/@handle/edit`, its address now; one Oxy resolved
+ * no handle for has no such address, so the editor is drawn here, by id, with its own header only.
  */
-export default function EditAgentScreen() {
+export default function EditAgentByIdScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { t } = useTranslation();
+  const { data: agent } = useAgent(id);
+  const toList = () => router.replace('/(app)/agents');
+  if (agent && agentHandle(agent) !== '') {
+    return <Redirect href={agentEditRoute(agent) as `/@${string}/edit`} />;
+  }
   return (
     <>
-      <Stack.Screen options={{ title: t('panel.editor'), headerBackVisible: true }} />
-      <AgentEditorLoader agentId={id} onBackToList={() => router.replace('/(app)/agents')} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <AgentEditorLoader
+        agentId={id}
+        onClose={() => (router.canGoBack() ? router.back() : toList())}
+        onBackToList={toList}
+      />
     </>
   );
 }

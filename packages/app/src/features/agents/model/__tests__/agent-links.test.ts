@@ -8,7 +8,7 @@ vi.mock('expo-router', () => ({ useRouter: () => ({}) }));
 vi.mock('react-native', () => ({ Share: { share: async () => ({}) } }));
 
 import { agentCategoryLabel } from '@/features/agents/model/category';
-import { agentChatRoute, agentThreadHref } from '@/features/agents/model/identity';
+import { agentChatRoute, agentThreadHref } from '@/shared/routing/agent-address';
 import { agentShareMessage } from '@/features/agents/runtime/use-agent-detail-actions';
 import { translator } from '@/shared/testing/translate';
 
@@ -48,13 +48,18 @@ describe('Share', () => {
       handle: 'pepe',
       tagline: 'Finds flights',
     });
-    expect(message).toBe('Pepe — Finds flights\nhttps://alia.onl/agents/a1');
+    expect(message).toBe('Pepe — Finds flights\nhttps://alia.onl/@pepe/details');
     expect(message).not.toContain('alia.app');
+  });
+
+  it('falls back to the id’s address for an agent with no handle', () => {
+    const message = agentShareMessage({ _id: 'a1', name: 'Pepe', handle: null, tagline: '' });
+    expect(message).toBe('Pepe\nhttps://alia.onl/agents/a1');
   });
 
   it('never prints a null name', () => {
     const message = agentShareMessage({ _id: 'a1', name: null, handle: 'pepe', tagline: '' });
-    expect(message).toBe('pepe\nhttps://alia.onl/agents/a1');
+    expect(message).toBe('pepe\nhttps://alia.onl/@pepe/details');
   });
 });
 

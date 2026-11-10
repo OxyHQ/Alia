@@ -23,12 +23,8 @@ import {
   RenameConversationDialog,
   StreamingIndicator,
 } from '@/shell/sidebar-menus';
-import {
-  agentDisplayName,
-  agentHandle,
-  agentChatRoute,
-  agentIdentityMatches,
-} from '@/features/agents/model/identity';
+import { agentDisplayName, agentIdentityMatches } from '@/features/agents/model/identity';
+import { agentHandle, agentChatRoute } from '@/shared/routing/agent-address';
 import type { Agent } from '@/shared/contracts/agents';
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { queryKeys } from '@/shared/api/query-keys';

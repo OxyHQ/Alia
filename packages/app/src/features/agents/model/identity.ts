@@ -18,6 +18,7 @@
  */
 
 import type { Agent } from '@/shared/contracts/agents';
+import { agentHandle } from '@/shared/routing/agent-address';
 
 /** The identity fields any renderable agent-like row carries. */
 type AgentIdentityFields = Pick<Agent, 'name' | 'handle'>;
@@ -33,11 +34,6 @@ export function agentDisplayName(agent: AgentIdentityFields): string {
   return agent.name?.trim() || agent.handle?.trim() || 'Agent';
 }
 
-/** The handle to SHOW, without the `@`. Empty when Oxy resolved nothing. */
-export function agentHandle(agent: AgentIdentityFields): string {
-  return agent.handle?.trim() ?? '';
-}
-
 /** Whether a query matches what a person can actually see of this agent. */
 export function agentIdentityMatches(agent: AgentIdentityFields, query: string): boolean {
   const lowered = query.toLowerCase();
@@ -45,35 +41,4 @@ export function agentIdentityMatches(agent: AgentIdentityFields, query: string):
     agentDisplayName(agent).toLowerCase().includes(lowered) ||
     agentHandle(agent).toLowerCase().includes(lowered)
   );
-}
-
-/**
- * Where "Chat" with this agent goes: its permanent thread, `/@handle`, or —
- * when Oxy resolved no handle, so the thread has no address — its profile,
- * which says why it cannot be opened yet.
- *
- * The catalogue card's "Chat" used to push the profile unconditionally, the
- * same place pressing the card itself goes, so a button labelled "Chat" was a
- * second way to open a page (#608, rule 6).
- */
-export function agentChatRoute(
-  agent: AgentIdentityFields & Pick<Agent, '_id'>,
-): `/@${string}` | { pathname: '/(app)/agents/[id]'; params: { id: string } } {
-  const handle = agentHandle(agent);
-  return handle === ''
-    ? { pathname: '/(app)/agents/[id]', params: { id: agent._id } }
-    : agentThreadHref(handle);
-}
-
-/**
- * The address of an agent's permanent thread: `/@pepe`, or `/@pepe?threadId=…` for one stretch.
- *
- * A STRING, never `{ pathname: '/(app)/[username]', params: { username: '@pepe' } }`: Expo Router
- * encodes a dynamic segment's value, so the object form put `/%40pepe` in the address bar. The
- * `@` is part of the route's value (`app/(app)/[username].tsx`), and a path written out keeps it.
- * Every link to a thread goes through here, so no screen spells it a second way.
- */
-export function agentThreadHref(handle: string, threadId?: string): `/@${string}` {
-  const path = `/@${handle}` as const;
-  return threadId === undefined ? path : `${path}?threadId=${encodeURIComponent(threadId)}`;
 }

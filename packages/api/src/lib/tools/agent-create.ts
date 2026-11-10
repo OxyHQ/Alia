@@ -124,7 +124,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
          * which is where `agentPromptName` reads the agent's name from on every
          * turn thereafter. The two are equal for exactly as long as nobody renames
          * the agent — and the agent editor renames it,
-         * `app/(app)/agents/edit/[id].tsx` calling `updateAccount` with a new
+         * `app/(app)/[username]/edit.tsx` calling `updateAccount` with a new
          * `name.displayName`.
          *
          * After a rename the identity guard says "You are Pepe", read live from

@@ -37,7 +37,14 @@ import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Routes that compose their own `AiChatContainer` (theirs holds the composer). */
-const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]']);
+const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]/index']);
+
+/**
+ * Routes whose screen draws its own header, with Bloom's own controls (the agent editor's undo, title
+ * and close): the layout puts the surface under them and no `ShellPageHeader` above, so the screen
+ * has one header, not two.
+ */
+const OWN_HEADER_ROUTES = new Set(['[username]/edit', 'agents/edit/[id]']);
 
 /**
  * A chat route — or a local visual fixture (`__*.tsx`, never committed), which
@@ -152,6 +159,11 @@ export default function AppLayout() {
    */
   const screenLayout = ({ route, options, children }: ScreenLayoutProps) => {
     if (isChatRoute(route.name)) return children;
+    if (OWN_HEADER_ROUTES.has(route.name)) {
+      // `header` replaces the shared bar (Bloom's container draws its own when it is absent), so an
+      // empty one is how the screen's own header becomes the only one.
+      return <AiChatContainer header={<></>}>{children}</AiChatContainer>;
+    }
     const section = route.name.split('/')[0];
     const title =
       options.title ?? (PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined);

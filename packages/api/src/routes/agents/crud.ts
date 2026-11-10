@@ -23,6 +23,7 @@ import {
   type AgentAccountRefusal,
 } from '../../lib/agent-account.js';
 import { agentOpensOn } from '../../lib/agent-availability.js';
+import { findAgentByOxyHandle } from '../../lib/agent-identity.js';
 import { appSurfaceOf } from '../../lib/app-surface.js';
 import {
   agentPromptName,
@@ -321,48 +322,81 @@ function connectorFailure<T>(family: string): (err: unknown) => T[] {
  * the column does not name, and the column is a listing index rather than a
  * gate — `db/schema/agents.ts` says so where it is declared.
  */
+/**
+ * One agent's card for a caller, by the row already found: the shared half of
+ * `GET /agents/:id` and `GET /agents/handle/:username`, so the two can never disagree about who may
+ * see what. Every refusal is the same 404 — a draft, an agent confined to another app and an agent
+ * that does not exist look alike.
+ */
+async function respondWithAgent(
+  req: Request,
+  res: Response,
+  found: NonNullable<Awaited<ReturnType<typeof findAgentById>>>,
+): Promise<void> {
+  const mayEdit =
+    req.user?.id === undefined || req.accessToken === undefined
+      ? false
+      : (
+          await verifyAgentAccount({
+            oxyUserId: req.user.id,
+            accessToken: req.accessToken,
+            oxyAccountId: found.oxyAccountId,
+            // A READ. The write paths pass `false`; see `lib/agent-account.ts`.
+            cache: true,
+          })
+        ).permitted;
+
+  // A draft is not in the catalogue and not addressable by a stranger.
+  if (!found.isPublished && !mayEdit) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+  // Nor is an agent Oxy confines to another app (ADR 0021). Its editors still
+  // load it to edit it: editing is not opening.
+  if (
+    !mayEdit &&
+    (await agentOpensOn(found.oxyAccountId, await appSurfaceOf(req))) !== 'reachable'
+  ) {
+    res.status(404).json({ error: 'Agent not found' });
+    return;
+  }
+
+  const agent = await withChildLists(found);
+  res.json({
+    agent: await attachAgentIdentity(
+      withoutInternalAgentBindings(mayEdit ? agent : withoutSystemPrompt(agent)),
+    ),
+  });
+}
+
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const found = await findAgentById(getDb(), String(req.params.id));
-
-    if (!found) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-
-    const mayEdit =
-      req.user?.id === undefined || req.accessToken === undefined
-        ? false
-        : (
-            await verifyAgentAccount({
-              oxyUserId: req.user.id,
-              accessToken: req.accessToken,
-              oxyAccountId: found.oxyAccountId,
-              // A READ. The write paths pass `false`; see `lib/agent-account.ts`.
-              cache: true,
-            })
-          ).permitted;
-
-    // A draft is not in the catalogue and not addressable by a stranger.
-    if (!found.isPublished && !mayEdit) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-    // Nor is an agent Oxy confines to another app (ADR 0021). Its editors still
-    // load it to edit it: editing is not opening.
-    if (
-      !mayEdit &&
-      (await agentOpensOn(found.oxyAccountId, await appSurfaceOf(req))) !== 'reachable'
-    ) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-
-    const agent = await withChildLists(found);
-    res.json({
-      agent: await attachAgentIdentity(
-        withoutInternalAgentBindings(mayEdit ? agent : withoutSystemPrompt(agent)),
-      ),
-    });
+    if (!found) return res.status(404).json({ error: 'Agent not found' });
+    await respondWithAgent(req, res, found);
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
+    res.status(500).json({ error: 'Failed to get agent' });
+  }
+});
+
+/**
+ * GET /agents/handle/:username — the same card as `GET /agents/:id`, for the agent whose Oxy
+ * handle this is: what `/@username/details` and `/@username/edit` read, since the address of an
+ * agent is its handle. The rules are `respondWithAgent`'s, so a username that is no agent, a draft
+ * and an agent out of reach answer one 404.
+ */
+router.get('/handle/:username', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const record = await findAgentByOxyHandle(getDb(), String(req.params.username), {
+      hireableOnly: false,
+    });
+    if (record === null) return res.status(404).json({ error: 'Agent not found' });
+    const found = await findAgentById(getDb(), record._id);
+    if (!found) return res.status(404).json({ error: 'Agent not found' });
+    await respondWithAgent(req, res, found);
+  } catch (error: unknown) {
+    log.agents.error({ err: error }, 'Error getting an agent by handle');
     res.status(500).json({ error: 'Failed to get agent' });
   }
 });

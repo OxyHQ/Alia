@@ -6,7 +6,10 @@ import { describe, expect, it } from 'vitest';
  * `/@username` is two pages, told apart by the account: an agent's thread and a person's profile.
  * These read the source, so they pin the decision without rendering the thread's whole tree.
  */
-const source = readFileSync(fileURLToPath(new URL('../[username].tsx', import.meta.url)), 'utf8');
+const source = readFileSync(
+  fileURLToPath(new URL('../[username]/index.tsx', import.meta.url)),
+  'utf8',
+);
 
 describe('/@username', () => {
   it('looks the account up beside the thread, so an agent waits for nothing', () => {

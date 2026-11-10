@@ -1,6 +1,7 @@
 import { ChatWorkspace } from '@/features/chat/ui/chat-workspace';
 import { ConversationScreen } from '@/features/chat/ui/conversation-screen';
-import { agentDisplayName, agentHandle } from '@/features/agents/model/identity';
+import { agentDisplayName } from '@/features/agents/model/identity';
+import { agentHandle } from '@/shared/routing/agent-address';
 import { useAgentThread } from '@/features/agents/runtime/use-agent-thread';
 import { usePersonProfile } from '@/features/profile/runtime/use-person-profile';
 import { UserProfile } from '@/features/profile/ui/user-profile';
