@@ -58,11 +58,22 @@ export function agentIdentityMatches(agent: AgentIdentityFields, query: string):
  */
 export function agentChatRoute(
   agent: AgentIdentityFields & Pick<Agent, '_id'>,
-):
-  | { pathname: '/(app)/[username]'; params: { username: string } }
-  | { pathname: '/(app)/agents/[id]'; params: { id: string } } {
+): `/@${string}` | { pathname: '/(app)/agents/[id]'; params: { id: string } } {
   const handle = agentHandle(agent);
   return handle === ''
     ? { pathname: '/(app)/agents/[id]', params: { id: agent._id } }
-    : { pathname: '/(app)/[username]', params: { username: `@${handle}` } };
+    : agentThreadHref(handle);
+}
+
+/**
+ * The address of an agent's permanent thread: `/@pepe`, or `/@pepe?threadId=…` for one stretch.
+ *
+ * A STRING, never `{ pathname: '/(app)/[username]', params: { username: '@pepe' } }`: Expo Router
+ * encodes a dynamic segment's value, so the object form put `/%40pepe` in the address bar. The
+ * `@` is part of the route's value (`app/(app)/[username].tsx`), and a path written out keeps it.
+ * Every link to a thread goes through here, so no screen spells it a second way.
+ */
+export function agentThreadHref(handle: string, threadId?: string): `/@${string}` {
+  const path = `/@${handle}` as const;
+  return threadId === undefined ? path : `${path}?threadId=${encodeURIComponent(threadId)}`;
 }

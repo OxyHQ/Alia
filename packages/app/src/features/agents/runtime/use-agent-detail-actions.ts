@@ -1,5 +1,10 @@
 import { WEB_ORIGIN } from '@/shared/platform/web-origin';
-import { agentChatRoute, agentDisplayName, agentHandle } from '@/features/agents/model/identity';
+import {
+  agentChatRoute,
+  agentDisplayName,
+  agentHandle,
+  agentThreadHref,
+} from '@/features/agents/model/identity';
 import {
   errorResponseData,
   errorStatus,
@@ -52,10 +57,7 @@ export function useAgentDetailActions(agent: Agent) {
   /** The thread with this agent, addressed by its handle. */
   const openThread = useCallback(
     (handle: string, threadId: string) => {
-      router.push({
-        pathname: '/(app)/[username]',
-        params: { username: `@${handle}`, threadId },
-      });
+      router.push(agentThreadHref(handle, threadId));
     },
     [router],
   );
