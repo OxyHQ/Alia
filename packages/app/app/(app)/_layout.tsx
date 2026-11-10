@@ -21,6 +21,7 @@ import config from '@/shared/platform/config';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
 import { AgentThemeScope } from '@/features/agents/ui/agent-theme-scope';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
+import { useSpacesOpenStore } from '@/features/spaces/runtime/spaces-open-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
@@ -60,6 +61,7 @@ export default function AppLayout() {
   const router = useRouter();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
+  const loadSpacesOpen = useSpacesOpenStore((state) => state.loadSpacesOpen);
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
   const loadPinned = usePinnedStore((state) => state.loadPinned);
   const rightPanel = useUIStore((state) => state.rightPanel);
@@ -98,6 +100,7 @@ export default function AppLayout() {
   useEffect(() => {
     loadProjects(userId);
     loadFolders(userId);
+    loadSpacesOpen(userId);
     loadFavorites(userId);
     loadPinned(userId);
     // Composer drafts too: another account's half-written message and files
@@ -105,7 +108,7 @@ export default function AppLayout() {
     useComposerDraftStore.getState().bindAccount(userId);
     // And the offline copy of the conversations (`offline-conversations.ts`).
     offlineConversations.bind(userId);
-  }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
+  }, [userId, loadProjects, loadFolders, loadSpacesOpen, loadFavorites, loadPinned]);
 
   // Everything else the previous account left in memory, on a sign-out or a
   // switch (`src/shell/account-lifecycle.ts`).

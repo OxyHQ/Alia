@@ -20,6 +20,7 @@ it('persists the lists a returning person sees first, and nothing that holds mes
     policy.persistsQuery(client.getQueryCache().build(client, { queryKey: [...queryKey] }));
   for (const queryKey of [
     ['agents', 'mine'],
+    ['spaces'],
     ['agent-thread', 'pepe', 'default'],
     ['conversations', { agentId: undefined, app: undefined }],
     ['alia-agent-profile', 'a1'],

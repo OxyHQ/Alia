@@ -62,7 +62,7 @@ grouping with an API and no UI or consumer; it is not reused here (see Alternati
 1. Model, API and the room (`spaces`, `agents.space_id`, `/spaces`, `syncSpaceRoom`) — with the
    enforcement and the context (peers-only reach, the brief in the room prompt, the space computer),
    because a space without them is just a list. **Done.**
-3. The sidebar: the Spaces section, create/edit/move/delete, es/en.
+3. The sidebar: the Spaces section, create/edit/move/delete, es/en. **Done** (`shell/use-sidebar-spaces.tsx`, `features/spaces`).
 4. Later, each its own decision: a shared notes memory (`space_memory_documents`), a member addressing
    Alia, a space-wide budget for autonomous activity, more than six members.
 
