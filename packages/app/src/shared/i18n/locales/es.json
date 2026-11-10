@@ -161,7 +161,6 @@
       "connectors": "Conectores",
       "writingStyle": "Estilo de Escritura",
       "localModels": "Modelos locales",
-      "profile": "Perfil",
       "storage": "Almacenamiento",
       "security": "Seguridad",
       "proactive": "Avisos",
@@ -210,19 +209,9 @@
       "freePlan": "Gratis",
       "perMonth": "mes",
       "perYear": "año",
-      "creditsPerMonth": "{{count}} créditos al mes"
-    },
-    "profile": {
-      "name": "Nombre",
-      "username": "Usuario",
-      "email": "Correo",
-      "oxyAccount": "Cuenta de Oxy",
-      "oxyAccountDescription": "Tu nombre, foto e inicio de sesión los gestiona Oxy",
-      "manage": "Gestionar",
-      "userId": "ID de usuario",
-      "logoutAll": "Cerrar sesión en todos los dispositivos",
-      "logoutAllConfirm": "Se cerrará tu sesión de Alia y de todas las apps de Oxy en todos tus dispositivos.",
-      "logout": "Cerrar sesión"
+      "creditsPerMonth": "{{count}} créditos al mes",
+      "logout": "Cerrar sesión",
+      "logoutConfirm": "Cerrarás la sesión de Alia en este dispositivo. Tus otros dispositivos siguen con la sesión iniciada."
     },
     "connections": {
       "catalog": "Catálogo de conectores",

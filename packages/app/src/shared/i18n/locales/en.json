@@ -181,7 +181,6 @@
       "security": "Security",
       "writingStyle": "Writing Style",
       "localModels": "Local models",
-      "profile": "Profile",
       "storage": "Storage",
       "proactive": "Notifications",
       "externalAgents": "Connect external agent"
@@ -229,19 +228,9 @@
       "freePlan": "Free",
       "perMonth": "mo",
       "perYear": "yr",
-      "creditsPerMonth": "{{count}} credits a month"
-    },
-    "profile": {
-      "name": "Name",
-      "username": "Username",
-      "email": "Email",
-      "oxyAccount": "Oxy account",
-      "oxyAccountDescription": "Your name, photo and sign-in are managed by Oxy",
-      "manage": "Manage",
-      "userId": "User ID",
-      "logoutAll": "Log out from all devices",
-      "logoutAllConfirm": "You will be signed out of Alia and every Oxy app on all your devices.",
-      "logout": "Log out"
+      "creditsPerMonth": "{{count}} credits a month",
+      "logout": "Log out",
+      "logoutConfirm": "You will be signed out of Alia on this device. Your other devices stay signed in."
     },
     "connections": {
       "catalog": "Connector catalog",

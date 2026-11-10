@@ -11,6 +11,7 @@ import { COLOR_PRESET_REGISTRY, useBloomTheme } from '@oxy.so/bloom/theme';
 import { getNativeLanguageName } from '@oxy.so/core';
 import { useAccountColorSave, useOxy } from '@oxy.so/services/ui/client';
 import { useRouter } from 'expo-router';
+import { useLogoutSection } from './logout-section';
 import { useAliaSettings } from './settings-context';
 
 /**
@@ -28,6 +29,7 @@ export function GeneralSection() {
   const { t, locale } = useTranslation();
   const haptics = useHapticsSettingRow();
   const languages = currentLanguages.length ? currentLanguages : [currentLanguage];
+  const logoutSection = useLogoutSection();
 
   const plan = subscription?.plan;
   const price = plan && plan.price > 0 ? formatCurrency(plan.price, plan.currency, locale) : null;
@@ -116,6 +118,7 @@ export function GeneralSection() {
         haptics,
       ],
     },
+    ...(isAuthenticated ? [logoutSection] : []),
   ];
 
   return (

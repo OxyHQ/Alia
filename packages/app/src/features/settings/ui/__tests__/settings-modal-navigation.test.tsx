@@ -50,9 +50,6 @@ vi.mock('@oxy.so/bloom/settings-modal', async () => {
 vi.mock('@/features/settings/ui/general-section', () => ({
   GeneralSection: () => null,
 }));
-vi.mock('@/features/settings/ui/profile-section', () => ({
-  ProfileSection: () => null,
-}));
 vi.mock('@/features/settings/ui/storage-section', () => ({
   StorageSection: () => null,
 }));
