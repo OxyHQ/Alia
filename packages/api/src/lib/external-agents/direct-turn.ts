@@ -7,7 +7,7 @@ import { externalHistoryOf } from './history.js';
 import { runExternalAgentTurn } from './turn.js';
 
 /**
- * Serves a direct (1:1) chat turn with an external agent (ADR 0028): the same OpenAI-shaped stream
+ * Serves a direct (1:1) chat turn with an external agent (ADR 0030): the same OpenAI-shaped stream
  * the app already renders, with the deltas coming from the person's daemon instead of a model.
  *
  * Nothing is charged — the caller leaves the credit reservation unsettled and the handler's release
@@ -42,6 +42,7 @@ export async function serveExternalDirectTurn(input: {
     agentId: input.agentId,
     task,
     history,
+    ...(input.lifecycle.conversationId ? { threadKey: input.lifecycle.conversationId } : {}),
     signal: input.signal,
     ...(input.stream
       ? {

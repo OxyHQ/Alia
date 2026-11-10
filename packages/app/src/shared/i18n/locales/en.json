@@ -638,7 +638,8 @@
       "yellow": "Amber",
       "lime": "Green",
       "cyan": "Cyan"
-    }
+    },
+    "externalOffline": "Offline: its computer is not connected"
   },
   "billing": {
     "title": "Billing",

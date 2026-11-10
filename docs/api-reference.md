@@ -173,15 +173,15 @@ Own tools use the requester account and live catalogue, without per-app consent.
 ### External agents
 
 A coding-agent CLI on the person's own computer (Claude Code, Codex, OpenCode) served to Alia as one
-of their agents ([ADR 0028](./adr/0028-external-agents.md)). All routes take the person's Oxy
+of their agents ([ADR 0030](./adr/0030-external-agents.md)). All routes take the person's Oxy
 session (`authenticateToken`).
 
 | Route | Purpose |
 |---|---|
 | `POST /agents/external/pair` | Mint a single-use code (10 minutes) and the text to paste into the agent. Body `{ locale?: 'en' \| 'es' }`. 429 above five codes a minute. |
 | `POST /agents/external/redeem` | The daemon trades a code for an agent. Body `{ code, cli: 'claude' \| 'codex' \| 'opencode', hostName }`. Creates a private, unlisted agent and its link; 400 `invalid_or_expired_code` for an unknown, used, expired or foreign code. |
-| `GET /agents/external` | The person's external agents with `online` presence. |
-| `DELETE /agents/external/:agentId` | Revoke: the link dies and the daemon is disconnected. |
+| `GET /agents/external` | The person's external agents with `online` presence (any instance, through Redis). `GET /agents/me` also marks them: `external: { cli, online }`. |
+| `DELETE /agents/external/:agentId` | Revoke: the link dies, the daemon is disconnected and the agent is deleted. |
 | `WS /ws/external-agent` | The daemon's socket. First frame `{ type: 'auth', token, agentId }`; then `turn` frames down and `delta` / `end` / `error` frames back. |
 
 ### Structured automations

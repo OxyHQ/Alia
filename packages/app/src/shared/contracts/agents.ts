@@ -111,6 +111,11 @@ export interface Agent {
   lastMessage?: string | null;
   lastMessageAt?: string | null;
   /**
+   * Set when the agent is a coding-agent CLI on the person's own computer (ADR 0030): which CLI,
+   * and whether its computer is connected to Alia right now. `null` for every other agent.
+   */
+  external?: { cli: 'claude' | 'codex' | 'opencode'; online: boolean } | null;
+  /**
    * The space (ADR 0028) this agent is in, or `null`. Served by `GET /agents/me`; an agent in a
    * space is listed under it and not in the flat Agents list. Absent on an older answer reads as none.
    */

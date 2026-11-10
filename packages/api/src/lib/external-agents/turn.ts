@@ -25,6 +25,7 @@ export async function runExternalAgentTurn(input: {
   agentId: string;
   task: string;
   history?: readonly { role: 'user' | 'assistant'; content: string }[];
+  threadKey?: string;
   onTextDelta?: (text: string) => void;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -37,6 +38,7 @@ export async function runExternalAgentTurn(input: {
       agentId: input.agentId,
       task: input.task,
       history: input.history ?? [],
+      ...(input.threadKey ? { threadKey: input.threadKey } : {}),
       ...(input.onTextDelta ? { onDelta: input.onTextDelta } : {}),
       ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
       ...(input.signal ? { signal: input.signal } : {}),

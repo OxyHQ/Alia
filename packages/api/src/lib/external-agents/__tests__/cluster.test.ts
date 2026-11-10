@@ -1,6 +1,6 @@
 /**
  * Two relays sharing one bus behave like two API instances sharing Redis: the daemon is connected to
- * A, the turn starts on B (ADR 0028).
+ * A, the turn starts on B (ADR 0030).
  */
 import http from 'node:http';
 import { WebSocket } from 'ws';

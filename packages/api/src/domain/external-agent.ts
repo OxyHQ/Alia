@@ -1,5 +1,5 @@
 /**
- * Closed value sets and wire protocol for external agents (ADR 0028).
+ * Closed value sets and wire protocol for external agents (ADR 0030).
  *
  * A leaf module: the drizzle schema renders its CHECK from {@link EXTERNAL_AGENT_CLIS}, and the
  * daemon (`@alia-codea/cli`) mirrors the frame shapes below by hand, so keep them boring.
@@ -29,6 +29,11 @@ export type ServerFrame =
       turnId: string;
       /** What to answer: the latest message, framed for the agent. */
       task: string;
+      /**
+       * Names the conversation this turn belongs to (a conversation id), so the daemon can resume
+       * the CLI's own session for it. Absent for turns that are not part of one (a consultation).
+       */
+      threadKey?: string;
       history: readonly { role: 'user' | 'assistant'; content: string }[];
     }
   | { type: 'cancel'; turnId: string }

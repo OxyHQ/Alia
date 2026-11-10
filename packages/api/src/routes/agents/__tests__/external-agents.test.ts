@@ -1,5 +1,5 @@
 /**
- * `/agents/external/*` — pairing a person's coding-agent CLI with Alia (ADR 0028). The rules under
+ * `/agents/external/*` — pairing a person's coding-agent CLI with Alia (ADR 0030). The rules under
  * test: a code is minted for the caller and only the caller can redeem it, redeeming creates ONE
  * private unlisted agent plus its link, an unusable code creates nothing, and revoking cuts the
  * daemon off.
@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   createPairing: vi.fn(),
   redeemPairing: vi.fn(),
   createAgent: vi.fn(),
+  deleteAgent: vi.fn(),
   createBot: vi.fn(),
   createLink: vi.fn(),
   revoke: vi.fn(),
@@ -28,7 +29,10 @@ vi.mock('../../../middleware/auth.js', () => ({
   },
 }));
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
-vi.mock('../../../db/agents/agentRepository.js', () => ({ createAgent: state.createAgent }));
+vi.mock('../../../db/agents/agentRepository.js', () => ({
+  createAgent: state.createAgent,
+  deleteAgent: state.deleteAgent,
+}));
 vi.mock('../../../db/agents/externalAgentRepository.js', () => ({
   createPairing: state.createPairing,
   redeemPairing: state.redeemPairing,
@@ -76,6 +80,7 @@ beforeEach(() => {
   state.createBot.mockResolvedValue({ oxyAccountId: 'bot-1', username: 'codexbot' });
   state.createAgent.mockResolvedValue({ _id: 'agent-1' });
   state.revoke.mockResolvedValue(true);
+  state.deleteAgent.mockResolvedValue(1);
 });
 
 const post = (path: string, body: unknown) =>
@@ -180,11 +185,14 @@ describe('GET and DELETE /agents/external', () => {
     expect(ok.status).toBe(204);
     expect(state.revoke).toHaveBeenCalledWith({}, 'owner-1', 'agent-1');
     expect(state.disconnect).toHaveBeenCalledWith('agent-1');
+    expect(state.deleteAgent).toHaveBeenCalledWith({}, 'agent-1');
 
     state.revoke.mockResolvedValue(false);
     state.disconnect.mockClear();
+    state.deleteAgent.mockClear();
     const missing = await fetch(`${base}/agents/external/agent-9`, { method: 'DELETE' });
     expect(missing.status).toBe(404);
     expect(state.disconnect).not.toHaveBeenCalled();
+    expect(state.deleteAgent).not.toHaveBeenCalled();
   });
 });

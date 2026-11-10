@@ -13,7 +13,7 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { externalAgentPairings } from '../schema/external-agents';
 
 /**
- * Pairing codes and agent links (ADR 0028), against a real Postgres: a code is consumed by exactly
+ * Pairing codes and agent links (ADR 0030), against a real Postgres: a code is consumed by exactly
  * one conditional UPDATE, only by the account that minted it, only before it expires; a link is
  * unique per agent and a revoked one is invisible.
  */

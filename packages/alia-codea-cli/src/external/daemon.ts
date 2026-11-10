@@ -1,4 +1,5 @@
 import { framePrompt } from './prompt.js';
+import type { SessionStore } from './state.js';
 import type { DaemonFrame, ExternalRuntime, ServerFrame } from './types.js';
 
 export interface DaemonOptions {
@@ -14,6 +15,8 @@ export interface DaemonOptions {
   /** Reconnect backoff bounds; tests shrink them. */
   readonly minBackoffMs?: number;
   readonly maxBackoffMs?: number;
+  /** The CLI's own sessions per conversation. Omitted: every turn starts fresh. */
+  readonly sessions?: SessionStore;
   /** Consecutive failed handshakes before giving up. */
   readonly maxAuthFailures?: number;
 }
@@ -74,18 +77,45 @@ export function startDaemon(options: DaemonOptions): Daemon {
     turns.set(frame.turnId, controller);
     try {
       log(`turn ${frame.turnId.slice(0, 8)}: started`);
-      const text = await options.runtime.run({
-        prompt: framePrompt({
-          agentName: options.agentName,
-          task: frame.task,
-          history: frame.history,
+      const sessionKey =
+        options.sessions && options.runtime.resumes && frame.threadKey
+          ? `${options.agentId}:${frame.threadKey}`
+          : undefined;
+      let emitted = false;
+      const attempt = (resumeId: string | undefined) =>
+        options.runtime.run({
+          prompt: framePrompt({
+            agentName: options.agentName,
+            task: frame.task,
+            // A resumed session already holds the conversation; a fresh one needs it spelled out.
+            history: resumeId ? [] : frame.history,
+            write: options.write,
+            resumed: resumeId !== undefined,
+          }),
+          cwd: options.cwd,
           write: options.write,
-        }),
-        cwd: options.cwd,
-        write: options.write,
-        signal: controller.signal,
-        onDelta: (delta) => send(ws, { type: 'delta', turnId: frame.turnId, text: delta }),
-      });
+          signal: controller.signal,
+          ...(resumeId ? { resumeId } : {}),
+          onSession: (id) => {
+            if (sessionKey) options.sessions?.set(sessionKey, id);
+          },
+          onDelta: (delta) => {
+            emitted = true;
+            send(ws, { type: 'delta', turnId: frame.turnId, text: delta });
+          },
+        });
+      const resumeId = sessionKey ? options.sessions?.get(sessionKey) : undefined;
+      let text: string;
+      try {
+        text = await attempt(resumeId);
+        if (resumeId && text.trim() === '' && !emitted) throw new Error('empty resumed answer');
+      } catch (err: unknown) {
+        // The CLI lost that session (cleared, expired): start over with the conversation spelled out.
+        if (!resumeId || emitted || controller.signal.aborted) throw err;
+        log('could not resume the CLI session; starting a new one');
+        if (sessionKey) options.sessions?.delete(sessionKey);
+        text = await attempt(undefined);
+      }
       if (controller.signal.aborted) return;
       if (text.trim() === '') {
         send(ws, { type: 'error', turnId: frame.turnId, message: 'The agent returned no answer' });

@@ -1,5 +1,5 @@
 /**
- * External-agent relay (ADR 0028) — the WebSocket a person's daemon (`codea connect`) holds open so
+ * External-agent relay (ADR 0030) — the WebSocket a person's daemon (`codea connect`) holds open so
  * the agent it serves can be asked to take a turn.
  *
  * The shape is `lib/mcp-relay.ts`, run the other way round: there a client lends Alia TOOLS and the
@@ -46,6 +46,8 @@ export interface ExternalTurnInput {
   agentId: string;
   task: string;
   history: readonly ChatTurn[];
+  /** The conversation this turn continues; lets the daemon resume the CLI's own session. */
+  threadKey?: string;
   onDelta?: (text: string) => void;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -81,7 +83,14 @@ type TurnEvent =
   | { type: 'error'; message: string; offline?: boolean };
 
 type Command =
-  | { kind: 'turn'; turnId: string; task: string; history: ChatTurn[]; timeoutMs?: number }
+  | {
+      kind: 'turn';
+      turnId: string;
+      task: string;
+      history: ChatTurn[];
+      threadKey?: string;
+      timeoutMs?: number;
+    }
   | { kind: 'cancel'; turnId: string }
   /** The link was revoked on another instance: drop the socket held here. */
   | { kind: 'revoke' };
@@ -218,6 +227,7 @@ export function createExternalAgentRelay(
         turnId,
         task: input.task,
         history: input.history,
+        ...(input.threadKey ? { threadKey: input.threadKey } : {}),
       });
     });
 
@@ -261,6 +271,7 @@ export function createExternalAgentRelay(
       agentId,
       task: command.task,
       history: command.history,
+      ...(command.threadKey ? { threadKey: command.threadKey } : {}),
       signal: controller.signal,
       ...(command.timeoutMs === undefined ? {} : { timeoutMs: command.timeoutMs }),
       onDelta: (text) => publishEvent(command.turnId, { type: 'delta', text }),
@@ -382,6 +393,7 @@ export function createExternalAgentRelay(
             turnId,
             task: input.task,
             history: [...input.history],
+            ...(input.threadKey ? { threadKey: input.threadKey } : {}),
             timeoutMs,
           };
           return cluster.publish(cmdChannel, JSON.stringify(command));

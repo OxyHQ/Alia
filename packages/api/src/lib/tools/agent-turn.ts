@@ -148,7 +148,7 @@ export async function runAgentTurn(input: {
   const { agent, task, person, payerOxyUserId, observer } = input;
   const start = Date.now();
 
-  // An external agent (ADR 0028) is answered by the person's own daemon: no model, no tools of
+  // An external agent (ADR 0030) is answered by the person's own daemon: no model, no tools of
   // ours, no credits. This one branch serves `consultAgent`, group rooms and any other caller.
   if (await isExternalAgent(agent._id)) {
     return runExternalAgentTurn({

@@ -1,13 +1,13 @@
-# 29. External agents edit their working directory by default and are reachable from any instance
+# 31. External agents edit their working directory by default and are reachable from any instance
 
-Status: Accepted (2026-11-10, after the first real use of ADR 0028: replies came "sometimes", and
-when they came the agent often said it had no permissions). Refines [ADR 0028](./0028-external-agents.md)
+Status: Accepted (2026-11-10, after the first real use of ADR 0030: replies came "sometimes", and
+when they came the agent often said it had no permissions). Refines [ADR 0030](./0030-external-agents.md)
 without reversing it.
 Date: 2026-11-10.
 
 ## Context
 
-Two things in ADR 0028 failed in use:
+Two things in ADR 0030 failed in use:
 
 - Its "Consequences" accepted that a connection lives on one API instance and that a turn started on
   another reports the agent offline. Production runs more than one, so an agent answered only when the

@@ -1,5 +1,5 @@
 /**
- * How an external agent's turns cross API instances (ADR 0028).
+ * How an external agent's turns cross API instances (ADR 0030).
  *
  * A daemon holds its WebSocket on ONE instance, but a turn can start on any of them (a room worker,
  * another request). With Redis, the instance that holds the socket announces it (a presence key

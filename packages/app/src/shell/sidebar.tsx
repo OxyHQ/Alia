@@ -453,7 +453,10 @@ function useSidebarProps() {
         />
       ),
       // The last line of the thread, under the name; before anything was said, the invitation.
-      description: agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
+      description:
+        agent.external && !agent.external.online
+          ? t('sidebar.externalOffline')
+          : agent.lastMessage?.trim() || t('sidebar.noAgentMessages'),
       // Ahead of the press: its thread and conversation, when there is a conversation to read.
       onPrefetch: () =>
         onHoverIntent(() =>

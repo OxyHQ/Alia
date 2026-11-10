@@ -7,7 +7,7 @@ export function inviteLocaleOf(value: unknown): InviteLocale {
 }
 
 /**
- * The text a person pastes into Claude Code, Codex or OpenCode (ADR 0028).
+ * The text a person pastes into Claude Code, Codex or OpenCode (ADR 0030).
  *
  * It carries a single-use code and one command, never a long-lived secret: the code only binds a
  * machine to an agent, and the daemon signs in to Oxy on its own. It is written to be read by a

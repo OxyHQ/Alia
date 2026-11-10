@@ -1,5 +1,5 @@
 /**
- * External agents (ADR 0028): agents whose turns run on a person's own machine, in a coding-agent CLI
+ * External agents (ADR 0030): agents whose turns run on a person's own machine, in a coding-agent CLI
  * they are already logged in to, reached through a daemon (`codea connect`) that dials Alia.
  *
  * Two small tables and nothing on `agents`: an external agent is an ordinary agent row plus a link
