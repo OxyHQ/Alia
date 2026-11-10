@@ -11,12 +11,15 @@ already sets, not by a new preference, so they are recorded here to stop being "
 
 ## Decisions
 
-1. **The agent's computer stays one per agent per person** (`agentActorId`:
-   `agent:<agentId>:user:<oxyUserId>`). It is the isolation of a public agent: one person's files are
-   never another's (`docs/agents.md`, "The agent's computer"). For the owner of a private agent — the
-   only person its background runs act for — it already IS "the agent's computer". Splitting it into a
-   person-independent machine would let a stranger on a public agent reach the owner's workspace, and
-   re-keying it would orphan every existing `/workspace` volume. Neither is worth it.
+1. **Whose computer an agent works on is the owner's choice, and defaults to Alia's** (the owner's
+   decision, 2026-11-10). `agents.computer_source` is `alia` (the default: the person's shared workspace,
+   `alia:user:<id>`, the same for all of their agents, so what one makes is there for the next) or `own`
+   (a machine of the agent's, per person, `agent:<id>:user:<id>`). `lib/computer/computer-actor.ts`
+   decides it for the tools and for the live view, so what the person watches is what the agent uses.
+   Two guards: **`alia` applies only to the agent's owner** — anyone else using a public agent gets its
+   own per-person machine, so an agent never reaches a stranger's personal workspace and the owner's
+   choice cannot do that to them — and **agents that already held the `computer` capability stay on
+   `own`** (migration 0120), because re-keying would have orphaned their `/workspace`.
 2. **A woken agent notices and tells; it does not act.** The heartbeat run has a follow-up's authority:
    no computer, no MCP, Oxy apps only through exact authorization (ADR 0022). Acting on an event is
    what an **event automation with declared actions** already is: the owner names the exact tool calls
