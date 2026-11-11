@@ -30,8 +30,7 @@
  * The rewrite changed what the scan can SEE, not what was disclosed. The values
  * were public for months before it, and GitHub still serves the pre-rewrite
  * commits through every read-only `refs/pull/<n>/head`. So the entries stay,
- * with `purgedFromHistory` set: still pending rotation, still refused by
- * {@link disclosedCredentialMatching}, and held to ABSENT by the census.
+ * with `purgedFromHistory` set: still pending rotation and held to ABSENT by the census.
  * Merging any branch cut before the rewrite brings the whole old history back,
  * and these entries are what then fail.
  *
@@ -192,41 +191,3 @@ export const KNOWN_DISCLOSURES: readonly KnownDisclosure[] = [
     note: 'The `ghp_abcd…` literal the same file feeds the redactor, alongside the sk-proj- one.',
   },
 ];
-
-/**
- * Does this credential's sha256 match something this repository has published?
- *
- * The ledger's fingerprint is `sha256(value)[0..12]`
- * ({@link import('./credential-scan.js')}), and every caller already holds the
- * FULL sha256 hex of the candidate, so the comparison is a prefix of one hash
- * against another and is exact rather
- * than heuristic. Returns the matching ledger key, which names a pattern and a
- * digest and carries no credential, or `null`.
- *
- * ## `rotatedAt` is deliberately not consulted
- *
- * Stricter than the ledger's own notion of remediated, on purpose. A disclosed
- * credential should never enter a live store in EITHER state: unrotated it puts
- * a public secret into service, and rotated it is a dead value whose upstream
- * `401`s look like an outage rather than a paste error. Writing it is wrong both
- * ways, so neither is admitted.
- *
- * Nor is `purgedFromHistory`: a purged value was published before the purge
- * and is exactly as usable by whoever copied it.
- *
- * ## Scoped to `credential`
- *
- * `firebase_client_config` ships in the app by design and `synthetic_fixture`
- * entries are test literals. Neither is a secret being placed in service, and
- * refusing them would be noise that teaches a caller to bypass this.
- */
-export function disclosedCredentialMatching(sha256Hex: string): string | null {
-  const fingerprint = sha256Hex.slice(0, 12);
-  // A short or empty hash must never match by accident — an empty string is a
-  // prefix of nothing here, but `endsWith(':')` would be true for every entry.
-  if (fingerprint.length < 12) return null;
-  const hit = KNOWN_DISCLOSURES.find(
-    (entry) => entry.classification === 'credential' && entry.key.endsWith(`:${fingerprint}`),
-  );
-  return hit?.key ?? null;
-}

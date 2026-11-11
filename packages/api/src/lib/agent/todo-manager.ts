@@ -27,7 +27,6 @@ export interface TodoList {
 export class TodoManager {
   private objective = '';
   private items: TodoItem[] = [];
-  private nextId = 1;
 
   /**
    * Update the plan from simple string arrays (new v2 interface).
@@ -46,7 +45,6 @@ export class TodoManager {
         text,
         status: 'pending' as TodoStatus,
       }));
-      this.nextId = this.items.length + 1;
     }
 
     // Mark completed items (1-based indices)
@@ -76,7 +74,6 @@ export class TodoManager {
       text: item.text,
       status: item.status,
     }));
-    this.nextId = this.items.length + 1;
   }
 
   /** Set the overall objective */
@@ -113,7 +110,6 @@ export class TodoManager {
       text: i.text || '',
       status: i.status || 'pending',
     }));
-    this.nextId = this.items.length > 0 ? Math.max(...this.items.map((i) => i.id)) + 1 : 1;
   }
 
   /** Check if there are any pending items */
