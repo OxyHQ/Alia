@@ -200,7 +200,7 @@ const COMMIT_SHA = /^[0-9a-f]{40}$/;
  * here — otherwise every path in the bundle would carry a prefix that changes on
  * every commit, and a `path` filter written by a person would never match.
  */
-export async function fetchRepositoryFiles(
+async function fetchRepositoryFiles(
   source: GitHubSource,
   options?: { ifNoneMatch?: string },
 ): Promise<
@@ -250,7 +250,7 @@ export async function fetchRepositoryFiles(
   };
 }
 
-export interface ImportedSkill {
+interface ImportedSkill {
   /** Where in the repository the skill lives, which is also where the app links back to. */
   readonly directory: string;
   readonly bundle: SkillBundle;

@@ -27,7 +27,7 @@ import { sendNotification } from './notification-service.js';
 /** A healthy dispatch settles in seconds; this is well past the slowest one. */
 export const STALLED_AFTER_MS = 2 * 60_000;
 /** An event this old is no longer worth acting on. */
-export const STALLED_MAX_AGE_MS = 24 * 60 * 60_000;
+const STALLED_MAX_AGE_MS = 24 * 60 * 60_000;
 const SWEEP_BATCH = 50;
 
 export async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<void> {

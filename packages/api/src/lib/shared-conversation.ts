@@ -22,7 +22,7 @@ import type { AvatarCharacter } from '@oxy.so/contracts';
 import type { MessageRow } from '../db/chat/messageRepository.js';
 import { CANVAS_TYPES } from './tools/canvas.js';
 
-export type SharedContentPart =
+type SharedContentPart =
   | { readonly type: 'text'; readonly text: string }
   | { readonly type: 'image_url'; readonly image_url: { readonly url: string } };
 

@@ -126,7 +126,7 @@ export function directProviderModeFailure(env: NodeJS.ProcessEnv = process.env):
 }
 
 /** The exit code a refused boot uses, matching `connectPostgresOrExit`. */
-export const DIRECT_PROVIDER_EXIT_CODE = 1;
+const DIRECT_PROVIDER_EXIT_CODE = 1;
 
 /**
  * Refuse to start, or return — the decision itself, not just the reason.

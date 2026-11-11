@@ -10,7 +10,7 @@ export const CREDITS_CONFIG = Object.freeze({
   INITIAL_RESERVATION: 1,
 });
 export const CREDIT_FORMULA_VERSION = 'catalogue-usd-ceil-1e9-system-input-excluded-v1' as const;
-export interface CreditFormulaConfig {
+interface CreditFormulaConfig {
   readonly USD_PER_CREDIT: number;
   readonly TOKENS_PER_CREDIT: number;
   readonly MIN_CREDITS_PER_REQUEST: number;

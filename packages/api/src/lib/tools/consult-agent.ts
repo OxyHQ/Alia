@@ -41,7 +41,7 @@ import { runAgentTurn, type AgentTurnPerson } from './agent-turn.js';
 
 export const CONSULT_AGENT_TOOL = 'consultAgent';
 
-export interface ConsultAgentResult {
+interface ConsultAgentResult {
   agentId: string;
   agentName: string;
   agentHandle: string;

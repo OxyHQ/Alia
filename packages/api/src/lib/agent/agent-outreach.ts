@@ -47,7 +47,7 @@ export { CHECK_IN_DAILY_LIMIT, UNANSWERED_CHECK_IN_LIMIT } from './outreach-budg
 /** Longest message an agent may post; a result longer than this is cut, not lost — it stays on the run. */
 const MAX_OUTREACH_CHARS = 8_000;
 
-export type AgentOutreachKind = 'result' | 'check_in';
+type AgentOutreachKind = 'result' | 'check_in';
 
 export type AgentOutreachOutcome =
   | { readonly posted: true; readonly conversationId: string; readonly messageId: string }

@@ -66,11 +66,6 @@ export async function selectPlanFeatures(
     .orderBy(asc(planFeatures.planId), asc(planFeatures.featureId));
 }
 
-/** Every mapping, unordered — the matrix and the broadcast payload. */
-export async function selectAllPlanFeatures(db: ApiDatabase): Promise<PlanFeatureRow[]> {
-  return db.select().from(planFeatures);
-}
-
 /** Create or update one mapping, returning it. */
 export async function upsertPlanFeature(
   db: ApiDatabase,

@@ -64,7 +64,7 @@ export const VOICE_BYTES_PER_MS = (VOICE_SAMPLE_RATE * 2) / 1000;
 export const MAX_CLIENT_AUDIO_FRAME_BYTES = 49_152;
 
 /** The product voices; the upstream voice id is chosen by Alia and never sent. */
-export const PRODUCT_VOICES = ['male', 'female'] as const;
+const PRODUCT_VOICES = ['male', 'female'] as const;
 export type ProductVoice = (typeof PRODUCT_VOICES)[number];
 
 /* -------------------------------------------------------------------------- */
@@ -116,7 +116,7 @@ export const VOICE_SERVER_ERROR_CODES = [
 export type VoiceServerErrorCode = (typeof VOICE_SERVER_ERROR_CODES)[number];
 
 /** Why a call ended. `call-moved-elsewhere` is a reason, not an error. */
-export const VOICE_CLOSE_REASONS = [
+const VOICE_CLOSE_REASONS = [
   'hangup',
   'call-moved-elsewhere',
   'max-duration',

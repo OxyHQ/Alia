@@ -65,7 +65,7 @@ export interface KaanaTextRequest {
   readonly signal?: AbortSignal;
 }
 
-export class KaanaClientUnavailableError extends Error {
+class KaanaClientUnavailableError extends Error {
   readonly code = 'KAANA_CLIENT_UNAVAILABLE' as const;
 
   constructor() {

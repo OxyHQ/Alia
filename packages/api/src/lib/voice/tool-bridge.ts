@@ -20,7 +20,7 @@ import {
 type RealtimeToolDefinition = NonNullable<RealtimeSessionConfig['tools']>[number];
 
 /** A tool call that runs longer than this answers the model with a typed tool error. */
-export const VOICE_TOOL_TIMEOUT_MS = 60_000;
+const VOICE_TOOL_TIMEOUT_MS = 60_000;
 
 /** The contract's bound on a tool's description, read from its schema. */
 const MAX_DESCRIPTION_CHARS =

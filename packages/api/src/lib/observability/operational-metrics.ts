@@ -21,8 +21,8 @@ export interface OperationalGauge {
 }
 
 /** Past these a row is not "in flight": the matching sweep should have taken it. */
-export const STALLED_EVENT_AFTER_MS = 2 * 60_000;
-export const STALLED_INBOUND_AFTER_MS = 2 * 60_000;
+const STALLED_EVENT_AFTER_MS = 2 * 60_000;
+const STALLED_INBOUND_AFTER_MS = 2 * 60_000;
 
 const count = async (query: PromiseLike<Array<{ n: number }>>): Promise<number> =>
   (await query)[0]?.n ?? 0;

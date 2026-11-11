@@ -40,7 +40,7 @@ import { TTLCache } from '../ttl-cache.js';
 import { officeKindOf, officeText, OfficeDocumentError } from './office-documents.js';
 import { readPdf, type PdfReading } from './pdf-documents.js';
 
-export type ResolvedFilePart = FilePart | ImagePart | TextPart;
+type ResolvedFilePart = FilePart | ImagePart | TextPart;
 
 /** Each attached file's model parts, by Oxy Files id: one, or a scan's line and its pages. */
 export type ResolvedFiles = ReadonlyMap<string, readonly ResolvedFilePart[]>;
@@ -50,7 +50,7 @@ export const MAX_FILES_PER_REQUEST = 10;
 /** The largest file read, in bytes. */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 /** The most text one document contributes to the model's context. */
-export const MAX_DOCUMENT_CHARS = 100_000;
+const MAX_DOCUMENT_CHARS = 100_000;
 
 export type FilePartErrorCode =
   | 'invalid_file_part'

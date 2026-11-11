@@ -61,7 +61,7 @@ export interface ChainState {
   readonly lastSpeakerId: string | null;
 }
 
-export type StopReason = 'reply_cap' | 'turn_cap';
+type StopReason = 'reply_cap' | 'turn_cap';
 
 export interface NextTurns {
   /** Who speaks next, in order. Empty ends the chain. */
@@ -73,7 +73,7 @@ export interface NextTurns {
 // ── Mentions ──
 
 /** Lower case, accents and diacritics removed, spaces collapsed: what two spellings of a name share. */
-export function normalizeForMatch(text: string): string {
+function normalizeForMatch(text: string): string {
   return text
     .normalize('NFD')
     .replace(/\p{M}+/gu, '')

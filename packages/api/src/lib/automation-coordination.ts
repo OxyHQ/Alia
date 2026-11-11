@@ -13,7 +13,7 @@ export interface AutomationActionPlanInput {
   limits: ReadonlyArray<{ key: string; value: number | boolean }>;
 }
 
-export interface AutomationCapabilityAssignment {
+interface AutomationCapabilityAssignment {
   resource: ResourceRef;
   maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
   limits: ReadonlyArray<{ key: string; value?: unknown }>;

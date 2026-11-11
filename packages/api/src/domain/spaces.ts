@@ -5,17 +5,13 @@
 /** A space's name, as the sidebar draws it. */
 export const SPACE_NAME_MAX = 60;
 /** The brief every member of a space works from. */
-export const SPACE_INSTRUCTIONS_MAX = 4000;
+const SPACE_INSTRUCTIONS_MAX = 4000;
 /**
  * Agents one space holds: the group room's bound (`GROUP_MAX_MEMBERS`), because the space's room is a
  * group conversation and each person message is answered by every member. Kept as its own constant so
  * the two can be told apart if the room's bound ever moves.
  */
 export const MAX_SPACE_MEMBERS = 6;
-
-export type SpaceInput =
-  | { readonly ok: true; readonly name: string; readonly instructions: string }
-  | { readonly ok: false; readonly error: string };
 
 /** A name: non-empty after trimming, within {@link SPACE_NAME_MAX}. */
 export function parseSpaceName(

@@ -6,7 +6,7 @@
 import type { CatalogueModel, ReasoningEffort } from './catalogue.js';
 import { DEFAULT_POWER_LEVEL, POWER_LEVELS, type PowerLevel } from './power-levels.js';
 
-export interface CatalogueEntryWire {
+interface CatalogueEntryWire {
   readonly id: string;
   readonly object: 'model';
   readonly name: string;
@@ -44,7 +44,7 @@ export interface CatalogueResponseWire {
   readonly featuredIds: readonly string[];
 }
 
-export function toCatalogueEntry(
+function toCatalogueEntry(
   model: CatalogueModel,
   featured: ReadonlySet<string>,
 ): CatalogueEntryWire {

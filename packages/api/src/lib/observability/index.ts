@@ -17,15 +17,7 @@ export type {
   ErrorEvent,
 } from './types.js';
 
-let _observer: Observer = new LogObserver();
-
-export function setObserver(obs: Observer): void {
-  _observer = obs;
-}
-
-export function getObserver(): Observer {
-  return _observer;
-}
+const _observer: Observer = new LogObserver();
 
 /** Record a typed event (agent.start, agent.end, tool.call, error). */
 export function recordEvent(event: ObserverEvent): void {

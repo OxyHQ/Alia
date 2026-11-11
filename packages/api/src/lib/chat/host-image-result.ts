@@ -30,7 +30,7 @@ import {
   type HostImageMediaType,
 } from '../../domain/chat-host-results.js';
 
-export interface HostImageResult {
+interface HostImageResult {
   type: 'image';
   mediaType: HostImageMediaType;
   data: string;
@@ -38,7 +38,7 @@ export interface HostImageResult {
 }
 
 /** What an image result becomes once its turn is over: everything but the bytes. */
-export interface HostImagePlaceholder {
+interface HostImagePlaceholder {
   type: 'image';
   mediaType: string;
   text?: string;

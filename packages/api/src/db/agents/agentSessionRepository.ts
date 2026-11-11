@@ -58,7 +58,7 @@ import type { AgentSessionStatus } from '../../domain/agent-session';
 type AgentSessionRow = typeof agentSessions.$inferSelect;
 
 /** The plan, as `TodoManager.toJSON()` produces it and `loadFromPersisted` takes it. */
-export interface AgentSessionPlan {
+interface AgentSessionPlan {
   objective: string;
   items: AgentSessionPlanItem[];
 }
@@ -72,7 +72,7 @@ export interface AgentSessionPlan {
  * imported because `db/` does not depend on `lib/`; `grantKind`'s type comes
  * from `domain/`, which is a leaf both layers may read.
  */
-export interface AgentSessionCreditReservation {
+interface AgentSessionCreditReservation {
   operationId?: string;
   productAllocationId?: string;
   userId: string;
@@ -83,7 +83,7 @@ export interface AgentSessionCreditReservation {
   grantKind: CreditFundingSource;
 }
 
-export interface AgentSessionStats {
+interface AgentSessionStats {
   totalTokens: number;
   totalSteps: number;
   creditsCharged: number | null;
@@ -201,7 +201,7 @@ function toCreditReservation(row: AgentSessionRow): AgentSessionCreditReservatio
   };
 }
 
-export function toAgentSessionRecord(row: AgentSessionRow): AgentSessionRecord {
+function toAgentSessionRecord(row: AgentSessionRow): AgentSessionRecord {
   return {
     _id: row.id,
     id: row.id,

@@ -6,10 +6,10 @@
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { z } from 'zod';
 
-export const ALIA_TEAM_FORMAT = 'alia.team' as const;
-export const ALIA_TEAM_VERSION = 1 as const;
-export const MAX_TEAM_MEMBERS = 50;
-export const MAX_TEAM_CHANNELS = 50;
+const ALIA_TEAM_FORMAT = 'alia.team' as const;
+const ALIA_TEAM_VERSION = 1 as const;
+const MAX_TEAM_MEMBERS = 50;
+const MAX_TEAM_CHANNELS = 50;
 
 const identifier = z
   .string()
@@ -73,7 +73,7 @@ function uniqueKeys(values: Array<{ key: string }>, label: string): void {
 }
 
 /** Parse an untrusted portable definition. Privilege-bearing fields are rejected by strict schemas. */
-export function parseAliaTeamPackage(input: unknown): AliaTeamPackage {
+function parseAliaTeamPackage(input: unknown): AliaTeamPackage {
   const parsed = packageSchema.parse(input);
   uniqueKeys(parsed.members, 'member');
   uniqueKeys(parsed.channels, 'channel');

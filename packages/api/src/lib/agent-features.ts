@@ -327,7 +327,7 @@ export async function refuseFeatureGates(gates: AgentFeatureGates): Promise<stri
 }
 
 /** One app feature an owner may put an Alia feature behind. */
-export interface GateableAppFeature {
+interface GateableAppFeature {
   readonly key: string;
   readonly description: string;
 }

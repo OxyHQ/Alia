@@ -19,39 +19,11 @@ import {
   bumpAgentSoulInteractions,
   evolveAgentSoul as persistSoulEvolution,
   findAgentById,
-  type AgentSoul,
 } from '../../db/agents/agentRepository.js';
 import { resolveUtilityModel, getAIModel, utilityOutputTokens } from '../chat-core.js';
 import { log } from '../logger.js';
 
 // ============== FORMATTING ==============
-
-/**
- * Format an agent's soul into a natural-language section for the system prompt.
- */
-export function formatSoul(soul: AgentSoul): string {
-  const sections: string[] = [];
-
-  if (soul.vibe.length > 0) {
-    sections.push(`Communication style: ${soul.vibe.join(', ')}`);
-  }
-
-  if (soul.expertise.length > 0) {
-    sections.push(`Areas of expertise: ${soul.expertise.join(', ')}`);
-  }
-
-  if (soul.worldview.length > 0) {
-    sections.push(`Core principles: ${soul.worldview.join(', ')}`);
-  }
-
-  if (soul.currentFocus.length > 0) {
-    sections.push(`Currently focused on: ${soul.currentFocus.join(', ')}`);
-  }
-
-  if (sections.length === 0) return '';
-
-  return `\n## Your Identity\n${sections.join('\n')}`;
-}
 
 // ============== EVOLUTION ==============
 

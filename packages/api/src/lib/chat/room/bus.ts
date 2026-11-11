@@ -15,7 +15,7 @@ import { log } from '../../logger.js';
 import { getRedisClient, getRedisSubClient } from '../../redis.js';
 
 /** The event names a room publishes (`alia.agent_*` are the frames `docs/agent-embedding.md` §4 defines). */
-export type RoomEventName =
+type RoomEventName =
   | 'alia.agent_start'
   | 'alia.agent_delta'
   | 'alia.agent_tool'
@@ -35,7 +35,7 @@ export interface RoomEvent {
   readonly data: Record<string, unknown>;
 }
 
-export type RoomEventHandler = (event: RoomEvent) => void;
+type RoomEventHandler = (event: RoomEvent) => void;
 
 export interface RoomBus {
   publish(event: RoomEvent): Promise<void>;

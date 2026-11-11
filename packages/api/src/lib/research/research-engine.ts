@@ -46,7 +46,7 @@ import { log } from '../logger.js';
 
 // ── Types ──
 
-export type ResearchPhase =
+type ResearchPhase =
   | 'decomposing'
   | 'searching'
   | 'reading'
@@ -63,7 +63,7 @@ export type ResearchPhase =
  * `failed` is reserved for a run that produced nothing at all (thrown, not
  * returned, today) so the two remaining values are what a caller branches on.
  */
-export type ResearchStatus = 'complete' | 'partial' | 'failed';
+type ResearchStatus = 'complete' | 'partial' | 'failed';
 
 export interface ResearchProgress {
   phase: ResearchPhase;

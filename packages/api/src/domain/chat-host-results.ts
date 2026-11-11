@@ -8,7 +8,6 @@ export type HostToolOutcome = (typeof HOST_TOOL_OUTCOMES)[number];
 
 /** `pending` from dispatch until the client answers; the waiter deletes the row when it reads it. */
 export const HOST_RESULT_STATES = ['pending', 'answered'] as const;
-export type HostResultState = (typeof HOST_RESULT_STATES)[number];
 
 /**
  * How long a turn waits for the client's answer. Well inside the turn's 80-second global limit,

@@ -40,7 +40,7 @@ import { oxy } from '../oxy.js';
 import { deleteS3Objects } from '../s3.js';
 
 /** A reference intent that fails this many times is dead-lettered for a person to read. */
-export const REFERENCE_SYNC_MAX_ATTEMPTS = 16;
+const REFERENCE_SYNC_MAX_ATTEMPTS = 16;
 const REFERENCE_SYNC_BATCH = 100;
 const REFERENCE_SYNC_LEASE_SECONDS = 120;
 const REFERENCE_SYNC_INTERVAL_MS = 15_000;

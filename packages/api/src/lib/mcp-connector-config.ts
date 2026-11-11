@@ -79,7 +79,7 @@ type EditableKey = (typeof EDITABLE_KEYS)[number];
 /** Each editable key present, so a write sets all of them. */
 type EditableConfig = Required<{ [K in EditableKey]: McpServerConfig[K] | undefined }>;
 
-export interface ConnectorSpec {
+interface ConnectorSpec {
   transport: McpServerTransport;
   runtime: McpServerRuntime;
   config: EditableConfig & Pick<McpServerConfig, 'requiresOAuth'>;
@@ -187,7 +187,7 @@ export function registryEntryOf(row: Pick<McpServerRow, 'source' | 'registryId'>
  * means the entry needs one and it is not configured; `undefined` means the
  * entry uses Dynamic Client Registration.
  */
-export function registryOAuthClient(
+function registryOAuthClient(
   entry: McpRegistryEntry,
   env: NodeJS.ProcessEnv = process.env,
 ): { clientId: string; clientSecret?: string } | null | undefined {

@@ -126,7 +126,7 @@ export const OXY_CONTROLLED_COMPLETION_INPUT_CEILING_BYTES = 126_976;
  * absorbs a framing change on Oxy's side landing before Alia's measurement
  * follows it.
  */
-export const REQUEST_INPUT_SAFETY_MARGIN_BYTES = 4_096;
+const REQUEST_INPUT_SAFETY_MARGIN_BYTES = 4_096;
 
 /** The most the server accepts, less the margin: 122_880 bytes. */
 export const SERVER_REQUEST_INPUT_LIMIT_BYTES =
@@ -229,11 +229,11 @@ export function toolDefinitionsBudgetBytes(inputBudgetBytes: number): number {
 /* -------------------------------------------------------------------------- */
 
 /** Oxy's `BASE_OVERHEAD` (`inferenceInternalPilot.ts`). */
-export const CONTROLLED_INPUT_BASE_OVERHEAD = 256;
+const CONTROLLED_INPUT_BASE_OVERHEAD = 256;
 /** Oxy's `MESSAGE_OVERHEAD`, per input message. */
-export const CONTROLLED_INPUT_MESSAGE_OVERHEAD = 32;
+const CONTROLLED_INPUT_MESSAGE_OVERHEAD = 32;
 /** Oxy's `TOOL_OVERHEAD`, per tool definition. */
-export const CONTROLLED_INPUT_TOOL_OVERHEAD = 32;
+const CONTROLLED_INPUT_TOOL_OVERHEAD = 32;
 
 /**
  * The most image parts one request may carry: the `imageInput.maxImages` of the

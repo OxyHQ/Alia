@@ -11,7 +11,7 @@
  * `scope` is the least set Alia requests, when the vendor documents granular
  * scopes; absent, the SDK requests what the server's challenge or metadata asks.
  */
-export interface McpRegistryOAuth {
+interface McpRegistryOAuth {
   scope?: string;
   client?: { envClientId: string; envClientSecret?: string };
   /**

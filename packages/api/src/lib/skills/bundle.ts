@@ -46,7 +46,7 @@ export const MAX_FILES = 200;
 /** Past this, text is stored as an object rather than in a column. */
 export const MAX_INLINE_BYTES = 256 * 1024;
 /** The spec asks for under 500 lines; this is the hard stop, not the guidance. */
-export const MAX_DOCUMENT_BYTES = 1024 * 1024;
+const MAX_DOCUMENT_BYTES = 1024 * 1024;
 
 export interface RawFile {
   /** As the archive names it, before any validation. */
@@ -58,7 +58,7 @@ export interface RawFile {
   symlink?: boolean;
 }
 
-export interface BundleFile {
+interface BundleFile {
   readonly path: string;
   readonly kind: SkillFileKind;
   readonly mime: string;
@@ -129,7 +129,7 @@ const BINARY_EXTENSIONS = new Map<string, string>([
 
 const SCRIPT_EXTENSIONS = new Set(['py', 'sh', 'bash', 'js', 'mjs', 'ts', 'rb']);
 
-export const SKILL_DOCUMENT = 'SKILL.md';
+const SKILL_DOCUMENT = 'SKILL.md';
 
 /**
  * Split a repository tree into one entry per skill directory.

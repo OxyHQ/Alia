@@ -25,7 +25,7 @@ export interface FilePartRef {
  * One part of a multi-part message body, as a client sends it. A type alias,
  * not an interface, so it stays assignable to the stored `MessageContentPart`.
  */
-export type ChatContentPart = {
+type ChatContentPart = {
   type: string;
   text?: string;
   image_url?: { url: string };

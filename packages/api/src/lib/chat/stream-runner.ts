@@ -149,7 +149,7 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
 }
 
 /** Token usage summed over the `finish-step` chunks this attempt delivered. */
-export interface StepUsage {
+interface StepUsage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;

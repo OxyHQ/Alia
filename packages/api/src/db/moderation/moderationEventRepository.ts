@@ -37,7 +37,7 @@ import { moderationEvents } from '../schema/moderation';
  * its own id and what became of it, so deleting an expired one is exactly the
  * intent — unlike the outbox, this table never holds unprocessed WORK.
  */
-export const MODERATION_EVENT_RETENTION_SECONDS = 90 * 24 * 60 * 60;
+const MODERATION_EVENT_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
 /**
  * Take the claim, or report that somebody else has it.

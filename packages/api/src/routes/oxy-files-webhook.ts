@@ -63,7 +63,7 @@ import { log } from '../lib/logger.js';
 /** Event types after which nothing may show the file again. */
 const GONE = new Set(['file.deleted', 'file.blocked']);
 
-export function oxyFilesWebhookSecret(env: NodeJS.ProcessEnv = process.env): string | null {
+function oxyFilesWebhookSecret(env: NodeJS.ProcessEnv = process.env): string | null {
   const secret = (env.OXY_FILES_WEBHOOK_SECRET ?? '').trim();
   return secret === '' ? null : secret;
 }
@@ -128,7 +128,7 @@ function unregisteredChallenge(req: Request): string | null {
 }
 
 /** Act on one verified event. Idempotent: a redelivery changes nothing more. */
-export async function handleFileEvent(event: FileEvent): Promise<void> {
+async function handleFileEvent(event: FileEvent): Promise<void> {
   const fileId = event.file.id;
   if (!GONE.has(event.type)) {
     log.files.info(

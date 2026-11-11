@@ -22,7 +22,7 @@ export interface CanvasMemoryAccess {
 type MemoryTools = 'recallMemories' | 'remember' | 'updateMemory';
 
 /** The title identity Nilo dedupes by: case, accents and spacing do not make a new memory. */
-export function foldMemoryKey(key: string): string {
+function foldMemoryKey(key: string): string {
   return key
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')

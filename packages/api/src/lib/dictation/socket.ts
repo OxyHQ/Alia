@@ -46,7 +46,7 @@ const ACCESS_TEXT: Readonly<Record<'NOT_AUTHENTICATED' | 'CREDENTIAL_NOT_SUPPORT
 /** Dictations held by this task, for shutdown. */
 const liveDictations = new Set<DictationStream>();
 
-export interface DictationAdmission {
+interface DictationAdmission {
   readonly allowed: boolean;
   readonly retryAfterMs?: number;
 }
@@ -81,10 +81,7 @@ async function admitByRateLimit(oxyUserId: string): Promise<DictationAdmission> 
 }
 
 /** Serve one connection: auth, then one dictation. */
-export function handleDictationConnection(
-  ws: WebSocket,
-  options: DictationSocketOptions = {},
-): void {
+function handleDictationConnection(ws: WebSocket, options: DictationSocketOptions = {}): void {
   const authenticate = options.authenticate ?? authenticateSocketSession;
   const admit = options.admit ?? admitByRateLimit;
   const kaanaFor = options.kaana ?? getKaanaClient;

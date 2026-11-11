@@ -2,7 +2,7 @@ import type { Request } from 'express';
 
 export type ChannelId = 'telegram' | 'discord' | 'whatsapp' | 'slack' | 'signal';
 
-export interface ChannelMeta {
+interface ChannelMeta {
   id: ChannelId;
   name: string;
   icon: string;
@@ -23,7 +23,7 @@ export interface ChannelPlugin {
   webhook?: ChannelWebhookAdapter;
 }
 
-export interface ChannelConfigAdapter {
+interface ChannelConfigAdapter {
   isConfigured: () => boolean;
   getEnvPrefix: () => string;
 }
@@ -57,21 +57,21 @@ export interface OutboundResult {
   error?: string;
 }
 
-export interface ChannelSecurityAdapter {
+interface ChannelSecurityAdapter {
   resolveDmPolicy: (accountId: string) => DmPolicy;
 }
 
-export interface DmPolicy {
+interface DmPolicy {
   policy: 'open' | 'allowlist' | 'pairing' | 'disabled';
   allowFrom?: string[];
 }
 
-export interface ChannelNormalizeAdapter {
+interface ChannelNormalizeAdapter {
   normalizeTarget: (raw: string) => string | undefined;
   looksLikeTarget: (raw: string) => boolean;
 }
 
-export interface ChannelWebhookAdapter {
+interface ChannelWebhookAdapter {
   verifySignature: (req: Request) => boolean;
   parseMessage: (body: any) => ChannelInboundMessage | null;
 }

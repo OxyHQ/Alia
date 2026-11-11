@@ -38,7 +38,7 @@ export interface PreparedRoom {
   abandon(): Promise<void>;
 }
 
-export interface PrepareRoomInput {
+interface PrepareRoomInput {
   readonly userId: string;
   readonly conversationId: string;
   readonly memberAgentIds: readonly string[];

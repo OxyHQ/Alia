@@ -8,7 +8,7 @@ import {
 
 const AUTOMATION_AUTHORIZATION_LIFETIME_MS = 365 * 24 * 60 * 60_000;
 
-export interface AutomationAuthorityAgent {
+interface AutomationAuthorityAgent {
   agentId: string;
   actorAccountId: string;
 }

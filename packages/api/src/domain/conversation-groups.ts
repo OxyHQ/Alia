@@ -7,7 +7,7 @@
  *
  * A leaf module: it imports nothing (`db/__tests__/schemaModelIndependence.test.ts`).
  */
-export const GROUP_MIN_MEMBERS = 2;
+const GROUP_MIN_MEMBERS = 2;
 export const GROUP_MAX_MEMBERS = 6;
 
 export type GroupMembers =

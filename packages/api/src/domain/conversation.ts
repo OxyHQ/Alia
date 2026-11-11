@@ -80,7 +80,6 @@ export function originAppOf(value: unknown): string | undefined {
  * tuple. Every other writer produces it server-side in `lib/chat/stream-runner.ts`.
  */
 export const TOOL_INVOCATION_STATES = ['partial-call', 'call', 'result'] as const;
-export type ToolInvocationState = (typeof TOOL_INVOCATION_STATES)[number];
 
 /**
  * One tool call attached to a message.

@@ -71,7 +71,7 @@ function hosted(model: CatalogueModel): ResolvedModel {
 }
 
 /** A power level: Oxy chooses the model of that level for each request. */
-export function powerLevelResolution(level: PowerLevel): ResolvedModel {
+function powerLevelResolution(level: PowerLevel): ResolvedModel {
   return {
     modelId: level,
     provider: 'kaana',

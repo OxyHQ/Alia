@@ -55,7 +55,7 @@ import { aliaCheckInRefusal, postAliaCheckIn } from '../agent/alia-outreach.js';
 import { agentCheckInRefusal, postAgentMessage } from '../agent/agent-outreach.js';
 
 /** Why an email deserves a message. Closed: the model may only pick one of these. */
-export const IMPORTANT_EMAIL_CATEGORIES = [
+const IMPORTANT_EMAIL_CATEGORIES = [
   'needs_reply',
   'time_sensitive',
   'security',
@@ -66,7 +66,7 @@ export const IMPORTANT_EMAIL_CATEGORIES = [
 ] as const;
 
 /** Why an email does not. Also closed, so a refusal is as constrained as an approval. */
-export const ROUTINE_EMAIL_CATEGORIES = [
+const ROUTINE_EMAIL_CATEGORIES = [
   'newsletter',
   'promotion',
   'automated',
@@ -85,7 +85,7 @@ const classificationSchema = z
   })
   .strict();
 
-export type EmailClassification = z.infer<typeof classificationSchema>;
+type EmailClassification = z.infer<typeof classificationSchema>;
 
 /** What a `new_email` event carries (Oxy's Inbox catalog, `new_email` 1.1.0). Extra keys are ignored. */
 const newEmailDataSchema = z.object({
@@ -114,7 +114,7 @@ export interface InboxEmailEvent {
  * email" about one from last week is noise, not help. Automations still get
  * every event; only this outreach is time-boxed.
  */
-export const EMAIL_OUTREACH_MAX_AGE_MS = 2 * 60 * 60_000;
+const EMAIL_OUTREACH_MAX_AGE_MS = 2 * 60 * 60_000;
 
 export type EmailOutreachOutcome =
   | {
@@ -220,7 +220,7 @@ export function buildEmailClassifierPrompt(input: {
 }
 
 /** Ask the utility model; `null` on any failure, which tells nobody. */
-export async function classifyEmail(input: {
+async function classifyEmail(input: {
   readonly oxyUserId: string;
   readonly forAgent: boolean;
   readonly from: string;

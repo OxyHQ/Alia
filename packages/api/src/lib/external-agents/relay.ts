@@ -33,7 +33,7 @@ import { authenticateSocketToken } from '../socket-session-auth.js';
 import type { WebSocketRoute } from '../websocket-upgrades.js';
 import { CMD_PREFIX, EVT_PREFIX, getClusterBus, type ClusterBus } from './cluster.js';
 
-export const EXTERNAL_AGENT_RELAY_PATH = '/ws/external-agent';
+const EXTERNAL_AGENT_RELAY_PATH = '/ws/external-agent';
 
 const AUTH_TIMEOUT_MS = 5_000;
 /** Same cadence as the MCP relay: the ALB (60 s) and Cloudflare (100 s) cut a silent connection. */

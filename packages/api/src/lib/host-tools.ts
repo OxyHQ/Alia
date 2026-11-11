@@ -61,7 +61,7 @@ const hostOutcomeSchema = z
   })
   .strict();
 
-export const hostRequestSchema = z
+const hostRequestSchema = z
   .object({
     /** The embedding app's slug; it also labels a conversation the turn starts. */
     app: z.string().regex(ORIGIN_APP_PATTERN),
@@ -133,7 +133,7 @@ export const HOST_RESULT_STALE = {
 } as const;
 
 /** Where an awaited host action is recorded and its answer awaited (`HostResultWaiter`). */
-export interface HostResultChannel {
+interface HostResultChannel {
   open(key: HostResultKey): Promise<void>;
   wait(key: HostResultKey, signal: AbortSignal | undefined): Promise<HostResultAnswer | null>;
 }

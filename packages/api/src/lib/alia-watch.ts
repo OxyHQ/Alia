@@ -35,7 +35,7 @@ export const WATCH_PAUSE_AFTER_FAILURES = 5;
 const EXCERPT_CHARS = 4_000;
 const MAX_NEW_RESULTS = 8;
 
-export const watchConfigSchema = z
+const watchConfigSchema = z
   .object({
     // Stored watches keep the URL exactly as written: zod 4's `z.url()` would trim it.
     url: z

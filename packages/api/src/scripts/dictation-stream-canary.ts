@@ -29,14 +29,13 @@
 
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import type { RealtimeServerEvent } from '@kaana.ai/contracts';
 import type { KaanaClient } from '../lib/kaana/port.js';
 
-export const CANARY_MODEL = 'x-ai/grok-voice-transcribe-2.0';
+const CANARY_MODEL = 'x-ai/grok-voice-transcribe-2.0';
 
-export const CANARY_AUDIO = {
+const CANARY_AUDIO = {
   url: 'https://archive.org/download/gettysburg_address_librivox/gettysburg_address_lincoln_64kb.mp3',
   sha256: '59d825396d35e13601bbdc79a4867f7a55b09a6c65f1792657a2c67ddf666ead',
 } as const;
@@ -45,8 +44,8 @@ export const CANARY_AUDIO = {
 export const CANARY_REFERENCE =
   'four score and seven years ago our fathers brought forth on this continent a new nation conceived in liberty and dedicated to the proposition that all men are created equal';
 
-export const CONFIRM_VALUE = 'production-dictation-canary';
-export const RESULT_MARKER = 'ALIA_DICTATION_CANARY';
+const CONFIRM_VALUE = 'production-dictation-canary';
+const RESULT_MARKER = 'ALIA_DICTATION_CANARY';
 
 const SAMPLE_RATE = 24_000;
 const BYTES_PER_MS = (SAMPLE_RATE * 2) / 1000;
@@ -242,7 +241,7 @@ async function fetchRecording(): Promise<Uint8Array> {
 }
 
 /** 24 kHz PCM16 mono of the recording's first `seconds`. */
-export async function loadAudio(options: CanaryOptions): Promise<Buffer> {
+async function loadAudio(options: CanaryOptions): Promise<Buffer> {
   const ffmpeg = await ffmpegPath();
   if (options.audioFile !== undefined)
     return ffmpegDecode(ffmpeg, options.audioFile, options.seconds);

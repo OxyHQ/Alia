@@ -45,7 +45,7 @@ export const INBOX_ITEMS_PER_WAKE = 20;
 /** Pending items older than this are dismissed instead of delivered: stale news is not news. */
 export const INBOX_ITEM_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
-export function capSummary(data: Record<string, unknown>): Record<string, unknown> {
+function capSummary(data: Record<string, unknown>): Record<string, unknown> {
   const json = JSON.stringify(data);
   if (json.length <= INBOX_SUMMARY_MAX_BYTES) return data;
   // Keep whole small fields, drop what does not fit: a truncated JSON string is not JSON.

@@ -83,7 +83,7 @@ import { CREDITS_CONFIG, type CreditReservation } from '../credits-manager.js';
 import { log } from '../logger.js';
 
 /** Whose balance a turn was actually taken from. */
-export type CreditPayer = 'agent' | 'owner';
+type CreditPayer = 'agent' | 'owner';
 
 export type AgentTurnFunding =
   | { readonly ok: true; readonly payer: CreditPayer; readonly reservation: CreditReservation }

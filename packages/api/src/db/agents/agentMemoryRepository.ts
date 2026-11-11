@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, max, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index.js';
 import { agentMemoryDocuments, agentMemoryJournal } from '../schema/agent-runtime.js';
 import { hashAgentMemory } from '../../lib/agent/memory-contract.js';

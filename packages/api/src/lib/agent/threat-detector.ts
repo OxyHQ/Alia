@@ -7,7 +7,7 @@
 
 import { THREAT_PATTERNS, type ThreatPattern, type ThreatSeverity } from './threat-patterns.js';
 
-export interface ThreatMatch {
+interface ThreatMatch {
   pattern: ThreatPattern;
   match: string;
 }

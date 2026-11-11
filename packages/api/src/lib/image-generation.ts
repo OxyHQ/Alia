@@ -20,14 +20,12 @@ export interface ImageGenerationRequest {
  * could be returned to a client as if it were a link — the same conflation that
  * made every stored address a 403.
  */
-export type GeneratedImage =
+type GeneratedImage =
   | { readonly kind: 'bytes'; readonly bytes: Buffer }
   | { readonly kind: 'url'; readonly url: string };
 
 /** Refuses without resolving a model, credential or provider. */
-export async function generateImage(
-  _request: ImageGenerationRequest,
-): Promise<GeneratedImage | null> {
+async function generateImage(_request: ImageGenerationRequest): Promise<GeneratedImage | null> {
   throw kaanaCapabilityUnavailable('image_generation');
 }
 

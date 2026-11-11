@@ -22,9 +22,3 @@ export const MAX_DELEGATION_DEPTH = 3;
 
 /** Token budget for the agent event stream context window */
 export const EVENT_STREAM_BUDGET = 60_000;
-
-/** Threshold (in tokens) above which tool results are offloaded to workspace filesystem */
-export const OFFLOAD_THRESHOLD_TOKENS = 4_000;
-
-/** Maximum retry attempts for chat model resolution */
-export const MAX_CHAT_RETRIES = 5;

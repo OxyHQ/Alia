@@ -23,7 +23,7 @@ export interface AgentJobData {
   agentName: string;
 }
 
-export interface AgentJobResult {
+interface AgentJobResult {
   sessionId: string;
   status: 'completed' | 'failed' | 'skipped';
   result?: string;

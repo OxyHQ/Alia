@@ -10,13 +10,13 @@
  * Exposes a /metrics endpoint compatible with Prometheus scraping.
  */
 
-export interface MetricSample {
+interface MetricSample {
   value: number;
   labels: Record<string, string>;
   timestamp: number;
 }
 
-export type MetricType = 'counter' | 'gauge' | 'histogram';
+type MetricType = 'counter' | 'gauge' | 'histogram';
 
 interface MetricDef {
   name: string;
@@ -198,48 +198,6 @@ registry.register(
 );
 
 // ── Convenience Functions ──
-
-export function agentSessionStarted(labels: { agentId?: string; userId?: string }): void {
-  registry.inc('alia_agent_sessions_total', labels);
-}
-
-export function agentSessionEnded(
-  durationSec: number,
-  labels: { agentId?: string; status?: string },
-): void {
-  registry.observe('alia_agent_session_duration_seconds', labels, durationSec);
-}
-
-export function agentStepTaken(labels: { agentId?: string; modelId?: string }): void {
-  registry.inc('alia_agent_steps_total', labels);
-}
-
-export function agentTokensUsed(
-  count: number,
-  labels: { agentId?: string; modelId?: string },
-): void {
-  registry.inc('alia_agent_tokens_total', labels, count);
-}
-
-export function toolCallRecorded(toolName: string, durationSec: number, success: boolean): void {
-  const labels = { tool: toolName };
-  registry.inc('alia_tool_calls_total', labels);
-  registry.observe('alia_tool_call_duration_seconds', labels, durationSec);
-  if (!success) registry.inc('alia_tool_errors_total', labels);
-}
-
-export function contextCompactionRecorded(tokensSaved: number): void {
-  registry.inc('alia_context_compaction_total');
-  registry.set('alia_context_tokens_saved', {}, tokensSaved);
-}
-
-export function chatRequestRecorded(
-  durationSec: number,
-  labels: { model?: string; platform?: string },
-): void {
-  registry.inc('alia_chat_requests_total', labels);
-  registry.observe('alia_chat_stream_duration_seconds', labels, durationSec);
-}
 
 /** One read served from the legacy bucket. The durable count is `legacy_storage_reads`. */
 export function legacyStorageReadRecorded(kind: string): void {

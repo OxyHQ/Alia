@@ -89,7 +89,7 @@ interface Owned {
  * Exported for the suite: the rule it encodes is the whole security model of
  * this file.
  */
-export async function ownComputer(req: Request, res: Response): Promise<Owned | null> {
+async function ownComputer(req: Request, res: Response): Promise<Owned | null> {
   const oxyUserId = req.user?.id;
   if (!oxyUserId) {
     res.status(401).json({ error: 'Unauthorized' });

@@ -77,9 +77,9 @@ import { isExternalAgent, runExternalAgentTurn } from '../external-agents/turn.j
  * Bounded so a consultation fits inside the outer request's own limit
  * (`routes/v1/chat-completions.ts`) with room for the lead to answer after it.
  */
-export const AGENT_TIMEOUT_MS = 45_000;
-export const AGENT_MAX_STEPS = 8;
-export const AGENT_MAX_OUTPUT_TOKENS = 4096;
+const AGENT_TIMEOUT_MS = 45_000;
+const AGENT_MAX_STEPS = 8;
+const AGENT_MAX_OUTPUT_TOKENS = 4096;
 
 /**
  * What Alia can use when an agent asks her something: ANSWERING tools only. She holds powers an agent

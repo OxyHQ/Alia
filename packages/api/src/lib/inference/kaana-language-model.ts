@@ -88,7 +88,7 @@ const REASONING_BLOCK_ID = 'kaana-reasoning';
  * anything and the SDK echoed the requested id". A key that is absent when
  * nothing arrived can.
  */
-export const KAANA_PROVIDER_METADATA_KEY = 'kaana';
+const KAANA_PROVIDER_METADATA_KEY = 'kaana';
 
 function resolvedModelMetadata(
   reference: string | null,
@@ -98,7 +98,7 @@ function resolvedModelMetadata(
     : { [KAANA_PROVIDER_METADATA_KEY]: { resolvedModelReference: reference } };
 }
 
-export interface InferenceRequestCorrelation {
+interface InferenceRequestCorrelation {
   readonly requestId: string;
   readonly modelReference: string | null;
 }

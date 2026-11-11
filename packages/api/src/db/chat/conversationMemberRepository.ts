@@ -96,19 +96,3 @@ export async function listGroupMembersFor(
   }
   return members;
 }
-
-/** Remove a conversation's members; part of deleting the conversation. */
-export async function deleteGroupMembers(
-  db: Executor,
-  oxyUserId: string,
-  conversationId: string,
-): Promise<void> {
-  await db
-    .delete(conversationMembers)
-    .where(
-      and(
-        eq(conversationMembers.oxyUserId, oxyUserId),
-        eq(conversationMembers.conversationId, conversationId),
-      ),
-    );
-}

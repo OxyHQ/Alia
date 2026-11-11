@@ -4,7 +4,7 @@ import { BlockList, isIP } from 'node:net';
 import { getRedisClient, withRedisTimeout } from '../redis.js';
 
 export const VOICE_PEER_PATH = '/internal/voice/relay';
-export const ROUTE_LEASE_MS = 45_000;
+const ROUTE_LEASE_MS = 45_000;
 export const ROUTE_RENEW_MS = 10_000;
 const MAX_ROUTE_LIFETIME_MS = 31 * 60_000;
 const PREFIX = 'alia:voice-route:';

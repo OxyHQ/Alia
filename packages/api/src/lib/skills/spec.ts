@@ -91,7 +91,7 @@ export class SkillSpecError extends Error {
  */
 const CLOSING_OR_SELF_CLOSING_TAG = /<\/[a-zA-Z][^>]*>|<[a-zA-Z][^>]*\/>/;
 
-export function containsMarkup(text: string): boolean {
+function containsMarkup(text: string): boolean {
   return CLOSING_OR_SELF_CLOSING_TAG.test(text);
 }
 

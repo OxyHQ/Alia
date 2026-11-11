@@ -67,7 +67,7 @@ const clients = new Map<string, ConnectedClient>();
 const pendingCalls = new Map<string, PendingCall>();
 
 /** The MCP relay's path on the shared HTTP server. */
-export const MCP_RELAY_PATH = '/ws/mcp';
+const MCP_RELAY_PATH = '/ws/mcp';
 
 /**
  * The MCP relay, as a route of the upgrade router (`lib/websocket-upgrades.ts`).
