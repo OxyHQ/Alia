@@ -58,17 +58,5 @@
     ],
     "exitCode": 0,
     "seconds": 1.016
-  },
-  {
-    "name": "alia-cowork-types",
-    "cwd": "packages/alia-cowork",
-    "argv": [
-      "bun",
-      "--no-env-file",
-      "run",
-      "typecheck"
-    ],
-    "exitCode": 0,
-    "seconds": 1.768
   }
 ]

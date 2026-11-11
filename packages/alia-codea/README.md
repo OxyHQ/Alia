@@ -9,7 +9,7 @@ AI coding assistant for Visual Studio Code, powered by [Alia](https://alia.onl).
 
 ## Runtime Integration
 
-Codea uses the same unified chat runtime as app and Cowork:
+Codea uses the same unified chat runtime as app:
 
 - Endpoint: `POST /alia/chat` (one handler with `POST /v1/chat/completions`)
 - Model IDs: real `publisher/model` ids listed by `GET /catalogue`. With no model

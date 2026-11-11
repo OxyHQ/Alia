@@ -86,7 +86,7 @@ no model and therefore run `auto`.
 
 - `GET /catalogue` also returns `powerLevels` and `defaultPowerLevel` (`auto`).
   `defaultModelId` remains for clients that still render a model picker (Codea,
-  Cowork, the CLI, the SDK, the canvas) as the model to preselect; a request that
+  the CLI, the SDK, the canvas) as the model to preselect; a request that
   names nothing no longer runs on it.
 - The app's model picker, pins, effort control, catalogue client and publisher logos
   are deleted.

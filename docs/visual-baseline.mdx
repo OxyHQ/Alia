@@ -56,7 +56,7 @@ below. `dist/` is gitignored and never committed; the PNGs are (4.8 MB for all
 ### No new dependencies
 
 Nothing was added to any manifest but the one script entry. The harness uses
-`playwright-core` (already in the tree via `packages/alia-cowork` and
+`playwright-core` (already in the tree via
 `packages/integrations`, with Chromium already cached in `~/.cache/ms-playwright`)
 and otherwise only `node:http`, `node:zlib` and `node:fs`. In particular there
 is **no image-diff package**: `scripts/visual/png.mjs` is a ~90-line PNG reader

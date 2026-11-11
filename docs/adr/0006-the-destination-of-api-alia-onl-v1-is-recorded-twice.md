@@ -125,8 +125,6 @@ sunset"*), `packages/api/src/middleware/alias-deprecation.ts:141`,
 `packages/alia-codea-cli/src/utils/api.ts:150`,
 `packages/alia-chat/src/hooks/useAliaChat.ts:246`,
 `packages/alia-console/src/routes/_layout/playground.tsx:162`,
-`packages/alia-cowork/src/main/chat.ts:161`,
-`packages/alia-cowork/src/main/tools.ts:457`,
 `packages/integrations/src/shared/api-client.ts:198`.
 
 ### The shape of the conflict, which matters to whoever resolves it
@@ -232,15 +230,11 @@ is set for any path.
     `documentation/{authentication,chat-completions,quickstart,sdks}.tsx` plus
     `routes/_layout/examples.tsx`. Their audience *is* the generic-inference
     audience the surface exists for; they retire with the surface, not before.
-  - Four OpenAI-protocol clients — `packages/alia-codea-cli/src/utils/api.ts`
-    (published `@alia-codea/cli`), `packages/alia-codea/src/chatProvider.ts`
-    (marketplace-published extension), `packages/alia-cowork/src/main/chat.ts`
-    and `packages/alia-cowork/src/main/tools.ts`. Each hands a `baseURL` to the
-    `openai` package or to Stagehand, which derive `POST {baseURL}/chat/completions`
-    themselves — so the path is not Alia code to change.
-  - And one artifact that follows no source edit: `packages/alia-cowork/out/main/index.js`,
-    a built bundle that still contains the path (matrix row
-    `cowork-built-bundle-endpoint`).
+  - Two OpenAI-protocol clients — `packages/alia-codea-cli/src/utils/api.ts`
+    (published `@alia-codea/cli`) and `packages/alia-codea/src/chatProvider.ts`
+    (marketplace-published extension). Each hands a `baseURL` to the
+    `openai` package, which derives `POST {baseURL}/chat/completions`
+    itself — so the path is not Alia code to change.
 - **What would have to move first**, in order: a CORS decision on `/alia/chat`
   taken with the SDK's consumer origins enumerated, or an `@alia.onl/sdk` major;
   the console documentation rewrite already assigned to #139 workstream 20; and

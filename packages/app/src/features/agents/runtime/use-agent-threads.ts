@@ -7,7 +7,6 @@ export interface AgentThreadSummary {
   id: string;
   title: string;
   status: 'open' | 'closed';
-  executionTarget: 'sandbox' | 'cowork';
   updatedAt: string;
 }
 

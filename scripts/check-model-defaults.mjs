@@ -59,8 +59,6 @@ export const TREES = [
   'packages/alia-codea/src',
   'packages/alia-codea/webview-ui/src',
   'packages/alia-codea-cli/src',
-  'packages/alia-cowork/src',
-  'packages/alia-cowork/renderer/src',
   'packages/integrations/src',
 ];
 
@@ -198,8 +196,8 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    ['workspaces', workspaces.length, 11],
-    ['TREES', TREES.length, 10],
+    ['workspaces', workspaces.length, 10],
+    ['TREES', TREES.length, 8],
     ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
   ];
   const partition = [

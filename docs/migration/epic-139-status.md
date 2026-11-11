@@ -845,7 +845,7 @@ one audit.
 `ALREADY_TRUE` (2), `ROLLUP_OF` (1), `BLOCKED_OPERATOR` (10), `BLOCKED_KAANA` (7, Alia's half only)
 and `DUPLICATE_OF` (21). **Why:** every one of them rested on a premise that changed after 2026-08-19 —
 Alia was cut over to `Alia -> Oxy -> Kaana` in `697c3f9` (#477), ADR 0010 made `api.alia.onl/v1/*` a
-permanent product API, OxyHQ/oxy#972 closed, and Codea, Cowork and the CLI moved onto `/alia/chat` (#561).
+permanent product API, OxyHQ/oxy#972 closed, and Codea and the CLI moved onto `/alia/chat` (#561).
 
 **Result:** **47 earned** (`resolvedSince: 2026-09-10`, each with `resolutionEvidence` naming the
 mechanism `file:line` and the guard that keeps it true), **59 still open** (each with a rewritten

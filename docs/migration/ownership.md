@@ -55,7 +55,7 @@ is one `POST /internal/trigger`. So the accurate claim is that nothing mounted t
 Nothing outside `packages/api/src/internal/providers/` imported that module. Everything
 reachable only through it was dead code, not a migration target — 21 files.
 
-**#141 deleted them**, together with `packages/alia-gateway-admin`, the only client that
+**#141 deleted them**, together with the gateway admin frontend, the only client that
 ever called them. Their rows are still in the matrix, now carrying
 `removedIn: "#141"`; they are not deleted, because the surviving rows cite them as the
 reason they are themselves unreachable, and because a row is the record of why the code
@@ -163,10 +163,7 @@ outbound requests to provider hosts on every boot.
 | WS6: "`/alia/chat` or its successor remains responsible for Alia-specific behavior" | `/alia/chat` has no callers; the product runs on `/v1/chat/completions`. Both paths are the SAME handler (`routes/chat.ts:8`), differing only in auth and CORS. |
 | WS15: "Remove provider API keys from Alia deployment environments" | There are none. They are rows in `provider_keys`, in plaintext. |
 | WS10: "Stop writing new rows to `model_configs`, `alia_models`, provider mappings and provider keys" | Nothing writes them today: the admin router is unmounted and `runStartupSeed()` has zero callers. The routing catalogue is CODE (`generate-model-mappings.ts`); the tables mirror it and are read for one flag (`alia_models.isLegacy`). |
-| WS9: "Remove any screen that exposes plaintext provider secrets" | Every gateway-admin screen already fails: its whole API surface is unmounted. The screens are dead UI, so the epic is not removing a working admin — it is deciding where a capability that currently has NO home should live. |
-| WS9: "`packages/alia-gateway-admin/**` administers the current Alia-specific gateway" | The gateway service was deleted in `bfb2bc18`. The admin outlived it. |
 | WS8: "Delete `GATEWAY_API_ENABLED` dual-mode behavior" | Accurate, with a nuance: it is not an environment variable but a derived constant, `!!(SERVICE_SECRET && GATEWAY_API_URL)` (`lib/gateway-client.ts:32`), guarding seven `if` branches. |
-| "Alia owns plans, credits, subscriptions… that overlap the Oxy boundary" | True, and the ADMIN side of plans/features/credit packages lives in the dead gateway admin. Retiring it without an Alia-side editor freezes entitlements at whatever the database holds. |
 | WS4: `route:instant` … are "public model IDs backed by hidden third-party models" | True. Also two documented ids, `route:auto-tts` and `route:auto-image`, are NOT servable, and the real `route:thinking` is missing from two of the three published tables. |
 
 ---
@@ -257,7 +254,7 @@ deletion hangs on — were re-derived here with a positive control; the rest are
 `inventory-<domain>` and should be read as claims.
 
 **They are deliberately NOT updated as the epic deletes things, and #141 is the first PR
-for which that matters.** All four still describe `packages/alia-gateway-admin` and the
+for which that matters.** All four still describe the removed admin frontend and the
 `internal/providers` routes in the present tense, because they are a verbatim record of
 what was true at `b909147d` — rewriting them would destroy the one property that makes an
 archive worth keeping. The matrix is the living document; the inventories are its input,
@@ -345,7 +342,7 @@ them.
 > **RESOLVED, 2026-09-10 — this paragraph was right; ADR 0004 §3 is amended.**
 > [ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)
 > records the owner's decision: `api.alia.onl/v1/*` is Alia's permanent product API —
-> called by Alia's own surfaces (app, Codea, Cowork, CLI), by other applications in the
+> called by Alia's own surfaces (app, Codea, CLI), by other applications in the
 > Oxy ecosystem and by third parties through `@alia.onl/sdk`, all authorized by Oxy —
 > and it does not sunset. Generic model access is
 > Kaana through Oxy (`api.oxy.so/v1`); Alia's API is a product API that accepts an
@@ -439,14 +436,8 @@ router is unmounted; that is a reachability accident and not a control.
 27 stay in Alia, 11 to Oxy, 9 deleted, 8 to a Kaana operations surface. 38 live, 15 dead,
 2 unverified.
 
-**`packages/alia-gateway-admin` was dead UI, and #141 DELETED it.** Twenty rows named a
-path inside that package; **18 were `dead`** and the other two were its DigitalOcean
-specs, which were `unverified` because no repo read can say what a live DO app is
-running. Every endpoint the client called was unmounted. That changed the shape of
-workstream 9 — nothing was migrated, because nothing worked, so the package went rather
-than moved. All twenty rows survive with `removedIn: "#141"`.
-
-Note what that does and does not settle. The package is gone, but the checkbox it sits
+**The gateway admin frontend was dead UI, and #141 DELETED it.** Every endpoint it called was
+unmounted, so nothing was migrated: the package went rather than moved. The checkbox it sat
 under reads "Remove the package from the Alia workspace **once replacement surfaces are
 live**", and no replacement surface exists. It was removed because it was dead at both
 ends, not because Oxy Console took it over. What the epic is really deciding is where
@@ -460,26 +451,6 @@ which has any code either:
 | plan / feature / credit-pack editing | dead; the catalogue has no writer at all | Alia |
 | customer billing browser | dead | Alia or Oxy |
 
-Two hazards recorded before it went, and kept here because the code they describe no
-longer exists to be read: authorization was a client-side
-`user?.username?.toLowerCase() === 'nate'` (`src/App.tsx:81`) — not an access boundary at
-all — and the realtime client put the bearer token in the WebSocket URL query string
-(`src/lib/websocket/client.ts:60`), where it lands in access logs. Neither pattern may be
-carried into a replacement. A third, server-side: the proxy route set an `X-Key-Used`
-response header carrying the first eight characters of a plaintext provider key
-(`internal/providers/routes/providers.ts:145`). All three are gone with their files.
-
-Five further rows sit OUTSIDE the package and are the ones a directory-scoped deletion
-misses: the two root scripts, the workspace entry, the deploy job and the root DO spec.
-Retiring the package touches more than a directory: two root scripts, the workspace entry
-plus `bun.lock` in the same commit, four separate edits in
-`.github/workflows/deploy-frontends.yml`, two DigitalOcean specs that CONFLICT with each
-other about the backend URL, and seven documentation references — three of which hold this
-package up as the canonical reference for bundling React Native under Vite
-(`docs/oxyhq-auth.md:9,38,71`) and must be repointed at `packages/alia-console` first.
-The Cloudflare Pages project must be deleted out of band; deleting the workflow only stops
-future deploys and leaves the last build served forever.
-
 **`packages/alia-console` splits cleanly.** *(Superseded 2026-09-23: the owner deleted
 the whole package with the `alia_sk_*` keys rather than splitting it.)* The developer-platform screens (apps, keys,
 usage, dashboard, workspace settings, the API client) go to Oxy Console; the model
@@ -488,11 +459,10 @@ catalogue, playground and documentation pages stay as Alia product surfaces.
 with health metrics and no provider column, driven entirely by `GET /models/stats`. Its
 DTO having no `provider` field is a load-bearing invariant that nothing currently enforces.
 
-**The app, SDK, Codea, Cowork and Canvas all stay** — and they are where alias retirement
+**The app, SDK, Codea and Canvas all stay** — and they are where alias retirement
 actually hurts. `route:auto` and `route:voice` are compiled into a published npm package
 that ships as raw source; `route:code` is the default of a VS Code SETTING that
-persists in users' `settings.json` after an update; `route:cowork` is an electron-store
-default on disk; `route:instant` is pinned in saved Canvas workflow node data; and
+persists in users' `settings.json` after an update; `route:instant` is pinned in saved Canvas workflow node data; and
 `packages/app`'s model store persists the selected id to AsyncStorage with no validation
 against the catalogue. **No alias may be retired by deletion — only behind the
 `is_legacy` flag `GET /v1/models` already exposes.**
@@ -508,8 +478,7 @@ nothing enforces that they keep agreeing.
 1. **Land a provider-independent readiness probe in production.** Everything in
    workstream 7 is downstream of `/health/ready` no longer asking about providers.
 2. **Delete the dead subtree** (52 `dead` rows). No gate but the coverage test in this
-   directory, and it removes the fork between the gateway admin's hand-maintained provider
-   list and `PROVIDER_NAMES`.
+   directory.
 3. **Settle the seven open questions**, at least the two that block workstream 4
    (`shared-types-duplicate-registry`) and workstream 10 (`table-external-models`).
 4. **Fix the documented model table before touching model semantics.** Three documents
@@ -518,8 +487,8 @@ nothing enforces that they keep agreeing.
    first, then the eight `callProviderAPI` sites, then voice.
 6. **Then, and only then, the data.** Provider credentials are rotated at the upstream
    provider rather than copied; a deleted row is not a revoked key.
-7. **Retire the gateway admin** once the four capabilities above have homes — or
-   deliberately record that they do not, since today they do not either.
+7. **Decide where the four capabilities above live** — or deliberately record that they
+   have no home, since today they do not.
 
 Workstreams 11 and 12 (developer identity, financial records) are independent of the
 provider extraction and can run in parallel; they share no rows with workstream 7.
@@ -560,9 +529,6 @@ need someone outside this repo to answer them before the gate can be met:
   external clients.
 - **Do published Codea extension versions in the wild still call `/codea/user` and
   `/codea/token`?** Marketplace telemetry, not the repo.
-- **Is the `alia-gateway-admin` Cloudflare Pages site still served, and does any live
-  DigitalOcean app still read `.do/app.yaml`?** The repo has three conflicting deploy
-  definitions for one site and its own header says it is documentation only.
 
 ---
 
@@ -583,11 +549,10 @@ Inherited from the four inventories, and stated per row where it bites:
 
 Added by this matrix:
 
-- **Domains were enumerated, not sampled**, with one exception: `packages/alia-canvas`,
-  `packages/alia-docker-host` and `packages/alia-codea/webview-ui` were covered only where
+- **Domains were enumerated, not sampled**, with one exception: `packages/alia-canvas`
+  and `packages/alia-codea/webview-ui` were covered only where
   another inventory reached into them. Canvas has six alias sites and its own `/v1/models`
-  client, both recorded; docker-host was checked for `/v1`, `/alia/chat` and `alia-*` ids
-  and has none.
+  client, both recorded.
 - **The coverage gate binds only `packages/api/src/internal/providers/**`.** Nothing
   enforces completeness for `packages/app`, the console, the SDK or the docs — for those,
   absence from the matrix means nobody wrote a row, not that no row is owed.
@@ -662,20 +627,16 @@ subject. A reader arriving from an inventory file finds them here:
 | `dead-run-startup-seed` | `dead-startup-seed` |
 | `migration-sync-zeroeval` | `script-sync-zeroeval` |
 | `integrations-model-resolver-dead-client` | `integrations-model-resolver` |
-| `env-vite-gateway-api-url` | `ga-env-vite-gateway-api-url` |
-| `leak-gateway-admin-ui` | `ga-types-providers` |
-| `gateway-admin-dead-client` | `ga-api-client` |
-| `doc-gateway-admin-readme` | `ga-docs-references` |
 | `shared-types-alia-tier` | `shared-types-duplicate-registry` |
 | `app-model-selector-consumer` | `app-model-selector` |
 
 Six grouped items were SPLIT so that every row names one path: the 15 thin adapters
 (`adapter-thin-openai-compatible-x15` → `adapter-openai` … `adapter-digitalocean`), the
 `db/providers/` repositories (→ `db-repo-*`), and the multi-package dependency rows
-(`sdk-ai`, `sdk-livekit`, `sdk-openai-clients`). Nineteen rows were added that no
+(`sdk-ai`, `sdk-livekit`, `sdk-openai-clients`). Eighteen rows were added that no
 inventory carried: the 11 dead admin route files, `broadcast-helpers.ts`, the three
-billing seeds, `packages/api/src/internal/README.md`, `AGENTS.md`, the committed Cowork
-bundle, and this gate.
+billing seeds, `packages/api/src/internal/README.md`, `AGENTS.md`
+and this gate.
 
 
 ## I10 candidate: admission pricing and technical correlation

@@ -37,7 +37,6 @@ COPY packages/alia-canvas/package.json ./packages/alia-canvas/
 COPY packages/integrations/package.json ./packages/integrations/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
-COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 COPY packages/alia-computer-host/package.json ./packages/alia-computer-host/
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \

@@ -113,7 +113,7 @@ model; a plan differs from another only by how many credits it grants.
 
 ### 6. Prompts follow the surface, not the model
 
-The system prompt is chosen by the surface the turn comes from — chat, Codea, Cowork or
+The system prompt is chosen by the surface the turn comes from — chat, Codea or
 voice — never by the model. The extended-reasoning prompt layer is removed: effort goes to
 the model as a parameter.
 
@@ -137,7 +137,7 @@ and **deployment identifiers** remain hidden on the product surface, as before.
   fallback.
 - Billing now depends on Oxy publishing prices. A model without prices is charged at the
   base token rate and logged; it is not free.
-- Clients (app, Codea, Cowork, CLI, SDK) render a model picker grouped by publisher rather
+- Clients (app, Codea, CLI, SDK) render a model picker grouped by publisher rather
   than a mode picker. That work is outside `packages/api`.
 
 ## Alternatives considered

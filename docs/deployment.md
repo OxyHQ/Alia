@@ -395,25 +395,19 @@ bump it for a native change, which releases a new binary, and never for a
 JS-only one. Both builds take their environment from the `production` profile's
 `env` in `packages/app/eas.json` (public `EXPO_PUBLIC_*` values only).
 
-## Codea and Cowork desktop artifacts
+## Codea desktop artifact
 
-`alia-codea` and `alia-cowork` are private workspace packages. The npm release
-workflow does not publish them, and the repository currently has no Marketplace
-or Electron distribution workflow. A successful main CI or Alia backend rollout
-therefore does not mean these desktop versions reached users.
+`alia-codea` is a private workspace package. The npm release workflow does not
+publish it, and the repository currently has no Marketplace distribution
+workflow. A successful main CI or Alia backend rollout therefore does not mean
+this version reached users.
 
 After the matching Alia API rollout is verified, produce Codea's VSIX with
 `bun run --cwd packages/alia-codea package`. Its manifest version is the extension
 version. The web and Node bundles are built together; local workspace tools
-still require their supported extension host capabilities.
-
-Cowork uses `bun run --cwd packages/alia-cowork dist`, with `publish: null` and
-`--publish never`. Build each supported OS/architecture on a suitable runner.
-Unsigned Linux artifacts establish packaging only; Windows/macOS signing,
-notarization and the chosen download/store channel require separate configured
-release automation. Do not report those distributions as complete from an
-unsigned local build. Signing-in on an installed desktop app is a separate
-acceptance check from unit tests and artifact creation.
+still require their supported extension host capabilities. Signing in on an
+installed extension is a separate acceptance check from unit tests and artifact
+creation.
 
 ## Avatares: nada que publicar
 

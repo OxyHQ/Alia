@@ -9,7 +9,7 @@ Three products, three roles, one console
 - **Alia** is the assistant, with its own **permanent product API** at `api.alia.onl`:
   `/v1/*` and `/alia/chat` (one handler), plus `/conversations`, `/shows`, `/skills`,
   `/agents` and `/catalogue`. Three groups call it, all authorized by Oxy: Alia's own
-  surfaces — the app, Codea (the VS Code extension and the CLI) and Cowork, which are Alia
+  surfaces — the app, Codea (the VS Code extension and the CLI), which are Alia
   products and use `/alia/chat` with the user's Oxy session; other applications in the
   Oxy ecosystem; and third parties through `@alia.onl/sdk`. It accepts an
   OpenAI-compatible request shape and streams `alia.*` product events; it does not sunset.
@@ -37,14 +37,14 @@ acceptance went too:
   `401` with `"error": "credential_retired"` before the Oxy SDK sees the token, on
   `/alia/chat`, `/v1/*` and every other route behind it. The MCP relay has no key lane.
 - **The developer platform is gone.** Every `/developer/*` route (applications, keys,
-  rate limits, usage, stats), every `/codea/*` route, and the `POST /auth/authorize/codea`,
-  `POST /auth/authorize/cowork` and `POST /auth/token` refusals were deleted; they answer
+  rate limits, usage, stats), every `/codea/*` route, and the `POST /auth/authorize/codea`
+  and `POST /auth/token` refusals were deleted; they answer
   `404`. The `packages/alia-console` developer portal was deleted with them.
 - **The data is gone.** Migration `0070_clean_cut_dormant_tables` drops
   `developer_apps` and `developer_api_keys`. `api_key_usage` keeps its historical rows —
   `auth_type = 'api_key'` with the key and app ids — and records only session and
   internal traffic from now on.
-- **The clients moved first.** The Codea extension, the Codea CLI and Cowork all sign in
+- **The clients moved first.** The Codea extension, the Codea CLI all sign in
   with Oxy; the extension's "Enter API key" option and its `codea.apiKey` setting are
   removed.
 

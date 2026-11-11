@@ -32,7 +32,7 @@ export function AgentThreadsList({
           key={thread.id}
           title={thread.title}
           titleNumberOfLines={1}
-          description={`${thread.executionTarget === 'cowork' ? 'Cowork' : t('agents.threadSandbox')} · ${t(thread.status === 'open' ? 'agents.threadOpen' : 'agents.threadClosed')}`}
+          description={t(thread.status === 'open' ? 'agents.threadOpen' : 'agents.threadClosed')}
           value={formatRelativeTime(thread.updatedAt)}
           onPress={() => onOpen(thread)}
         />

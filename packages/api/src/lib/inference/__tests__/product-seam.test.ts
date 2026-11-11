@@ -310,13 +310,12 @@ describe('the inference seam describes no wire payload (#139 ws3)', () => {
 // ===========================================================================
 
 describe("the seam's product vocabulary is frozen (#139 ws3)", () => {
-  it('registers exactly the eleven cost-centre surfaces', () => {
-    // Seven come from workstream 2 verbatim; four more were forced by the call
+  it('registers exactly the ten cost-centre surfaces', () => {
+    // Six come from workstream 2 verbatim; four more were forced by the call
     // -site census and are listed after them in the source.
     expect([...ALIA_INFERENCE_SURFACES]).toEqual([
       'chat',
       'codea',
-      'cowork',
       'deep_research',
       'voice',
       'media',

@@ -495,17 +495,6 @@
       "missingTargets": []
     },
     {
-      "specifier": "@oxy.so/bloom/fonts",
-      "files": [
-        "packages/alia-cowork/renderer/src/main.tsx",
-        "packages/app/src/features/chat/ui/markdown.tsx"
-      ],
-      "exportKey": "./fonts",
-      "exportPresent": true,
-      "targetsExist": true,
-      "missingTargets": []
-    },
-    {
       "specifier": "@oxy.so/bloom/icon-circle",
       "files": [
         "packages/app/src/features/billing/ui/usage-limit-dialog.tsx",

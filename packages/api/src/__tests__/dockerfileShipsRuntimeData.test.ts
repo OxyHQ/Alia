@@ -202,6 +202,6 @@ describe('the runtime image ships what the code reads by path', () => {
     const missing = promptIds.filter((id) => !existsSync(`${packageRoot}prompts/${id}.md`));
     expect(missing).toEqual([]);
     // Vacuity floor: an empty map satisfies the line above.
-    expect(surfacePrompts.size).toBeGreaterThanOrEqual(3);
+    expect(surfacePrompts.size).toBeGreaterThanOrEqual(2);
   });
 });

@@ -46,7 +46,7 @@
  * The product surfaces that invoke inference, which are also the cost centres
  * #139 workstream 2 asks Oxy to separate.
  *
- * The first seven are the ones that workstream names verbatim. The last four
+ * The first six are the ones that workstream names verbatim. The last four
  * are not in that list and are not derivable from it: they came out of the
  * census of every `chat-core.ts` call site (32 modules, tabulated in the gap
  * analysis), and each one spends real tokens against a surface the epic's list
@@ -59,7 +59,6 @@
 export const ALIA_INFERENCE_SURFACES = [
   'chat',
   'codea',
-  'cowork',
   'deep_research',
   'voice',
   'media',

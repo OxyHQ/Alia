@@ -33,7 +33,7 @@ const router = Router();
  * `routes/__tests__/v1-compatibility-surface.test.ts`.
  *
  * The cost of closing it in this repository was zero at the time — nothing
- * called this route then; since #240 Cowork, Codea and the CLI do, every one
+ * called this route then; since #240 Codea and the CLI do, every one
  * of them authenticated — and outside it the affected population is callers
  * who were not authenticating, which is the same set as callers whose usage
  * was attributed to nobody and whose conversations were never persisted.

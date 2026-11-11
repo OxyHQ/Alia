@@ -15,11 +15,11 @@
     "oxy": "OxyHQ/oxy main at 19f25b7 (#1227)"
   },
   "checkboxes": {
-    "total": 416,
+    "total": 415,
     "tickedAtAudit": 170,
     "tickedNow": 231,
-    "untickedAtAudit": 246,
-    "untickedNow": 185,
+    "untickedAtAudit": 245,
+    "untickedNow": 184,
     "tickedNowReadAt": "2026-09-10"
   },
   "verdictCounts": {
@@ -27,7 +27,7 @@
     "ACTIONABLE_UPSTREAM": 17,
     "ALREADY_TRUE": 7,
     "BLOCKED_ALIAMODELS": 29,
-    "BLOCKED_CUTOVER": 59,
+    "BLOCKED_CUTOVER": 58,
     "BLOCKED_KAANA": 6,
     "BLOCKED_OPERATOR": 26,
     "BLOCKED_OXY_972": 2,
@@ -567,10 +567,10 @@
       "line": 291,
       "workstream": "5. Update the Alia model picker and product configuration",
       "section": "",
-      "text": "Update Codea, Cowork, CLI and SDK pickers consistently.",
+      "text": "Update Codea, CLI and SDK pickers consistently.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "Measured: every non-app surface still hardcodes an alias. packages/alia-codea-cli/src/utils/config.ts:25 and src/index.ts:49/:62/:77 default `route:code`; packages/alia-codea/src/inlineCompletionProvider.ts:23 and chatProvider.ts:592 the same; packages/alia-cowork/src/main/auth.ts:26 `route:cowork` and renderer/src/components/Console.tsx:124 prints it as literal text; packages/alia-chat/src/hooks/useVoiceRoom.ts:332 `route:voice` and components/AliaChatSheet.tsx:48 `route:auto`. Only packages/app reads GET /catalogue (#156).",
-      "deliverable": "Point Codea, Cowork, the CLI and @alia.onl/sdk at GET /catalogue the way packages/app/src/features/chat/runtime/use-catalogue.ts does, with the same `resolveSelection` fallback for an unavailable identifier.",
+      "evidence": "Measured: every non-app surface still hardcodes an alias. packages/alia-codea-cli/src/utils/config.ts:25 and src/index.ts:49/:62/:77 default `route:code`; packages/alia-codea/src/inlineCompletionProvider.ts:23 and chatProvider.ts:592 the same; packages/alia-chat/src/hooks/useVoiceRoom.ts:332 `route:voice` and components/AliaChatSheet.tsx:48 `route:auto`. Only packages/app reads GET /catalogue (#156).",
+      "deliverable": "Point Codea, the CLI and @alia.onl/sdk at GET /catalogue the way packages/app/src/features/chat/runtime/use-catalogue.ts does, with the same `resolveSelection` fallback for an unavailable identifier.",
       "guard": "An alias census like gate 3's, widened from packages/api/src to the four client packages: an `alia-`-shaped literal used as a model DEFAULT outside the catalogue fetch fails. Mutation: re-add a hardcoded default -> red.",
       "resolvedSince": "2026-08-17"
     },
@@ -585,13 +585,13 @@
       "reauditedAt": "2026-09-10",
       "reauditNote": "Already [x] in the issue. The 'sunset' reading of ADR 0004 §3 is superseded by ADR 0010.",
       "deliverable": "The four first-party call sites that write their own URL now post to POST /alia/chat: packages/app/src/features/chat/runtime/use-chat-conversation.ts and use-personality-sample-phrase.ts (through API_ROUTES.chat.alia, with the dead API_ROUTES.v1.chatCompletions constant deleted), packages/alia-codea/src/chatParticipant.ts and inlineCompletionProvider.ts, and both call sites in packages/integrations/src/shared/api-client.ts. Six call sites, four files, three packages.",
-      "deliberatelyNotMoved": "Five, each with the reason recorded at the call site. @alia.onl/sdk (packages/alia-chat/src/hooks/useAliaChat.ts): it ships raw source into consumer apps on arbitrary origins, and only /v1 has the wildcard CORS policy — measured 2026-08-19, an OPTIONS /alia/chat preflight from an unlisted origin returns NO access-control-allow-origin while /v1/chat/completions returns '*'. The developer console playground (packages/alia-console/src/routes/_layout/playground.tsx) plus five documentation pages: their audience is the generic-inference audience the compatibility surface exists for. And three OpenAI-protocol clients — packages/alia-codea-cli/src/utils/api.ts, packages/alia-codea/src/chatProvider.ts, packages/alia-cowork/src/main/chat.ts and packages/alia-cowork/src/main/tools.ts — which hand a baseURL to the `openai` package or to Stagehand and never write the path.",
+      "deliberatelyNotMoved": "Five, each with the reason recorded at the call site. @alia.onl/sdk (packages/alia-chat/src/hooks/useAliaChat.ts): it ships raw source into consumer apps on arbitrary origins, and only /v1 has the wildcard CORS policy — measured 2026-08-19, an OPTIONS /alia/chat preflight from an unlisted origin returns NO access-control-allow-origin while /v1/chat/completions returns '*'. The developer console playground (packages/alia-console/src/routes/_layout/playground.tsx) plus five documentation pages: their audience is the generic-inference audience the compatibility surface exists for. And two OpenAI-protocol clients — packages/alia-codea-cli/src/utils/api.ts and packages/alia-codea/src/chatProvider.ts — which hand a baseURL to the `openai` package and never write the path.",
       "guard": "Gate 8 of packages/api/src/__tests__/architectureGates.test.ts: three AST censuses over every tracked .ts/.tsx outside packages/api (the literal path, a `baseURL` ending /v1, and an OpenAI-protocol import), each frozen by exact set equality in both directions with its own positive control and vacuity floor. Mutation: point any migrated client back at /v1/chat/completions and the first census gains a file that no frozen map names. Plus a new assertion in routes/__tests__/v1-compatibility-surface.test.ts that both mounts terminate in the identical handleChatCompletions object, which is what makes 'the shapes are unchanged' an assertion rather than a claim.",
       "censusCorrection": "The evidence line above named five call sites; the census found ten. Missing were packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts, packages/alia-console/src/routes/_layout/playground.tsx, and the three OpenAI-protocol clients, which construct the path inside a library and so match no grep for it.",
       "reauditNote20260819": "MISCLASSIFIED IN ITS SECOND HALF, and the Oxy half is already done. ADR 0010 moved `/v1/chat/completions` to the Oxy edge; measured 2026-08-19, `POST https://api.oxy.so/v1/chat/completions` is the EDGE (contract-shaped 401 with schemaVersion) and the Alia proxy answers separately at `/alia/chat/completions` (401, Oxy's own error shape). So \"Oxy proxies INTO Alia at /v1\" is no longer true. The remaining work is entirely Alia's and needs no Kaana: five shipped clients still post to api.alia.onl's own /v1/chat/completions. Corrected again 2026-08-19: 'Oxy proxies INTO Alia' was already false, and the five-client count was low by five.",
       "verdictBefore20260910": "ACTIONABLE_NOW",
       "resolvedSince": "2026-09-10",
-      "resolutionEvidence": "Under ADR 0010 §1 `/v1/chat/completions` is Alia's permanent PRODUCT API; nothing presents it as generic inference: routes/v1/models.ts:1-31 serves an empty list with Link rel=alternate to /catalogue, routes/v1.ts:105-121 answers 410 to resolve-model/report-usage, request-context.ts:417-424 refuses `<publisher>/<model>`, README.md:83 sends raw model access to api.oxy.so/v1. The three first-party clients post to /alia/chat (alia-codea/src/aliaChat.ts:352, alia-cowork/src/main/alia-chat.ts:357, alia-codea-cli/src/utils/alia-chat.ts:353) and both mounts share one handler (routes/chat.ts:41; unified-product-runtime.test.ts:56-81, read — suite fails to load here for the missing @clarity.surf/sdk only)."
+      "resolutionEvidence": "Under ADR 0010 §1 `/v1/chat/completions` is Alia's permanent PRODUCT API; nothing presents it as generic inference: routes/v1/models.ts:1-31 serves an empty list with Link rel=alternate to /catalogue, routes/v1.ts:105-121 answers 410 to resolve-model/report-usage, request-context.ts:417-424 refuses `<publisher>/<model>`, README.md:83 sends raw model access to api.oxy.so/v1. The two first-party clients post to /alia/chat (alia-codea/src/aliaChat.ts:352, alia-codea-cli/src/utils/alia-chat.ts:353) and both mounts share one handler (routes/chat.ts:41; unified-product-runtime.test.ts:56-81, read — suite fails to load here for the missing @clarity.surf/sdk only)."
     },
     {
       "line": 315,
@@ -655,9 +655,9 @@
       "evidence": "There is no Oxy generic endpoint for a developer SDK to point at (docs/migration/kaana-client-gap.md section 1). Meanwhile @alia.onl/sdk posts to Alia's /v1/chat/completions (packages/alia-chat/src/hooks/useAliaChat.ts:217) and the console documents that URL in six places.",
       "verdictBefore": "BLOCKED_OXY_972",
       "reauditedAt": "2026-09-10",
-      "upstreamEvidence": "Upstream done: oxy:packages/core/src/inference/OxyInferenceClient.ts; oxy:docs/inference/sdk.md (oxy_sk_ with the stock OpenAI SDK; Python = stock openai client). Alia's own surfaces (app, Codea, Cowork, CLI) already use /alia/chat (Alia #561); @alia.onl/sdk documents the consumer-backend relay (ADR 0010).",
+      "upstreamEvidence": "Upstream done: oxy:packages/core/src/inference/OxyInferenceClient.ts; oxy:docs/inference/sdk.md (oxy_sk_ with the stock OpenAI SDK; Python = stock openai client). Alia's own surfaces (app, Codea, CLI) already use /alia/chat (Alia #561); @alia.onl/sdk documents the consumer-backend relay (ADR 0010).",
       "resolvedSince": "2026-09-10",
-      "resolutionEvidence": "Product clients are on the Alia runtime: Codea, Cowork and the CLI call /alia/chat with one stream client each (#561: packages/alia-codea/src/aliaChat.ts, packages/alia-cowork/src/main/alia-chat.ts, packages/alia-codea-cli/src/utils/alia-chat.ts); @alia.onl/sdk documents the consumer-backend relay (packages/alia-chat/README.md, ADR 0010). Generic developers are sent to Oxy: docs/developers-portal.md and docs/api-reference.md point at Oxy Console and api.oxy.so/v1, and oxy ships the developer SDK path (oxy:packages/core/src/inference/OxyInferenceClient.ts; oxy:docs/inference/sdk.md — stock OpenAI SDK with an oxy_sk_ key)."
+      "resolutionEvidence": "Product clients are on the Alia runtime: Codea and the CLI call /alia/chat with one stream client each (#561: packages/alia-codea/src/aliaChat.ts, packages/alia-codea-cli/src/utils/alia-chat.ts); @alia.onl/sdk documents the consumer-backend relay (packages/alia-chat/README.md, ADR 0010). Generic developers are sent to Oxy: docs/developers-portal.md and docs/api-reference.md point at Oxy Console and api.oxy.so/v1, and oxy ships the developer SDK path (oxy:packages/core/src/inference/OxyInferenceClient.ts; oxy:docs/inference/sdk.md — stock OpenAI SDK with an oxy_sk_ key)."
     },
     {
       "line": 324,
@@ -1469,7 +1469,7 @@
       "section": "",
       "text": "Move customer-facing application, credential, usage, billing, model and routing controls to Oxy Console.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "The Alia-side package is gone: `packages/alia-gateway-admin` is absent from the workspace (#141, ticked L410) and the only surviving references are in inventories and one AI tool, packages/api/src/lib/tools/gateway-admin.ts (still exported from lib/tools/index.ts:11 and gated to one username). The DESTINATION — Oxy Console screens for applications, credentials, usage, billing, models and routing — is OxyHQ/oxy#972.",
+      "evidence": "The Alia-side package is gone: the gateway admin package is absent from the workspace (#141, ticked L410) and the only surviving references were in inventories and one AI tool (still exported from lib/tools/index.ts:11 and gated to one username). The DESTINATION — Oxy Console screens for applications, credentials, usage, billing, models and routing — is OxyHQ/oxy#972.",
       "reauditedAt": "2026-09-10",
       "resolvedSince": "2026-09-10",
       "resolutionEvidence": "oxy:packages/console/src/routes/_layout/apps/$appId/settings.tsx (CredentialsSection; machine keys components/apps/credentials-section.tsx:75,131), apps/$appId/inference.tsx (routing policy, provider connections/BYOK, usage & spend, budgets), models.tsx, usage.tsx, billing/{index,spend,charges,budgets,plans,audit}.tsx, playground.tsx. Backing APIs inferenceReporting.ts, inferenceRoutingPolicies.ts, inferenceProviderConnections.ts.",
@@ -1496,8 +1496,8 @@
       "section": "",
       "text": "Remove root scripts, deployment workflows, DNS and environment configuration for the package.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "Measured remnants after #141: no root script and no workflow references the package — .github/workflows/deploy-frontends.yml deploys exactly two Cloudflare Pages projects, `alia-app` and `alia-canvas` — but packages/api/src/lib/tools/gateway-admin.ts survives and is exported at lib/tools/index.ts:11/:242, packages/api/.env.example:91 keeps GATEWAY_API_URL documented \"because lib/tools/gateway-admin.ts reads it\", and docs/deployment.md:77 says the same. DNS is not in this repo (~/Oxy/oxy-infra owns it).",
-      "deliverable": "Delete lib/tools/gateway-admin.ts and its two exports, then remove the .env.example and docs/deployment.md paragraphs that exist only to explain it. Note docs/migration/inventories/provider-runtime.json:1721 warns that repointing GATEWAY_API_URL at Kaana would silently re-enable this broken tool — deal with the tool first, which is exactly this row.",
+      "evidence": "Measured remnants after #141: no root script and no workflow references the package — .github/workflows/deploy-frontends.yml deploys exactly two Cloudflare Pages projects, `alia-app` and `alia-canvas` — but the provider-key admin AI tool survives and is exported at lib/tools/index.ts:11/:242, packages/api/.env.example:91 keeps GATEWAY_API_URL documented because that tool reads it, and docs/deployment.md:77 says the same. DNS is not in this repo (~/Oxy/oxy-infra owns it).",
+      "deliverable": "Delete the provider-key admin tool and its two exports, then remove the .env.example and docs/deployment.md paragraphs that exist only to explain it. Note docs/migration/inventories/provider-runtime.json:1721 warns that repointing GATEWAY_API_URL at Kaana would silently re-enable this broken tool — deal with the tool first, which is exactly this row.",
       "guard": "gate 1 of packages/api/src/__tests__/architectureGates.test.ts is exact-set in both directions over provider-tree importers, so removing a file requires deleting its line there too; add an assertion that no tool named in lib/tools/index.ts is gated on a hardcoded username. Mutation: re-add the tool -> red.",
       "resolvedSince": "2026-08-17"
     },
@@ -1507,7 +1507,7 @@
       "section": "",
       "text": "Archive migration screenshots/runbooks for operators.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "Two of the three operator runbooks exist — docs/runbooks/credential-rotation.md and docs/runbooks/rollback.md (#159) — plus docs/runbooks/provider-credential-exposure.md. None covers the gateway-admin screens, and the screenshots are unrecoverable: the package was deleted in #141, so only git history and docs/migration/inventories/frontend-admin.json describe them.",
+      "evidence": "Two of the three operator runbooks exist — docs/runbooks/credential-rotation.md and docs/runbooks/rollback.md (#159) — plus docs/runbooks/provider-credential-exposure.md. None covers the gateway admin screens, and the screenshots are unrecoverable: the package was deleted in #141, so only git history and docs/migration/inventories/frontend-admin.json describe them.",
       "deliverable": "An archive note under docs/migration/ recording, per screen, what an operator did there and where that action goes now — sourced from frontend-admin.json and the pre-#141 tree, since the screens cannot be re-screenshotted.",
       "guard": "docs-only; the honest guard is that frontend-admin.json's screen list and the archive note must have equal cardinality, asserted like ownershipMatrixCoverage.test.ts does.",
       "resolvedSince": "2026-08-17"
@@ -2722,7 +2722,7 @@
       "section": "Cleanup",
       "text": "Remove stale environment variables, deployment components and documentation.",
       "verdict": "BLOCKED_CUTOVER",
-      "evidence": "The env half named by L397 is ticked and the deployment component named by L411 is gone — `packages/api/src/lib/tools/gateway-admin.ts` does not exist and `packages/alia-gateway-admin` is not in `packages/`. What remains is the part only cutover retires. `GATEWAY_API_URL` still has a live reader at `lib/gateway-client.ts:35`, and `docs/deployment.md:92` records that it \"retires with that seam (workstream 8), not before\". Provider secrets are still runtime configuration because the local provider path is still the only serving path (L96), so L637 — remove provider secrets from Alia runtime — has to land before the variables carrying them are stale at all.",
+      "evidence": "The env half named by L397 is ticked and the deployment component named by L411 is gone — the provider-key admin tool does not exist and the gateway admin package is not in `packages/`. What remains is the part only cutover retires. `GATEWAY_API_URL` still has a live reader at `lib/gateway-client.ts:35`, and `docs/deployment.md:92` records that it \"retires with that seam (workstream 8), not before\". Provider secrets are still runtime configuration because the local provider path is still the only serving path (L96), so L637 — remove provider secrets from Alia runtime — has to land before the variables carrying them are stale at all.",
       "verdictBefore": "DUPLICATE_OF",
       "reauditedAt": "2026-09-10",
       "reauditNote": "Documentation and the seed are both repo edits; the env half is guarded by deployWorkflow.test.ts.",
@@ -2821,21 +2821,6 @@
       "reauditNote": "Same opt-in live suite as L378, one case per row.",
       "namedBlocker": "No end-to-end run through Kaana exists in this repository (see L378); the behaviour is pinned only against doubles.",
       "reauditNote20260819": "\"No Kaana exists\" is false. The Codea coding flow can be exercised through Kaana once Alia calls it.",
-      "verdictBefore20260910": "BLOCKED_CUTOVER",
-      "unblockedBy": "this repo + operator"
-    },
-    {
-      "line": 685,
-      "workstream": "19. Tests and enforcement",
-      "section": "End-to-end tests",
-      "text": "Cowork flow through Kaana.",
-      "verdict": "BLOCKED_CUTOVER",
-      "evidence": "The Cowork flow cannot be exercised \"through Kaana\" because no Kaana exists (docs/migration/kaana-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing.",
-      "verdictBefore": "BLOCKED_KAANA",
-      "reauditedAt": "2026-09-10",
-      "reauditNote": "Same opt-in live suite as L378, one case per row.",
-      "namedBlocker": "No end-to-end run through Kaana exists in this repository (see L378); the behaviour is pinned only against doubles.",
-      "reauditNote20260819": "\"No Kaana exists\" is false. The Cowork flow can be exercised through Kaana once Alia calls it.",
       "verdictBefore20260910": "BLOCKED_CUTOVER",
       "unblockedBy": "this repo + operator"
     },
@@ -3112,7 +3097,7 @@
       "section": "",
       "text": "Update every code sample, screenshot and translation string.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "RE-MEASURED after #171, #185 and #188, and the count moved a long way. packages/alia-console is DONE: four `route:auto`/`route:instant` strings remain and ALL FOUR are inside comments recording what was removed (models.tsx:8, :9; hooks/use-catalogue.ts:8; playground.tsx:106). The audit's twelve live console occurrences are gone. WHAT REMAINS is in the other clients, and it is now a NAMED CONSTANT per package rather than scattered literals — alia-codea/src/config.ts:21 `PREFERRED_MODEL_ID`, alia-codea-cli/src/utils/config.ts:40 `defaultModel`, alia-cowork/src/main/config.ts:18 and :35, alia-chat/src/lib/config.ts:19 and :38, app/lib/config.ts:41 and :53 (the last four all env-overridable). The sharpest residue is packages/app/components/credit-warning-banner.tsx:25-28, a hardcoded alias-to-alias downgrade table carrying its own credit multipliers, which duplicates the routing table.",
+      "evidence": "RE-MEASURED after #171, #185 and #188, and the count moved a long way. packages/alia-console is DONE: four `route:auto`/`route:instant` strings remain and ALL FOUR are inside comments recording what was removed (models.tsx:8, :9; hooks/use-catalogue.ts:8; playground.tsx:106). The audit's twelve live console occurrences are gone. WHAT REMAINS is in the other clients, and it is now a NAMED CONSTANT per package rather than scattered literals — alia-codea/src/config.ts:21 `PREFERRED_MODEL_ID`, alia-codea-cli/src/utils/config.ts:40 `defaultModel`, alia-chat/src/lib/config.ts:19 and :38, app/lib/config.ts:41 and :53 (the last four all env-overridable). The sharpest residue is packages/app/components/credit-warning-banner.tsx:25-28, a hardcoded alias-to-alias downgrade table carrying its own credit multipliers, which duplicates the routing table.",
       "deliverable": "The console half is done. What is left: the per-package default constants, and above all the downgrade table in credit-warning-banner.tsx, which restates multipliers the server owns.",
       "guard": "A translation-key completeness census plus the alias census from L291. Mutation: leave one sample naming an alias as a model -> red. Requires a CI job that covers the console, which does not exist today.",
       "reauditedAt": "2026-09-10",
@@ -3212,7 +3197,7 @@
       "text": "Product modes are represented as routing profiles/presets, not models.",
       "verdict": "ACTIONABLE_NOW",
       "evidence": "True on the API, false on three client surfaces. The API half is measured and guarded: `GET https://api.alia.onl/catalogue` serves twelve entries, all `object: \"routing_profile\"`; `GET /catalogue/modes` serves six, all `object: \"product_mode\"`; `GET /v1/models` serves `{\"object\":\"list\",\"data\":[]}` (all 2026-08-19); and gate 5 of `packages/api/src/__tests__/architectureGates.test.ts` recomputes the object kind from the live routing table with `SERVED_AS_MODEL` now an asserted EMPTY list. The clients are where a product mode is still a model. `packages/alia-canvas/src/lib/models.ts:9` hardcodes `{ id: \"route:instant\", name: \"Instant\", description: \"Fast responses for simple tasks\" }` as a `Model` and `components/workflow/node-edit-panel.tsx:57` renders it under the label \"Model\" — its `fetchModels()` reads `/v1/models`, now permanently empty, so the hardcoded fallback is what a user sees. `packages/alia-codea/webview-ui/src/components/Chat.tsx:185` does the same with `{ id: \"route:code\", name: \"Codea\" }` and replaces it only when `/v1/models?category=coding` returns a non-empty list, which it no longer can (`src/chatProvider.ts:146`). `packages/integrations` shows `route:instant` as `Model:` to every Telegram and Discord user (`bots/telegram-bot/commands.ts:204`, `bots/discord-bot/commands.ts:122`) beside an `Available Models:` list read from the same empty endpoint (`bots/discord-bot/commands.ts:156`). `packages/app` is correct: `src/features/chat/runtime/use-product-modes.ts` renders modes as labels over `profile:*` ids.",
-      "deliverable": "Point the three surfaces at `GET /catalogue`, as `packages/app`, the SDK, the CLI, Cowork and Codea’s own `src/config.ts` (`PREFERRED_MODEL_ID = 'profile:code'`) already do, and delete the hardcoded `Model` tables. `alia-canvas` additionally bakes `model: \"route:instant\"` into every new workflow node at `components/workflow/workflow-editor.tsx:43`, `:72` and `:79`.",
+      "deliverable": "Point the three surfaces at `GET /catalogue`, as `packages/app`, the SDK, the CLI and Codea’s own `src/config.ts` (`PREFERRED_MODEL_ID = 'profile:code'`) already do, and delete the hardcoded `Model` tables. `alia-canvas` additionally bakes `model: \"route:instant\"` into every new workflow node at `components/workflow/workflow-editor.tsx:43`, `:72` and `:79`.",
       "guard": "Extend the `TREES` list in `scripts/check-model-defaults.mjs` with `packages/alia-canvas/src`, `packages/alia-codea/webview-ui/src` and `packages/integrations/src`. That list is asserted by exact count, so the addition is a visible edit rather than a silent one.",
       "mutation": "MEASURED in both directions, and both edits reverted. Appending `export const SCRATCH_DEFAULT = 'route:pro'` to `packages/alia-console/src/lib/utils.ts` — a COVERED tree — turned `scripts/check-model-defaults.mjs` red, naming the file and the line. The identical literal appended to `packages/alia-canvas/src/lib/models.ts` and to `packages/alia-codea/webview-ui/src/components/Chat.tsx` left it green: \"check-model-defaults: OK — 245 files walked\". The gate works; its hand-maintained map omits exactly the trees where the property is false.",
       "verdictBefore": "DUPLICATE_OF",
@@ -3221,7 +3206,7 @@
       "reauditNote20260819": "`DUPLICATE_OF L242` measured one surface. L242 is about `owned_by: alia` on the compatibility listing and is earned there; this row is a definition-of-done statement over EVERY surface that serialises a product mode, and three of them still serialise one as a model. The label also concealed the reach of the guard — `scripts/check-model-defaults.mjs` covers six client trees and none of the three.",
       "verdictBefore20260910": "ACTIONABLE_NOW",
       "resolvedSince": "2026-09-10",
-      "resolutionEvidence": "API: GET /catalogue serves only object 'routing_profile' — picker-visibility.test.ts:150 asserts the SET of served objects equals {'routing_profile'}; /catalogue/modes serves 'product_mode' (catalogue-modes.test.ts:60-98); /v1/models is empty (picker-visibility.test.ts:177). Clients: every preference module names a mode or profile, never a model — alia-chat/src/lib/config.ts:18 mode:auto, alia-codea/src/config.ts:21 mode:code, alia-codea-cli/src/utils/config.ts:40 mode:code, alia-cowork/src/main/config.ts:39 route:cowork, app/lib/config.ts:34 mode:auto; the three surfaces the 2026-08-19 audit found serialising a mode as a Model (canvas, codea webview, integrations) now read the catalogue (alia-canvas/src/lib/product-modes.ts, integrations/src/shared/catalogue.ts) and are inside check-model-defaults.mjs TREES:82-92 (CI ci.yml:451, green). Server accepts mode:/route: and refuses `<publisher>/<model>` (request-context.ts:417-424)."
+      "resolutionEvidence": "API: GET /catalogue serves only object 'routing_profile' — picker-visibility.test.ts:150 asserts the SET of served objects equals {'routing_profile'}; /catalogue/modes serves 'product_mode' (catalogue-modes.test.ts:60-98); /v1/models is empty (picker-visibility.test.ts:177). Clients: every preference module names a mode or profile, never a model — alia-chat/src/lib/config.ts:18 mode:auto, alia-codea/src/config.ts:21 mode:code, alia-codea-cli/src/utils/config.ts:40 mode:code, app/lib/config.ts:34 mode:auto; the three surfaces the 2026-08-19 audit found serialising a mode as a Model (canvas, codea webview, integrations) now read the catalogue (alia-canvas/src/lib/product-modes.ts, integrations/src/shared/catalogue.ts) and are inside check-model-defaults.mjs TREES:82-92 (CI ci.yml:451, green). Server accepts mode:/route: and refuses `<publisher>/<model>` (request-context.ts:417-424)."
     },
     {
       "line": 770,
@@ -3257,7 +3242,7 @@
       "section": "",
       "text": "Gateway Admin and duplicate developer/billing surfaces are moved or retired.",
       "verdict": "DUPLICATE_OF",
-      "evidence": "The definition-of-done rollup of workstreams 9 and 11. Half is already done: `packages/alia-gateway-admin` is gone from the workspace (#141, ticked L410).",
+      "evidence": "The definition-of-done rollup of workstreams 9 and 11. Half is already done: the gateway admin package is gone from the workspace (#141, ticked L410).",
       "duplicateOf": "L406 — \"Move customer-facing application, credential, usage, billing, model and routing controls to Oxy Console.\"",
       "reauditedAt": "2026-09-10",
       "verdictBefore20260910": "DUPLICATE_OF",
@@ -3410,7 +3395,7 @@
     "ACTIONABLE_NOW": 4,
     "ACTIONABLE_UPSTREAM": 3,
     "BLOCKED_ALIAMODELS": 28,
-    "BLOCKED_CUTOVER": 26,
+    "BLOCKED_CUTOVER": 25,
     "BLOCKED_KAANA": 4,
     "BLOCKED_OPERATOR": 24,
     "DUPLICATE_OF": 9,
@@ -3470,7 +3455,7 @@
   "reaudit20260910": {
     "at": "2026-09-10",
     "subject": "the 107 open rows classified BLOCKED_CUTOVER (58), ACTIONABLE_NOW (8), ALREADY_TRUE (2), ROLLUP_OF (1), BLOCKED_OPERATOR (10), BLOCKED_KAANA (7, Alia half only) and DUPLICATE_OF (21)",
-    "why": "Alia was cut over to Oxy->Kaana in 697c3f9 (#477); ADR 0010 made /v1 a permanent product API; oxy#972 closed; Codea, Cowork and the CLI moved to /alia/chat (#561).",
+    "why": "Alia was cut over to Oxy->Kaana in 697c3f9 (#477); ADR 0010 made /v1 a permanent product API; oxy#972 closed; Codea and the CLI moved to /alia/chat (#561).",
     "method": "Read-only over the working tree at aa4db14 (claude/bold-mendel-a4utt1 == origin/main). Every cited file:line was read in this session; every guard named was read for what it asserts and, where runnable, run: 20 of 22 cited API suites green (224 tests); unified-product-runtime.test.ts and v1-compatibility-surface.test.ts fail to LOAD in this checkout because @clarity.surf/sdk (#484) is not installed and `bun install` was out of bounds — their assertions were read, not executed. The issue body was read through the GitHub API (416 boxes, 231 ticked) and every row text/line was re-aligned. OxyHQ/oxy kaanaInitialCatalogue.ts was read from the sibling checkout to confirm the eight opaque ids. No ECS, SSM, database or live HTTP measurement was made; production claims are the README.md:102-108 record.",
     "counts": {
       "earned": 47,

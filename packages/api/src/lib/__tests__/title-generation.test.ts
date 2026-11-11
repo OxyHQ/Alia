@@ -489,7 +489,7 @@ describe('the non-streaming path titles without clobbering (#139 ws6)', () => {
 
   it('the non-streaming entrypoint still calls it', () => {
     // The other "green and inert" half, and the one with no fixture at all:
-    // `chatFlowFixtures.test.ts`'s non-streaming flows are Codea and Cowork,
+    // `chatFlowFixtures.test.ts`'s non-streaming flows are Codea's,
     // which send no `conversationId`, so nothing in the suite reaches this call.
     const nonStreaming = code('lib/chat/non-streaming.ts');
     expect(nonStreaming).toContain('export async function runNonStreaming');

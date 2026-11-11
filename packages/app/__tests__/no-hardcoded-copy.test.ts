@@ -81,7 +81,6 @@ const ALLOWED = new Set([
   'Oxy',
   // The Oxy personal bundle, a product name in every language.
   'Oxy One',
-  'Cowork',
   'iOS',
   'Android',
   'Apache-2.0',

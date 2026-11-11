@@ -18,7 +18,6 @@ describe('model store persisted-state migration (v4: power levels)', () => {
     [AUTO, 2],
     [legacy('mode', 'thinking'), 2],
     [legacy('route', 'instant'), 2],
-    [legacy('route', 'cowork'), 1],
     [legacy('profile', 'auto'), 2],
     ['alia-pro', 0],
     // Nothing chosen at all.

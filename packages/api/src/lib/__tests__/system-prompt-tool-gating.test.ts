@@ -13,26 +13,7 @@ const { SystemPromptBuilder } = await import('../system-prompt-builder.js');
  * prefix cache can serve the head of the message.
  */
 
-const BROWSER_RULE = 'Use `browser_action` for ALL web navigation';
-
 describe('prompt text that names a tool', () => {
-  it('loads Cowork browser rules only when browser_action is registered', async () => {
-    const without = await SystemPromptBuilder.build({
-      surface: 'cowork',
-      isDirectUserSession: false,
-      toolNames: ['read_file'],
-    });
-    const none = await SystemPromptBuilder.build({ surface: 'cowork', isDirectUserSession: false });
-    const withTool = await SystemPromptBuilder.build({
-      surface: 'cowork',
-      isDirectUserSession: false,
-      toolNames: ['browser_action'],
-    });
-    expect(without).not.toContain(BROWSER_RULE);
-    expect(none).not.toContain(BROWSER_RULE);
-    expect(withTool).toContain(BROWSER_RULE);
-  });
-
   it('never names the messaging, agent-mode or clock tools itself', async () => {
     const prompt = await SystemPromptBuilder.build({
       isDirectUserSession: true,

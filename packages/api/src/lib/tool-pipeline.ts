@@ -238,7 +238,7 @@ export interface ForUserOptions {
    * that is why they are not simply always-on like the rest.
    */
   runtime?: AgentRuntimeContext | null;
-  /** Raw OpenAI-format tools from the client (VS Code, Cursor, Cowork) */
+  /** Raw OpenAI-format tools from the client (VS Code, Cursor) */
   editorToolDefinitions?: OpenAITool[];
   /**
    * The UI effects the embedding app can perform on the person's screen
@@ -681,7 +681,7 @@ export class ToolPipeline {
      *
      * `isDirectSession` as well as the emitter, because these events drive
      * Alia's own composer — a plan preview, a new-conversation chip — and a
-     * developer-key client (Codea, Cowork) has no surface for either. Offering
+     * developer-key client (Codea) has no surface for either. Offering
      * them there is a tool the model can call whose whole effect is a frame
      * nobody draws.
      */

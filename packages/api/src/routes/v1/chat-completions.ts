@@ -92,8 +92,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
    *    sent on an open stream.
    *
    * Either way every Alia client ends the turn on it (the app draws its
-   * failed-turn card with Retry; `@alia.onl/sdk`, `@alia.onl/server`, Codea and
-   * Cowork raise it as an error), and an OpenAI-compatible reader sees an error
+   * failed-turn card with Retry; `@alia.onl/sdk`, `@alia.onl/server`, and Codea
+   * raise it as an error), and an OpenAI-compatible reader sees an error
    * rather than `finish_reason: "stop"` on an answer nobody gave.
    *
    * It used to be different before output: the stream (or the JSON body) got an

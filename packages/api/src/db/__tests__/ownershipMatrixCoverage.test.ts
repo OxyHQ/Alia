@@ -99,16 +99,12 @@ interface MatrixRow {
  * commit — which is the only thing standing between "the epic is deleting
  * things" and "the matrix has quietly stopped describing anything".
  *
- * 41 over 38 distinct paths: 19 rows on 17 paths under
- * `internal/providers/**`, 20 rows on 19 paths under
- * `packages/alia-gateway-admin/`, one on
- * `packages/api/src/lib/tools/gateway-admin.ts` — the AI-callable tool that
- * proxied provider-key CRUD to the deleted gateway, removed by #166 — and one
- * on `packages/integrations/src/shared/model-resolver.ts`, the SECOND service's
- * copy of provider construction, removed by #184. Three paths carry two rows
- * each, because two separate migration subjects lived in one file.
+ * The first annotated rows were 19 on 17 paths under `internal/providers/**` and one on
+ * `packages/integrations/src/shared/model-resolver.ts`, the SECOND service's copy of provider
+ * construction, removed by #184. Two separate migration subjects lived in some single files, so
+ * a path can carry two rows.
  *
- * The 41st is `dead-providers-second-db`, `internal/providers/lib/db.ts`: a
+ * `dead-providers-second-db` came next, `internal/providers/lib/db.ts`: a
  * second database connection, left over from the alia-gateway
  * split, with zero importers. Its row had already read `owner: delete`,
  * `removalGate: NONE` — it went with `lib/db.ts` when the boot path stopped
@@ -260,8 +256,15 @@ interface MatrixRow {
  * `lib/memory/embeddings.ts` went with the rest of Alia's own memory (embeddings, recall,
  * the memory tools): her memory of a person is Nilo's now, so the two embeddings rows
  * are `alia-memory-moved-to-nilo`.
+ *
+ * ## 173 -> 150: the retired clients leave the matrix
+ *
+ * The desktop client, the gateway admin frontend and the AI tool that proxied to that gateway
+ * are retired, and nothing is left to document about them. Thirty-two rows described them, 23 of
+ * them annotated as removed; the rows go whole and are no longer cited as `dependsOn` by the rows
+ * that stay.
  */
-const REMOVED_ROW_COUNT = 173;
+const REMOVED_ROW_COUNT = 150;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
@@ -381,9 +384,11 @@ describe('the ownership matrix still describes this repository', () => {
      * by the owner's clean cut of the dormant tables and the `alia_sk_*` key
      * path, which removed whole files rather than consolidating them — and to
      * 190 by ADR 0012, which deleted the routing-profile catalogue outright — and to
-     * 185 by Alia's memory moving to Nilo, which deleted the embeddings module.
+     * 185 by Alia's memory moving to Nilo, which deleted the embeddings module — and to
+     * 180 by the retired desktop client and gateway admin leaving the matrix, whose rows
+     * that still described live files went with them.
      */
-    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(185);
+    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(180);
     expect(new Set(matrix.map((r) => r.currentPath)).size).toBeGreaterThanOrEqual(150);
   });
 

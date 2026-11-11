@@ -59,14 +59,6 @@
       "allFilesEqual": true
     },
     {
-      "importer": "packages/alia-cowork/package.json",
-      "name": "@oxy.so/core",
-      "version": "4.2.0",
-      "root": "/home/nate/Oxy/Alia/.worktrees/1519-final-sdk-pins-20261003/node_modules/@oxy.so/core",
-      "files": 581,
-      "allFilesEqual": true
-    },
-    {
       "importer": "packages/api/package.json",
       "name": "@oxy.so/contracts",
       "version": "4.9.0",

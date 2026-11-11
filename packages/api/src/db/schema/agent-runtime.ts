@@ -14,18 +14,6 @@ import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { checkOneOf } from './columns';
 
 export const AGENT_THREAD_STATUSES = ['open', 'closed'] as const;
-/**
- * Where a thread's work runs, as a LABEL on the thread — not a sandbox.
- *
- * `sandbox` is the historical name for "Alia's own servers": there is no
- * container, docker host or isolated filesystem behind it (the sandbox host was
- * never configured in production and is gone, and the `shell`/`files` grants
- * that would have used it are retired). A `sandbox` thread runs the ordinary
- * server-side runtime; `cowork` runs on the person's own registered Cowork
- * device. Kept as stored rather than renamed, because the value is persisted
- * and CHECK-constrained.
- */
-export const AGENT_EXECUTION_TARGETS = ['sandbox', 'cowork'] as const;
 export const AGENT_GOAL_STATUSES = [
   'active',
   'paused',
@@ -35,7 +23,6 @@ export const AGENT_GOAL_STATUSES = [
   'cancelled',
 ] as const;
 export const AGENT_TEAM_ROLES = ['coordinator', 'member'] as const;
-export const COWORK_DEVICE_STATUSES = ['online', 'offline', 'revoked'] as const;
 
 export interface AgentGoalCriterion {
   id: string;
@@ -64,10 +51,6 @@ export const agentThreads = pgTable(
     /** The thread's `publisher/model`; null runs the owner's default (ADR 0012). */
     modelId: text(),
     reasoningEffort: text(),
-    executionTarget: text({ enum: AGENT_EXECUTION_TARGETS as unknown as [string, ...string[]] })
-      .notNull()
-      .default('sandbox'),
-    coworkDeviceId: text(),
     openedByAgentId: text(),
     openedByDelegationId: text(),
     lastReadAt: timestamptz(),
@@ -78,11 +61,6 @@ export const agentThreads = pgTable(
     index('agent_threads_owner_agent_updated_idx').on(t.oxyUserId, t.agentId, t.updatedAt.desc()),
     index('agent_threads_agent_status_created_idx').on(t.agentId, t.status, t.createdAt),
     checkOneOf('agent_threads_status_check', t.status, AGENT_THREAD_STATUSES),
-    checkOneOf('agent_threads_execution_target_check', t.executionTarget, AGENT_EXECUTION_TARGETS),
-    check(
-      'agent_threads_cowork_target_check',
-      sql`(${t.executionTarget} = 'cowork') = (${t.coworkDeviceId} is not null)`,
-    ),
   ],
 );
 
@@ -211,28 +189,6 @@ export const agentTeamChannels = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [uniqueIndex('agent_team_channels_team_name_key').on(t.teamId, t.name)],
-);
-
-export const coworkDevices = pgTable(
-  'cowork_devices',
-  {
-    id: generatedId(),
-    oxyUserId: text().notNull(),
-    name: text().notNull(),
-    platform: text().notNull(),
-    version: text().notNull(),
-    capabilities: jsonb().$type<Record<string, boolean>>().notNull().default({}),
-    status: text({ enum: COWORK_DEVICE_STATUSES as unknown as [string, ...string[]] })
-      .notNull()
-      .default('offline'),
-    lastSeenAt: timestamptz(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    index('cowork_devices_owner_status_idx').on(t.oxyUserId, t.status),
-    checkOneOf('cowork_devices_status_check', t.status, COWORK_DEVICE_STATUSES),
-  ],
 );
 
 export const AGENT_INBOX_STATUSES = ['pending', 'delivered', 'dismissed'] as const;
