@@ -34,7 +34,7 @@ same way; its workspace image (actors' computers and the browser worker) stays o
   calls `connectPostgresOrExit()` before the server listens; without it the process exits.
 - **Oxy identity service reachable** at `OXY_API_URL` for token verification.
 - **Redis or Valkey, required in production** (the API refuses to boot without `REDIS_URL` when `NODE_ENV=production`; `lib/boot-guards.ts`). Without `REDIS_URL` in development, BullMQ tasks run inline and rate
-  limiting fails open.
+  limiting fails open. When Redis is down in production, authenticated routes fail open (credits are the spend ceiling) and the public share-link route degrades to a bounded per-instance limit (`onUnavailable` in `lib/sliding-window-limiter.ts`).
 
 PostgreSQL is the only database precondition. See *Database* below.
 - **Object storage, required for uploads.** S3 or a compatible endpoint.
