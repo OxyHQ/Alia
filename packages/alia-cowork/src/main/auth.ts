@@ -151,7 +151,7 @@ export function linkedAliaClient(baseURL: string) {
   return oxy.createLinkedClient({ baseURL });
 }
 
-export interface AuthState {
+interface AuthState {
   isAuthenticated: boolean;
   username?: string;
 }

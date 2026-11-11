@@ -48,8 +48,6 @@ import { RiLightbulbFlashLine } from '@oxy.so/bloom/icons/RiLightbulbFlashLine';
 import { RiMessage2Line } from '@oxy.so/bloom/icons/RiMessage2Line';
 import { RiShapesLine } from '@oxy.so/bloom/icons/RiShapesLine';
 import { RiWindowLine } from '@oxy.so/bloom/icons/RiWindowLine';
-import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
-import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 
 export interface CapabilityFamily {
   /** The grant string, exactly as it is stored and sent. */
@@ -75,8 +73,7 @@ export interface CapabilityFamily {
  * `computer` is their successor under a new name, and it is last because it
  * runs code: its tools exist only where a computer host is configured.
  *
- * `mcp` keeps the Material Symbol the two lists this replaces already carried —
- * `RiPlugLine`, on the instanced family below.
+ * `mcp` keeps the Material Symbol the two lists this replaces already carried.
  *
  * `delegation` and `automation` do not, and for the same reason #365 existed:
  * the SIDEBAR names both concepts too, so a glyph chosen only here would be the
@@ -201,19 +198,4 @@ export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
   agent: 'agents.instancedFamily.agent',
   mcp: 'agents.instancedFamily.mcp',
   integration: 'agents.instancedFamily.integration',
-};
-
-/**
- * A team for `agent`, and deliberately NOT `RiRobot2Line`.
- *
- * That glyph is `delegation` two lists up — finding, hiring and creating agents
- * — and this family is the other half of the same sentence: the agents you
- * already have. Drawing both with one mark would put the two switches an owner
- * has to tell apart under the same picture, which is the duplication #365
- * removed rather than a consistency to preserve.
- */
-export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, BloomIconComponent>> = {
-  agent: RiTeamLine,
-  mcp: RiPlugLine,
-  integration: RiWindowLine,
 };

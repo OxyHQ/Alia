@@ -148,7 +148,7 @@ export interface ShowProgress {
   title?: string;
 }
 
-export interface ShowPreferences {
+interface ShowPreferences {
   defaultVisibility: ShowVisibility;
   defaultFormat: ShowFormat;
 }

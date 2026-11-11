@@ -18,9 +18,9 @@ import type { Message } from '../types';
 export const CONSULT_AGENT_TOOL = 'consultAgent';
 
 /** An agent as a message carries it (`Message.agentInfo`). */
-export type ExchangeAgent = NonNullable<Message['agentInfo']>;
+type ExchangeAgent = NonNullable<Message['agentInfo']>;
 
-export interface AgentExchangePair {
+interface AgentExchangePair {
   /** Who asked: the agent whose reply held the call, or `null` for the conversation's own lead. */
   asker: ExchangeAgent | null;
   /** What was asked; `null` when the stored invocation has no task. */

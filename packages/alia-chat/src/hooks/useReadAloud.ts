@@ -18,7 +18,7 @@ export type ReadAloudState = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
 let owner: { stop: () => void } | null = null;
 
 /** Silence whatever a thread is reading aloud, on any mounted screen. */
-export function stopReadingAloud(): void {
+function stopReadingAloud(): void {
   const current = owner;
   owner = null;
   current?.stop();

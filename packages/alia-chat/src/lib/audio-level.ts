@@ -42,7 +42,7 @@
  * background wants, and unlike a linear reading it does not sit near zero for
  * everything below a shout.
  */
-export const LEVEL_FLOOR_DBFS = -60;
+const LEVEL_FLOOR_DBFS = -60;
 
 /** Rise fast enough to catch the front of a syllable… */
 export const LEVEL_ATTACK_MS = 60;

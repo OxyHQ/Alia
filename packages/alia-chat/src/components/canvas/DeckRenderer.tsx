@@ -2,7 +2,7 @@ import { Muted, Text } from '@oxy.so/bloom/typography';
 import { View } from 'react-native';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
-export interface DeckSlide {
+interface DeckSlide {
   title: string;
   subtitle?: string;
   bullets?: string[];

@@ -20,12 +20,12 @@ export interface CreditPackage {
   currency: string;
 }
 
-export interface PlanFeatureItem {
+interface PlanFeatureItem {
   label: string;
   description?: string;
 }
 
-export interface PlanFeatureGroup {
+interface PlanFeatureGroup {
   category: string;
   items: PlanFeatureItem[];
 }

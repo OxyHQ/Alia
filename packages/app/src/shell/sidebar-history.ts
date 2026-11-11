@@ -69,7 +69,7 @@ export function selectedItemForPath(pathname: string): string | undefined {
 }
 
 /** History's date buckets, newest first; each is also its `sidebar.*` label key. */
-export const HISTORY_BUCKETS = ['today', 'yesterday', 'previous7Days', 'earlier'] as const;
+const HISTORY_BUCKETS = ['today', 'yesterday', 'previous7Days', 'earlier'] as const;
 export type HistoryBucket = (typeof HISTORY_BUCKETS)[number];
 
 /**

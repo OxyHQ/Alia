@@ -27,10 +27,10 @@ import { HostError } from './errors.js';
 
 export const WORKSPACE = '/workspace';
 export const CONTAINER_USER = '1000:1000';
-export const MEMORY_BYTES = 512 * 1024 * 1024;
-export const NANO_CPUS = 1_000_000_000;
-export const PIDS_LIMIT = 128;
-export const TMPFS_OPTIONS = 'rw,nosuid,nodev,noexec,size=67108864,mode=1777';
+const MEMORY_BYTES = 512 * 1024 * 1024;
+const NANO_CPUS = 1_000_000_000;
+const PIDS_LIMIT = 128;
+const TMPFS_OPTIONS = 'rw,nosuid,nodev,noexec,size=67108864,mode=1777';
 export const MANAGED_LABEL = 'onl.alia.computer.managed';
 const MANAGED_VALUE = 'computer-v1';
 
@@ -39,7 +39,7 @@ const MANAGED_VALUE = 'computer-v1';
  * Alia for one person. The Alia API composes the id; the host only requires it
  * to be a short, inert token and never parses meaning out of it.
  */
-export const ACTOR_ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,199}$/;
+const ACTOR_ID = /^[A-Za-z0-9][A-Za-z0-9:_-]{0,199}$/;
 
 export function assertActorId(actorId: string): string {
   if (!ACTOR_ID.test(actorId)) throw new HostError('Invalid actor id', 400, 'invalid_actor');

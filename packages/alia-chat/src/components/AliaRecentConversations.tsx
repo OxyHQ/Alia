@@ -7,7 +7,7 @@ import { useAliaRuntime } from '../runtime/config';
 import { useConversations } from '../runtime/conversations';
 
 /** How many of the lead's conversations the sheet offers to pick up again. */
-export const RECENT_CONVERSATIONS_SHOWN = 3;
+const RECENT_CONVERSATIONS_SHOWN = 3;
 
 /**
  * The person's latest conversations with the sheet's lead, under its greeting: "Ask Sindi" picks

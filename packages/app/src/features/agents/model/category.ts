@@ -7,7 +7,7 @@
  * does not know (an older row, a hand-edited one) is shown verbatim rather than
  * as a guessed key.
  */
-export const AGENT_CATEGORIES = [
+const AGENT_CATEGORIES = [
   'Assistant',
   'Creative',
   'Developer',

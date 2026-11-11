@@ -32,7 +32,7 @@ import { useStore } from '@/features/chat/runtime/global-store';
 import { useEntitlements } from '@/features/billing/runtime/use-billing';
 import { useTranslation } from '@/shared/i18n/use-translation';
 
-export type CapabilityMode = 'ghost' | 'deepResearch';
+type CapabilityMode = 'ghost' | 'deepResearch';
 
 const CAPABILITY_MODE_CONFIG: Record<
   CapabilityMode,

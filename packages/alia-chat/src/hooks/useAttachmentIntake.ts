@@ -78,7 +78,7 @@ export interface IntakeItem {
 }
 
 /** A started read, and the one thing a caller can do to it. */
-export interface ReadHandle {
+interface ReadHandle {
   abort: () => void;
 }
 

@@ -90,7 +90,7 @@ export interface EditedTurn extends DraftTurn {
   text: string;
 }
 
-export const EMPTY_DRAFT: ComposerDraft = Object.freeze({
+const EMPTY_DRAFT: ComposerDraft = Object.freeze({
   text: '',
   attachments: [],
   mcpServerId: null,

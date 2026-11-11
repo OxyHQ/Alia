@@ -63,14 +63,14 @@ const LEASE_POLL_MAX_MS = 1_000;
  */
 export const requestSignal = new AsyncLocalStorage<AbortSignal>();
 const FILE_TEXT_LIMIT = 256 * 1024;
-export const DOWNLOAD_BYTES_LIMIT = 20 * 1024 * 1024;
+const DOWNLOAD_BYTES_LIMIT = 20 * 1024 * 1024;
 const USAGE_CACHE_MS = 60_000;
 const RECEIPT_RETENTION_MS = 7 * 24 * 60 * 60_000;
-export const DEFAULT_COMMAND_SECONDS = 60;
+const DEFAULT_COMMAND_SECONDS = 60;
 const OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-export const JOBS_DIRECTORY = `${WORKSPACE}/.alia/jobs`;
+const JOBS_DIRECTORY = `${WORKSPACE}/.alia/jobs`;
 
-export type ComputerState = 'running' | 'stopped';
+type ComputerState = 'running' | 'stopped';
 
 export interface ComputerStatus {
   state: ComputerState;

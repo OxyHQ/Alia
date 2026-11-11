@@ -65,7 +65,7 @@ export interface AliaComposerOptions {
   onModelChange?: (level: string) => void;
 }
 
-export type AliaComposerHostProps = Pick<
+type AliaComposerHostProps = Pick<
   AliaComposerProps,
   | 'attachments'
   | 'onAddAttachment'

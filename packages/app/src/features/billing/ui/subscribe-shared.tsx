@@ -37,12 +37,12 @@ import Animated, {
 
 export type BillingPeriod = 'monthly' | 'annual';
 
-export interface FeatureItem {
+interface FeatureItem {
   label: string;
   description?: string;
 }
 
-export interface FeatureGroup {
+interface FeatureGroup {
   category: string;
   items: FeatureItem[];
 }

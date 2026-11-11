@@ -13,7 +13,7 @@ import { View } from 'react-native';
 const K = 'agents.editor.work';
 
 /** How often a heartbeat may look, in minutes. A small fixed set, not a free number. */
-export const HEARTBEAT_CHOICES = [15, 30, 60, 240, 1440] as const;
+const HEARTBEAT_CHOICES = [15, 30, 60, 240, 1440] as const;
 /** What turning the heartbeat on starts at. */
 const DEFAULT_HEARTBEAT = 60;
 

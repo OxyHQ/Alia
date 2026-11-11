@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 
-export interface ActivityGridDay {
+interface ActivityGridDay {
   date: string; // "YYYY-MM-DD"
   count: number;
 }

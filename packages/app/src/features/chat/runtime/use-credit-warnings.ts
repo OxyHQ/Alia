@@ -21,7 +21,7 @@ export interface UsageWarning {
 }
 
 /** Below this balance, and above zero, the person is told before a turn fails. */
-export const LOW_CREDITS_THRESHOLD = 50;
+const LOW_CREDITS_THRESHOLD = 50;
 export const LOW_CREDITS_TOAST_ID = 'low-credits';
 export const USAGE_WARNING_TOAST_ID = 'usage-warning';
 

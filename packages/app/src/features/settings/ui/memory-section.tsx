@@ -15,7 +15,7 @@ import { View } from 'react-native';
 const K = 'settings.assistant.memory';
 
 /** What Alia remembers about the person lives in the `memories` database of their Nilo workspace. */
-export const NILO_URL = 'https://nilo.so';
+const NILO_URL = 'https://nilo.so';
 
 export function MemorySection() {
   const { isAuthenticated } = useOxy();

@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react';
 /** One toast for the failed turn, replaced by the next failure and dismissed with the turn. */
 export const FAILED_TURN_TOAST_ID = 'failed-turn';
 /** Long enough to read the line and press Retry; a toast that is gone before that is no error. */
-export const FAILED_TURN_TOAST_MS = 10_000;
+const FAILED_TURN_TOAST_MS = 10_000;
 
 /**
  * A failed turn is told with a toast, with Retry as its action.

@@ -1,5 +1,5 @@
 export type ApprovalMode = 'suggest' | 'auto-edit' | 'full-auto';
-export type ToolCategory = 'read_only' | 'file_write' | 'shell';
+type ToolCategory = 'read_only' | 'file_write' | 'shell';
 
 const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   read_file: 'read_only',
@@ -11,7 +11,7 @@ const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   run_command: 'shell',
 };
 
-export function categorize(toolName: string): ToolCategory {
+function categorize(toolName: string): ToolCategory {
   return TOOL_CATEGORIES[toolName] || 'shell';
 }
 

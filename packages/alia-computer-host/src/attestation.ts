@@ -34,13 +34,13 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
-export const ATTESTATION_NONCE_HEADER = 'x-oxy-attestation-nonce';
+const ATTESTATION_NONCE_HEADER = 'x-oxy-attestation-nonce';
 const STS_BODY = 'Action=GetCallerIdentity&Version=2011-06-15';
 const STS_HOST_PATTERN = /^sts(\.[a-z0-9-]+)?\.amazonaws\.com$/;
 const MAX_SIGNATURE_AGE_MS = 5 * 60 * 1000;
 const NONCE_TTL_MS = 5 * 60 * 1000;
 const MAX_OUTSTANDING_NONCES = 1000;
-export const TOKEN_TTL_SECONDS = 15 * 60;
+const TOKEN_TTL_SECONDS = 15 * 60;
 
 export class AttestationError extends Error {
   constructor(

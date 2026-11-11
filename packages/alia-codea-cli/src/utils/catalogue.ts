@@ -132,7 +132,7 @@ export function parseCatalogue(payload: unknown): Catalogue {
 }
 
 /** Whether a string has the shape of a catalogue id (`publisher/model`). */
-export function looksLikeModelId(value: string): boolean {
+function looksLikeModelId(value: string): boolean {
   return /^[^\s/]+\/\S+$/.test(value.trim());
 }
 
@@ -174,7 +174,7 @@ export function resolveSelection(
 }
 
 /** "128K", "1M" — a context window as a person reads it. */
-export function formatContext(tokens: number | null): string | null {
+function formatContext(tokens: number | null): string | null {
   if (tokens === null) return null;
   if (tokens >= 1_000_000) return `${Number((tokens / 1_000_000).toFixed(1))}M`;
   return `${Math.round(tokens / 1000)}K`;

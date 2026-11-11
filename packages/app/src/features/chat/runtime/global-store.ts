@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ChatIdState = {
+type ChatIdState = {
   id: string;
   from: 'history' | 'newChat' | 'sidebar' | 'url';
 } | null;

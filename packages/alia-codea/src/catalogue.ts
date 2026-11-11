@@ -30,7 +30,7 @@
 
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 
-export interface CataloguePublisher {
+interface CataloguePublisher {
   readonly id: string;
   readonly name: string;
 }

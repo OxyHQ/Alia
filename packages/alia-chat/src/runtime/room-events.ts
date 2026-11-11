@@ -40,7 +40,7 @@ export function createRoomLedger(): RoomLedger {
 }
 
 /** The id a consultation drawn from the socket gets until its stored reply names it. */
-export const roomDraftId = (consultId: string): string => `room-${consultId}`;
+const roomDraftId = (consultId: string): string => `room-${consultId}`;
 
 /**
  * The request drew `consultId` in message `id`. When the socket had already drawn it, the request

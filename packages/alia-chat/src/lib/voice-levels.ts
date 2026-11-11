@@ -1,5 +1,5 @@
 /** A level reading clamped to 0..1; anything not a finite number is 0. */
-export function clampLevel(level: number): number {
+function clampLevel(level: number): number {
   if (!Number.isFinite(level)) return 0;
   return Math.min(1, Math.max(0, level));
 }

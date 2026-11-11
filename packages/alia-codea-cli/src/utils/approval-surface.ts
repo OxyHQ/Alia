@@ -66,7 +66,7 @@ export function approvalUrl(authorizeCode: string, env: NodeJS.ProcessEnv = proc
 const QUIET_ZONE = 4;
 
 /** Columns every QR line is indented by, so the symbol does not touch the edge. */
-export const QR_INDENT = '  ';
+const QR_INDENT = '  ';
 
 /** Explicit white background + black foreground: scans the same on light and dark themes. */
 const QR_LINE_START = '\x1b[47m\x1b[30m';
@@ -75,7 +75,7 @@ const QR_LINE_END = '\x1b[0m';
 /** Highest density first; the lower level is the fallback for a narrower terminal. */
 const QR_LEVELS = ['M', 'L'] as const;
 
-export interface QrMatrix {
+interface QrMatrix {
   readonly size: number;
   isDark(x: number, y: number): boolean;
 }
@@ -197,7 +197,7 @@ export function approvalLines(
 
 // ── Opening the link ────────────────────────────────────────────────────────
 
-export interface LaunchTarget {
+interface LaunchTarget {
   readonly command: string;
   readonly args: readonly string[];
 }

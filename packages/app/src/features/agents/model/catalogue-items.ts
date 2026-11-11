@@ -12,9 +12,9 @@ export type CatalogueItem =
   | { kind: 'row'; key: string; agents: Agent[] };
 
 /** How many agents a category's preview shows before "View all". */
-export const CATEGORY_PREVIEW = 4;
+const CATEGORY_PREVIEW = 4;
 /** How many featured agents the Featured section shows. */
-export const FEATURED_PREVIEW = 6;
+const FEATURED_PREVIEW = 6;
 
 function chunk<T>(items: readonly T[], size: number): T[][] {
   const rows: T[][] = [];

@@ -28,7 +28,7 @@ import type { InstalledMcpServer } from '@/features/connections/runtime/use-mcp-
 import type { InstalledSkill } from '@/features/skills/runtime/use-skills';
 
 /** One skill the person may name for the next message. */
-export interface TurnSkillOption {
+interface TurnSkillOption {
   id: string;
   /** What the request carries. Never the display name. */
   name: string;
@@ -38,7 +38,7 @@ export interface TurnSkillOption {
 }
 
 /** One connector whose tools the next message may reach. */
-export interface TurnConnectorOption {
+interface TurnConnectorOption {
   id: string;
   label: string;
   /** Remote URL or a glyph name; the menu decides how to draw it. */

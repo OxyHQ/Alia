@@ -56,7 +56,7 @@ export interface InstalledSkill extends Skill {
   readonly installedVersion: number;
 }
 
-export interface SkillFile {
+interface SkillFile {
   readonly path: string;
   readonly kind: 'reference' | 'script' | 'asset';
   readonly mime: string;
@@ -83,7 +83,7 @@ export interface CatalogueFilters {
 }
 
 /** How many catalogue rows one page asks for. The server clamps at 100 and defaults to 60. */
-export const CATALOGUE_PAGE_SIZE = 24;
+const CATALOGUE_PAGE_SIZE = 24;
 
 /**
  * The catalogue, a page at a time.
