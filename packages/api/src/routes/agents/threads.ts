@@ -25,7 +25,6 @@ import { resolveModel } from '../../lib/chat-core.js';
 import { ModelNotFoundError } from '../../lib/models/errors.js';
 import { randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { findOwnedCoworkDevice } from '../../db/agents/coworkDeviceRepository.js';
 
 const router = Router();
 const route =
@@ -100,17 +99,6 @@ router.post(
       }
     }
 
-    const executionTarget = req.body?.executionTarget === 'cowork' ? 'cowork' : 'sandbox';
-    const coworkDeviceId =
-      typeof req.body?.coworkDeviceId === 'string' ? req.body.coworkDeviceId : undefined;
-    if (executionTarget === 'cowork' && !coworkDeviceId) {
-      return res.status(400).json({ error: 'coworkDeviceId is required for Cowork execution' });
-    }
-    if (executionTarget === 'cowork') {
-      const device = await findOwnedCoworkDevice(getDb(), req.user.id, coworkDeviceId!);
-      if (!device || device.status !== 'online')
-        return res.status(409).json({ error: 'Cowork device is not online' });
-    }
     const title =
       typeof req.body?.title === 'string' && req.body.title.trim()
         ? req.body.title.trim().slice(0, 120)
@@ -121,8 +109,6 @@ router.post(
       agentId: agent._id,
       title,
       modelId,
-      executionTarget,
-      coworkDeviceId,
     });
     const conversation = await createConversation(getDb(), {
       oxyUserId: req.user.id,
@@ -155,26 +141,12 @@ router.patch(
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
     const current = await findAgentThread(getDb(), req.user.id, String(req.params.threadId));
     if (!current) return res.status(404).json({ error: 'Thread not found' });
-    const executionTarget = req.body?.executionTarget;
-    const coworkDeviceId =
-      typeof req.body?.coworkDeviceId === 'string' ? req.body.coworkDeviceId : null;
-    if (executionTarget === 'cowork' && !coworkDeviceId) {
-      return res.status(400).json({ error: 'coworkDeviceId is required for Cowork execution' });
-    }
-    if (executionTarget === 'cowork') {
-      const device = await findOwnedCoworkDevice(getDb(), req.user.id, coworkDeviceId!);
-      if (!device || device.status !== 'online')
-        return res.status(409).json({ error: 'Cowork device is not online' });
-    }
     const thread = await updateAgentThread(getDb(), req.user.id, current.id, {
       ...(typeof req.body?.title === 'string'
         ? { title: req.body.title.trim().slice(0, 120) }
         : {}),
       ...(req.body?.status === 'open' || req.body?.status === 'closed'
         ? { status: req.body.status }
-        : {}),
-      ...(executionTarget === 'sandbox' || executionTarget === 'cowork'
-        ? { executionTarget, coworkDeviceId: executionTarget === 'cowork' ? coworkDeviceId : null }
         : {}),
     });
     res.json({ thread });

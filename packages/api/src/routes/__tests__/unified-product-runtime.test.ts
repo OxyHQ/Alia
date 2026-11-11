@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 /**
  * One product runtime behind every chat surface — epic #139 workstream 13,
- * "Preserve one unified Alia product runtime for app, Codea, Cowork and
+ * "Preserve one unified Alia product runtime for app, Codea and
  * supported surfaces where behavior is intentionally shared".
  *
  * ## Why an identity check and not another transcript
  *
- * `chatFlowFixtures.test.ts` records what the app, Codea and Cowork flows emit,
- * and all three drive `handleChatCompletions` — because all three POST to
+ * `chatFlowFixtures.test.ts` records what the app and Codea flows emit,
+ * and both drive `handleChatCompletions` — because both POST to
  * `/v1/chat/completions`. What no test asks is whether the ROUTES still resolve
  * to that one function. `/alia/chat` is a second public surface
  * (`routes/chat.ts`), and the sentence in that file — "internal chat now uses

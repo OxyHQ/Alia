@@ -26,10 +26,6 @@
       "sha256": "f76f6c3dff0f274cc594975a8dc1360aed307951ffe05f829ef3dfcb931b6c27"
     },
     {
-      "path": "packages/alia-cowork/package.json",
-      "sha256": "19ac58f6ed8426694dba64d59b371ad29eab37d22bcae1a6b07a3cfecdf6693d"
-    },
-    {
       "path": "packages/api/package.json",
       "sha256": "770b0ffbc49699d0ac4939d9af6c30ed32a980fad8e194976c3935d37e1b3ef4"
     },
@@ -75,11 +71,6 @@
     },
     {
       "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-computer-host-types.log",
-      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
-      "bytes": 15
-    },
-    {
-      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-cowork-types.log",
       "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
       "bytes": 15
     },

@@ -24,7 +24,6 @@
       "The `.do/app.yaml` DigitalOcean spec is present in the repo but the deploy pipeline is `.github/workflows/deploy-aws.yml` (ECS). Whether `.do/app.yaml` still governs a running DO app was NOT verified \u2014 that requires the DO dashboard, outside this read-only repo scan. It is reported as a hazard, not as live config."
     ],
     "residual": [
-      "packages/alia-gateway-admin (61 source files) is an operator UI for the deleted alia-gateway. Its dev proxy rewrites /api/providers -> /internal/providers against https://api.alia.onl, and /internal/providers is NOT mounted. I could not classify whether the deployed static site still exists (DO static_sites entry in .do/app.yaml) \u2014 that is an infra question, not a repo question.",
       "packages/alia-console documentation pages (sdks.tsx, examples.tsx, quickstart.tsx) print `import OpenAI from 'openai'` 13+ times. This is the OpenAI-COMPATIBLE client library name, not a claim about Alia's backend provider. Whether that counts as a model-abstraction violation is a product call I am not making.",
       "Whether the 15 thin OpenAI-compatible adapters should be ported to Kaana or simply deleted depends on whether Kaana reuses the Vercel AI SDK. I classified them 'delete' because their entire content is a base URL plus a default model id, both already duplicated in chat-core.ts \u2014 but that is a recommendation, not a measurement.",
       "`external_models` (the ZeroEval leaderboard mirror served publicly at GET /external-models) exposes third-party organisation names. It is deliberate per the schema comment, but I could not determine whether the model-abstraction rule was ever consciously exempted for it.",
@@ -886,18 +885,6 @@
       "evidence": "packages/api/src/routes/external-models.ts:16-40; mounted unauthenticated at packages/api/src/index.ts:240; packages/api/src/db/schema/providers.ts:415-425 (comment: 'NOT the routing catalogue')"
     },
     {
-      "id": "leak-gateway-admin-ui",
-      "kind": "sanitizer",
-      "name": "alia-gateway-admin UI renders raw provider names",
-      "currentPath": "packages/alia-gateway-admin/src/types/index.ts",
-      "summary": "An operator UI whose Provider union type lists all 19 names and whose Keys/Models pages render them. Operator-facing, so not a user-facing abstraction breach, but it is a provider-name surface tied to the dead gateway.",
-      "proposedOwner": "delete",
-      "targetPath": "delete",
-      "dependsOn": ["dead-internal-providers-router", "env-vite-gateway-api-url"],
-      "removalGate": "Its dev proxy rewrites /api/providers -> /internal/providers against https://api.alia.onl, which is unmounted, so the panel cannot work against the current API. Confirm no deployed static site depends on it (see residual).",
-      "evidence": "packages/alia-gateway-admin/src/types/index.ts (19 provider names); packages/alia-gateway-admin/vite.config.ts:50-56; packages/alia-gateway-admin/src/lib/api/client.ts:6"
-    },
-    {
       "id": "provider-warmup",
       "kind": "module",
       "name": "provider-warmup.ts (TLS pre-warm)",
@@ -927,18 +914,6 @@
       "dependsOn": ["sdk-integrations-ai-sdk"],
       "removalGate": "NONE. Scoped symbol census over packages/integrations/**/*.ts: resolveModel / createAIModel / reportUsage appear only in this file; positive control \u2014 createOpenAI also appears only here, and browser/tools.ts + terminal/tools.ts prove the scan sees other integrations files. Deleting it also removes the last need for the 3 @ai-sdk/* deps in that package.",
       "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108; endpoint now 410 at packages/api/src/routes/v1.ts:109-115 and packages/api/src/routes/codea.ts:235-241"
-    },
-    {
-      "id": "gateway-admin-ai-tool",
-      "kind": "module",
-      "name": "AI tool 'gatewayAdmin' proxying to the deleted gateway",
-      "currentPath": "packages/api/src/lib/tools/gateway-admin.ts",
-      "summary": "An AI-callable tool that HMAC-signs CRUD against ${GATEWAY_API_URL}/gateway/v1/{keys,models,alia-models,usage}. Registered in the tool registry with requiredPlan 'business' and additionally gated by a hardcoded `username === 'nate'` in tool-pipeline.ts. With GATEWAY_API_URL unset it fetches the literal string 'undefined/gateway/v1/keys'.",
-      "proposedOwner": "delete",
-      "targetPath": "delete",
-      "dependsOn": ["env-gateway-api-url", "env-service-secret"],
-      "removalGate": "Broken today (target service deleted). Deleting it requires removing the registry entry at lib/tools/index.ts:190-197, the tool-pipeline branch at :129-132, the chat.service branch at :256-258 and the re-export at index.ts:242.",
-      "evidence": "packages/api/src/lib/tools/gateway-admin.ts:7-8, :30-46; packages/api/src/lib/tool-pipeline.ts:129-132 (username === 'nate'); packages/api/src/lib/tools/index.ts:190-197"
     },
     {
       "id": "script-sync-zeroeval",
@@ -1402,14 +1377,14 @@
     {
       "id": "sdk-openai-clients",
       "kind": "dependency",
-      "name": "openai npm package in alia-codea, alia-codea-cli, alia-cowork",
-      "currentPath": "packages/alia-codea/package.json, packages/alia-codea-cli/package.json, packages/alia-cowork/package.json",
-      "summary": "NOT provider dependencies: these are CLIENTS of Alia's own OpenAI-compatible API (alia-cowork defaults apiBaseUrl to https://api.alia.onl, model 'route:cowork'). Version drift: ^6.46.0 in codea/codea-cli, ^4.104.0 in cowork.",
+      "name": "openai npm package in alia-codea, alia-codea-cli",
+      "currentPath": "packages/alia-codea/package.json, packages/alia-codea-cli/package.json",
+      "summary": "NOT provider dependencies: these are CLIENTS of Alia's own OpenAI-compatible API. Version ^6.46.0 in codea/codea-cli.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": [],
       "removalGate": "Do NOT delete in a provider sweep. They only require that Alia keeps serving an OpenAI-compatible /v1 surface after the Kaana switch \u2014 which is itself a contract Kaana must not break.",
-      "evidence": "packages/alia-cowork/src/main/chat.ts:7, :28-31; packages/alia-codea/src/chatProvider.ts:2, :9-16; packages/alia-codea-cli/src/utils/api.ts:1"
+      "evidence": "packages/alia-codea/src/chatProvider.ts:2, :9-16; packages/alia-codea-cli/src/utils/api.ts:1"
     },
     {
       "id": "sdk-livekit",
@@ -1443,9 +1418,9 @@
       "summary": "Together with SERVICE_SECRET this flips gateway-client from the local in-process path to HMAC-signed HTTP. The natural place to point Alia at Kaana.",
       "proposedOwner": "alia",
       "targetPath": "keep (repoint at Kaana)",
-      "dependsOn": ["gateway-client", "gateway-admin-ai-tool"],
-      "removalGate": "Also read by lib/tools/gateway-admin.ts:7 and by the gateway-admin frontend. Setting it to Kaana would silently re-enable that broken admin tool against Kaana's URL \u2014 deal with the tool first.",
-      "evidence": "packages/api/src/lib/gateway-client.ts:30, :33; packages/api/src/lib/tools/gateway-admin.ts:7; packages/api/.env.example:80"
+      "dependsOn": ["gateway-client"],
+      "removalGate": "Also read by the provider-key admin tool, which proxied to that gateway and is retired. Setting it to Kaana would silently re-enable such a tool against Kaana's URL \u2014 deal with the tool first.",
+      "evidence": "packages/api/src/lib/gateway-client.ts:30, :33; packages/api/.env.example:80"
     },
     {
       "id": "env-service-secret",
@@ -1494,18 +1469,6 @@
       "dependsOn": ["dead-providers-auth-middleware"],
       "removalGate": "NONE. Note ADMIN_USERNAMES is separately hardcoded as `username === 'nate'` in tool-pipeline.ts:130, so removing the env var does not remove the admin gate.",
       "evidence": "packages/api/src/internal/providers/middleware/auth.ts; packages/api/.env.example:72, :74; .do/app.yaml:118-119; hardcoded gate packages/api/src/lib/tool-pipeline.ts:130"
-    },
-    {
-      "id": "env-vite-gateway-api-url",
-      "kind": "env",
-      "name": "VITE_GATEWAY_API_URL",
-      "currentPath": "packages/alia-gateway-admin/.env.example",
-      "summary": "Frontend base URL for the dead admin panel; defaults to http://localhost:4150/internal/gateway.",
-      "proposedOwner": "delete",
-      "targetPath": "delete",
-      "dependsOn": ["leak-gateway-admin-ui"],
-      "removalGate": "Goes with the package.",
-      "evidence": "packages/alia-gateway-admin/.env.example:4; packages/alia-gateway-admin/src/lib/api/client.ts:6; packages/alia-gateway-admin/src/lib/websocket/client.ts:34"
     },
     {
       "id": "env-legacy-database-uri",
@@ -1648,8 +1611,8 @@
     "providerHostnamesDetail": "19 inference hostnames (openai, openai-realtime-wss, anthropic, google, groq, openrouter, digitalocean, xai incl. wss, mistral, deepseek, cerebras, together, fireworks, perplexity, novita, hyperbolic, sambanova, cohere, replicate, cloudflare \u2014 counted as 19 distinct hosts since api.openai.com and api.x.ai each serve both https and wss) plus api.zeroeval.com which is NOT inference. Excludes the unbounded dynamic asset URLs returned by DO async-invoke.",
     "providerEnvVars": 12,
     "providerEnvVarsDetail": "GROK_API_KEY, GATEWAY_API_URL, SERVICE_SECRET, ALLOWED_SERVICES, ADMIN_USERNAMES, DATABASE_URL, LIVEKIT_URL, LIVEKIT_INTERNAL_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, a legacy database URI, VITE_GATEWAY_API_URL. Exactly ONE (GROK_API_KEY) is a provider credential, and it is inert.",
-    "providerSdkDeps": 11,
-    "providerSdkDepsDetail": "11 declarations across 5 distinct packages: ai (api, integrations), @ai-sdk/openai (api, integrations), @ai-sdk/anthropic (api, integrations), @ai-sdk/google (api, integrations), openai (alia-codea, alia-codea-cli, alia-cowork). The 3 openai declarations are CLIENTS of Alia's own API, not provider deps. Excludes the 5 LiveKit packages (voice transport).",
+    "providerSdkDeps": 10,
+    "providerSdkDepsDetail": "10 declarations across 5 distinct packages: ai (api, integrations), @ai-sdk/openai (api, integrations), @ai-sdk/anthropic (api, integrations), @ai-sdk/google (api, integrations), openai (alia-codea, alia-codea-cli). The 2 openai declarations are CLIENTS of Alia's own API, not provider deps. Excludes the 5 LiveKit packages (voice transport).",
     "deadCodeFiles": 26,
     "deadCodeFilesDetail": "internal/providers/index.ts + 12 route files + middleware/auth.ts + ws.ts + broadcast-helpers.ts + lib/db.ts + 4 seed modules + lib/auth-health.ts + 19 text adapters reachable only through routes/providers.ts + packages/integrations/src/shared/model-resolver.ts. Counted as distinct FILES that no live import path reaches.",
     "inventoryItems": 126

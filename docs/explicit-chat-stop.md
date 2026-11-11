@@ -115,7 +115,7 @@ local tests.
 
 ### Desktop adoption
 
-Codea's webview Stop and native chat panel Stop, and Cowork's Stop, use the
+Codea's webview Stop and native chat panel Stop use the
 server SDK lifecycle helper over their existing Oxy linked transport. Each HTTP
 request in a local tool loop has a fresh cancellation ID; stopping between local
 tools prevents further rounds and does not undo an action that already ran.
@@ -130,11 +130,11 @@ results cannot enter a replacement conversation. Typing a character is not treat
 These consumers do not calculate or refund credits. The receiver's measured
 reconciliation remains authoritative, and their HTTP fixtures establish request
 identity, acknowledgement and account fencing rather than live financial
-settlement. Codea 1.0.10 and Cowork 1.0.3 use server SDK 1.3.1’s exported
+settlement. Codea 1.0.10 uses server SDK 1.3.1’s exported
 SSE reader over the same Oxy linked fetch. Presentation, synthetic-message handling
 and local tool assembly stay in the desktop packages; byte framing, typed tool
 fragments, stream limits and terminal detection are shared. Invalid or truncated
 streams become visible failures rather than successful partial replies. Full
 multimodal/tool request messages remain unchanged. These versions require the
-receiver rollout and server SDK release before distribution; see the separate desktop artifact steps in
-[deployment](./deployment.md#codea-and-cowork-desktop-artifacts).
+receiver rollout and server SDK release before distribution; see the separate artifact steps in
+[deployment](./deployment.md#codea-desktop-artifact).

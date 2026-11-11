@@ -13,12 +13,9 @@ export async function createAgentThread(
     title: string;
     /** The thread's `publisher/model`; null runs the owner's default. */
     modelId?: string | null;
-    executionTarget?: 'sandbox' | 'cowork';
-    coworkDeviceId?: string;
     openedByAgentId?: string;
   },
 ): Promise<AgentThreadRow> {
-  const executionTarget = input.executionTarget ?? 'sandbox';
   const [row] = await db
     .insert(agentThreads)
     .values({
@@ -26,8 +23,6 @@ export async function createAgentThread(
       agentId: input.agentId,
       title: input.title,
       modelId: input.modelId ?? null,
-      executionTarget,
-      coworkDeviceId: executionTarget === 'cowork' ? input.coworkDeviceId : null,
       openedByAgentId: input.openedByAgentId ?? null,
     })
     .returning();
@@ -56,12 +51,7 @@ export async function updateAgentThread(
   db: ApiDatabase,
   oxyUserId: string,
   threadId: string,
-  patch: {
-    title?: string;
-    status?: 'open' | 'closed';
-    executionTarget?: 'sandbox' | 'cowork';
-    coworkDeviceId?: string | null;
-  },
+  patch: { title?: string; status?: 'open' | 'closed' },
 ) {
   const [row] = await db
     .update(agentThreads)

@@ -489,7 +489,7 @@ Ref reference` and Retry — for the frame and for the HTTP envelope alike,
 keeping partial output when there was some. `@alia.onl/sdk` raises an
 `AliaChatStreamError` carrying `status`, `code`, `retryable`, `retryAfter` and
 `reference`; `@alia.onl/server` yields an `error` event (or throws
-`AliaRequestError`) with the same fields; Codea and Cowork raise an
+`AliaRequestError`) with the same fields; Codea raise an
 `AliaChatError` with `code` and `retryable`. Alia does not re-send the failed
 step itself: Kaana owns retries, and the AI SDK cannot resume a multi-step run
 at the step that failed.

@@ -31,10 +31,6 @@
       "sha256": "937f1864484c95586ed66a5314f28eb2e0bb08beb1d0ecf650f8ceec98b3c5f1"
     },
     {
-      "path": "packages/alia-cowork/package.json",
-      "sha256": "11e933d7008aa529bd9467558f87fc979865b691b191b8faca932d0d482a97e5"
-    },
-    {
       "path": "packages/api/package.json",
       "sha256": "682c3e03995f50a4d95c9c1e06840d4497a07021d05035de6629eed46edcd9e1"
     },

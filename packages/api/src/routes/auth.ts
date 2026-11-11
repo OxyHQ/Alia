@@ -2,10 +2,10 @@
  * `/auth` — the session endpoints.
  *
  * The desktop authorization flow that used to live here (`POST
- * /auth/authorize/codea`, `POST /auth/authorize/cowork`, `POST /auth/token`)
+ * /auth/authorize/codea`, `POST /auth/token`)
  * minted `alia_sk_*` developer credentials. It answered `410 Gone` after
  * issuance closed, and was removed outright with the keys themselves: Codea,
- * the CLI and Cowork sign in with Oxy.
+ * and the CLI sign in with Oxy.
  */
 
 import { Router } from 'express';

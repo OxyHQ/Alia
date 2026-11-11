@@ -16,9 +16,7 @@ import { Linking, Platform } from 'react-native';
 /**
  * Links a chat channel (Telegram, Discord, ...) to the signed-in account.
  *
- * This screen once also ran a PKCE authorize flow for Codea and Cowork against
- * `POST /auth/authorize/:app`. Both clients sign in with Oxy directly now and
- * that endpoint is gone, so the channel link is the only flow left here.
+ * The channel link is the only flow here: Codea signs in with Oxy directly.
  */
 const CHANNEL_NAMES: Record<string, string> = {
   telegram: 'Telegram',

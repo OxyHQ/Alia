@@ -132,7 +132,7 @@ cutover rather than as the separately-decided change this section reserved. The 
 were paid there: resolution is by exact opaque Oxy routing-profile id (`mode:*`/`route:*` via
 `config/oxy-inference-routing-profile-ids.ts`; `fallback-engine.ts` and `alias-translation.ts` are
 gone), the credit multiplier hangs off the routing profile (`KAANA_ROUTING_PROFILES`), and Codea,
-Cowork and the CLI moved onto `/alia/chat` in #561. An installed copy of an older `@alia.onl/sdk` or
+the CLI moved onto `/alia/chat` in #561. An installed copy of an older `@alia.onl/sdk` or
 `@alia-codea/cli` that still sends an `alia-*` id gets the `400 unknown_routing_profile` refusal
 recorded under D1. The measurement below is kept as the record of why the cut was deferred until then.
 

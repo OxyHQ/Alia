@@ -640,8 +640,7 @@ const ENTITLEMENTS = {
 /**
  * Two editor tools, chosen to cover both halves of the name contract.
  *
- * `read_file` is verbatim what Cowork sends (`packages/alia-cowork/src/main/
- * chat.ts:162`) and passes through `sanitizeFunctionName` unchanged.
+ * `read_file` is verbatim what an editor client sends and passes through `sanitizeFunctionName` unchanged.
  * `workspace/write_file` carries a character the sanitiser rewrites
  * (`lib/tool-converter.ts:29` keeps only `[a-zA-Z0-9_.\-:]`), so it is the one
  * that proves the mapping is restored on the way out rather than being an
@@ -1833,27 +1832,27 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
 });
 
 // ===========================================================================
-// Fixture 4 — Cowork (Electron desktop), Oxy session, streaming, client tools
+// Fixture 4 — an editor client, Oxy session, streaming, client tools
 // ===========================================================================
 
 /**
- * `packages/alia-cowork/src/main/chat.ts` drives an `openai` client at
- * `${baseUrl}/v1` with `stream: true`, `model: CHAT_MODEL, surface: 'cowork'` and its own
+ * An editor client drives an `openai` client at
+ * `${baseUrl}/v1` with `stream: true`, `model: CHAT_MODEL, surface: 'codea'` and its own
  * filesystem tools, then executes the returned tool calls locally.
  *
  * The property that matters most for this flow is the NAME ROUND TRIP: Alia
  * sanitises a client tool name for provider compatibility
- * (`lib/tool-converter.ts:27`) and must hand the ORIGINAL name back, or Cowork
+ * (`lib/tool-converter.ts:27`) and must hand the ORIGINAL name back, or the client
  * cannot dispatch the call.
  */
-describe('fixture: Cowork flow — Oxy session, streaming, client-supplied editor tools', () => {
-  const coworkReq = (body: Record<string, unknown>) =>
+describe('fixture: editor client flow — Oxy session, streaming, client-supplied editor tools', () => {
+  const editorReq = (body: Record<string, unknown>) =>
     recordingReq({ user: { id: 'user-ws13' }, body });
 
-  const COWORK_BODY = {
+  const EDITOR_BODY = {
     messages: [{ role: 'user', content: 'read the readme' }],
     model: CHAT_MODEL,
-    surface: 'cowork',
+    surface: 'codea',
     stream: true,
     tools: EDITOR_TOOLS,
   };
@@ -1872,7 +1871,7 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
 
   it('emits one exact ordered transcript', async () => {
     const res = recordingRes();
-    await run(coworkReq({ ...COWORK_BODY }), res);
+    await run(editorReq({ ...EDITOR_BODY }), res);
 
     expect(H.timeline.length).toBeGreaterThan(10);
     expect(H.timeline).toEqual([
@@ -1895,24 +1894,24 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
     ]);
 
     // No conversation id, so nothing is persisted and no title event is sent —
-    // the desktop app owns its own history.
+    // the client owns its own history.
     expect(H.timeline.filter((entry) => entry.startsWith('persist:'))).toEqual([]);
     expect(res.raw.filter((frame) => frame.includes('alia.title'))).toEqual([]);
   });
 
   it('hands the client its ORIGINAL tool name back, on both frames', async () => {
     const res = recordingRes();
-    await run(coworkReq({ ...COWORK_BODY }), res);
+    await run(editorReq({ ...EDITOR_BODY }), res);
 
-    // The model was offered the SANITISED names; Cowork's own `read_file`
+    // The model was offered the SANITISED names; the client's own `read_file`
     // survives untouched, and the slash-namespaced one is rewritten.
     expect(toolNamesSeenByModel()).toContain('read_file');
     expect(toolNamesSeenByModel()).toContain('workspace_write_file');
     expect(toolNamesSeenByModel()).not.toContain('workspace/write_file');
 
     // ...and the client is handed the ORIGINAL on the generic tool-call frame
-    // AND on the Alia result event. Cowork dispatches on this string; a
-    // regression here is a desktop app that silently stops executing tools.
+    // AND on the Alia result event. The client dispatches on this string; a
+    // regression here is a client that silently stops executing tools.
     const call = JSON.parse(
       res.raw
         .find((f) => f.includes('tool_calls'))
@@ -1933,7 +1932,7 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
     const result = namedEvent(res, 'alia.tool_result');
     expect(result.name).toBe('workspace/write_file');
     // An editor tool's server-side executor is an ECHO (lib/tool-converter.ts:76):
-    // Alia does not execute it, the client does. That echo is what tells Cowork
+    // Alia does not execute it, the client does. That echo is what tells the client
     // which local handler to run.
     expect(result.output).toEqual({
       _originalToolName: 'workspace/write_file',
@@ -1943,10 +1942,9 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
   });
 
   it('never emits a reasoning delta inside a generic chunk', async () => {
-    // `cowork-chat-consumer` in the ownership matrix records that Cowork reads
-    // `delta.reasoning`, a field documented nowhere. Measured here: the server
-    // has exactly one reasoning surface and it is the NAMED event, so Cowork's
-    // reader is dead code today. Recording it means a future change that starts
+    // A client reading `delta.reasoning`, a field documented nowhere,
+    // would read dead code: the server has exactly one reasoning surface and it
+    // is the NAMED event. Recording it means a future change that starts
     // emitting `delta.reasoning` is a deliberate edit to this fixture.
     H.state.streamTurns = [
       [
@@ -1959,7 +1957,7 @@ describe('fixture: Cowork flow — Oxy session, streaming, client-supplied edito
       ],
     ];
     const res = recordingRes();
-    await run(coworkReq({ ...COWORK_BODY, tools: undefined }), res);
+    await run(editorReq({ ...EDITOR_BODY, tools: undefined }), res);
 
     // Positive control: the reasoning DID travel, as a named Alia event.
     expect(namedEvent(res, 'alia.reasoning')).toEqual({

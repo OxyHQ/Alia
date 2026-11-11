@@ -193,8 +193,6 @@ describe("one owner for the assistant's name", () => {
       'prompts/ask-user-question.md',
       'prompts/base.md',
       'prompts/codea.md',
-      'prompts/cowork-browser.md',
-      'prompts/cowork.md',
       'prompts/general.md',
       'prompts/memory.md',
       'prompts/voice.md',

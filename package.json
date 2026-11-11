@@ -15,7 +15,6 @@
     "packages/integrations",
     "packages/alia-codea",
     "packages/alia-codea/webview-ui",
-    "packages/alia-cowork",
     "packages/alia-codea-cli",
     "packages/alia-computer-host"
   ],
@@ -27,7 +26,6 @@
     "dev:canvas": "bun run --filter alia-canvas dev",
     "dev:integrations": "bun run --filter @alia/integrations dev",
     "dev:codea": "bun run --filter alia-codea dev",
-    "dev:cowork": "bun run --filter alia-cowork dev",
     "build": "bun run --filter '*' build",
     "build:app": "bun run --filter @alia/app build",
     "build:api": "bun run --filter @alia/api build",

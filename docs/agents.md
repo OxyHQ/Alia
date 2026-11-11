@@ -232,18 +232,12 @@ holds at most six, and the caller needs standing over each agent (`loadAgentForA
   for it (`ToolPipeline`, `consultSelection`). Alia, outside every space, still consults any agent, and a
   member may ask her with `askAlia`: she answers read-only (no tool that sends, writes or acts).
 
-## Teams and Cowork devices
+## Teams
 
 Teams are owned resources under `/agents/teams`. A team has exactly one
 coordinator, ordered reachable agent members and named channels. Import and
 export use the strict `alia.team` v1 Markdown/YAML package; member keys are
 exact Alia agent IDs, never names or fuzzy search results.
-
-Cowork installations register under `/agents/cowork/devices` with the person's
-Oxy bearer and send a heartbeat every 30 seconds. Threads may select `cowork`
-only with an online device owned by the same person. The desktop executor still
-limits filesystem and shell operations to roots explicitly chosen for the
-session; registration does not grant access to the home directory.
 
 ### Legacy pair-view behavior during backfill
 

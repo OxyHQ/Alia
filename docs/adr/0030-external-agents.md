@@ -8,7 +8,7 @@ Date: 2026-11-10.
 ## Context
 
 Alia has no inbound surface for other agents: no MCP server, no A2A or ACP endpoint, no pairing.
-`/ws/mcp` (`packages/api/src/lib/mcp-relay.ts`) runs the other way: Cowork and Codea lend Alia
+`/ws/mcp` (`packages/api/src/lib/mcp-relay.ts`) runs the other way: Codea lend Alia
 *tools*. An MCP server would not help either, because MCP is pull: the agent calls tools, and nobody
 can wake it with a message.
 

@@ -47,7 +47,7 @@ export async function authenticateSocketSession(
   // bearer, reading `_id || id` off the body. That endpoint does not exist —
   // `api.oxy.so` answers 404 `NOT_FOUND` for `/me`, the route being `/users/me`
   // — so `response.ok` was never true and this lane refused EVERY caller. It is
-  // the only lane: Cowork sends `oxy.getAccessToken()`.
+  // the only lane: a client sends `oxy.getAccessToken()`.
   //
   // `authError` and the id read are BOTH kept, and neither is dead: on a refusal
   // the SDK calls back with the error and never populates `data`, so today

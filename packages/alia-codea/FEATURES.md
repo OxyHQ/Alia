@@ -127,7 +127,7 @@ All extension surfaces use the Alia API:
 - **Models**: Multiple model options
 
 Unified runtime notes:
-- Uses the same autonomy runtime as app and Cowork.
+- Uses the same autonomy runtime as app.
 - Consumes standardized named events with `eventVersion: 1`.
 - Does not use removed compatibility endpoints.
 

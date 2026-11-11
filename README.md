@@ -62,7 +62,7 @@ rather than an investigation.
 ## The chat runtime
 
 `/alia/chat` and `/v1/chat/completions` are served by the **same handler**
-(`handleChatCompletions`), so the app, Codea and Cowork cannot drift apart in behaviour.
+(`handleChatCompletions`), so the app and Codea cannot drift apart in behaviour.
 Both are registered in [`packages/api/src/index.ts`](packages/api/src/index.ts) with the
 same auth (`authenticateTokenOrApiKey` plus a per-key rate limit); they differ in CORS —
 `/v1` answers any origin, `/alia/chat` only Alia's own.
@@ -77,7 +77,7 @@ Three roles, none a subset of another
   and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`)
   plus `/conversations`, `/shows`, `/skills`, `/agents` and `/catalogue`. Three groups
   call it, all authorized by Oxy: Alia's own surfaces (the app, Codea — extension and CLI —
-  and Cowork, on `/alia/chat` with the user's Oxy session), other applications in the Oxy
+  on `/alia/chat` with the user's Oxy session), other applications in the Oxy
   ecosystem, and third parties through `@alia.onl/sdk`. It accepts an OpenAI-compatible
   request shape and streams `alia.*` product events. It does not sunset.
 
@@ -165,7 +165,6 @@ workspace entry. Everything lives under `packages/`.
 |---|---|---|
 | [`packages/app`](packages/app/) | `@alia/app` | Expo 58, web and iOS and Android |
 | [`packages/alia-codea`](packages/alia-codea/) | `alia-codea` | VS Code extension |
-| [`packages/alia-cowork`](packages/alia-cowork/) | `alia-cowork` | Electron, Windows and macOS |
 | [`packages/alia-codea-cli`](packages/alia-codea-cli/) | `@alia-codea/cli` | Terminal |
 
 </td>
@@ -207,7 +206,7 @@ More usefully, run only what you are working on:
 ```bash
 bun run dev:api          bun run dev:app
 bun run dev:canvas       bun run dev:integrations
-bun run dev:codea        bun run dev:cowork
+bun run dev:codea
 ```
 
 The app has platform shortcuts at the root:

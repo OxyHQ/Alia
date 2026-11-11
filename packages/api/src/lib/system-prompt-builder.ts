@@ -20,12 +20,11 @@ import type { CatalogueModel } from './models/catalogue.js';
  * The model is whatever the person picked; how Alia behaves depends on where
  * it is being used. `prompts/<name>.md`, layered over `prompts/base.md`.
  */
-export const PROMPT_SURFACES = ['chat', 'codea', 'cowork'] as const;
+export const PROMPT_SURFACES = ['chat', 'codea'] as const;
 export type PromptSurface = (typeof PROMPT_SURFACES)[number];
 const SURFACE_PROMPTS: Readonly<Record<PromptSurface, string>> = {
   chat: 'general',
   codea: 'codea',
-  cowork: 'cowork',
 };
 
 /**
@@ -42,12 +41,6 @@ const SPOKEN_ANSWER_PROMPT = 'voice';
 const ASK_USER_QUESTION_PROMPT = 'ask-user-question';
 const MEMORY_PROMPT = 'memory';
 
-/**
- * Cowork's rules for its own `browser_action` client tool. The client names the
- * tool, so the rules are loaded only for a turn whose tool set carries it.
- */
-const COWORK_BROWSER_PROMPT = 'cowork-browser';
-const COWORK_BROWSER_TOOL = 'browser_action';
 import { log } from './logger.js';
 import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 import { readCapabilityGrants } from '../domain/capability-grants.js';
@@ -236,12 +229,6 @@ export class SystemPromptBuilder {
 
     // 1. Base prompt: the surface's prompt over `base.md`.
     let systemMessage = await loadBasePrompt(SURFACE_PROMPTS[surface], clientContext);
-
-    // 1a. A client tool the surface prompt has rules for, only when it is registered.
-    if (surface === 'cowork' && toolNames?.includes(COWORK_BROWSER_TOOL)) {
-      const browser = await loadPrompt(COWORK_BROWSER_PROMPT);
-      if (browser !== '') systemMessage += `\n\n---\n\n${browser}`;
-    }
 
     // 1b. A spoken answer, when the turn came from a voice call — last of the
     // style layers, because how the answer will be DELIVERED overrides how the

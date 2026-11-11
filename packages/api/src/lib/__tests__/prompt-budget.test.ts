@@ -18,7 +18,6 @@ const BUDGET: Record<string, number> = {
   '2 voice': 5900,
   '3 telegram': 580,
   '4 dev-key codea': 1700,
-  '4 dev-key cowork': 1630,
   '5 agent run (browser only)': 990,
 };
 

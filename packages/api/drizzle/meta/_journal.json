@@ -904,6 +904,13 @@
       "when": 1794298060980,
       "tag": "0128_background_pauses_are_retired",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1794387393978,
+      "tag": "0129_cowork_is_retired",
+      "breakpoints": true
     }
   ]
 }

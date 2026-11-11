@@ -70,7 +70,7 @@ is [`docs/index.mdx`](../../docs/index.mdx).
 - `POST /v1/resolve-model` -> `410`
 - `POST /v1/report-usage` -> `410`
 - `/codea/*`, `/developer/*`, `/triggers/*`, `/external-models/*`,
-  `/api/sessions/:conversationId`, `POST /auth/authorize/{codea,cowork}` and
+  `/api/sessions/:conversationId`, `POST /auth/authorize/codea` and
   `POST /auth/token` were deleted with the retired `alia_sk_*` keys and the
   dropped tables they served (`404`)
 

@@ -52,7 +52,7 @@ the agent's marketplace price and an idempotency key.
   once.)
 - A run produces a candidate goal. Completion requires evidence for every
   stored criterion.
-- Team packages and Cowork devices use exact stored IDs and owner checks; no
+- Team packages use exact stored IDs and owner checks; no
   display-name or ordering lookup grants authority.
 
 ## Alternatives considered
