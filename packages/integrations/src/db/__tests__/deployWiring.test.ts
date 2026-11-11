@@ -66,7 +66,9 @@ describe('deploy-integrations.yml', () => {
   it("builds this package's Dockerfile, not the API's", () => {
     // The Dockerfile path is the reviewed recipe's, handed to the build by the
     // guard step, so the recipe is what names the file.
-    expect(workflow).toContain('reviewed-image.py guard --recipe alia-integrations');
+    expect(workflow).toMatch(
+      /OxyHQ\/oxy\/\.github\/actions\/reviewed-image@[^\n]*\n\s+with:\n\s+phase: guard\n\s+recipe: alia-integrations\n/,
+    );
     expect(workflow).toContain('DOCKERFILE: ${{ steps.reviewed.outputs.dockerfile }}');
     const recipes = JSON.parse(repositoryFile('.github/scripts/reviewed-images.json')).recipes;
     expect(recipes.find((r: { name: string }) => r.name === 'alia-integrations')?.dockerfile).toBe(
