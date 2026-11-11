@@ -480,7 +480,8 @@ describe('no logger call carries message content (#139 ws15)', () => {
 
     expect(text('lib/chat/stream-runner.ts')).not.toContain('reasoning: content.slice');
     expect(text('lib/chat/stream-runner.ts')).not.toContain('reasoning: reasoningText.slice');
-    expect(text('lib/chat/stream-runner.ts')).toContain('Reasoning chunk (provider)');
+    expect(text('lib/chat/reasoning-relay.ts')).not.toContain('reasoning: content.slice');
+    expect(text('lib/chat/reasoning-relay.ts')).toContain('Reasoning chunk (provider)');
 
     expect(text('routes/agents/generate.ts')).not.toContain('{ responseText }');
     expect(text('routes/agents/generate.ts')).toContain(
