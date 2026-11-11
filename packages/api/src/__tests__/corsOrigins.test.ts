@@ -197,6 +197,19 @@ describe('the internal-routes CORS middleware', () => {
     });
   });
 
+  it('allows Inbosh (inbo.sh), which no *.oxy.so rule covers, over GET and preflight', async () => {
+    expect(await ask(MOUNTS.shipped, 'https://inbo.sh')).toEqual({
+      status: 200,
+      allowOrigin: 'https://inbo.sh',
+      allowCredentials: 'true',
+    });
+    expect(await ask(MOUNTS.shipped, 'https://inbo.sh', 'OPTIONS')).toEqual({
+      status: 204,
+      allowOrigin: 'https://inbo.sh',
+      allowCredentials: 'true',
+    });
+  });
+
   it('drops an opaque WEB_URL instead of admitting every scheme through it', async () => {
     expect((await ask(MOUNTS.webUrl, 'exp://localhost:8150')).allowOrigin).toBeNull();
     expect((await ask(MOUNTS.webUrl, 'vscode-webview://abc123')).allowOrigin).toBeNull();

@@ -46,6 +46,8 @@ export const PRODUCTION_ORIGINS: readonly string[] = [
   'https://console.alia.onl',
   'https://canvas.alia.onl',
   'https://mention.earth',
+  // Inbosh (the Oxy email client). inbox.oxy.so rides the `*.oxy.so` family; inbo.sh does not.
+  'https://inbo.sh',
 ];
 
 /**
