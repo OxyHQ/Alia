@@ -11,7 +11,6 @@ import {
   type CapabilityCatalogBinding,
   type AppCapabilityCatalog,
   type CatalogTool,
-  type ResourceRef,
 } from '@oxy.so/contracts';
 import { createInternalCatalogMcpClient, InternalMcpRefusedError } from '@oxy.so/mcp';
 import { z } from 'zod';

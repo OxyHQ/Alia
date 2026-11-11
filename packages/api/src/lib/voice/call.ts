@@ -38,18 +38,13 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { VoiceCallEndReason } from '../../db/schema/voice.js';
-import type { ToolInvocation } from '../../domain/conversation.js';
 import type { HydratedAgent } from '../agent-identity.js';
-import type { PrefetchedTurnInputs, TurnIdentity } from '../chat/turn-inputs.js';
 import type { AppendedMessage } from '../conversation-saver.js';
 import type { RealtimeServerEvent } from '@kaana.ai/contracts';
 import type { RealtimeClientEventInput, RealtimeSession } from '@kaana.ai/sdk';
-import type { KaanaClient } from '../kaana/port.js';
 import { log } from '../logger.js';
 import { rankRealtimeCandidates, type RealtimeCandidate } from '../models/voice-models.js';
-import type { startCall } from './call-registry.js';
-import { type VoiceCreditDeps, VoiceCreditMeter } from './credits.js';
+import { VoiceCreditMeter } from './credits.js';
 import {
   isModelRefusal,
   VoiceFailure,
@@ -60,174 +55,39 @@ import {
 import {
   encodeAssistantAudioFrame,
   MAX_CLIENT_AUDIO_FRAME_BYTES,
-  type ProductVoice,
   type SequencedVoiceEvent,
   VOICE_BYTES_PER_MS,
   type VoiceCloseReason,
   type VoiceSessionEvent,
 } from './protocol.js';
 import { runTool, toRealtimeTools } from './tool-bridge.js';
-import type { HistoryMessage, VoiceTurnContext, VoiceTurnInput } from './turn.js';
+import type { HistoryMessage, VoiceTurnContext } from './turn.js';
+import {
+  END_REASON,
+  sessionLimits,
+  VOICE_CALL_LIMITS,
+  type VoiceCallEnvironment,
+  type VoiceCallLimits,
+  type VoiceCallStart,
+  type VoiceClientSink,
+} from './call-contract.js';
+import type {
+  CallState,
+  LedgerEntry,
+  ResponseState,
+  ToolCallState,
+  TurnEntry,
+  UpstreamState,
+  UserEntry,
+} from './call-state.js';
 
-/* -------------------------------------------------------------------------- */
-/*  Product rules                                                              */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Alia's product rules for every call (ADR 0017 §3, "Limits"). Not capacity
- * limits: concurrency and spend are the Alia app's policy in Oxy Console.
- */
-export interface VoiceCallLimits {
-  readonly maxDurationMs: number;
-  readonly idleTimeoutMs: number;
-  /** The client is told this long before the duration ends. */
-  readonly warningBeforeMs: number;
-  /** A dropped socket may resume within this. */
-  readonly resumeWindowMs: number;
-  /** How long an interrupted answer waits for the client's played milliseconds. */
-  readonly interruptWaitMs: number;
-  /**
-   * How long a person's turn waits, after its last event, for its transcript
-   * before what it has is stored (nothing, when it has none): a transcription
-   * that failed sends no `transcript.done`, and the turn must not hold the
-   * exchange behind it.
-   */
-  readonly userTranscriptWaitMs: number;
-  readonly creditCheckMs: number;
-  /** New upstream sessions one call may open after the first. */
-  readonly maxReopens: number;
-  /** Events kept for a resume. */
-  readonly replayEvents: number;
-}
-
-export const VOICE_CALL_LIMITS: VoiceCallLimits = {
-  maxDurationMs: 30 * 60_000,
-  idleTimeoutMs: 2 * 60_000,
-  warningBeforeMs: 60_000,
-  resumeWindowMs: 30_000,
-  interruptWaitMs: 1_500,
-  userTranscriptWaitMs: 8_000,
-  creditCheckMs: 15_000,
-  maxReopens: 2,
-  replayEvents: 500,
-};
-
-/** The upstream session's ceilings, signed per session (ADR 0017 §3 table). */
-function sessionLimits(maxDurationMs: number, idleTimeoutMs: number) {
-  const audioBytes = Math.ceil((maxDurationMs * VOICE_BYTES_PER_MS) / 1000) * 1000;
-  return {
-    maxDurationMs,
-    idleTimeoutMs: Math.min(idleTimeoutMs, maxDurationMs),
-    maxInputAudioBytes: audioBytes,
-    maxOutputAudioBytes: audioBytes,
-    maxResponses: 500,
-  };
-}
-
-const END_REASON: Readonly<Record<VoiceCloseReason, VoiceCallEndReason>> = {
-  hangup: 'hangup',
-  'call-moved-elsewhere': 'moved_elsewhere',
-  'max-duration': 'max_duration',
-  'idle-timeout': 'idle_timeout',
-  'credits-exhausted': 'credits_exhausted',
-  error: 'error',
-  'server-shutdown': 'server_shutdown',
-};
-
-/* -------------------------------------------------------------------------- */
-/*  What the call needs from the world                                         */
-/* -------------------------------------------------------------------------- */
-
-/** The client end of a call: the socket, or nothing while it is away. */
-export interface VoiceClientSink {
-  sendEvent(event: SequencedVoiceEvent): void;
-  sendAudio(frame: Uint8Array): void;
-  close(): void;
-}
-
-export interface VoiceCallEnvironment {
-  readonly kaana: KaanaClient | null;
-  prefetch(identity: TurnIdentity): Promise<PrefetchedTurnInputs>;
-  readonly credits?: VoiceCreditDeps;
-  startCall: typeof startCall;
-  finishCall(callId: string, reason: VoiceCallEndReason): Promise<void>;
-  loadHistory(oxyUserId: string, conversationId: string): Promise<HistoryMessage[]>;
-  buildTurn(input: VoiceTurnInput): Promise<VoiceTurnContext>;
-  persist(params: {
-    userId: string;
-    conversationId: string;
-    messages: readonly AppendedMessage[];
-    agentId?: string;
-    titleOnInsert: string;
-  }): Promise<void>;
-  /** Tell the person's open clients (socket.io `conversation:message`). */
-  announce(oxyUserId: string, conversationId: string, messages: readonly AppendedMessage[]): void;
-  titleConversation(oxyUserId: string, conversationId: string, firstUserText: string): void;
-  recordAnalytics(record: {
-    oxyUserId: string;
-    conversationId: string;
-    model: string;
-    resolvedModelReference: string | null;
-    latencyMs: number;
-    errorClass: string | null;
-  }): Promise<void>;
-}
-
-export interface VoiceCallStart {
-  readonly conversationId: string;
-  readonly agentId?: string;
-  readonly voice: ProductVoice;
-  readonly locale: string;
-  /** The app the call comes from, by the socket's verified app assertion (ADR 0021), or `null`. */
-  readonly surfaceApplicationId: string | null;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  The exchange ledger                                                        */
-/* -------------------------------------------------------------------------- */
-
-/**
- * What the person said in one input item: its one `transcript.done`, the final
- * transcript (Kaana contract set 6.0.0, whatever the provider sends).
- */
-interface UserEntry {
-  kind: 'user';
-  /** Stored under this id, and named by every transcript event of the item. */
-  messageId: string;
-  itemId: string;
-  text: string | null;
-  /** Refreshed by every event of the item: stored as it is once this passes. */
-  deadline: number;
-}
-
-interface TurnEntry {
-  kind: 'assistant';
-  /** Stored under this id, and named by every transcript event of the turn. */
-  messageId: string;
-  /** Output transcripts by audio item, in the order the items began. */
-  texts: Map<string, string>;
-  toolInvocations: ToolInvocation[];
-  audioItems: Set<string>;
-  interruptedAfterMs?: number;
-  done: boolean;
-  /** Set when the turn was cancelled while it spoke: wait this long for the played ms. */
-  interruptDeadline?: number;
-}
-
-type LedgerEntry = UserEntry | TurnEntry;
-
-interface ResponseState {
-  readonly turn: TurnEntry;
-  toolCalls: number;
-  readonly pending: Promise<void>[];
-  audioItem: string | null;
-}
-
-interface ToolCallState {
-  name: string;
-  args: string;
-  responseId: string;
-}
+export {
+  VOICE_CALL_LIMITS,
+  type VoiceCallEnvironment,
+  type VoiceCallLimits,
+  type VoiceCallStart,
+  type VoiceClientSink,
+} from './call-contract.js';
 
 /**
  * What a failed `close()` leaves Alia to do: nothing. Kaana settles every
@@ -235,19 +95,9 @@ interface ToolCallState {
  */
 function settledByKaana(): void {}
 
-interface UpstreamState {
-  readonly session: RealtimeSession;
-  requestId: string | null;
-  createdAt: number | null;
-  /** When it ended; the minutes between are what the session costs. */
-  endedAt: number | null;
-}
-
 /* -------------------------------------------------------------------------- */
 /*  The call                                                                   */
 /* -------------------------------------------------------------------------- */
-
-type CallState = 'idle' | 'opening' | 'live' | 'reconnecting' | 'closing' | 'closed';
 
 export class VoiceCall {
   /** What a client resumes with. */
