@@ -24,7 +24,7 @@ const MAX_FILE_BYTES = 8 * 1024 * 1024;
 /** A Graph id goes into a path, so it is encoded and bounded rather than trusted. */
 const graphId = z.string().min(1).max(512);
 
-export function graphPath(...segments: string[]): string {
+function graphPath(...segments: string[]): string {
   return segments.map((segment) => encodeURIComponent(segment)).join('/');
 }
 

@@ -83,7 +83,7 @@ const TIMEOUT_ERROR_CODES = new Set(['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET
  * `context_length_exceeded` then falls to the HTTP-400 rule and is reported as
  * `INVALID_REQUEST`. Bounded, and cycle-safe.
  */
-export function findOxyInferenceError(err: unknown): OxyInferenceError | undefined {
+function findOxyInferenceError(err: unknown): OxyInferenceError | undefined {
   const seen = new Set<unknown>();
   let current: unknown = err;
   for (let depth = 0; depth < 6 && current && typeof current === 'object'; depth += 1) {

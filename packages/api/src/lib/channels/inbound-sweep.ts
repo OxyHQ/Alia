@@ -27,11 +27,11 @@ import { processAgentBotMessage, processChannelMessage } from './inbound-handler
 import type { ChannelId } from './types.js';
 
 /** A healthy reply starts within seconds; this is past the slowest one. */
-export const INBOUND_STALLED_AFTER_MS = 2 * 60_000;
+const INBOUND_STALLED_AFTER_MS = 2 * 60_000;
 /** A message this old is no longer worth answering. */
-export const INBOUND_MAX_AGE_MS = 60 * 60_000;
+const INBOUND_MAX_AGE_MS = 60 * 60_000;
 /** The first try plus one retry. */
-export const INBOUND_MAX_ATTEMPTS = 2;
+const INBOUND_MAX_ATTEMPTS = 2;
 const SWEEP_BATCH = 25;
 const SETTLED_KEPT_MS = 60 * 60_000;
 

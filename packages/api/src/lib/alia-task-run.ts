@@ -63,7 +63,7 @@ import { userContextBlock } from './user-context.js';
 export const ALIA_TASK_MAX_STEPS = 10;
 
 /** The longest one run's model turn may take before it is aborted. */
-export const ALIA_TASK_TIMEOUT_MS = 10 * 60_000;
+const ALIA_TASK_TIMEOUT_MS = 10 * 60_000;
 /**
  * How long a started run is presumed to have a live worker. Longer than
  * {@link ALIA_TASK_TIMEOUT_MS} plus settlement, so only a vanished worker
@@ -83,7 +83,7 @@ The source this task watches changed; \`trigger.watch\` below says what changed.
 - If it is not (noise, a reshuffle, nothing relevant), reply exactly ${WATCH_NOTHING_TO_REPORT} and nothing else.`;
 
 /** The authority map ToolPipeline takes, from the run's stored authorizations. */
-export function aliaRunAuthorizationMap(
+function aliaRunAuthorizationMap(
   authorizations: Awaited<ReturnType<typeof listAliaTaskAuthorizationsForRun>>,
 ): Record<string, OxyExecutionAuthorizationRef> {
   return Object.fromEntries(

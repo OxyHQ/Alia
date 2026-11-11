@@ -18,7 +18,7 @@ export interface ShowJobData {
   userId: string;
 }
 
-export interface ShowJobResult {
+interface ShowJobResult {
   episodeId: string;
   status: 'completed' | 'failed';
 }

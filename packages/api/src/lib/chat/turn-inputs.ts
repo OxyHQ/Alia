@@ -19,7 +19,6 @@ import { oxy } from '../oxy.js';
 import { loadTurnAgent } from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { log } from '../logger.js';
-import type { ChatMessage } from '../message-converter.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import { buildSkillRuntime, type SkillRuntime } from '../skills/runtime.js';
 import type { OxyUserProfile } from '../system-prompt-builder.js';

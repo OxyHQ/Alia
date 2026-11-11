@@ -56,8 +56,8 @@ export interface AfterChatContext extends ChatHookContext {
   resolvedModelReference: string | null;
 }
 
-export type BeforeChatHook = (ctx: ChatHookContext) => Promise<ChatHookResult | void>;
-export type AfterChatHook = (ctx: AfterChatContext) => Promise<void>;
+type BeforeChatHook = (ctx: ChatHookContext) => Promise<ChatHookResult | void>;
+type AfterChatHook = (ctx: AfterChatContext) => Promise<void>;
 
 export interface ChatHook {
   name: string;

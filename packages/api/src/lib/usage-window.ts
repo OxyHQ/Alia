@@ -12,7 +12,7 @@ import { creditSpendWindow } from '../db/telemetry/apiKeyUsageRepository.js';
  * is refused before any credit is reserved, and says when it can be tried
  * again: when the oldest spending turn in the window ages out.
  */
-export const USAGE_WINDOW_HOURS = 5;
+const USAGE_WINDOW_HOURS = 5;
 const WINDOW_MS = USAGE_WINDOW_HOURS * 60 * 60 * 1000;
 
 /**

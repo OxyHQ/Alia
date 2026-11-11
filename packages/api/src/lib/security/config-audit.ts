@@ -34,7 +34,7 @@ import { createLogger } from '../logger.js';
 export type ConfigAuditResource = 'plan';
 
 /** What happened to it. `upsert` is one statement whose branch is not known. */
-export type ConfigAuditAction = 'create' | 'update' | 'delete' | 'upsert' | 'rotate' | 'reset';
+type ConfigAuditAction = 'create' | 'update' | 'delete' | 'upsert' | 'rotate' | 'reset';
 
 /**
  * Who made the change.

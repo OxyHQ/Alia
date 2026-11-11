@@ -142,7 +142,7 @@ function describeResult(result: BrowserResult, did: string): string {
 }
 
 /** The page as the model reads it: untrusted text, then what can be clicked and where. */
-export function describeReading(reading: PageReading): string {
+function describeReading(reading: PageReading): string {
   const text =
     reading.text.length > MODEL_TEXT_LIMIT
       ? `${reading.text.slice(0, MODEL_TEXT_LIMIT)}\n…`

@@ -69,7 +69,7 @@ function isMachineCredential(token: string): boolean {
 }
 
 /** Serve one connection: auth, then start or resume a call. */
-export function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions = {}): void {
+function handleVoiceConnection(ws: WebSocket, options: VoiceSocketOptions = {}): void {
   const authenticate = options.authenticate ?? authenticateSocketSession;
   const surfaceOf =
     options.surface ??

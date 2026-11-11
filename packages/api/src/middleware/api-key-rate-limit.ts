@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { recordApiKeyUsage, usageWindow } from '../db/telemetry/apiKeyUsageRepository.js';
+import type { Request, Response, NextFunction } from 'express';
+import { recordApiKeyUsage } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS, type ApiKeyUsageMethod } from '../domain/api-key-usage.js';
 import { getDb } from '../db/index.js';
 import { findActiveSubscription } from '../db/billing/subscriptionRepository.js';
@@ -13,7 +13,7 @@ import { log } from '../lib/logger.js';
  * Stored as four columns; this is the module that consumes them, so the shape
  * lives here.
  */
-export interface IRateLimitConfig {
+interface IRateLimitConfig {
   requestsPerMinute: number | null;
   requestsPerDay: number | null;
   tokensPerMinute: number | null;
@@ -177,39 +177,6 @@ function sendRateLimitResponse(res: Response, status: RateLimitStatus, tier?: st
       },
     },
   });
-}
-
-/**
- * Get current usage stats for a session-based user
- */
-export async function getUserUsageStats(userId: string): Promise<{
-  requestsLastMinute: number;
-  requestsLastDay: number;
-  tokensLastMinute: number;
-  tokensLastDay: number;
-  tier: string;
-  limits: IRateLimitConfig;
-}> {
-  const now = new Date();
-  const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-  const [minute, day, tier] = await Promise.all([
-    usageWindow(getDb(), { oxyUserId: userId, authType: 'session' }, oneMinuteAgo),
-    usageWindow(getDb(), { oxyUserId: userId, authType: 'session' }, oneDayAgo),
-    getUserTier(userId),
-  ]);
-  const requestsLastMinute = minute.requests;
-  const requestsLastDay = day.requests;
-
-  return {
-    requestsLastMinute,
-    requestsLastDay,
-    tokensLastMinute: minute.tokens,
-    tokensLastDay: day.tokens,
-    tier,
-    limits: TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.free,
-  };
 }
 
 /**

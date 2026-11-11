@@ -39,7 +39,7 @@ import { AliaError, AliaErrorCode } from '../errors/error-codes.js';
 import { log } from '../logger.js';
 
 /** Attempts after the first. Two keeps a deploy's connection churn survivable without a retry storm. */
-export const TRANSPORT_RETRIES = 2;
+const TRANSPORT_RETRIES = 2;
 
 /** Wait before retry n (0-based), ms. Short: the socket is dead, the service is not. */
 const RETRY_DELAYS_MS = [150, 600] as const;
@@ -54,7 +54,7 @@ const TRANSIENT_CODES = new Set([
 ]);
 
 /** The errno-style `code` anywhere on an error's `cause` chain, if it is a transient one. */
-export function transientTransportCode(error: unknown): string | null {
+function transientTransportCode(error: unknown): string | null {
   if (error instanceof OxyInferenceError || error instanceof OxyInferenceProtocolError) return null;
   let current: unknown = error;
   for (let depth = 0; depth < 5 && typeof current === 'object' && current !== null; depth += 1) {
@@ -83,7 +83,7 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /** The typed error a connection that kept failing ends the call with. */
-export function transportExhausted(code: string, attempts: number, cause: unknown): AliaError {
+function transportExhausted(code: string, attempts: number, cause: unknown): AliaError {
   return new AliaError({
     code: AliaErrorCode.PROVIDER_UNAVAILABLE,
     message: `The connection to Oxy inference failed (${code}) on ${attempts} attempt${attempts === 1 ? '' : 's'} before any output`,
@@ -94,7 +94,7 @@ export function transportExhausted(code: string, attempts: number, cause: unknow
 }
 
 /** The typed error for `idempotency_conflict` on a retry: the first attempt did reserve. */
-export function conflictAfterRetry(attempts: number, cause: unknown): AliaError {
+function conflictAfterRetry(attempts: number, cause: unknown): AliaError {
   return new AliaError({
     code: AliaErrorCode.PROVIDER_UNAVAILABLE,
     message: `Oxy inference reported idempotency_conflict on attempt ${attempts}: the earlier attempt reached Oxy before the connection reset, so the request was not repeated under another key`,

@@ -21,4 +21,3 @@ export const CONTEXT_SOURCE_KINDS = [
 ] as const;
 export type ContextSourceKind = (typeof CONTEXT_SOURCE_KINDS)[number];
 export const CONTEXT_SOURCE_AVAILABILITIES = ['available', 'degraded', 'disabled'] as const;
-export type ContextSourceAvailability = (typeof CONTEXT_SOURCE_AVAILABILITIES)[number];

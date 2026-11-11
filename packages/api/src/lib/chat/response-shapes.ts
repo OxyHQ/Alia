@@ -6,19 +6,19 @@
  */
 import type { CreditWarning } from '../credit-anomaly.js';
 
-export interface CompletionToolCall {
+interface CompletionToolCall {
   id: string;
   type: 'function';
   function: { name: string; arguments: string };
 }
 
-export interface CompletionTokenUsage {
+interface CompletionTokenUsage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
 }
 
-export interface AliaUsage {
+interface AliaUsage {
   system_prompt_tokens: number;
   billable_tokens: number;
   credits_charged: number;

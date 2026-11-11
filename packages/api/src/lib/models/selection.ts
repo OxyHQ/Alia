@@ -28,9 +28,9 @@ import {
 import { listCatalogueModels, listChatModels } from './catalogue.js';
 
 /** Featured and usage ranking are recomputed daily. */
-export const FEATURED_TTL_MS = 24 * 60 * 60 * 1000;
+const FEATURED_TTL_MS = 24 * 60 * 60 * 1000;
 /** The usage window that ranks featured models. */
-export const USAGE_WINDOW_DAYS = 30;
+const USAGE_WINDOW_DAYS = 30;
 
 /** No model in the catalogue can serve the requested kind of call. */
 export class NoModelAvailableError extends Error {

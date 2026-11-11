@@ -12,4 +12,3 @@
  * feature is the only kind for which `PlanFeature.limitValue` is meaningful.
  */
 export const FEATURE_TYPES = ['boolean', 'limit'] as const;
-export type FeatureType = (typeof FEATURE_TYPES)[number];

@@ -35,7 +35,7 @@
 
 import { and, eq, gt, isNotNull, lte, or, sql } from 'drizzle-orm';
 import { getDb, type Executor } from '../index';
-import { moderationOutboxes, MODERATION_OUTBOX_KINDS } from '../schema/moderation';
+import { moderationOutboxes, type MODERATION_OUTBOX_KINDS } from '../schema/moderation';
 
 export type ModerationOutboxKind = (typeof MODERATION_OUTBOX_KINDS)[number];
 
@@ -47,7 +47,7 @@ export type ModerationOutboxKind = (typeof MODERATION_OUTBOX_KINDS)[number];
  * must fire long before this deadline. Owned here rather than by a model, because
  * the repository owns the table's shape now.
  */
-export const MODERATION_OUTBOX_RETENTION_SECONDS = 90 * 24 * 60 * 60;
+const MODERATION_OUTBOX_RETENTION_SECONDS = 90 * 24 * 60 * 60;
 
 export interface ModerationOutboxPayload {
   /** The local report id, for `report.submit`. */

@@ -31,7 +31,7 @@ const chartData = z.object({
     .max(12),
 });
 
-export const deckData = z.object({
+const deckData = z.object({
   slides: z
     .array(
       z.object({
@@ -46,7 +46,7 @@ export const deckData = z.object({
     .max(60),
 });
 
-export const dashboardData = z.object({
+const dashboardData = z.object({
   widgets: z
     .array(
       z.discriminatedUnion('kind', [

@@ -43,7 +43,7 @@ export const PLAYBACK_LINK_TTL_MS = 15 * 60 * 1000;
 
 const LABEL = 'alia-audio-playback-link:v1';
 
-export interface PlaybackLinkFields {
+interface PlaybackLinkFields {
   readonly key: string;
   readonly userId: string;
   readonly expiresAtMs: number;

@@ -60,19 +60,19 @@ export type AgentAccess = (typeof AGENT_ACCESS)[number];
  * NOT in the schema as a `$type<…>()`: a `$type` would tell `tsc` the stored
  * value has this shape, which is exactly the claim nothing enforces.
  */
-export interface ArchetypeAssignee {
+interface ArchetypeAssignee {
   type?: string;
   id?: string;
   name?: string;
 }
 
-export interface ArchetypeRoutingRule {
+interface ArchetypeRoutingRule {
   condition?: string;
   priority?: string;
   assignTo?: ArchetypeAssignee;
 }
 
-export interface ArchetypeSchedule {
+interface ArchetypeSchedule {
   type?: string;
   time?: string;
   days?: string[];

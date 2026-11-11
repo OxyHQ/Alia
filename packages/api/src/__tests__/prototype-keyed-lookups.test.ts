@@ -159,12 +159,8 @@ function tableReads(): TableRead[] {
  * because "it looked fine" is not a reason.
  */
 const EXEMPT: Readonly<Record<string, string>> = {
-  'packages/api/src/lib/observability/metrics.ts labels[k]':
-    '`k` comes from `Object.keys(labels)`, so it is an OWN key of the object being read, by construction rather than by check.',
   'packages/api/src/lib/sliding-window-limiter.ts RPM_LIMITS[tier]':
     'Key is produced by `getUserTier`, whose every return is a string LITERAL — measured by the assertion below, not assumed.',
-  'packages/api/src/middleware/api-key-rate-limit.ts TIER_RATE_LIMITS[tier]':
-    'Key is produced by `getUserTier` in this same file, whose returns are all literals — the assertion below reads it.',
 };
 
 /**
@@ -184,8 +180,12 @@ const EXEMPT: Readonly<Record<string, string>> = {
  * 6 -> 5. The daily cost cap in `lib/sliding-window-limiter.ts` is DELETED (every
  * tier was unlimited and nothing incremented the counter), and its
  * `COST_DAY_CAPS[tier]` read with it.
+ *
+ * 3 -> 1. Dead code left `api-key-rate-limit.ts` (`getUserUsageStats`, and its
+ * `TIER_RATE_LIMITS[tier]` read) and `observability/metrics.ts` (the unused
+ * convenience recorders, and the local `labels` table one of them built).
  */
-const EXEMPT_COUNT = 3;
+const EXEMPT_COUNT = 1;
 
 describe('no lookup table answers an untrusted key from Object.prototype', () => {
   const reads = tableReads();
@@ -208,7 +208,8 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
     // 15 -> 7 (ADR 0012): the routing-profile catalogue, the hardcoded model
     // tables, the curated display names, the surface table and the per-provider
     // reasoning table are deleted, and their reads with them.
-    expect(reads.length).toBeGreaterThanOrEqual(7);
+    // 7 -> 5: the two reads above that lived in deleted dead code (see EXEMPT_COUNT).
+    expect(reads.length).toBeGreaterThanOrEqual(5);
     expect(reads.filter((r) => r.guarded).length).toBeGreaterThanOrEqual(4);
     expect(reads.filter((r) => !r.guarded).length).toBeGreaterThanOrEqual(1);
 
@@ -233,7 +234,7 @@ describe('no lookup table answers an untrusted key from Object.prototype', () =>
   });
 
   it('the tier exemption rests on a producer that returns only literals', () => {
-    // Two of the exemptions say "the key comes from `getUserTier`". That is a
+    // The exemption says "the key comes from `getUserTier`". That is a
     // claim about a function, so it is measured rather than asserted: every
     // `return` in it is a string literal, so no computed string can reach the
     // tables it keys. This goes red the moment somebody returns a variable.

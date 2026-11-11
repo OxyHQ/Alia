@@ -27,7 +27,6 @@
  * two together. Spelled here because this module imports nothing.
  */
 export const GATEABLE_POWER_LEVELS = ['pro', 'ultra'] as const;
-export type GateablePowerLevel = (typeof GATEABLE_POWER_LEVELS)[number];
 
 /**
  * The Alia features an owner may gate.

@@ -47,7 +47,7 @@ const MAX_RETRYABLE_ATTEMPTS = 25;
  * database error — is treated as retryable, because assuming a defect is
  * permanent is how a recoverable outage becomes lost moderation work.
  */
-export function isRetryableDeliveryError(error: unknown): boolean {
+function isRetryableDeliveryError(error: unknown): boolean {
   if (typeof error === 'object' && error !== null && 'retryable' in error) {
     const retryable: unknown = (error as { retryable: unknown }).retryable;
     if (typeof retryable === 'boolean') return retryable;

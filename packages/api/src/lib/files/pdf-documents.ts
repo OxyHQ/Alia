@@ -39,7 +39,7 @@ export const MAX_PAGE_IMAGE_EDGE = 1280;
 /** The PNG bytes one scanned document contributes, summed over its pages. */
 export const MAX_SCANNED_PDF_IMAGE_BYTES = 480 * 1024;
 /** Larger images are not decoded at all (a 600-dpi A4 page is 35 megapixels). */
-export const MAX_DECODED_IMAGE_PIXELS = 25_000_000;
+const MAX_DECODED_IMAGE_PIXELS = 25_000_000;
 /** An image smaller than this on its long side is a logo or a stamp, not a page. */
 const MIN_PAGE_IMAGE_EDGE = 300;
 /** Grey at or above this is paper, not ink. */
@@ -47,7 +47,7 @@ const PAPER_WHITE = 224;
 /** How long a decoded image may take to arrive from pdf.js before the page is skipped. */
 const IMAGE_WAIT_MS = 5_000;
 
-export interface PdfPageImage {
+interface PdfPageImage {
   /** One-based. */
   readonly page: number;
   readonly png: Uint8Array;

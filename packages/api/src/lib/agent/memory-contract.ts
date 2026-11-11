@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 
 export const AGENT_MEMORY_INDEX = 'MEMORY.md';
 export const AGENT_MEMORY_MAX_LINES = 200;
-export const AGENT_MEMORY_MAX_BYTES = 24 * 1024;
+const AGENT_MEMORY_MAX_BYTES = 24 * 1024;
 export const AGENT_MEMORY_FILE_MAX_BYTES = 256 * 1024;
 const FILE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,126}\.md$/;
 

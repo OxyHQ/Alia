@@ -36,15 +36,15 @@ import {
 import { log } from '../logger.js';
 import { getRedisClient } from '../redis.js';
 
-export const LEASE_RENEW_MS = 10_000;
+const LEASE_RENEW_MS = 10_000;
 /** Three missed renewals: a crashed task's row reads as expired soon after. */
 export const LEASE_MS = 30_000;
-export const PREVIOUS_CALL_WAIT_MS = 2_000;
+const PREVIOUS_CALL_WAIT_MS = 2_000;
 
 const REDIS_CHANNEL = 'alia:voice-call';
 
 /** This API task. Hostname pins the ECS task; pid and random tell restarts apart. */
-export const VOICE_TASK_ID = `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toString('hex')}`;
+const VOICE_TASK_ID = `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toString('hex')}`;
 
 /** What the registry needs of a call it holds. */
 export interface HeldCall {
@@ -221,11 +221,6 @@ export async function finishCall(callId: string, reason: VoiceCallEndReason): Pr
     settleEnded(callId);
     publish({ kind: 'ended', callId });
   }
-}
-
-/** Whether this task holds the call (for tests and the shutdown drain). */
-export function holdsCall(callId: string): boolean {
-  return held.has(callId);
 }
 
 /** Test seam: forget every held call without touching the database. */

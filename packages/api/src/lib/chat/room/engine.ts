@@ -72,7 +72,7 @@ export interface TranscriptRow {
   readonly agentName: string | null;
 }
 
-export interface StoredReply {
+interface StoredReply {
   readonly id: string;
   readonly seq: number;
   readonly createdAt: Date;
@@ -109,13 +109,13 @@ export interface RoomEngineDeps {
  * Pauses before each further attempt to store a finished reply. The member's turn is already paid
  * for, so a database that blinks is waited out here instead of being answered with a lost reply.
  */
-export const STORE_RETRY_DELAYS_MS: readonly number[] = [150, 500];
+const STORE_RETRY_DELAYS_MS: readonly number[] = [150, 500];
 
 /**
  * A reply could not be stored after every attempt. Thrown out of the step (never turned into the
  * member's `failed`), so the queue retries the step instead of the room silently losing a paid reply.
  */
-export class RoomStoreError extends Error {
+class RoomStoreError extends Error {
   constructor(cause: unknown) {
     super(`Could not store a room reply: ${getErrorMessage(cause)}`, { cause });
     this.name = 'RoomStoreError';

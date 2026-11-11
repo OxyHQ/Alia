@@ -88,7 +88,7 @@ export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'integration', 'agent'] as 
  * actor's bot account only when the requester may operate it. Oxy validates
  * requester/task proof and product resource ownership at execution time.
  */
-export const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
+const OXY_SERVICE_TOOL_SOURCE = 'oxy_service' as const;
 
 /**
  * The instanced family whose BARE grant is a decision rather than a blank
@@ -157,7 +157,7 @@ export const CAPABILITY_FAMILIES = [
 ] as const;
 
 export type FixedCapabilityFamily = (typeof FIXED_CAPABILITY_FAMILIES)[number];
-export type InstancedCapabilityFamily = (typeof INSTANCED_CAPABILITY_FAMILIES)[number];
+type InstancedCapabilityFamily = (typeof INSTANCED_CAPABILITY_FAMILIES)[number];
 export type InstancedToolSource = InstancedCapabilityFamily | typeof OXY_SERVICE_TOOL_SOURCE;
 export type CapabilityFamily = (typeof CAPABILITY_FAMILIES)[number];
 
@@ -281,12 +281,12 @@ function isFamily(value: string): value is CapabilityFamily {
   return (CAPABILITY_FAMILIES as readonly string[]).includes(value);
 }
 
-export function isInstancedFamily(family: CapabilityFamily): family is InstancedCapabilityFamily {
+function isInstancedFamily(family: CapabilityFamily): family is InstancedCapabilityFamily {
   return (INSTANCED_CAPABILITY_FAMILIES as readonly string[]).includes(family);
 }
 
 /** Whether this family's bare grant means "every row" — see {@link EVERY_ROW_FAMILIES}. */
-export function grantsEveryRow(family: CapabilityFamily): boolean {
+function grantsEveryRow(family: CapabilityFamily): boolean {
   return (EVERY_ROW_FAMILIES as readonly string[]).includes(family);
 }
 

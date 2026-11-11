@@ -318,7 +318,7 @@ const SECRET_PATTERNS: SecretPattern[] = [
 /**
  * Scan text for secrets. Returns all matches found.
  */
-export function scanForSecrets(text: string): SecretMatch[] {
+function scanForSecrets(text: string): SecretMatch[] {
   if (!text || text.length < 8) return [];
 
   const matches: SecretMatch[] = [];

@@ -8,7 +8,7 @@
  *   - block:    Automatically blocked, never executed
  */
 
-export type ThreatCategory =
+type ThreatCategory =
   | 'destructive_command'
   | 'privilege_escalation'
   | 'data_exfiltration'
@@ -138,6 +138,3 @@ export const THREAT_PATTERNS: ThreatPattern[] = [
   ...PII_EXPOSURE,
   ...PROMPT_INJECTION,
 ];
-
-/** Total pattern count (for health checks / metrics) */
-export const PATTERN_COUNT = THREAT_PATTERNS.length;

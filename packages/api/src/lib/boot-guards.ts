@@ -47,7 +47,7 @@ import { oxyInferenceBootConfigurationFailure } from './inference/oxy-inference-
 import { installProviderEgressBlock } from './inference/provider-egress-policy.js';
 
 /** The exit code every refusal here uses. */
-export const BOOT_REFUSAL_EXIT_CODE = 1;
+const BOOT_REFUSAL_EXIT_CODE = 1;
 
 export interface BootGuardDeps {
   /** A misconfiguration that stops the process. */

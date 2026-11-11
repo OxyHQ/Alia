@@ -19,7 +19,7 @@ import {
   releaseEnforcementClaim,
   type ModerationPreviousState,
 } from '../../db/moderation/enforcementRepository.js';
-import { type ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
+import type { ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
 import { crowdSourceConfig, type ModerationEnforcementMode } from './config.js';
 import { planEnforcement, type PlannedEnforcementAction } from './enforcement-plan.js';
 import { log } from '../logger.js';
@@ -48,7 +48,7 @@ import { recordMetric } from '../observability/index.js';
  * rather than a log line saying a decision was seen.
  */
 
-export interface EnforcementSubject {
+interface EnforcementSubject {
   /** Alia's own noun (`agent`, `agent_review`, `skill`). */
   type: string;
   id: string;

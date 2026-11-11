@@ -37,7 +37,7 @@ export async function refusePrimaryTools(keys: readonly string[]): Promise<strin
 }
 
 /** One tool the editor offers. */
-export interface PrimaryToolOption {
+interface PrimaryToolOption {
   readonly key: string;
   readonly name: string;
   readonly description: string;

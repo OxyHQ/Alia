@@ -26,7 +26,7 @@ import { log } from '../logger.js';
  */
 
 /** Route an event to the worker that owns its kind. */
-export async function handleModerationOutboxEvent(event: ModerationOutboxEvent): Promise<void> {
+async function handleModerationOutboxEvent(event: ModerationOutboxEvent): Promise<void> {
   switch (event.kind) {
     case 'report.submit':
       await deliverReportOutboxEvent(event);
@@ -37,7 +37,7 @@ export async function handleModerationOutboxEvent(event: ModerationOutboxEvent):
   }
 }
 
-export class ModerationOutboxDispatcher {
+class ModerationOutboxDispatcher {
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight: Promise<void> | null = null;
   private abortController: AbortController | null = null;

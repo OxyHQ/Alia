@@ -25,7 +25,7 @@ import { agentSessions } from '../schema/agent-sessions';
 type DefinitionRow = typeof automationDefinitions.$inferSelect;
 type ActionRow = typeof automationActions.$inferSelect;
 
-export interface AutomationActionInput {
+interface AutomationActionInput {
   id: string;
   resource: AutomationResourceRef;
   tool: string;
@@ -129,7 +129,7 @@ async function assignmentsFor(executor: Executor, automationIds: string[]) {
   return byAutomation;
 }
 
-export type AutomationActorSelection =
+type AutomationActorSelection =
   | { mode: 'alia' }
   | { mode: 'fixed'; agentId: string | null }
   | { mode: 'automatic'; eligibleAgentIds: string[] };
@@ -796,7 +796,7 @@ export async function upsertAutomationActionAuthorizations(
  * revalidated set. Remote ids are revoked by the caller before this transaction;
  * keeping the old rows makes incomplete external cleanup observable.
  */
-export async function replaceAutomationActionAuthorizations(
+async function replaceAutomationActionAuthorizations(
   db: Executor,
   automationId: string,
   authorizations: readonly AutomationAuthorizationInput[],

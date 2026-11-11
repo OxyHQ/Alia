@@ -27,7 +27,7 @@ import { z } from 'zod';
 /** The tool's name as the model and the clients know it. */
 export const ASK_USER_QUESTION_TOOL = 'askUserQuestion';
 
-export const MAX_QUESTIONS = 4;
+const MAX_QUESTIONS = 4;
 
 const OptionSchema = z.object({
   label: z.string().trim().min(1).max(80).describe('The choice, in a few words'),

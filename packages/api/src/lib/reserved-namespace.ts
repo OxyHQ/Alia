@@ -41,7 +41,7 @@
  */
 
 /** The publisher segment ADR 0002 reserves. */
-export const RESERVED_PUBLISHER = 'alia';
+const RESERVED_PUBLISHER = 'alia';
 
 /**
  * Thrown when an identifier in the reserved namespace reaches a registration or

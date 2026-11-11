@@ -800,7 +800,7 @@ export async function replaceAgentSkills(
     .values(skillIds.map((skillId, position) => ({ agentId, skillId, position })));
 }
 
-export async function replaceAgentKnowledge(
+async function replaceAgentKnowledge(
   executor: Executor,
   agentId: string,
   libraryFileIds: string[],

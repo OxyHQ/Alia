@@ -54,7 +54,7 @@ interface InputMessage {
 }
 
 /** Extract or generate a conversation title from the AI response, with fallbacks. */
-export function extractConversationTitle(response: string, messages: InputMessage[]): string {
+function extractConversationTitle(response: string, messages: InputMessage[]): string {
   const m = response.match(TITLE_EXTRACT_RE);
   if (m) return (m[2] || m[4]).trim();
 
@@ -70,7 +70,7 @@ export function extractConversationTitle(response: string, messages: InputMessag
 }
 
 /** Remove [TITLE]...[/TITLE] and <TITLE>...</TITLE> tags from content. */
-export function stripTitleTags(content: string): string {
+function stripTitleTags(content: string): string {
   return content.replace(TITLE_STRIP_RE, '').trim();
 }
 

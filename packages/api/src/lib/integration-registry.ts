@@ -1,4 +1,4 @@
-export interface IntegrationProfileConfig {
+interface IntegrationProfileConfig {
   /** URL to fetch user profile after OAuth. If method is 'graphql', this is the GraphQL endpoint. */
   url: string;
   /** Extra headers to include in the profile request */

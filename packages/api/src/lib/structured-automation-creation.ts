@@ -41,7 +41,7 @@ import {
   reloadAutomationSchedule,
 } from './trigger-engine.js';
 
-export const automationResourceSchema = z
+const automationResourceSchema = z
   .object({
     appId: z.string().min(1).describe('Oxy app id, e.g. inbox'),
     effectiveAccountId: z.string().min(1).describe('Owning Oxy account id'),
@@ -50,7 +50,7 @@ export const automationResourceSchema = z
   })
   .strict();
 
-export const automationLimitSchema = z
+const automationLimitSchema = z
   .object({
     key: z.string().min(1),
     value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]),
@@ -106,7 +106,7 @@ export const automationTriggerSchema = z.discriminatedUnion('type', [
     .strict(),
 ]);
 
-export const automationActorSelectionSchema = z.discriminatedUnion('mode', [
+const automationActorSelectionSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('alia') }).strict(),
   z.object({ mode: z.literal('fixed'), agentId: z.string().min(1) }).strict(),
   z
@@ -188,7 +188,7 @@ export class AutomationCreationError extends Error {
   }
 }
 
-export async function ownedAutomationAgents(ownerAccountId: string, agentIds: readonly string[]) {
+async function ownedAutomationAgents(ownerAccountId: string, agentIds: readonly string[]) {
   const agents = await Promise.all(agentIds.map((agentId) => findAgentById(getDb(), agentId)));
   const may = await Promise.all(
     agents.map((agent) =>
@@ -204,7 +204,7 @@ export async function ownedAutomationAgents(ownerAccountId: string, agentIds: re
   return agents.filter((agent): agent is NonNullable<typeof agent> => agent !== null);
 }
 
-export async function executionAuthorityPairs(input: {
+async function executionAuthorityPairs(input: {
   ownerAccountId: string;
   agents: NonNullable<Awaited<ReturnType<typeof findAgentById>>>[];
   actions: readonly AutomationActionPlanInput[];
@@ -230,7 +230,7 @@ export async function executionAuthorityPairs(input: {
   });
 }
 
-export async function revokeProvisionedAutomationAuthority(
+async function revokeProvisionedAutomationAuthority(
   accessToken: string | undefined,
   provisioned: ReadonlyArray<{ oxyAuthorizationId: string }>,
 ): Promise<void> {
@@ -247,7 +247,7 @@ export async function revokeProvisionedAutomationAuthority(
   }
 }
 
-export async function persistAutomationAuthorityAndActivate(input: {
+async function persistAutomationAuthorityAndActivate(input: {
   automationId: string;
   ownerAccountId: string;
   provisioned: readonly ProvisionedAutomationAuthorization[];

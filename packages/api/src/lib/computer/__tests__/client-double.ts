@@ -25,7 +25,7 @@ export const receipt = (over: Partial<CommandReceipt> = {}): CommandReceipt => (
   ...over,
 });
 
-export const browserState = (over: Partial<BrowserState> = {}): BrowserState => ({
+const browserState = (over: Partial<BrowserState> = {}): BrowserState => ({
   state: 'open',
   url: 'https://example.com/',
   title: 'Example',

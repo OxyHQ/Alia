@@ -16,12 +16,12 @@ import type { Document, ResolveResult } from '@clarity.surf/sdk';
 import { clarityClient } from './clarity-client.js';
 
 /** How long a tool call may wait for Clarity to index a page. */
-export const CLARITY_INDEX_DEADLINE_MS = 45_000;
+const CLARITY_INDEX_DEADLINE_MS = 45_000;
 const RESOLVE_WAIT_MS = 8_000;
 const FIRST_POLL_MS = 500;
 const MAX_POLL_MS = 4_000;
 
-export type ClarityReadFailure =
+type ClarityReadFailure =
   | 'timeout' // the operation was still running when the deadline passed
   | 'throttled' // Clarity had no crawl capacity for the whole deadline
   | 'operation_failed' // the operation ended without a document

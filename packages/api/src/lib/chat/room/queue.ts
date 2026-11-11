@@ -21,7 +21,7 @@ let worker: Worker<RoomJobData> | null = null;
 let redisAvailable = false;
 
 /** The id of a step's job: one per (chain, turn), so a step is queued once however often it is asked. */
-export const jobIdOf = (data: Pick<RoomJobData, 'conversationId' | 'triggerId' | 'turns'>) =>
+const jobIdOf = (data: Pick<RoomJobData, 'conversationId' | 'triggerId' | 'turns'>) =>
   // BullMQ refuses ':' in a custom id.
   `room-${data.conversationId}-${data.triggerId}-${data.turns}`.replace(/:/g, '_');
 

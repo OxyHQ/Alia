@@ -133,7 +133,7 @@ export function getRedisConnection():
  * Race a promise against a timeout. Used by rate limiters to fail-open
  * if Redis is slow. Exported so callers don't duplicate this helper.
  */
-export const REDIS_TIMEOUT_MS = 1_000;
+const REDIS_TIMEOUT_MS = 1_000;
 
 export function withRedisTimeout<T>(promise: Promise<T>, ms = REDIS_TIMEOUT_MS): Promise<T> {
   return Promise.race([

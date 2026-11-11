@@ -143,7 +143,7 @@ export async function storeShowCover(bytes: Uint8Array, mime: string): Promise<S
  * (`uploadPodcastImage`) and Alia holds no file for it. Switch it with
  * `SYRA_COVER_FILE_IDS=enabled`, AFTER Syra (`docs/oxy-files.md`).
  */
-export function syraTakesCoverFiles(env: NodeJS.ProcessEnv = process.env): boolean {
+function syraTakesCoverFiles(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.SYRA_COVER_FILE_IDS ?? '').trim() === 'enabled';
 }
 
@@ -196,7 +196,7 @@ export function seriesCoverColumns(cover: ShowCover): {
 // ── Private content ─────────────────────────────────────────────────────────
 
 /** The kinds of private content: library uploads, spoken clips, skill files. */
-export type PrivateContentKind = LegacyStoredObjectKind;
+type PrivateContentKind = LegacyStoredObjectKind;
 
 /** Who owns a stored file: Alia itself, or one person. */
 export type ContentOwner =
@@ -213,7 +213,7 @@ export interface StoredContent {
 const LEGACY_UPLOAD_GRACE_SECONDS = 60 * 60;
 
 /** The largest file Oxy's streamed service uploads take; anything bigger is a large upload. */
-export const STREAMED_UPLOAD_MAX_BYTES = 40 * 1024 * 1024;
+const STREAMED_UPLOAD_MAX_BYTES = 40 * 1024 * 1024;
 
 /** How long one streamed upload, or one large upload's verification, may take. */
 const UPLOAD_TIMEOUT_MS = 10 * 60_000;
@@ -230,7 +230,7 @@ export interface StoreContentInput {
 }
 
 /** Raised when Oxy stored a private file as something other than private. Never recorded. */
-export class OxyFileVisibilityError extends Error {
+class OxyFileVisibilityError extends Error {
   constructor(kind: PrivateContentKind, visibility: string) {
     super(`Oxy stored a private ${kind} as ${visibility}`);
     this.name = 'OxyFileVisibilityError';
@@ -282,7 +282,7 @@ export async function copyIntoOxy(input: Omit<StoreContentInput, 'legacyKey'>): 
 }
 
 /** Whether a type is one Oxy's streamed service uploads take (image, video, audio). */
-export function isStreamedMedia(mime: string): boolean {
+function isStreamedMedia(mime: string): boolean {
   const type = mime.toLowerCase();
   return type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/');
 }
@@ -362,7 +362,7 @@ export function errorStatus(error: unknown): number | undefined {
 }
 
 /** Whether Oxy refused the bytes because they were taken down (451 `CONTENT_BLOCKED`). */
-export function isContentBlocked(error: unknown): boolean {
+function isContentBlocked(error: unknown): boolean {
   if (errorStatus(error) === 451) return true;
   return (
     error !== null &&
@@ -415,7 +415,7 @@ export async function openStoredContent(
 const OXY_DOWNLOAD_RESPONSE_TIMEOUT_MS = 30_000;
 
 /** Raised when an Oxy download link Alia was given did not serve the file (0: no answer in time). */
-export class OxyDownloadError extends Error {
+class OxyDownloadError extends Error {
   constructor(readonly status: number) {
     super(`An Oxy download link answered ${status}`);
     this.name = 'OxyDownloadError';
@@ -428,7 +428,7 @@ export class OxyDownloadError extends Error {
  * (`linkedDownloadUrls`, ADR 0043 stage 4c). `null` is Oxy's refusal; a
  * failure to answer throws.
  */
-export async function openOxyFile(fileId: string): Promise<StoredContentStream | null> {
+async function openOxyFile(fileId: string): Promise<StoredContentStream | null> {
   const [link] = await oxy().assets.linkedDownloadUrls([fileId]);
   if (link === undefined) return null;
   // An Oxy-minted link on Oxy's own storage host: a trusted fixed host, so a

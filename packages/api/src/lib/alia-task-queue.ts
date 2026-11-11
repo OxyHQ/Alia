@@ -25,7 +25,7 @@ export interface AliaTaskJobData {
   creditReservation: CreditReservation;
 }
 
-export interface AliaTaskJobResult {
+interface AliaTaskJobResult {
   runId: string;
   status: 'completed' | 'failed' | 'skipped';
 }

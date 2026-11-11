@@ -11,7 +11,7 @@ import { autonomyFlags } from '../autonomy/flags.js';
  *  - R2: runs, flagged in the run's events and logs;
  *  - R3: a limit — blocked, never runs.
  */
-export type RiskLevel = 'R0' | 'R1' | 'R2' | 'R3';
+type RiskLevel = 'R0' | 'R1' | 'R2' | 'R3';
 
 export interface ActionRisk {
   riskLevel: RiskLevel;

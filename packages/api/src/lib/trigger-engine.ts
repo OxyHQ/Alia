@@ -87,7 +87,7 @@ export function automationScheduleError(
  * nothing a person or an agent schedules should be able to fire every minute. Matches the shortest
  * agent heartbeat (`PATCH /agents/:id` accepts 5 to 1440 minutes).
  */
-export const MIN_SCHEDULE_INTERVAL_MS = 5 * 60_000;
+const MIN_SCHEDULE_INTERVAL_MS = 5 * 60_000;
 
 /** How many successive occurrences are compared: enough to see an irregular list like `0,2 * * * *`. */
 const SCHEDULE_PROBE_OCCURRENCES = 12;

@@ -109,7 +109,7 @@ export const LEGACY_VOICE_IDS: ReadonlyMap<string, string> = new Map([
 const VOICE_BY_ID = new Map(SHOW_VOICES.map((voice) => [voice.voiceId, voice]));
 
 /** A current voice for `voiceId`, translating a retired id; `undefined` if neither. */
-export function currentVoice(voiceId: string | undefined): ShowVoice | undefined {
+function currentVoice(voiceId: string | undefined): ShowVoice | undefined {
   if (voiceId === undefined) return undefined;
   return VOICE_BY_ID.get(voiceId) ?? VOICE_BY_ID.get(LEGACY_VOICE_IDS.get(voiceId) ?? '');
 }
