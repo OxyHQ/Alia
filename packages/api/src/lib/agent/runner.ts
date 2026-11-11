@@ -18,7 +18,7 @@ import { canReachAgent } from '../agent-account.js';
  *   - One action per iteration: maximum observability
  */
 
-import { generateText, stepCountIs, type ModelMessage } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 import { getDb } from '../../db/index.js';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -28,17 +28,11 @@ import {
   findAgentSessionById,
   findAgentSessionStatus,
   releaseAgentSessionRunLease,
-  renewAgentSessionRunLease,
   RUNNER_MAX_ATTEMPTS,
   updateAgentSession,
-  type AgentSessionConfig,
   type AgentSessionRecord,
 } from '../../db/agents/agentSessionRepository.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
-import {
-  listRecentEventStreamEntries,
-  type EventStreamEntryMetadata,
-} from '../../db/agents/eventStreamEntryRepository.js';
 import { resolveStoredModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
@@ -47,18 +41,12 @@ import { TodoManager } from './todo-manager.js';
 import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
 import { agentIdentityPrompt, oxyExecutionAuthorizationKey } from '../tools/oxy-services.js';
-import { agentRemitPrompt } from './archetype-prompts.js';
 import { agentSpacePrompt } from './space-prompt.js';
-import {
-  agentPromptName,
-  attachAgentIdentity,
-  findAgentByOxyHandle,
-  type HydratedAgent,
-} from '../agent-identity.js';
+import { agentPromptName, attachAgentIdentity, findAgentByOxyHandle } from '../agent-identity.js';
 import { buildIdentityGuard } from '../identity-guard.js';
 import { classifyError, getErrorMessage } from '../errors/failover-error.js';
 import { finalizeCredits, safeRefund } from '../credits-manager.js';
-import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from '../constants.js';
+import { MAX_DELEGATION_DEPTH } from '../constants.js';
 import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { postAgentMessage } from './agent-outreach.js';
 import type { AgentRuntimeContext } from './actions.js';
@@ -73,138 +61,13 @@ import {
   markAutomationActionStep,
   markAutomationRunForSession,
 } from '../../db/automation/automationDefinitionRepository.js';
+import { buildContextMessages, buildSystemPrompt } from './run-context.js';
+import { holdRunLease, type RunLease } from './run-lease.js';
 
-/** Continuation prompts — varied to prevent brittle pattern mimicry */
-const CONTINUATION_PROMPTS = [
-  'Continue working on the task.',
-  'What is your next step?',
-  'Proceed with the plan.',
-  'Continue executing your plan.',
-];
-
-// ── System Prompt Builder ──
-
-/**
- * The agent's remit, plus the PROTOCOL of an autonomous run.
- *
- * ## The remit chain moved out, and the protocol stopped being conditional
- *
- * This function used to answer `systemPrompt ?? archetype ?? listing` itself
- * and RETURN EARLY on the first two — so an agent whose owner had written a
- * prompt was never told that `plan` exists, that it must call
- * `plan(action='complete')` to finish, or how many steps it had. The sections
- * below are not a fallback description; they are how a session works, and they
- * are as true of a custom-prompt agent as of any other.
- *
- * What describes the agent is {@link agentRemitPrompt}, shared with the chat,
- * voice and agent-bot surfaces so the four cannot drift. It also stopped
- * opening `You are ${name}.` — the identity guard prepended above this says
- * exactly that, and one fact wants one owner.
- *
- * No `## Actions` list either: the tool schema already describes every tool the
- * agent was handed, and nothing else, so a prose copy could only repeat it or
- * promise one that was withheld. Memory is last in the message because it is the
- * only part that changes between runs.
- *
- * No `## Capabilities` section. It listed `agent.capabilities` — the eight
- * decorative tool ids the generator wrote — so what the model read was
- * `web-browsing, memory` while the actual tool set was decided somewhere
- * else entirely and could contradict it in either direction. What the agent
- * can do is the tools it was handed, each with its own description.
- */
-export function buildSystemPrompt(
-  agent: HydratedAgent,
-  config: AgentSessionConfig,
-  spaceSection = '',
-): string {
-  return `${agentRemitPrompt(agent)}${spaceSection}
-
-## How to Work
-- Multi-step task: create a plan with the plan action, execute it step by step, update it after each step. Simple question: respond directly.
-- When done, call plan with action='complete' and your final result.
-- When an action fails, analyze the error and adjust; don't repeat the same failed action.
-- At most ${config.maxSteps} steps. Be efficient: act only when necessary.`;
-}
-
-// ── Context Builder (Manus KV-cache optimization) ──
-
-function buildContextMessages(
-  eventStream: EventStream,
-  todoManager: TodoManager,
-  stateMachine: AgentStateMachine,
-  iteration: number,
-): ModelMessage[] {
-  const messages: ModelMessage[] = [];
-
-  // 1. The stable system prompt (never changes — KV-cache friendly) is not a
-  // message: it leaves as the SDK's `system` option at the call site.
-
-  // 2. Event stream as conversation history
-  const recentEvents = eventStream.getRecentWindow(EVENT_STREAM_BUDGET);
-  const serialized = eventStream.serialize(recentEvents);
-
-  if (serialized) {
-    messages.push({ role: 'user', content: serialized });
-  }
-
-  // 3. Context tail: todo + state instructions (Manus attention manipulation)
-  const tailParts: string[] = [];
-
-  const todoSerialized = todoManager.serialize();
-  if (todoSerialized) {
-    tailParts.push(`## Current Plan\n${todoSerialized}`);
-  }
-
-  const stateInstruction = stateMachine.getStateInstruction();
-  if (stateInstruction) {
-    tailParts.push(stateInstruction);
-  }
-
-  // 4. Continuation prompt with diversity (includes context tail for attention manipulation)
-  const continuationPrompt = CONTINUATION_PROMPTS[iteration % CONTINUATION_PROMPTS.length];
-  const tailContent = tailParts.length > 0 ? tailParts.join('\n\n') + '\n\n' : '';
-
-  messages.push({ role: 'user', content: tailContent + continuationPrompt });
-
-  return messages;
-}
+export { buildSystemPrompt } from './run-context.js';
+export { getRecentActivity } from './run-activity.js';
 
 // ── Main Runner ──
-
-/** How often a worker renews its claim; well inside `RUNNER_LEASE_MS`. */
-const RUNNER_LEASE_RENEW_MS = 20_000;
-
-/** This worker's hold on one run, renewed until it is stopped or lost. */
-interface RunLease {
-  readonly owner: string;
-  /** Set when a renewal found the run no longer ours: stop driving it. */
-  lost: boolean;
-  stop(): void;
-}
-
-function holdRunLease(sessionId: string, owner: string): RunLease {
-  const lease: RunLease = {
-    owner,
-    lost: false,
-    stop: () => clearInterval(timer),
-  };
-  const timer = setInterval(() => {
-    renewAgentSessionRunLease(getDb(), sessionId, owner)
-      .then((held) => {
-        if (!held) {
-          lease.lost = true;
-          clearInterval(timer);
-        }
-      })
-      // A failed renewal is not a lost lease: the next one may land, and the
-      // lease outlives several missed renewals.
-      .catch((err: unknown) =>
-        log.agents.warn({ err, sessionId }, 'Could not renew the run lease'),
-      );
-  }, RUNNER_LEASE_RENEW_MS);
-  timer.unref?.();
-  return lease;
-}
 
 /**
  * Run a background session, if this worker can claim it.
@@ -1006,99 +869,5 @@ async function driveAgentSession(
     } catch (saveErr: unknown) {
       log.agents.error({ saveErr, sessionId }, 'Failed to save session in outer catch');
     }
-  }
-}
-
-/**
- * Get recent activity for an agent session.
- * Reads from the EventStreamEntry collection (preferred) or falls back
- * to the embedded eventStream array (legacy).
- */
-export async function getRecentActivity(sessionId: string): Promise<AgentActivityItem[]> {
-  const dbEntries = await listRecentEventStreamEntries(getDb(), sessionId, 50);
-
-  if (dbEntries.length > 0) {
-    return dbEntries.reverse().map((entry) => toActivityItem(sessionId, entry));
-  }
-
-  const session = await findAgentSessionById(getDb(), sessionId);
-  if (!session) return [];
-
-  return session.eventStream.map((entry) =>
-    toActivityItem(sessionId, {
-      type: entry.type,
-      content: entry.content,
-      timestamp: entry.timestamp,
-      metadata: (entry.metadata ?? null) as EventStreamEntryMetadata | null,
-    }),
-  );
-}
-
-/** One activity row, as the agent panel renders it. */
-interface AgentActivityItem {
-  type: string;
-  content: string;
-  timestamp: number;
-  sessionId: string;
-  metadata?: { toolName?: string; args?: Record<string, unknown>; duration?: number };
-}
-
-function toActivityItem(
-  sessionId: string,
-  entry: {
-    type: string;
-    content: string;
-    timestamp: number;
-    metadata: EventStreamEntryMetadata | null;
-  },
-): AgentActivityItem {
-  const metadata = entry.metadata;
-  return {
-    type: mapEventTypeToActivity(entry.type),
-    content: entry.content,
-    timestamp: entry.timestamp,
-    sessionId,
-    ...(metadata === null
-      ? {}
-      : {
-          metadata: {
-            ...(metadata.toolName !== undefined && { toolName: metadata.toolName }),
-            ...(metadata.args !== undefined && { args: metadata.args }),
-            ...(metadata.durationMs !== undefined && { duration: metadata.durationMs }),
-          },
-        }),
-  };
-}
-
-function mapEventTypeToActivity(type: string): string {
-  switch (type) {
-    case 'user_message':
-      return 'system';
-    case 'system_message':
-      return 'system';
-    case 'action':
-      return 'tool_call';
-    case 'observation':
-      return 'tool_result';
-    case 'error':
-      return 'error';
-    case 'plan_update':
-      return 'system';
-    case 'plan_progress':
-      return 'plan_progress';
-    case 'thinking':
-      return 'thinking';
-    case 'response':
-      return 'response';
-    case 'complete':
-      return 'complete';
-    case 'screenshot':
-      return 'screenshot';
-    case 'file_change':
-      return 'file_change';
-    case 'source_found':
-      return 'source_found';
-    default:
-      return 'system';
   }
 }
