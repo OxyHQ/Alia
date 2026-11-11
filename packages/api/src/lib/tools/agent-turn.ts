@@ -55,6 +55,7 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
 import { randomUUID } from 'node:crypto';
 import { streamText, type ToolSet } from 'ai';
 import { stepBudget } from '../tool-budget.js';
+import { owedAnswerRequest, owesAnswer } from '../chat/tool-synthesis.js';
 import {
   checkGatedParts,
   gatedPartsFor,
@@ -293,25 +294,30 @@ export async function runAgentTurn(input: {
   };
 
   try {
-    const result = streamText({
+    const history = [...(input.history ?? []), { role: 'user' as const, content: task }];
+    const turnConfig = {
       model,
       system: systemPrompt + appCatalogPrompt,
-      ...(input.history === undefined
-        ? { prompt: task }
-        : { messages: [...input.history, { role: 'user' as const, content: task }] }),
-      tools: agentTools,
-      ...toolRouting,
-      stopWhen: stepBudget(AGENT_MAX_STEPS),
       maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
       temperature: 0.4,
       abortSignal: controller.signal,
+    };
+    const result = streamText({
+      ...turnConfig,
+      messages: history,
+      tools: agentTools,
+      ...toolRouting,
+      stopWhen: stepBudget(AGENT_MAX_STEPS),
     });
 
     let response = '';
+    const say = (text: string) => {
+      response += text;
+      observe(() => observer?.onTextDelta?.(text));
+    };
     for await (const part of result.fullStream) {
       if (part.type === 'text-delta' && part.text) {
-        response += part.text;
-        observe(() => observer?.onTextDelta?.(part.text));
+        say(part.text);
       } else if (part.type === 'tool-call') {
         observe(() =>
           observer?.onToolCall?.({
@@ -333,18 +339,29 @@ export async function runAgentTurn(input: {
       }
     }
 
+    // A loop whose steps ran out on tool results owes an answer: one tools-disabled pass writes it.
+    const owed = owesAnswer(await result.steps)
+      ? streamText(owedAnswerRequest(turnConfig, [...history, ...(await result.response).messages]))
+      : null;
+    if (owed) {
+      for await (const part of owed.fullStream) {
+        if (part.type === 'text-delta' && part.text) say(part.text);
+        else if (part.type === 'error') throw part.error;
+      }
+    }
+
+    // Every step of the loop, plus the answer pass.
     const usage = await result.totalUsage;
-    const tokensUsed = usage?.totalTokens || 0;
+    const answerUsage = owed ? await owed.totalUsage : undefined;
+    const promptTokens = (usage?.inputTokens || 0) + (answerUsage?.inputTokens || 0);
+    const completionTokens = (usage?.outputTokens || 0) + (answerUsage?.outputTokens || 0);
+    const tokensUsed = (usage?.totalTokens || 0) + (answerUsage?.totalTokens || 0);
     const { creditsCharged } = await finalizeCredits(
       reservation,
-      {
-        promptTokens: usage?.inputTokens || 0,
-        completionTokens: usage?.outputTokens || 0,
-        totalTokens: tokensUsed,
-      },
+      { promptTokens, completionTokens, totalTokens: tokensUsed },
       servedModelId(
         modelId,
-        servedReferenceOf({ providerMetadata: await result.providerMetadata }),
+        servedReferenceOf({ providerMetadata: await (owed ?? result).providerMetadata }),
       ),
     );
     // Only once the charge returned: a finalize that threw is refunded below.

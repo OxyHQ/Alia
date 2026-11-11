@@ -115,6 +115,7 @@ beforeEach(() => {
   state.generate.mockResolvedValue({
     text: 'Meta announced Llama 5 today.',
     totalUsage: { inputTokens: 1200, outputTokens: 300 },
+    steps: [{ toolResults: [] }],
     // The model Oxy chose for the `auto` level, as the adapter reports it.
     providerMetadata: { kaana: { resolvedModelReference: 'publisher/default-model@2026-09-01' } },
   });
@@ -294,6 +295,7 @@ describe('an Alia task run', () => {
     state.generate.mockResolvedValueOnce({
       text: WATCH_NOTHING_TO_REPORT,
       totalUsage: { inputTokens: 100, outputTokens: 5 },
+      steps: [{ toolResults: [] }],
     });
 
     await expect(runAliaTask(job, { finalAttempt: true })).resolves.toBe('completed');
@@ -335,6 +337,7 @@ describe('an Alia task run', () => {
       state.generate.mockResolvedValue({
         text: '   ',
         totalUsage: { inputTokens: 1200, outputTokens: 300 },
+        steps: [{ toolResults: [] }],
       });
     });
 

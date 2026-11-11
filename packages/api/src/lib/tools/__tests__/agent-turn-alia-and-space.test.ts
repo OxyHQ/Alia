@@ -11,6 +11,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({
   streamed: null as null | { system: string; tools: Record<string, unknown> },
+  /** Every `streamText` call, in order. */
+  streams: [] as Array<{ tools?: unknown; messages: Array<{ role: string }> }>,
+  /** The loop ends on tool results: its steps ran out before it wrote an answer. */
+  owed: false,
   pipeline: null as null | Record<string, unknown>,
   tools: {} as Record<string, unknown>,
 }));
@@ -20,14 +24,23 @@ vi.mock('ai', async (importOriginal) => {
   return {
     ...actual,
     stepCountIs: () => () => false,
-    streamText: (args: { system: string; tools: Record<string, unknown> }) => {
+    streamText: (args: {
+      system: string;
+      tools: Record<string, unknown>;
+      messages: Array<{ role: string }>;
+    }) => {
       H.streamed = { system: args.system, tools: args.tools };
+      H.streams.push(args);
+      // The loop offers tools; the pass that answers what it owes does not.
+      const isLoop = args.tools !== undefined;
       return {
         fullStream: (async function* () {
-          yield { type: 'text-delta', text: 'an answer' };
+          yield { type: 'text-delta', text: isLoop && H.owed ? 'Let me look. ' : 'an answer' };
         })(),
         totalUsage: Promise.resolve({ totalTokens: 3, inputTokens: 1, outputTokens: 2 }),
         providerMetadata: Promise.resolve(undefined),
+        steps: Promise.resolve([{ toolResults: isLoop && H.owed ? [{}] : [] }]),
+        response: Promise.resolve({ messages: [{ role: 'tool' }] }),
       };
     },
   };
@@ -105,6 +118,8 @@ const ALL_TOOLS = {
 
 beforeEach(() => {
   H.streamed = null;
+  H.streams = [];
+  H.owed = false;
   H.pipeline = null;
   H.tools = { ...ALL_TOOLS };
 });
@@ -166,6 +181,31 @@ describe('a turn whose callee is Alia', () => {
     expect(H.streamed?.system).not.toContain('REMIT');
     expect(Object.keys(H.streamed?.tools ?? {})).not.toContain('sendTelegramMessage');
     expect(Object.keys(H.streamed?.tools ?? {})).toContain('oxy_inbox__searchEmails');
+  });
+});
+
+describe('a turn whose steps ran out on tool results', () => {
+  it('writes the answer it owes in one tools-disabled pass, and bills both', async () => {
+    H.owed = true;
+
+    const result = await runAgentTurn({
+      agent: null,
+      task: 'q',
+      person,
+      payerOxyUserId: 'person-1',
+    });
+
+    expect(H.streams).toHaveLength(2);
+    expect(H.streams[1]?.tools).toBeUndefined();
+    expect(H.streams[1]?.messages.at(-1)?.role).toBe('user');
+    expect(result.response).toBe('Let me look. an answer');
+    expect(result.tokensUsed).toBe(6);
+  });
+
+  it('adds no pass when the loop answered', async () => {
+    await runAgentTurn({ agent: null, task: 'q', person, payerOxyUserId: 'person-1' });
+
+    expect(H.streams).toHaveLength(1);
   });
 });
 

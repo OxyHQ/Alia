@@ -29,7 +29,8 @@
  * conditional on the run still being open, so the two never both refund.
  */
 
-import { generateText, stepCountIs } from 'ai';
+import { stepCountIs } from 'ai';
+import { generateAnswered } from './chat/tool-synthesis.js';
 import type { User as OxyUser } from '@oxy.so/core';
 import { getDb } from '../db/index.js';
 import { listAliaTaskAuthorizationsForRun } from '../db/automation/aliaTaskAuthorityRepository.js';
@@ -212,7 +213,7 @@ export async function runAliaTask(
     });
     const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${buildAliaTaskSystemPrompt(oxyUser, memory)}${watchRun ? WATCH_GUIDELINES : ''}`;
 
-    const result = await generateText({
+    const answered = await generateAnswered({
       model: getAIModel(resolved, 'trigger'),
       messages: [
         { role: 'system', content: systemPrompt + appCatalogPrompt },
@@ -232,7 +233,7 @@ export async function runAliaTask(
     // hold is charged or the run closed: the queue retries it, and on the last
     // attempt the hold is refunded and the person told — never a filler
     // "Task finished." posted as if the task had been done.
-    const reply = result.text.trim();
+    const reply = answered.text.trim();
     if (!reply) {
       throw new AliaError({
         code: AliaErrorCode.EMPTY_RESPONSE,
@@ -244,9 +245,9 @@ export async function runAliaTask(
 
     // Every step, not only the last: a run that searched three times spent that.
     const usage: CreditUsage = {
-      promptTokens: result.totalUsage.inputTokens ?? 0,
-      completionTokens: result.totalUsage.outputTokens ?? 0,
-      totalTokens: (result.totalUsage.inputTokens ?? 0) + (result.totalUsage.outputTokens ?? 0),
+      promptTokens: answered.usage.inputTokens,
+      completionTokens: answered.usage.outputTokens,
+      totalTokens: answered.usage.totalTokens,
     };
     // Closed first and conditionally: if the reaper failed this run while it
     // ran, it already refunded the hold and told the person.
@@ -263,7 +264,7 @@ export async function runAliaTask(
       await finalizeCredits(
         data.creditReservation,
         usage,
-        servedModelId(resolved.modelId, servedReferenceOf(result)),
+        servedModelId(resolved.modelId, servedReferenceOf(answered.last)),
       );
     } catch (err: unknown) {
       log.agents.error({ err, runId: data.runId }, 'Could not settle an Alia task run');
