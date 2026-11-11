@@ -62,6 +62,10 @@ const REMOVED = [
   // captures), and dictation is transcribed by Kaana. No surface recognizes
   // speech on the device.
   ['expo-speech-', 'recognition'],
+  // Nothing imported either (`expo-gl` was only the avatar package's peer): the dead-code audit
+  // of 2026-11-11.
+  ['@oxy.so/bloom-avatar-', 'native'],
+  ['expo-', 'gl'],
 ].map((parts) => parts.join(''));
 
 /** Every source file of the app, minus the installed packages and this gate. */
