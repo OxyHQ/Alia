@@ -149,7 +149,7 @@ describe('the stream watchdog', () => {
 describe('the step bound', () => {
   const stopsAt = (config: { stopWhen: Array<(state: { steps: unknown[] }) => boolean> }) =>
     [1, 2, 3, 4, 5, 15, 16].find((count) =>
-      config.stopWhen[0]({ steps: Array.from({ length: count }, () => ({})) }),
+      config.stopWhen[0]({ steps: Array.from({ length: count }, () => ({ toolCalls: [] })) }),
     );
 
   it('ends an ordinary turn after five steps', () => {

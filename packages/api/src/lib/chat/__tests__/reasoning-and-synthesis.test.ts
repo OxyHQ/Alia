@@ -148,6 +148,26 @@ describe('a turn that ran tools and then wrote nothing', () => {
     expect(prompt.at(-1)?.role).toBe('user');
   });
 
+  it('still answers when the step bound cut the turn after narration that preceded the tools', async () => {
+    const { model, calls } = synthesisModel([
+      { type: 'stream-start', warnings: [] },
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: 'Canva falló el pago.' },
+      { type: 'text-end', id: 't' },
+      finishPart,
+    ]);
+    const narratedToolTurn = [
+      { type: 'text-delta', id: 'n', text: 'Let me read the two that matter.' },
+      ...toolTurn,
+    ];
+
+    const { assistantResponse } = await runChunks(narratedToolTurn, { messages: [], model });
+
+    expect(calls).toHaveLength(1);
+    expect(assistantResponse).toContain('Let me read the two that matter.');
+    expect(assistantResponse).toContain('Canva falló el pago.');
+  });
+
   it('fails with a typed EMPTY_RESPONSE when the pass only reasons', async () => {
     const { outcome } = runWithSynthesis([
       { type: 'stream-start', warnings: [] },
