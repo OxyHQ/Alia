@@ -38,7 +38,7 @@ const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
 /**
  * Build MCP tool set for a user.
  * Includes both server-side MCP tools (via integrations service) and
- * local MCP tools (via WebSocket relay from Cowork/Codea).
+ * local MCP tools (via WebSocket relay from Cowork).
  * Tool names are prefixed with `mcp_{serverName}_` to avoid collisions.
  */
 export async function buildMcpTools(
@@ -89,7 +89,7 @@ export async function buildMcpTools(
     }
 
     /**
-     * Local MCP tools (from connected Cowork/Codea client).
+     * Local MCP tools (from connected Cowork client).
      *
      * A named selection is an allow-list of ROWS, and a local relay server is
      * not one: it lives as long as a device stays connected, has no row the

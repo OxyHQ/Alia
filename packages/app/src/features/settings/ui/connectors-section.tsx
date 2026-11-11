@@ -83,7 +83,7 @@ function isServerConnected(server: InstalledMcpServer | undefined): boolean {
  * A command connector that runs on the person's own device and is turned off.
  *
  * A command connector (`stdio`) only ever runs on the person's device — Alia
- * for desktop (Cowork) or Codea starts it there, never Alia's servers. Those
+ * for desktop (Cowork) starts it there, never Alia's servers. Those
  * installed before that rule were moved to the device and turned OFF, so none
  * starts on a machine it was never meant for; the person turns it back on.
  */

@@ -1,5 +1,5 @@
 /**
- * External-agent relay (ADR 0030) — the WebSocket a person's daemon (`codea connect`) holds open so
+ * External-agent relay (ADR 0030) — the WebSocket a person's daemon (`connect`) holds open so
  * the agent it serves can be asked to take a turn.
  *
  * The shape is `lib/mcp-relay.ts`, run the other way round: there a client lends Alia TOOLS and the

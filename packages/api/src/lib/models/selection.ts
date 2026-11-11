@@ -87,7 +87,7 @@ async function lastUsedModelOf(oxyUserId: string): Promise<string | null> {
 }
 
 /**
- * The model a model picker (Codea, Cowork, the SDK) preselects for this person,
+ * The model a model picker (Cowork, the SDK) preselects for this person,
  * or for an anonymous caller when `oxyUserId` is null. A request that names
  * nothing does not run on it: it runs on the `auto` power level (ADR 0014).
  */

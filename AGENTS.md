@@ -1,6 +1,6 @@
 # Alia
 
-El asistente de Oxy («el ChatGPT de Oxy»): API Express + PostgreSQL, app Expo, Codea, Cowork y SDK, en un monorepo de bun workspaces.
+El asistente de Oxy («el ChatGPT de Oxy»): API Express + PostgreSQL, app Expo, Cowork y SDK, en un monorepo de bun workspaces.
 
 ## Comandos
 
@@ -11,7 +11,7 @@ bun run --filter @alia/api typecheck && bun run --filter @alia/api test
 bun run --filter @alia/app typecheck && bun run --filter @alia/app test
 bun run --filter @alia.onl/sdk typecheck && bun run --filter @alia.onl/sdk test
 bun run --filter @alia/api test:pg                    # Postgres real; necesita TEST_DATABASE_URL
-bun run dev:api                                       # también dev:app, dev:codea, dev:cowork
+bun run dev:api                                       # también dev:app, dev:cowork
 ```
 
 ## Mapa

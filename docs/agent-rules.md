@@ -8,7 +8,7 @@ comprobable; aquí está el texto completo. Antes de tocar un área lee su doc
   credenciales de proveedor viven allí). Oxy = plataforma + Oxy Console (TODAS
   las claves de API: Alia, Kaana, Mention). Alia = asistente con API de producto
   **permanente** (`/alia/chat` y `/v1/*`, un solo handler) que usan sus propias
-  superficies (app, Codea, Cowork, CLI), otras apps Oxy y terceros vía SDK.
+  superficies (app, Cowork), otras apps Oxy y terceros vía SDK.
 - **Texto: `Alia -> Oxy -> Kaana`** con `OxyInferenceClient` de `@oxy.so/core`
   — `adr/0001-*.md`. **Voz y dictado** (ADR 0017): `@kaana.ai/sdk` contra
   `https://kaana.ai/v1`, construido SOLO en `lib/kaana/transport.ts`, con el

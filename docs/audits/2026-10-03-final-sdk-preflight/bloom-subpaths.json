@@ -2451,7 +2451,6 @@
       "specifier": "@oxy.so/bloom/theme",
       "files": [
         "packages/alia-canvas/src/App.tsx",
-        "packages/alia-codea/webview-ui/src/App.tsx",
         "packages/app/app/(app)/[username].tsx",
         "packages/app/app/(app)/notifications.tsx",
         "packages/app/app/(app)/shows.tsx",

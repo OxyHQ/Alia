@@ -7,7 +7,7 @@
  * Nothing a request sends changes it:
  *
  * - A connector that is a COMMAND (`stdio`) runs only on the person's own
- *   device: `runtime: 'local'`, started by Cowork or Codea and reached through
+ *   device: `runtime: 'local'`, started by Cowork and reached through
  *   the MCP relay. The integrations host is shared by every account and sits
  *   inside the VPC, so a command started there would run beside every other
  *   account's tokens and with the host's network reach. It never starts one,

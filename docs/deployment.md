@@ -315,8 +315,7 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 5. `POST /webhooks/oxy` accepts a normalized event from an authorized Oxy service and
    deduplicates on `(appId, eventId)`; `POST /webhooks/oxy/:serviceId` returns `410`.
 6. The two removed model-resolution endpoints return `410`: `/v1/resolve-model`,
-   `/v1/report-usage`. The whole `/codea` router is gone (it served only the retired
-   `alia_sk_*` keys) and answers `404`.
+   `/v1/report-usage`. The retired `alia_sk_*` key routers are gone and answer `404`.
 
 ## Rollback
 
@@ -395,19 +394,14 @@ bump it for a native change, which releases a new binary, and never for a
 JS-only one. Both builds take their environment from the `production` profile's
 `env` in `packages/app/eas.json` (public `EXPO_PUBLIC_*` values only).
 
-## Codea and Cowork desktop artifacts
+## Cowork desktop artifacts
 
-`alia-codea` and `alia-cowork` are private workspace packages. The npm release
-workflow does not publish them, and the repository currently has no Marketplace
+`alia-cowork` is a private workspace package. The npm release
+workflow does not publish it, and the repository currently has no Marketplace
 or Electron distribution workflow. A successful main CI or Alia backend rollout
-therefore does not mean these desktop versions reached users.
+therefore does not mean this desktop version reached users.
 
-After the matching Alia API rollout is verified, produce Codea's VSIX with
-`bun run --cwd packages/alia-codea package`. Its manifest version is the extension
-version. The web and Node bundles are built together; local workspace tools
-still require their supported extension host capabilities.
-
-Cowork uses `bun run --cwd packages/alia-cowork dist`, with `publish: null` and
+After the matching Alia API rollout is verified, Cowork uses `bun run --cwd packages/alia-cowork dist`, with `publish: null` and
 `--publish never`. Build each supported OS/architecture on a suitable runner.
 Unsigned Linux artifacts establish packaging only; Windows/macOS signing,
 notarization and the chosen download/store channel require separate configured

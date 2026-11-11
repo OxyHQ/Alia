@@ -4,7 +4,7 @@
   "generatedAt": "2026-08-15",
   "worktree": "/home/nate/Oxy/Alia/.worktrees/alia-ws0 (branch epic139/ws-a-inventory, clean)",
   "method": {
-    "scanPrimitive": "git ls-files -z | xargs -0 grep \u2014 1574 tracked files, 1287 of them .ts/.tsx/.js/.jsx/.mjs/.cjs. Untracked files and node_modules are OUT of scope by construction; `git status --porcelain` was empty, so nothing untracked existed to miss.",
+    "scanPrimitive": "git ls-files -z | xargs -0 grep — 1574 tracked files, 1287 of them .ts/.tsx/.js/.jsx/.mjs/.cjs. Untracked files and node_modules are OUT of scope by construction; `git status --porcelain` was empty, so nothing untracked existed to miss.",
     "controls": [
       "HOSTNAME CENSUS positive control: the regex 'https?://[a-zA-Z0-9._-]+' over all tracked files returned 132 distinct hosts including 'api.openai.com' (known present at packages/api/src/internal/providers/lib/providers/openai.ts:10) and 'tailwindcss.com' x307. A blind scan would have printed 0 hosts. Vacuity floor: 132 > 0.",
       "HOSTNAME CENSUS negative-direction control: the https-only regex MISSED the two realtime endpoints (wss://api.openai.com/v1/realtime, wss://api.x.ai/v1/realtime). A second pass on 'wss?://' found them plus 9 unrelated ws URLs, so that pass was also non-vacuous. Both passes are reported; the count below is the union.",
@@ -18,15 +18,15 @@
       "A call-site census using the pattern `name(` MISSES generic calls. Measured directly: `callProviderAPI(` scored 0 in packages/api/src/lib/memory/embeddings.ts and packages/api/src/routes/v1/audio.ts because both call `callProviderAPI<any>(` / `callProviderAPI<Buffer>(`. Every call-site count below was re-run WITHOUT the paren requirement. Any count in this file that still used `(` is flagged in its own evidence.",
       "A single-pattern importer census misses alternate relative specifiers. Measured: `from '.*lib/retry|from './retry` returned 0 importers for packages/api/src/lib/retry.ts, but `withRetry|retry\\.js` returned 3 real importers (browser-session, web-scraper, web-search). Every 'has no importers' claim below was therefore re-run against the SYMBOL name, not the path.",
       "Counts of call sites exclude comments only where stated. The provider-conditional census (`provider === '<name>'`) does not filter comments; its 6 hits were each read in context and all 6 are executable code.",
-      "grep is line-based. A provider hostname split across a template-literal newline would not match. No such construction was found, but this is an unmeasured blind spot \u2014 the finding is 'not observed', not 'absent'.",
+      "grep is line-based. A provider hostname split across a template-literal newline would not match. No such construction was found, but this is an unmeasured blind spot — the finding is 'not observed', not 'absent'.",
       "Reachability claims are STATIC (import graph + Express mount table). They do not account for a runtime `require`/`eval`. No dynamic module loading by string concatenation was found in packages/api/src.",
       "Provider CREDENTIAL VALUES were not read. The store is asserted from the schema (provider_keys.key is a plaintext `text()` column) and from the deploy workflow's secret list; no live database was queried (Postgres not reachable from this box).",
-      "The `.do/app.yaml` DigitalOcean spec is present in the repo but the deploy pipeline is `.github/workflows/deploy-aws.yml` (ECS). Whether `.do/app.yaml` still governs a running DO app was NOT verified \u2014 that requires the DO dashboard, outside this read-only repo scan. It is reported as a hazard, not as live config."
+      "The `.do/app.yaml` DigitalOcean spec is present in the repo but the deploy pipeline is `.github/workflows/deploy-aws.yml` (ECS). Whether `.do/app.yaml` still governs a running DO app was NOT verified — that requires the DO dashboard, outside this read-only repo scan. It is reported as a hazard, not as live config."
     ],
     "residual": [
-      "packages/alia-gateway-admin (61 source files) is an operator UI for the deleted alia-gateway. Its dev proxy rewrites /api/providers -> /internal/providers against https://api.alia.onl, and /internal/providers is NOT mounted. I could not classify whether the deployed static site still exists (DO static_sites entry in .do/app.yaml) \u2014 that is an infra question, not a repo question.",
+      "packages/alia-gateway-admin (61 source files) is an operator UI for the deleted alia-gateway. Its dev proxy rewrites /api/providers -> /internal/providers against https://api.alia.onl, and /internal/providers is NOT mounted. I could not classify whether the deployed static site still exists (DO static_sites entry in .do/app.yaml) — that is an infra question, not a repo question.",
       "packages/alia-console documentation pages (sdks.tsx, examples.tsx, quickstart.tsx) print `import OpenAI from 'openai'` 13+ times. This is the OpenAI-COMPATIBLE client library name, not a claim about Alia's backend provider. Whether that counts as a model-abstraction violation is a product call I am not making.",
-      "Whether the 15 thin OpenAI-compatible adapters should be ported to Kaana or simply deleted depends on whether Kaana reuses the Vercel AI SDK. I classified them 'delete' because their entire content is a base URL plus a default model id, both already duplicated in chat-core.ts \u2014 but that is a recommendation, not a measurement.",
+      "Whether the 15 thin OpenAI-compatible adapters should be ported to Kaana or simply deleted depends on whether Kaana reuses the Vercel AI SDK. I classified them 'delete' because their entire content is a base URL plus a default model id, both already duplicated in chat-core.ts — but that is a recommendation, not a measurement.",
       "`external_models` (the ZeroEval leaderboard mirror served publicly at GET /external-models) exposes third-party organisation names. It is deliberate per the schema comment, but I could not determine whether the model-abstraction rule was ever consciously exempted for it.",
       "Timeouts for the embeddings modality: packages/api/src/lib/memory/embeddings.ts passes NO `timeout` and NO `maxAttempts`, so it inherits provider-api.ts's maxAttempts=3 and NO per-attempt timeout at all. Whether the absent timeout is intentional is unknown.",
       "I did not classify the ~60 packages/api/src/db repositories beyond the 6 that touch provider tables. Workstream boundaries may need the rest."
@@ -86,7 +86,7 @@
       "kind": "adapter",
       "name": "Cloudflare Workers AI adapter",
       "currentPath": "packages/api/src/internal/providers/lib/providers/cloudflare.ts",
-      "summary": "Splits the stored credential on ':' into accountId:apiToken and builds a per-account base URL \u2014 the only adapter with a composite credential.",
+      "summary": "Splits the stored credential on ':' into accountId:apiToken and builds a per-account base URL — the only adapter with a composite credential.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:providers/cloudflare.ts",
       "dependsOn": ["adapter-registry", "chat-core-get-ai-model", "dead-internal-providers-router"],
@@ -110,7 +110,7 @@
       "kind": "adapter",
       "name": "xAI Grok Realtime voice adapter",
       "currentPath": "packages/api/src/internal/providers/lib/providers/grok-voice.ts",
-      "summary": "Same OpenAI-Realtime protocol against wss://api.x.ai/v1/realtime. LIVE. Its isEnabled() is `!!process.env.GROK_API_KEY || true` \u2014 always true, so the env var is decorative.",
+      "summary": "Same OpenAI-Realtime protocol against wss://api.x.ai/v1/realtime. LIVE. Its isEnabled() is `!!process.env.GROK_API_KEY || true` — always true, so the env var is decorative.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:providers/xai-realtime.ts",
       "dependsOn": [
@@ -190,7 +190,7 @@
       "proposedOwner": "kaana",
       "targetPath": "kaana:call/non-streaming.ts",
       "dependsOn": ["provider-api", "tier-mappings-generated"],
-      "removalGate": "N/A \u2014 this is a defect to carry across, not to delete. Kaana must either cover all providers or reject the mapping at config time instead of at call time.",
+      "removalGate": "N/A — this is a defect to carry across, not to delete. Kaana must either cover all providers or reject the mapping at config time instead of at call time.",
       "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 vs packages/api/src/internal/providers/lib/provider-names.ts:6-26 (19 names)"
     },
     {
@@ -226,7 +226,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["tier-mappings-generated", "provider-health", "db-alia-model-repository"],
-      "removalGate": "STAYS IN ALIA \u2014 this is the branding layer that makes model abstraction possible and is the only thing that must NOT leak to Kaana's vocabulary. What must move is TIER_MODEL_MAPPINGS (the provider routing table), not ALIA_MODELS.",
+      "removalGate": "STAYS IN ALIA — this is the branding layer that makes model abstraction possible and is the only thing that must NOT leak to Kaana's vocabulary. What must move is TIER_MODEL_MAPPINGS (the provider routing table), not ALIA_MODELS.",
       "evidence": "packages/api/src/internal/providers/lib/alia-models.ts:61 (ALIA_MODELS), :248 (TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS), :304-338 (getAvailableModels)"
     },
     {
@@ -262,7 +262,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": [],
-      "removalGate": "DO NOT DELETE with the adapters. packages/api/src/lib/errors/sanitize.ts:8 builds its provider-name scrub list from this array \u2014 deleting it silently empties the scrubber and starts leaking provider names into user-facing errors. Also feeds checkOneOf constraints in packages/api/src/db/schema/providers.ts:51.",
+      "removalGate": "DO NOT DELETE with the adapters. packages/api/src/lib/errors/sanitize.ts:8 builds its provider-name scrub list from this array — deleting it silently empties the scrubber and starts leaking provider names into user-facing errors. Also feeds checkOneOf constraints in packages/api/src/db/schema/providers.ts:51.",
       "evidence": "packages/api/src/internal/providers/lib/provider-names.ts:6-26; consumers packages/api/src/lib/errors/sanitize.ts:8 and packages/api/src/db/schema/providers.ts:52"
     },
     {
@@ -341,13 +341,13 @@
       "proposedOwner": "kaana",
       "targetPath": "kaana:types.ts (split: folder types stay alia)",
       "dependsOn": [],
-      "removalGate": "packages/api/src/routes/v1/voice.ts:16 imports OpenAITool type-only. NOTE the co-located FOLDER_COLORS/ChatFolder/ChatHistory exports at lines 71-103 have nothing to do with providers \u2014 grep them before deleting the file.",
+      "removalGate": "packages/api/src/routes/v1/voice.ts:16 imports OpenAITool type-only. NOTE the co-located FOLDER_COLORS/ChatFolder/ChatHistory exports at lines 71-103 have nothing to do with providers — grep them before deleting the file.",
       "evidence": "packages/api/src/internal/providers/lib/types.ts:14-28 (KeyConfig holds `key: string`), :58-67 (Provider), :71-103 (unrelated folder types); importer packages/api/src/routes/v1/voice.ts:16"
     },
     {
       "id": "dead-internal-providers-router",
       "kind": "route",
-      "name": "internal/providers Express module \u2014 NEVER MOUNTED",
+      "name": "internal/providers Express module — NEVER MOUNTED",
       "currentPath": "packages/api/src/internal/providers/index.ts",
       "summary": "Mounts 12 admin routers (providers, models, alia-models, keys, usage, auth-health, fallback-stats, plans, credit-packages, billing, features, plan-features) behind authenticateService. NOTHING imports this file, so none of it is reachable.",
       "proposedOwner": "delete",
@@ -359,7 +359,7 @@
     {
       "id": "dead-providers-proxy-route",
       "kind": "route",
-      "name": "internal/providers/routes/providers.ts \u2014 the only proxy() caller",
+      "name": "internal/providers/routes/providers.ts — the only proxy() caller",
       "currentPath": "packages/api/src/internal/providers/routes/providers.ts",
       "summary": "The single call site of any adapter's proxy(). Because its router is unmounted, ALL 19 text-chat adapters are dead code at runtime.",
       "proposedOwner": "delete",
@@ -404,7 +404,7 @@
       "kind": "module",
       "name": "lib/auth-health.ts",
       "currentPath": "packages/api/src/lib/auth-health.ts",
-      "summary": "Auth success/failure telemetry. Its own docstring names its two consumers, both inside the unmounted admin module \u2014 so auth_health_metrics is never written at runtime.",
+      "summary": "Auth success/failure telemetry. Its own docstring names its two consumers, both inside the unmounted admin module — so auth_health_metrics is never written at runtime.",
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": ["dead-providers-auth-middleware"],
@@ -420,7 +420,7 @@
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": [],
-      "removalGate": "NONE for the orchestrator. Positive control for the census: the same grep found warmupProviders with 2 call sites, so it can see callers. CAUTION: seed-plans/seed-features/seed-credit-packages seed BILLING data, not provider data \u2014 confirm the billing catalogue is populated another way before deleting them.",
+      "removalGate": "NONE for the orchestrator. Positive control for the census: the same grep found warmupProviders with 2 call sites, so it can see callers. CAUTION: seed-plans/seed-features/seed-credit-packages seed BILLING data, not provider data — confirm the billing catalogue is populated another way before deleting them.",
       "evidence": "packages/api/src/internal/providers/lib/seed-model-configs.ts:258 (definition, no callers); seed-plans.ts:157, seed-features.ts:241, seed-credit-packages.ts:27"
     },
     {
@@ -438,7 +438,7 @@
     {
       "id": "gateway-client",
       "kind": "module",
-      "name": "gateway-client.ts \u2014 the dual-mode facade",
+      "name": "gateway-client.ts — the dual-mode facade",
       "currentPath": "packages/api/src/lib/gateway-client.ts",
       "summary": "709 lines. If BOTH SERVICE_SECRET and GATEWAY_API_URL are set it HMAC-signs HTTP calls to a gateway that no longer exists; otherwise it dynamic-imports internal/providers/*. This is the designated seam for a remote provider tier and therefore the natural Kaana insertion point.",
       "proposedOwner": "alia",
@@ -460,7 +460,7 @@
       "kind": "module",
       "name": "gateway-client importer: index.ts (warmupGatewayClient)",
       "currentPath": "packages/api/src/index.ts",
-      "summary": "INFRA. Calls warmupGatewayClient() at boot \u2014 but inside startBackgroundServices(), which only runs after a legacy database connection succeeds. That connection never succeeds, so this NEVER RUNS in production.",
+      "summary": "INFRA. Calls warmupGatewayClient() at boot — but inside startBackgroundServices(), which only runs after a legacy database connection succeeds. That connection never succeeds, so this NEVER RUNS in production.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["gateway-client", "hazard-db-gated-boot"],
@@ -500,7 +500,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["gateway-client", "alia-models"],
-      "removalGate": "None \u2014 getAliaModel returns branded data and stays in Alia.",
+      "removalGate": "None — getAliaModel returns branded data and stays in Alia.",
       "evidence": "packages/api/src/lib/chat-lifecycle.ts:5, :136"
     },
     {
@@ -520,7 +520,7 @@
       "kind": "module",
       "name": "gateway-client importer: lib/plan-access.ts (getPlans, getPlanFeatures)",
       "currentPath": "packages/api/src/lib/plan-access.ts",
-      "summary": "PRODUCT, BILLING \u2014 not provider runtime. It rides the same facade only because the billing catalogue used to live in alia-gateway.",
+      "summary": "PRODUCT, BILLING — not provider runtime. It rides the same facade only because the billing catalogue used to live in alia-gateway.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["gateway-client"],
@@ -604,7 +604,7 @@
       "kind": "route",
       "name": "gateway-client importer: routes/billing.ts",
       "currentPath": "packages/api/src/routes/billing.ts",
-      "summary": "PRODUCT, BILLING. 18 references \u2014 getPlans x6, getCreditPackages x4, getFeatures, getPlanFeatures, getAllAliaModels. The single heaviest gateway-client consumer and it touches NO provider data.",
+      "summary": "PRODUCT, BILLING. 18 references — getPlans x6, getCreditPackages x4, getFeatures, getPlanFeatures, getAllAliaModels. The single heaviest gateway-client consumer and it touches NO provider data.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["gateway-client"],
@@ -616,7 +616,7 @@
       "kind": "route",
       "name": "gateway-client importer: routes/canvas/execute.ts",
       "currentPath": "packages/api/src/routes/canvas/execute.ts",
-      "summary": "PRODUCT. The canvas aiImage node duplicates the image-generation loop (v1-image mappings, 30s, 1 attempt) \u2014 a third copy of the same pattern.",
+      "summary": "PRODUCT. The canvas aiImage node duplicates the image-generation loop (v1-image mappings, 30s, 1 attempt) — a third copy of the same pattern.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:images",
       "dependsOn": ["gateway-client", "provider-api", "digitalocean-async", "behaviour-images"],
@@ -712,7 +712,7 @@
       "kind": "module",
       "name": "gateway-client importer: services/chat.service.ts",
       "currentPath": "packages/api/src/services/chat.service.ts",
-      "summary": "PRODUCT. The Socket.IO chat path \u2014 a SECOND full inference entry point beside /v1/chat/completions, with its own tool assembly and its own markKeyCreditExhausted call.",
+      "summary": "PRODUCT. The Socket.IO chat path — a SECOND full inference entry point beside /v1/chat/completions, with its own tool assembly and its own markKeyCreditExhausted call.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["gateway-client", "chat-core-get-ai-model", "key-manager"],
@@ -734,7 +734,7 @@
     {
       "id": "chat-core-get-ai-model",
       "kind": "module",
-      "name": "chat-core.ts getAIModel \u2014 the LIVE provider construction site",
+      "name": "chat-core.ts getAIModel — the LIVE provider construction site",
       "currentPath": "packages/api/src/lib/chat-core.ts",
       "summary": "THE real inference chokepoint. A 19-case switch that builds a Vercel AI SDK client per provider, with 16 base URLs inline, hardcoded default model ids, and a 10-minute TTLCache keyed by provider|baseURL|apiKey. 32 non-test files import chat-core; every generateText/streamText in the repo gets its model from here.",
       "proposedOwner": "kaana",
@@ -804,7 +804,7 @@
     {
       "id": "failover-error-classifier",
       "kind": "module",
-      "name": "failover-error.ts \u2014 provider-specific error classification",
+      "name": "failover-error.ts — provider-specific error classification",
       "currentPath": "packages/api/src/lib/errors/failover-error.ts",
       "summary": "Parses Google (error.status: FAILED_PRECONDITION / RESOURCE_EXHAUSTED / UNAVAILABLE / PERMISSION_DENIED), OpenAI (error.type, error.code incl. billing_hard_limit_reached, insufficient_quota) and Anthropic (overloaded_error, HTTP 529) error shapes into a FailoverReason. Deliberately does NOT classify HTTP 400 by status.",
       "proposedOwner": "kaana",
@@ -823,7 +823,7 @@
       "targetPath": "keep",
       "dependsOn": ["provider-names"],
       "removalGate": "NEVER REMOVE. Its slug list is BUILT FROM provider-names.ts, so deleting that array silently narrows the sanitizer. Anyone deleting the provider directory must keep PROVIDER_NAMES or inline the list here first. sanitize.test.ts walks the live routing table and goes red when it cannot conceal an upstream identifier.",
-      "evidence": "packages/api/src/lib/errors/sanitize.ts \u2014 module header, WORD_SLUGS/OPAQUE_SLUGS/UPSTREAM_ERROR_CODES, redactUnsafeDetail and sanitizeMessage"
+      "evidence": "packages/api/src/lib/errors/sanitize.ts — module header, WORD_SLUGS/OPAQUE_SLUGS/UPSTREAM_ERROR_CODES, redactUnsafeDetail and sanitizeMessage"
     },
     {
       "id": "sanitize-call-sites",
@@ -842,7 +842,7 @@
       "kind": "sanitizer",
       "name": "LEAK: provider-api.ts throws a provider-named Error with raw provider body",
       "currentPath": "packages/api/src/internal/providers/lib/provider-api.ts",
-      "summary": "On exhaustion it throws `Provider API exhausted: ${provider}/${modelId} (${lastReason})` and attaches `error.providerMessage = lastMessage` (the raw provider response body). Safe today only because every caller wraps it in getSafeErrorMessage \u2014 the error object itself is unsanitised.",
+      "summary": "On exhaustion it throws `Provider API exhausted: ${provider}/${modelId} (${lastReason})` and attaches `error.providerMessage = lastMessage` (the raw provider response body). Safe today only because every caller wraps it in getSafeErrorMessage — the error object itself is unsanitised.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:errors",
       "dependsOn": ["provider-api", "sanitize-message"],
@@ -866,7 +866,7 @@
       "kind": "sanitizer",
       "name": "LEAK: canvas AI text node renders a provider name",
       "currentPath": "packages/alia-canvas/src/components/workflow/nodes/ai-text-node.tsx",
-      "summary": "Renders `{data.provider || \"openai\"}` in a user-visible workflow node \u2014 a provider name defaulted into the UI.",
+      "summary": "Renders `{data.provider || \"openai\"}` in a user-visible workflow node — a provider name defaulted into the UI.",
       "proposedOwner": "alia",
       "targetPath": "keep (fix)",
       "dependsOn": ["sanitize-message"],
@@ -919,14 +919,14 @@
     {
       "id": "integrations-model-resolver",
       "kind": "module",
-      "name": "packages/integrations shared/model-resolver.ts \u2014 ORPHANED",
+      "name": "packages/integrations shared/model-resolver.ts — ORPHANED",
       "currentPath": "packages/integrations/src/shared/model-resolver.ts",
-      "summary": "A SECOND provider-construction site in a SECOND service: fetches POST /v1/resolve-model expecting {provider, modelId, providerKey} and builds AI SDK clients for 7 providers. It is dead twice over \u2014 zero importers inside packages/integrations, and the endpoint it calls now returns 410 Gone.",
+      "summary": "A SECOND provider-construction site in a SECOND service: fetches POST /v1/resolve-model expecting {provider, modelId, providerKey} and builds AI SDK clients for 7 providers. It is dead twice over — zero importers inside packages/integrations, and the endpoint it calls now returns 410 Gone.",
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": ["sdk-integrations-ai-sdk"],
-      "removalGate": "NONE. Scoped symbol census over packages/integrations/**/*.ts: resolveModel / createAIModel / reportUsage appear only in this file; positive control \u2014 createOpenAI also appears only here, and browser/tools.ts + terminal/tools.ts prove the scan sees other integrations files. Deleting it also removes the last need for the 3 @ai-sdk/* deps in that package.",
-      "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108; endpoint now 410 at packages/api/src/routes/v1.ts:109-115 and packages/api/src/routes/codea.ts:235-241"
+      "removalGate": "NONE. Scoped symbol census over packages/integrations/**/*.ts: resolveModel / createAIModel / reportUsage appear only in this file; positive control — createOpenAI also appears only here, and browser/tools.ts + terminal/tools.ts prove the scan sees other integrations files. Deleting it also removes the last need for the 3 @ai-sdk/* deps in that package.",
+      "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108;"
     },
     {
       "id": "gateway-admin-ai-tool",
@@ -949,7 +949,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["hostname-zeroeval", "schema-external-models", "hazard-db-gated-boot"],
-      "removalGate": "Not provider inference \u2014 a marketing/leaderboard feature. Keep, but its dead-on-boot state should be fixed independently.",
+      "removalGate": "Not provider inference — a marketing/leaderboard feature. Keep, but its dead-on-boot state should be fixed independently.",
       "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8; called packages/api/src/index.ts:350"
     },
     {
@@ -957,11 +957,11 @@
       "kind": "module",
       "name": "Postgres table provider_keys (PLAINTEXT credentials)",
       "currentPath": "packages/api/src/db/schema/providers.ts",
-      "summary": "Where Alia's provider credentials actually live. `key: text()` is a PLAINTEXT column (the schema says so explicitly), alongside a sha256 keyHash and a display prefix. Carries 8 rate-limit columns, priority/cooldown/archive state and spend tracking. NOT env vars, NOT SSM \u2014 which is why the deploy workflow lists no provider secrets.",
+      "summary": "Where Alia's provider credentials actually live. `key: text()` is a PLAINTEXT column (the schema says so explicitly), alongside a sha256 keyHash and a display prefix. Carries 8 rate-limit columns, priority/cooldown/archive state and spend tracking. NOT env vars, NOT SSM — which is why the deploy workflow lists no provider secrets.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:provider credential store",
       "dependsOn": ["key-manager", "env-database-url"],
-      "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop \u2014 these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Kaana's store before the table is dropped, and rotation is the safer alternative to copying plaintext.",
+      "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop — these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Kaana's store before the table is dropped, and rotation is the safer alternative to copying plaintext.",
       "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key"
     },
     {
@@ -969,7 +969,7 @@
       "kind": "module",
       "name": "Postgres tables model_configs / alia_models / alia_model_provider_mappings",
       "currentPath": "packages/api/src/db/schema/providers.ts",
-      "summary": "The database copy of the routing catalogue. Its provider column is constrained to PROVIDER_NAMES. The RUNTIME reads the code table (GENERATED_TIER_MAPPINGS), not these rows \u2014 only isLegacy is read back, in getAvailableModels.",
+      "summary": "The database copy of the routing catalogue. Its provider column is constrained to PROVIDER_NAMES. The RUNTIME reads the code table (GENERATED_TIER_MAPPINGS), not these rows — only isLegacy is read back, in getAvailableModels.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:catalogue",
       "dependsOn": ["schema-provider-keys", "tier-mappings-generated", "alia-models"],
@@ -1033,7 +1033,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep (decide the value going forward)",
       "dependsOn": ["schema-provider-keys"],
-      "removalGate": "After the switch these columns record which provider RELAY chose \u2014 either Kaana must report it back, or the columns become permanently null and every query grouping on them silently returns nothing.",
+      "removalGate": "After the switch these columns record which provider RELAY chose — either Kaana must report it back, or the columns become permanently null and every query grouping on them silently returns nothing.",
       "evidence": "packages/api/src/db/schema/usage.ts:114 (chat_analytics.provider), :189 (voice_call_usage.provider); packages/api/src/lib/cost-tracker.ts:47-49"
     },
     {
@@ -1118,7 +1118,7 @@
       "kind": "behaviour",
       "name": "MODALITY TTS: timeouts, retries, fallback, cancellation",
       "currentPath": "packages/api/src/lib/synthesize-speech.ts",
-      "summary": "Route-level global 55s abort; per mapping maxAttempts 1 and a MODEL-DEPENDENT timeout \u2014 getProviderTimeout returns 120s for fal-ai/* models and 15s otherwise. Voice name translated per provider before the call; the real output container is returned separately. S3 upload has its own 15s race. Cached audio on the message short-circuits the whole path.",
+      "summary": "Route-level global 55s abort; per mapping maxAttempts 1 and a MODEL-DEPENDENT timeout — getProviderTimeout returns 120s for fal-ai/* models and 15s otherwise. Voice name translated per provider before the call; the real output container is returned separately. S3 upload has its own 15s race. Cached audio on the message short-circuits the whole path.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:tts",
       "dependsOn": [
@@ -1127,7 +1127,7 @@
         "provider-api",
         "digitalocean-async"
       ],
-      "removalGate": "getProviderTimeout's fal-ai/ prefix test lives in gateway-client.ts:316-321 \u2014 a provider model-id string inside the facade. Kaana must own that timing decision.",
+      "removalGate": "getProviderTimeout's fal-ai/ prefix test lives in gateway-client.ts:316-321 — a provider model-id string inside the facade. Kaana must own that timing decision.",
       "evidence": "packages/api/src/routes/v1/audio.ts:36-38, :118-130; packages/api/src/lib/synthesize-speech.ts:45-60; packages/api/src/lib/gateway-client.ts:316-321"
     },
     {
@@ -1212,7 +1212,7 @@
       "kind": "hostname",
       "name": "wss://api.openai.com/v1/realtime",
       "currentPath": "packages/api/src/internal/providers/lib/providers/openai-voice.ts",
-      "summary": "Realtime voice WebSocket. NOT matched by an https:// grep \u2014 found only on a second wss:// pass.",
+      "summary": "Realtime voice WebSocket. NOT matched by an https:// grep — found only on a second wss:// pass.",
       "proposedOwner": "kaana",
       "targetPath": "kaana",
       "dependsOn": ["adapter-openai-voice"],
@@ -1308,7 +1308,7 @@
       "kind": "hostname",
       "name": "api.cloudflare.com (Workers AI)",
       "currentPath": "packages/api/src/lib/chat-core.ts",
-      "summary": "Per-account AI base URL built from the composite credential. NOTE the same hostname appears in .github/workflows/setup-mention-mcp-dns.yml for DNS \u2014 do not treat every hit as inference.",
+      "summary": "Per-account AI base URL built from the composite credential. NOTE the same hostname appears in .github/workflows/setup-mention-mcp-dns.yml for DNS — do not treat every hit as inference.",
       "proposedOwner": "kaana",
       "targetPath": "kaana",
       "dependsOn": ["chat-core-get-ai-model", "adapter-cloudflare"],
@@ -1344,7 +1344,7 @@
       "kind": "dependency",
       "name": "ai (Vercel AI SDK core)",
       "currentPath": "packages/api/package.json, packages/integrations/package.json",
-      "summary": "^6.0.225 in both packages. Provides streamText/generateText/generateObject/tool. In packages/api it is imported by 40+ files, so it is NOT removable with the providers \u2014 only its model-construction usage is.",
+      "summary": "^6.0.225 in both packages. Provides streamText/generateText/generateObject/tool. In packages/api it is imported by 40+ files, so it is NOT removable with the providers — only its model-construction usage is.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["chat-core-get-ai-model"],
@@ -1400,18 +1400,6 @@
       "evidence": "packages/integrations/package.json; sole importer packages/integrations/src/shared/model-resolver.ts:6-8"
     },
     {
-      "id": "sdk-openai-clients",
-      "kind": "dependency",
-      "name": "openai npm package in alia-codea, alia-codea-cli, alia-cowork",
-      "currentPath": "packages/alia-codea/package.json, packages/alia-codea-cli/package.json, packages/alia-cowork/package.json",
-      "summary": "NOT provider dependencies: these are CLIENTS of Alia's own OpenAI-compatible API (alia-cowork defaults apiBaseUrl to https://api.alia.onl, model 'route:cowork'). Version drift: ^6.46.0 in codea/codea-cli, ^4.104.0 in cowork.",
-      "proposedOwner": "alia",
-      "targetPath": "keep",
-      "dependsOn": [],
-      "removalGate": "Do NOT delete in a provider sweep. They only require that Alia keeps serving an OpenAI-compatible /v1 surface after the Kaana switch \u2014 which is itself a contract Kaana must not break.",
-      "evidence": "packages/alia-cowork/src/main/chat.ts:7, :28-31; packages/alia-codea/src/chatProvider.ts:2, :9-16; packages/alia-codea-cli/src/utils/api.ts:1"
-    },
-    {
       "id": "sdk-livekit",
       "kind": "dependency",
       "name": "@livekit/agents, @livekit/rtc-node, livekit-server-sdk, livekit-client, @livekit/react-native",
@@ -1432,7 +1420,7 @@
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": ["adapter-grok-voice"],
-      "removalGate": "NONE \u2014 removing it changes no behaviour, which is exactly why it should go rather than be carried into Kaana's config as if it mattered.",
+      "removalGate": "NONE — removing it changes no behaviour, which is exactly why it should go rather than be carried into Kaana's config as if it mattered.",
       "evidence": "packages/api/.env.example:108; packages/api/src/internal/providers/lib/providers/grok-voice.ts:52 (only read repo-wide)"
     },
     {
@@ -1444,7 +1432,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep (repoint at Kaana)",
       "dependsOn": ["gateway-client", "gateway-admin-ai-tool"],
-      "removalGate": "Also read by lib/tools/gateway-admin.ts:7 and by the gateway-admin frontend. Setting it to Kaana would silently re-enable that broken admin tool against Kaana's URL \u2014 deal with the tool first.",
+      "removalGate": "Also read by lib/tools/gateway-admin.ts:7 and by the gateway-admin frontend. Setting it to Kaana would silently re-enable that broken admin tool against Kaana's URL — deal with the tool first.",
       "evidence": "packages/api/src/lib/gateway-client.ts:30, :33; packages/api/src/lib/tools/gateway-admin.ts:7; packages/api/.env.example:80"
     },
     {
@@ -1456,7 +1444,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["gateway-client", "dead-providers-auth-middleware"],
-      "removalGate": "Do NOT remove with the provider cleanup \u2014 packages/api/src/middleware/auth.ts and lib/tools/browse.ts also read it.",
+      "removalGate": "Do NOT remove with the provider cleanup — packages/api/src/middleware/auth.ts and lib/tools/browse.ts also read it.",
       "evidence": ".github/workflows/deploy-aws.yml:68, :90; packages/api/src/lib/gateway-client.ts:29; packages/api/src/middleware/auth.ts"
     },
     {
@@ -1464,7 +1452,7 @@
       "kind": "env",
       "name": "DATABASE_URL",
       "currentPath": ".github/workflows/deploy-aws.yml",
-      "summary": "The real provider-credential dependency: provider_keys, model_configs, provider_health and api_usage all live behind it. Required at boot \u2014 connectPostgresOrExit() exits 1 without it.",
+      "summary": "The real provider-credential dependency: provider_keys, model_configs, provider_health and api_usage all live behind it. Required at boot — connectPostgresOrExit() exits 1 without it.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["schema-provider-keys"],
@@ -1516,7 +1504,7 @@
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": ["dead-providers-second-db", "hazard-db-gated-boot"],
-      "removalGate": "Not the provider workstream's call alone \u2014 routes/v1/audio.ts and other product code still use the legacy Message model. Flagged because the provider cleanup will surface it.",
+      "removalGate": "Not the provider workstream's call alone — routes/v1/audio.ts and other product code still use the legacy Message model. Flagged because the provider cleanup will surface it.",
       "evidence": "packages/api/.env.example:35; packages/api/src/index.ts:435-446; packages/api/src/routes/v1/audio.ts:58, :136"
     },
     {
@@ -1524,11 +1512,11 @@
       "kind": "env",
       "name": "deploy-aws.yml secret allow-list (10 entries, ZERO provider keys)",
       "currentPath": ".github/workflows/deploy-aws.yml",
-      "summary": "Syncs exactly DATABASE_URL, SERVICE_SECRET, TOKEN_ENCRYPTION_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, REDIS_URL. No OpenAI/Anthropic/Google/etc. key appears anywhere in the deploy path \u2014 confirming provider credentials live only in provider_keys.",
+      "summary": "Syncs exactly DATABASE_URL, SERVICE_SECRET, TOKEN_ENCRYPTION_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, REDIS_URL. No OpenAI/Anthropic/Google/etc. key appears anywhere in the deploy path — confirming provider credentials live only in provider_keys.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": ["schema-provider-keys", "env-database-url"],
-      "removalGate": "If Kaana needs a shared secret from Alia, it must be ADDED here and to terraform in the same change \u2014 a render carries forward every secret it is not told to replace, so a half-added secret fails only at scale-up.",
+      "removalGate": "If Kaana needs a shared secret from Alia, it must be ADDED here and to terraform in the same change — a render carries forward every secret it is not told to replace, so a half-added secret fails only at scale-up.",
       "evidence": ".github/workflows/deploy-aws.yml:66-76 (env block), :88-97 (sync_secret calls)"
     },
     {
@@ -1536,7 +1524,7 @@
       "kind": "env",
       "name": "HAZARD: .do/app.yaml sets GATEWAY_API_URL to the deleted gateway",
       "currentPath": ".do/app.yaml",
-      "summary": "Sets GATEWAY_API_URL=http://gateway:9091 AND SERVICE_SECRET on the alia service \u2014 the exact pair that flips gateway-client into HTTP mode against a service that no longer exists. It also declares a `gateway` service built with `bun run build:gateway`, a script that no longer exists in the root package.json.",
+      "summary": "Sets GATEWAY_API_URL=http://gateway:9091 AND SERVICE_SECRET on the alia service — the exact pair that flips gateway-client into HTTP mode against a service that no longer exists. It also declares a `gateway` service built with `bun run build:gateway`, a script that no longer exists in the root package.json.",
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": ["gateway-client", "env-gateway-api-url"],
@@ -1548,7 +1536,7 @@
       "kind": "env",
       "name": "HAZARD: packages/api/.env.example documents a provider architecture that no longer exists",
       "currentPath": "packages/api/.env.example",
-      "summary": "Header states 'Provider API keys (OpenAI/Anthropic/etc.) are NOT configured here \u2014 they live in the alia-gateway service. The API reaches it via GATEWAY_API_URL + SERVICE_SECRET.' The gateway is deleted and keys live in Postgres. It also lists a legacy connection string as required and never mentions DATABASE_URL.",
+      "summary": "Header states 'Provider API keys (OpenAI/Anthropic/etc.) are NOT configured here — they live in the alia-gateway service. The API reaches it via GATEWAY_API_URL + SERVICE_SECRET.' The gateway is deleted and keys live in Postgres. It also lists a legacy connection string as required and never mentions DATABASE_URL.",
       "proposedOwner": "alia",
       "targetPath": "keep (rewrite)",
       "dependsOn": ["hazard-do-app-yaml-gateway-url", "env-legacy-database-uri"],
@@ -1560,7 +1548,7 @@
       "kind": "behaviour",
       "name": "HAZARD: warmupGatewayClient and syncZeroEval never run (connection-gated boot)",
       "currentPath": "packages/api/src/index.ts",
-      "summary": "startBackgroundServices() is called only from connectWithRetry()'s success branch. The file's own comment states that database no longer exists and the retry loop therefore never succeeds, so the gateway-client cache warm-up and the leaderboard sync are dead in production. warmupProviders() is NOT affected \u2014 it sits outside the gate and does run.",
+      "summary": "startBackgroundServices() is called only from connectWithRetry()'s success branch. The file's own comment states that database no longer exists and the retry loop therefore never succeeds, so the gateway-client cache warm-up and the leaderboard sync are dead in production. warmupProviders() is NOT affected — it sits outside the gate and does run.",
       "proposedOwner": "alia",
       "targetPath": "keep (fix)",
       "dependsOn": ["gwc-import-index-warmup", "script-sync-zeroeval", "provider-warmup"],
@@ -1576,7 +1564,7 @@
       "proposedOwner": "kaana",
       "targetPath": "kaana",
       "dependsOn": ["chat-core-get-ai-model", "schema-provider-keys"],
-      "removalGate": "Disappears for free once Kaana holds the credentials \u2014 this is one of the strongest arguments for the epic, and worth stating in the PR.",
+      "removalGate": "Disappears for free once Kaana holds the credentials — this is one of the strongest arguments for the epic, and worth stating in the PR.",
       "evidence": "packages/api/src/lib/chat-core.ts:86, :94"
     },
     {
@@ -1605,7 +1593,7 @@
         "behaviour-voice-realtime",
         "sdk-livekit"
       ],
-      "removalGate": "STAYS IN ALIA \u2014 it is LiveKit plumbing, not provider logic. What changes is WHICH socket it pumps into. Note it imports AgentDataMessage/LiveKitAgentBridgeRef type-only from internal/providers/lib/types-voice.js, so a directory-scoped deletion breaks its typecheck.",
+      "removalGate": "STAYS IN ALIA — it is LiveKit plumbing, not provider logic. What changes is WHICH socket it pumps into. Note it imports AgentDataMessage/LiveKitAgentBridgeRef type-only from internal/providers/lib/types-voice.js, so a directory-scoped deletion breaks its typecheck.",
       "evidence": "packages/api/src/lib/livekit-agent.ts:1-13, :26 (type import from internal/providers), :29-30 (SAMPLE_RATE 24000, NUM_CHANNELS 1)"
     },
     {
@@ -1625,7 +1613,7 @@
       "kind": "module",
       "name": "db/providers/* repositories (4 files)",
       "currentPath": "packages/api/src/db/providers/",
-      "summary": "aliaModelRepository, modelConfigRepository, providerKeyRepository, externalModelRepository \u2014 every statement against the four provider tables. Consumers: key-manager (providerKey), alia-models (listAliaModels for isLegacy), routes/external-models + sync-zeroeval (external), and the dead admin routes/seeds for the rest.",
+      "summary": "aliaModelRepository, modelConfigRepository, providerKeyRepository, externalModelRepository — every statement against the four provider tables. Consumers: key-manager (providerKey), alia-models (listAliaModels for isLegacy), routes/external-models + sync-zeroeval (external), and the dead admin routes/seeds for the rest.",
       "proposedOwner": "kaana",
       "targetPath": "kaana:store (externalModelRepository stays alia)",
       "dependsOn": [
@@ -1645,11 +1633,11 @@
     "gatewayClientImporters": 21,
     "gatewayClientImportersDetail": "21 non-test importer files plus 1 test that vi.mocks the module. Of the 21, 3 are billing-only (plan-access, stripe-prices, billing) and touch no provider data. The larger real chokepoint is chat-core.ts with 32 non-test importers.",
     "providerHostnames": 20,
-    "providerHostnamesDetail": "19 inference hostnames (openai, openai-realtime-wss, anthropic, google, groq, openrouter, digitalocean, xai incl. wss, mistral, deepseek, cerebras, together, fireworks, perplexity, novita, hyperbolic, sambanova, cohere, replicate, cloudflare \u2014 counted as 19 distinct hosts since api.openai.com and api.x.ai each serve both https and wss) plus api.zeroeval.com which is NOT inference. Excludes the unbounded dynamic asset URLs returned by DO async-invoke.",
+    "providerHostnamesDetail": "19 inference hostnames (openai, openai-realtime-wss, anthropic, google, groq, openrouter, digitalocean, xai incl. wss, mistral, deepseek, cerebras, together, fireworks, perplexity, novita, hyperbolic, sambanova, cohere, replicate, cloudflare — counted as 19 distinct hosts since api.openai.com and api.x.ai each serve both https and wss) plus api.zeroeval.com which is NOT inference. Excludes the unbounded dynamic asset URLs returned by DO async-invoke.",
     "providerEnvVars": 12,
     "providerEnvVarsDetail": "GROK_API_KEY, GATEWAY_API_URL, SERVICE_SECRET, ALLOWED_SERVICES, ADMIN_USERNAMES, DATABASE_URL, LIVEKIT_URL, LIVEKIT_INTERNAL_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, a legacy database URI, VITE_GATEWAY_API_URL. Exactly ONE (GROK_API_KEY) is a provider credential, and it is inert.",
     "providerSdkDeps": 11,
-    "providerSdkDepsDetail": "11 declarations across 5 distinct packages: ai (api, integrations), @ai-sdk/openai (api, integrations), @ai-sdk/anthropic (api, integrations), @ai-sdk/google (api, integrations), openai (alia-codea, alia-codea-cli, alia-cowork). The 3 openai declarations are CLIENTS of Alia's own API, not provider deps. Excludes the 5 LiveKit packages (voice transport).",
+    "providerSdkDepsDetail": "The 3 openai declarations are CLIENTS of Alia's own API, not provider deps. Excludes the 5 LiveKit packages (voice transport).",
     "deadCodeFiles": 26,
     "deadCodeFilesDetail": "internal/providers/index.ts + 12 route files + middleware/auth.ts + ws.ts + broadcast-helpers.ts + lib/db.ts + 4 seed modules + lib/auth-health.ts + 19 text adapters reachable only through routes/providers.ts + packages/integrations/src/shared/model-resolver.ts. Counted as distinct FILES that no live import path reaches.",
     "inventoryItems": 126

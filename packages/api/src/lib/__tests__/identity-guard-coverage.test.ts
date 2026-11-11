@@ -192,7 +192,6 @@ describe("one owner for the assistant's name", () => {
       'prompts/alia-telegram.md',
       'prompts/ask-user-question.md',
       'prompts/base.md',
-      'prompts/codea.md',
       'prompts/cowork-browser.md',
       'prompts/cowork.md',
       'prompts/general.md',
@@ -219,7 +218,6 @@ describe("one owner for the assistant's name", () => {
       'You are Alia, a sharp and personable AI assistant.',
       'You are **Alia**, an AI assistant built by the Alia AI team.',
       'You are Alia, an AI assistant by Oxy, responding via Telegram.',
-      'You are Alia Codea, specialized for coding.',
       'You are ${agent.name}, an AI agent.',
       'You are ${name}. ${description}',
     ].join('\n');
@@ -228,7 +226,6 @@ describe("one owner for the assistant's name", () => {
       'Alia',
       'Alia',
       'Alia',
-      'Alia Codea',
       '${agent.name}',
       '${name}',
     ]);

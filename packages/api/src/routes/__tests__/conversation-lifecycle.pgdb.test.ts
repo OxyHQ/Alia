@@ -36,7 +36,7 @@ vi.mock('../../middleware/auth.js', () => ({
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return {
-    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+    log: { agents: child, chat: child, general: child, v1: child, providers: child },
   };
 });
 

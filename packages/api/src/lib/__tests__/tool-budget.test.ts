@@ -25,7 +25,6 @@ vi.mock('../logger.js', () => {
       general: child,
       v1: child,
       providers: child,
-      codea: child,
       tools: child,
     },
   };

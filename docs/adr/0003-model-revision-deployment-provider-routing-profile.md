@@ -88,7 +88,7 @@ Invariants 3 and 4 are the same distinction seen from two sides. What makes depl
 ## Consequences
 
 - The current alias set is reclassified rather than renamed. Each `alia-*` identifier becomes either a concrete model reference or a routing profile, and the mapping from old alias to new meaning is part of the compatibility window.
-- The catalogue gains a type dimension. Clients — app, Codea, Cowork, CLI and SDK — must render models and routing profiles differently, per workstream 5 of #139.
+- The catalogue gains a type dimension. Clients — app, Cowork and SDK — must render models and routing profiles differently, per workstream 5 of #139.
 - Analytics gain precision and lose ambiguity. Recording the requested model or profile alongside the resolved revision makes it answerable, after the fact, which artifacts produced a given response. The present schema cannot answer that question at all.
 - Silent escalation across publishers stops. Where that behaviour is still wanted, it becomes a named policy the user or the product opted into.
 - Billing gains a stable unit. Cost attaches to a deployment and a revision, not to an alias whose meaning changes with provider health.

@@ -664,7 +664,7 @@ describe('a hosted turn runs on a real catalogue model', () => {
   });
 
   it('reads the prompt surface from body.surface and refuses an unknown one', async () => {
-    expect((await run(KNOWN, { body: { surface: 'codea' } })).ctx?.surface).toBe('codea');
+    expect((await run(KNOWN, { body: { surface: 'cowork' } })).ctx?.surface).toBe('cowork');
     const refused = await run(KNOWN, { body: { surface: 'nope' } });
     expect(refused.ctx).toBeNull();
     expect(refused.captured.body?.error?.param).toBe('surface');

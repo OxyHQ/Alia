@@ -20,11 +20,10 @@ import type { CatalogueModel } from './models/catalogue.js';
  * The model is whatever the person picked; how Alia behaves depends on where
  * it is being used. `prompts/<name>.md`, layered over `prompts/base.md`.
  */
-export const PROMPT_SURFACES = ['chat', 'codea', 'cowork'] as const;
+export const PROMPT_SURFACES = ['chat', 'cowork'] as const;
 export type PromptSurface = (typeof PROMPT_SURFACES)[number];
 const SURFACE_PROMPTS: Readonly<Record<PromptSurface, string>> = {
   chat: 'general',
-  codea: 'codea',
   cowork: 'cowork',
 };
 

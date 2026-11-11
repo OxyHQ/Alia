@@ -12,13 +12,13 @@
     "controls": [
       "POSITIVE CONTROL (alia-* alias census): the same regex run against the known-present definition file packages/api/src/internal/providers/lib/alia-models.ts returned 27 hits and the repo-wide census independently surfaced all 12 alias definitions in that file (route:instant, route:auto, route:code, -cowork, -browser, -vision, -audio, -multimodal, -pro, -thinking, -pro-max, -voice, -voice-pro). A blind census would have returned 0 there. Non-zero floor: 78 sites found inside the frontend/admin/SDK/CLI scope.",
       "POSITIVE CONTROL (provider-name leak scan): the identical case-insensitive provider-name regex run against packages/api/src/internal/providers (a tree that MUST contain provider names) returned 322 hits, proving the pattern and the file-type filters can see provider names. The same scan over packages/app returned 5 hits and all 5 are the string 'OpenAI' inside code comments describing the OpenAI-COMPATIBLE wire format, never a provider identity in rendered output.",
-      "POSITIVE CONTROL (secret-exposure scan): the keyPrefix/apiKey/rotate regex surfaced a known-present example \u2014 the raw-provider-key <Input> at packages/alia-gateway-admin/src/pages/Keys.tsx:346-348 \u2014 before any 'absent' claim was made about other packages.",
+      "POSITIVE CONTROL (secret-exposure scan): the keyPrefix/apiKey/rotate regex surfaced a known-present example — the raw-provider-key <Input> at packages/alia-gateway-admin/src/pages/Keys.tsx:346-348 — before any 'absent' claim was made about other packages.",
       "VACUITY CONTROL (app screens that returned zero model hits): packages/app/app/(app)/settings/usage.tsx, .../agents/create.tsx and .../(biglayout)/subscribe.tsx each returned 0 'model' hits. Verified NOT a broken measurement: each file exists (ls confirms 742/6094/9052 bytes), each returns non-zero hits for 'import' (5/13/14), and the same grep returns 75 on the known-positive packages/app/components/model-selector.tsx. Those three screens genuinely delegate all model rendering to child components."
     ],
     "limitations": [
-      "STATIC READ ONLY. No build, no dev server, no browser. Nothing here is a runtime observation \u2014 a screen recorded as 'displays keyPrefix' is a claim about the JSX, not about a rendered pixel.",
+      "STATIC READ ONLY. No build, no dev server, no browser. Nothing here is a runtime observation — a screen recorded as 'displays keyPrefix' is a claim about the JSX, not about a rendered pixel.",
       "The DigitalOcean specs (.do/app.yaml, packages/alia-gateway-admin/.do/app.yaml) are, by their own header comment (.do/app.yaml:2-4), DOCUMENTATION of a dashboard-managed deployment. They are NOT authoritative about what is actually deployed. The live DO app spec and the Cloudflare Pages project list were NOT measured.",
-      "Whether the Cloudflare Pages project 'alia-gateway-admin' and the DNS record gateway.alia.onl currently exist and resolve was NOT measured \u2014 only the repo config that references them.",
+      "Whether the Cloudflare Pages project 'alia-gateway-admin' and the DNS record gateway.alia.onl currently exist and resolve was NOT measured — only the repo config that references them.",
       "Whether the backend routes the gateway-admin calls (/internal/gateway/v1/*) still exist was NOT measured here; that is workstream 'api'. If those routes are already gone the admin is dead UI, which changes the removal gate from 'migrate' to 'delete'.",
       "One measurement was initially WRONG and is recorded here so it is not repeated: an unquoted shell loop over console route paths containing a literal $appId had $appId expanded to empty by bash, silently reading src/routes/_layout/apps/index.tsx three times while appearing to report on three different $appId screens. Those four screens were re-read individually with the Read tool. Any future scan of this repo must single-quote or escape TanStack $param path segments.",
       "The alia-* alias census matches only literals of the shape alia-{lite,v1,nano,mini,pro,thinking,flash}*. A model id built by string concatenation at runtime, or held only in a database row, is invisible to it.",
@@ -26,7 +26,7 @@
       "The five console documentation screens and the playground each hold their own alia-* literals; those are recorded in each screen item's own evidence rather than as separate model-alias items, so the item list has no free-standing entry for console alias literals. The hardcodedModelAliasSites count still includes all 26 console sites."
     ],
     "residual": [
-      "packages/api/src/lib/tools/gateway-admin.ts (133 lines) exposes provider-key CRUD \u2014 'keys (API keys for providers), models, aliaModels, usage' per its own tool description at line 55 \u2014 to the AI AS A CALLABLE TOOL. This is a fourth surface onto the same provider-key admin that workstream 9 retires, and it is NOT a frontend, so it falls outside this inventory. It belongs to whoever owns packages/api. Flagged, not classified.",
+      "packages/api/src/lib/tools/gateway-admin.ts (133 lines) exposes provider-key CRUD — 'keys (API keys for providers), models, aliaModels, usage' per its own tool description at line 55 — to the AI AS A CALLABLE TOOL. This is a fourth surface onto the same provider-key admin that workstream 9 retires, and it is NOT a frontend, so it falls outside this inventory. It belongs to whoever owns packages/api. Flagged, not classified.",
       "packages/api/src/lib/tools/delegate.ts:39,104,129 defaults to the alias 'alia-flash', which is NOT among the 12 aliases defined in alia-models.ts. Either a dangling alias or a database-only definition. Out of scope here (API), but it means any 'the alias set is exactly these 12' claim is unproven.",
       "The root .do/app.yaml:88-89 still calls `bun run build:gateway` / `start:gateway`, scripts that no longer exist in the root package.json (the alia-gateway package was deleted in bfb2bc18). The root spec also still declares the domain api.gateway.alia.onl (.do/app.yaml:218). This is pre-existing stale config, not caused by the retirement, but it sits in the same file the retirement must edit.",
       "packages/app/lib/stores/agents-store.ts:70 declares allowedModels?: string[] but a repo-wide grep of packages/app finds ZERO readers. Either the agent editor never shipped a model picker, or it reads the field under another name. Not resolved.",
@@ -57,13 +57,13 @@
         "ga-screen-billing",
         "ga-screen-login"
       ],
-      "removalGate": "All 11 child screens classified and their surviving destinations live. Note independently of removal: the authorization model here is a username string literal in client-side code (App.tsx:81), so it is not an access control boundary at all \u2014 the real boundary must be the /internal/gateway API. Do not carry this pattern into any replacement.",
+      "removalGate": "All 11 child screens classified and their surviving destinations live. Note independently of removal: the authorization model here is a username string literal in client-side code (App.tsx:81), so it is not an access control boundary at all — the real boundary must be the /internal/gateway API. Do not carry this pattern into any replacement.",
       "evidence": "packages/alia-gateway-admin/src/App.tsx:81, packages/alia-gateway-admin/src/App.tsx:94-108"
     },
     {
       "id": "ga-screen-keys",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 API Keys",
+      "name": "Gateway Admin — API Keys",
       "currentPath": "packages/alia-gateway-admin/src/pages/Keys.tsx",
       "summary": "Full CRUD over upstream PROVIDER credentials: create with a raw pasted key, rotate, activate/deactivate, delete, hot-reload, plus per-key rate limits and credit caps.",
       "exposesProviderSecret": true,
@@ -76,20 +76,20 @@
     {
       "id": "ga-screen-models",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Models",
+      "name": "Gateway Admin — Models",
       "currentPath": "packages/alia-gateway-admin/src/pages/Models.tsx",
-      "summary": "Largest screen (1506 lines). Two catalogs: provider model configs (provider + provider model id + pricing + capabilities) and Alia virtual models with ordered providerMappings \u2014 i.e. this is the alias-to-provider routing editor.",
+      "summary": "Largest screen (1506 lines). Two catalogs: provider model configs (provider + provider model id + pricing + capabilities) and Alia virtual models with ordered providerMappings — i.e. this is the alias-to-provider routing editor.",
       "exposesProviderSecret": false,
       "proposedOwner": "kaana",
       "targetPath": "internal-kaana-ops",
       "dependsOn": ["ga-api-client", "ga-types-providers", "ga-component-fallback-chain"],
-      "removalGate": "Kaana owns the alias-to-provider mapping table and its fallback ordering, with an equivalent editor. This is the single screen that most directly encodes 'Alia knows which provider serves which alias' \u2014 it is the heart of what the epic decouples, so it must move rather than be dropped.",
+      "removalGate": "Kaana owns the alias-to-provider mapping table and its fallback ordering, with an equivalent editor. This is the single screen that most directly encodes 'Alia knows which provider serves which alias' — it is the heart of what the epic decouples, so it must move rather than be dropped.",
       "evidence": "packages/alia-gateway-admin/src/pages/Models.tsx:114,121 (listModels/listAliaModels), :134-186 (create/update/delete for both catalogs), :236 (providerMappings editor), :746 (route:auto placeholder), :375,864,1417 (gpt-4o placeholders)"
     },
     {
       "id": "ga-screen-dashboard",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Dashboard",
+      "name": "Gateway Admin — Dashboard",
       "currentPath": "packages/alia-gateway-admin/src/pages/Dashboard.tsx",
       "summary": "Provider-segmented operations overview: requests timeline, top models, spend by provider, avg latency per provider, credits overview, and an alerts panel for failing keys / open circuit breakers / near-credit-limit keys.",
       "exposesProviderSecret": true,
@@ -102,7 +102,7 @@
     {
       "id": "ga-screen-monitoring",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Monitoring",
+      "name": "Gateway Admin — Monitoring",
       "currentPath": "packages/alia-gateway-admin/src/pages/Monitoring.tsx",
       "summary": "Live provider/model health: success rate, latency, consecutive failures and circuit-breaker state, with per-key drilldowns that print key prefixes.",
       "exposesProviderSecret": true,
@@ -115,7 +115,7 @@
     {
       "id": "ga-screen-logs",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Logs",
+      "name": "Gateway Admin — Logs",
       "currentPath": "packages/alia-gateway-admin/src/pages/Logs.tsx",
       "summary": "Request log browser filtered by provider, model and status, with a provider facet list and aggregate stats over an hours window.",
       "exposesProviderSecret": false,
@@ -128,7 +128,7 @@
     {
       "id": "ga-screen-usage",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Usage",
+      "name": "Gateway Admin — Usage",
       "currentPath": "packages/alia-gateway-admin/src/pages/Usage.tsx",
       "summary": "Aggregate usage and cost over a selectable period; the cost view is upstream provider COGS, not customer billing.",
       "exposesProviderSecret": false,
@@ -141,20 +141,20 @@
     {
       "id": "ga-screen-plans",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Plans",
+      "name": "Gateway Admin — Plans",
       "currentPath": "packages/alia-gateway-admin/src/pages/Plans.tsx",
       "summary": "CRUD over subscription plans (credits/month, monthly and annual price, Stripe price ids, featured/free flags) AND the set of Alia model ids each plan unlocks.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": ["ga-api-client"],
-      "removalGate": "An Alia-owned plan editor exists elsewhere before this UI goes. This screen is NOT kaana work \u2014 it is Alia commerce that happens to live in the wrong app. It does read listAliaModels to populate modelIds, so it needs an Alia-branded model list source after the split, never a provider-aware one.",
+      "removalGate": "An Alia-owned plan editor exists elsewhere before this UI goes. This screen is NOT kaana work — it is Alia commerce that happens to live in the wrong app. It does read listAliaModels to populate modelIds, so it needs an Alia-branded model list source after the split, never a provider-aware one.",
       "evidence": "packages/alia-gateway-admin/src/pages/Plans.tsx:139,146 (listPlans + listAliaModels), :157-177 (create/update/delete), packages/alia-gateway-admin/src/types/index.ts:128-151 (SubscriptionPlan.modelIds, stripeMonthlyPriceId)"
     },
     {
       "id": "ga-screen-credit-packages",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Credit Packages",
+      "name": "Gateway Admin — Credit Packages",
       "currentPath": "packages/alia-gateway-admin/src/pages/CreditPackages.tsx",
       "summary": "CRUD over one-off credit packs (credits, price, currency, Stripe price id).",
       "exposesProviderSecret": false,
@@ -167,20 +167,20 @@
     {
       "id": "ga-screen-features",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Features + plan-feature matrix",
+      "name": "Gateway Admin — Features + plan-feature matrix",
       "currentPath": "packages/alia-gateway-admin/src/pages/Features.tsx",
       "summary": "CRUD over entitlement features and a bulk-editable plan-by-feature matrix that drives pricing-page copy and plan gating.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": ["ga-api-client", "ga-screen-plans"],
-      "removalGate": "An Alia-owned entitlements editor exists. This feeds /billing/entitlements, which packages/app consumes as allowedModelIds \u2014 deleting the editor without a replacement freezes every user's entitlements at whatever the database holds that day.",
+      "removalGate": "An Alia-owned entitlements editor exists. This feeds /billing/entitlements, which packages/app consumes as allowedModelIds — deleting the editor without a replacement freezes every user's entitlements at whatever the database holds that day.",
       "evidence": "packages/alia-gateway-admin/src/pages/Features.tsx:78-96 (feature CRUD), :296 (getPlanFeaturesMatrix), :354 (bulkUpsertPlanFeatures); consumer: packages/app/src/features/billing/runtime/use-billing.ts:319-330"
     },
     {
       "id": "ga-screen-billing",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Billing (transactions + subscriptions)",
+      "name": "Gateway Admin — Billing (transactions + subscriptions)",
       "currentPath": "packages/alia-gateway-admin/src/pages/Billing.tsx",
       "summary": "Read-only admin browser over customer transactions and subscriptions, including Stripe customer / payment-intent / subscription ids and oxyUserId.",
       "exposesProviderSecret": false,
@@ -193,7 +193,7 @@
     {
       "id": "ga-screen-login",
       "kind": "screen",
-      "name": "Gateway Admin \u2014 Login",
+      "name": "Gateway Admin — Login",
       "currentPath": "packages/alia-gateway-admin/src/pages/Login.tsx",
       "summary": "Oxy sign-in shell rendered for any unauthenticated or unauthorized visitor; branded 'Alia Providers / Admin Panel'.",
       "exposesProviderSecret": false,
@@ -213,7 +213,7 @@
       "proposedOwner": "kaana",
       "targetPath": "internal-kaana-ops",
       "dependsOn": [],
-      "removalGate": "Every screen above has migrated. This file is the exact contract inventory of what /internal/gateway must still serve \u2014 read it before retiring any backend route, and treat createKey (:123-149) and rotateKey (:176-181) as the two calls that transmit a plaintext provider credential.",
+      "removalGate": "Every screen above has migrated. This file is the exact contract inventory of what /internal/gateway must still serve — read it before retiring any backend route, and treat createKey (:123-149) and rotateKey (:176-181) as the two calls that transmit a plaintext provider credential.",
       "evidence": "packages/alia-gateway-admin/src/lib/api/client.ts:6 (base URL), :123-149 (createKey sends `key`), :176-181 (rotateKey sends newKey), :484-509 (getKeyDiagnostics returns keyPrefix per key)"
     },
     {
@@ -239,7 +239,7 @@
       "proposedOwner": "kaana",
       "targetPath": "internal-kaana-ops",
       "dependsOn": [],
-      "removalGate": "Deleted with the package. This is the single largest concentration of provider identity in any Alia frontend and it exists ONLY here \u2014 no other frontend package carries a provider list. Its ALIA_TIERS copy also drifts from packages/shared-types/src/models.ts, which additionally declares v1-tts and v1-image; whichever survives must be the shared-types one.",
+      "removalGate": "Deleted with the package. This is the single largest concentration of provider identity in any Alia frontend and it exists ONLY here — no other frontend package carries a provider list. Its ALIA_TIERS copy also drifts from packages/shared-types/src/models.ts, which additionally declares v1-tts and v1-image; whichever survives must be the shared-types one.",
       "evidence": "packages/alia-gateway-admin/src/types/index.ts:244-264 (PROVIDERS), :268-281 (ALIA_TIERS); drift vs packages/shared-types/src/models.ts:17-31"
     },
     {
@@ -297,27 +297,27 @@
     {
       "id": "ga-workflow-deploy",
       "kind": "workflow",
-      "name": "Deploy Frontends \u2014 deploy-gateway-admin job",
+      "name": "Deploy Frontends — deploy-gateway-admin job",
       "currentPath": ".github/workflows/deploy-frontends.yml",
       "summary": "A dedicated job plus a paths-filter output plus two push-path entries, deploying dist/ to the Cloudflare Pages project 'alia-gateway-admin'.",
       "exposesProviderSecret": false,
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": ["ga-script-build"],
-      "removalGate": "Four separate edits in this one file, all required \u2014 the push path (:11), the paths-filter output declaration (:20), the filter block (:32-34) and the job itself (:72-102). Removing only the job leaves an output referencing a deleted filter. The Cloudflare Pages PROJECT 'alia-gateway-admin' must also be deleted out-of-band; deleting the workflow only stops future deploys and leaves the last build served forever at its pages.dev URL.",
+      "removalGate": "Four separate edits in this one file, all required — the push path (:11), the paths-filter output declaration (:20), the filter block (:32-34) and the job itself (:72-102). Removing only the job leaves an output referencing a deleted filter. The Cloudflare Pages PROJECT 'alia-gateway-admin' must also be deleted out-of-band; deleting the workflow only stops future deploys and leaves the last build served forever at its pages.dev URL.",
       "evidence": ".github/workflows/deploy-frontends.yml:11,20,32-34,72-102"
     },
     {
       "id": "ga-do-spec-root",
       "kind": "workflow",
-      "name": "Root DigitalOcean spec \u2014 gateway-admin static site + gateway.alia.onl domain",
+      "name": "Root DigitalOcean spec — gateway-admin static site + gateway.alia.onl domain",
       "currentPath": ".do/app.yaml",
       "summary": "A static_sites entry building packages/alia-gateway-admin/dist, plus the gateway.alia.onl ALIAS domain.",
       "exposesProviderSecret": false,
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": ["ga-script-build"],
-      "removalGate": "This file is explicitly documentation-only (see its own :2-4), so editing it changes NOTHING in production \u2014 the live spec is dashboard-managed and must be changed there too. Two separate edits here: the static site (:186-197) and the domain (:221-223). While in the file, note the neighbouring pre-existing rot: api.gateway.alia.onl (:218) and the build:gateway/start:gateway commands (:88-89) referencing scripts deleted in bfb2bc18.",
+      "removalGate": "This file is explicitly documentation-only (see its own :2-4), so editing it changes NOTHING in production — the live spec is dashboard-managed and must be changed there too. Two separate edits here: the static site (:186-197) and the domain (:221-223). While in the file, note the neighbouring pre-existing rot: api.gateway.alia.onl (:218) and the build:gateway/start:gateway commands (:88-89) referencing scripts deleted in bfb2bc18.",
       "evidence": ".do/app.yaml:186-197, .do/app.yaml:221-223, .do/app.yaml:2-4"
     },
     {
@@ -330,7 +330,7 @@
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": [],
-      "removalGate": "Deleted with the package. Record the conflict before deleting: this spec, the root spec and the GitHub workflow are THREE deploy definitions for one site, and they disagree \u2014 this one points the app at https://api.gateway.alia.onl/gateway while .env.example documents production as https://api.alia.onl/internal/gateway. At most one is live. Do not infer the live backend URL from this file.",
+      "removalGate": "Deleted with the package. Record the conflict before deleting: this spec, the root spec and the GitHub workflow are THREE deploy definitions for one site, and they disagree — this one points the app at https://api.gateway.alia.onl/gateway while .env.example documents production as https://api.alia.onl/internal/gateway. At most one is live. Do not infer the live backend URL from this file.",
       "evidence": "packages/alia-gateway-admin/.do/app.yaml:1-33 (esp. :29 value, :32 domain), packages/alia-gateway-admin/.env.example:3"
     },
     {
@@ -351,7 +351,7 @@
       "kind": "env",
       "name": "VITE_OAUTH_* block (dead)",
       "currentPath": "packages/alia-gateway-admin/.env.example",
-      "summary": "Four documented OAuth vars \u2014 CLIENT_ID, AUTHORITY (auth.oxy.com), REDIRECT_URI, SCOPE \u2014 that no source file reads. The app actually authenticates via VITE_OXY_CLIENT_ID / VITE_OXY_URL, which .env.example does NOT document.",
+      "summary": "Four documented OAuth vars — CLIENT_ID, AUTHORITY (auth.oxy.com), REDIRECT_URI, SCOPE — that no source file reads. The app actually authenticates via VITE_OXY_CLIENT_ID / VITE_OXY_URL, which .env.example does NOT document.",
       "exposesProviderSecret": false,
       "proposedOwner": "delete",
       "targetPath": "delete",
@@ -369,65 +369,65 @@
       "proposedOwner": "delete",
       "targetPath": "delete",
       "dependsOn": [],
-      "removalGate": "Before deleting the package, repoint the three oxyhq-auth.md citations at a surviving equivalent \u2014 packages/alia-console and packages/alia-canvas use the same rolldown-vite + vite-plugin-react-native-web + react-native-screens-shim setup, so alia-console is the natural replacement. Deleting the package without this leaves the auth guide instructing readers to copy a file that no longer exists. Also update README.md:103,135,154, docs/index.mdx:55, CONTRIBUTING.md:32, AGENTS.md:34.",
+      "removalGate": "Before deleting the package, repoint the three oxyhq-auth.md citations at a surviving equivalent — packages/alia-console and packages/alia-canvas use the same rolldown-vite + vite-plugin-react-native-web + react-native-screens-shim setup, so alia-console is the natural replacement. Deleting the package without this leaves the auth guide instructing readers to copy a file that no longer exists. Also update README.md:103,135,154, docs/index.mdx:55, CONTRIBUTING.md:32, AGENTS.md:34.",
       "evidence": "docs/oxyhq-auth.md:9,38,71; README.md:103,135,154; docs/index.mdx:55; CONTRIBUTING.md:32; AGENTS.md:34"
     },
     {
       "id": "console-screen-dashboard",
       "kind": "screen",
-      "name": "Console \u2014 Dashboard",
+      "name": "Console — Dashboard",
       "currentPath": "packages/alia-console/src/routes/_layout/dashboard.tsx",
       "summary": "Developer landing page: aggregate app/key/request stats plus the credit balance. Calls GET /developer/stats and GET /credits/.",
       "exposesProviderSecret": false,
       "proposedOwner": "oxy",
       "targetPath": "move-to-oxy-console",
       "dependsOn": ["console-api-client"],
-      "removalGate": "Oxy Console has a developer landing surface. Nothing here is provider-aware, so this is a relocation for consistency, not a decoupling requirement \u2014 it can move last.",
+      "removalGate": "Oxy Console has a developer landing surface. Nothing here is provider-aware, so this is a relocation for consistency, not a decoupling requirement — it can move last.",
       "evidence": "packages/alia-console/src/routes/_layout/dashboard.tsx:17-18; packages/alia-console/src/hooks/use-developer.ts:314; packages/alia-console/src/hooks/use-billing.ts:88"
     },
     {
       "id": "console-screen-playground",
       "kind": "screen",
-      "name": "Console \u2014 Playground",
+      "name": "Console — Playground",
       "currentPath": "packages/alia-console/src/routes/_layout/playground.tsx",
       "summary": "Interactive chat playground: model picker fed by GET /models/stats, temperature and max-tokens controls, streaming POST to /v1/chat/completions. Default model is the literal 'route:instant'.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": ["console-hook-models-stats"],
-      "removalGate": "Keep as an Alia product surface wherever the console lands \u2014 it exercises the public Alia inference API and must keep showing Alia aliases only. The one hard-coded default (:103) should read from the fetched list instead.",
+      "removalGate": "Keep as an Alia product surface wherever the console lands — it exercises the public Alia inference API and must keep showing Alia aliases only. The one hard-coded default (:103) should read from the fetched list instead.",
       "evidence": "packages/alia-console/src/routes/_layout/playground.tsx:89,103,141"
     },
     {
       "id": "console-screen-models",
       "kind": "screen",
-      "name": "Console \u2014 Models",
+      "name": "Console — Models",
       "currentPath": "packages/alia-console/src/routes/_layout/models.tsx",
-      "summary": "Read-only Alia model catalog with latency, uptime, success rate, credit multiplier, max tokens and tool/vision flags. Renders only Alia ids and tiers \u2014 no provider column.",
+      "summary": "Read-only Alia model catalog with latency, uptime, success rate, credit multiplier, max tokens and tool/vision flags. Renders only Alia ids and tiers — no provider column.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": ["console-hook-models-stats"],
-      "removalGate": "Keep. This is the correct pattern for the whole epic: an Alia-branded catalog with health metrics and zero provider identity, entirely driven by GET /models/stats. Preserve that contract \u2014 the moment /models/stats gains a provider field this screen leaks it.",
+      "removalGate": "Keep. This is the correct pattern for the whole epic: an Alia-branded catalog with health metrics and zero provider identity, entirely driven by GET /models/stats. Preserve that contract — the moment /models/stats gains a provider field this screen leaks it.",
       "evidence": "packages/alia-console/src/routes/_layout/models.tsx:13,44-127; packages/alia-console/src/hooks/use-developer.ts:327-345 (ModelStats has no provider field)"
     },
     {
       "id": "console-screen-usage",
       "kind": "screen",
-      "name": "Console \u2014 Usage",
+      "name": "Console — Usage",
       "currentPath": "packages/alia-console/src/routes/_layout/usage.tsx",
       "summary": "Workspace-wide developer usage over a selectable period. GET /developer/usage.",
       "exposesProviderSecret": false,
       "proposedOwner": "oxy",
       "targetPath": "move-to-oxy-console",
       "dependsOn": ["console-api-client"],
-      "removalGate": "Oxy Console serves developer usage for Alia-issued keys. Distinct from ga-screen-usage (upstream COGS) \u2014 do not merge the two.",
+      "removalGate": "Oxy Console serves developer usage for Alia-issued keys. Distinct from ga-screen-usage (upstream COGS) — do not merge the two.",
       "evidence": "packages/alia-console/src/routes/_layout/usage.tsx:19; packages/alia-console/src/hooks/use-developer.ts:268"
     },
     {
       "id": "console-screen-billing",
       "kind": "screen",
-      "name": "Console \u2014 Billing",
+      "name": "Console — Billing",
       "currentPath": "packages/alia-console/src/routes/_layout/billing.tsx",
       "summary": "Customer billing: credit balance, credit packs, Alia subscription plans, transaction history, Stripe checkout for both credits and subscriptions. Product is hard-coded to 'alia'.",
       "exposesProviderSecret": false,
@@ -440,7 +440,7 @@
     {
       "id": "console-screen-apps-index",
       "kind": "screen",
-      "name": "Console \u2014 Apps list",
+      "name": "Console — Apps list",
       "currentPath": "packages/alia-console/src/routes/_layout/apps/index.tsx",
       "summary": "List, create and delete developer apps (name, description, website URL).",
       "exposesProviderSecret": false,
@@ -453,20 +453,20 @@
     {
       "id": "console-screen-app-detail",
       "kind": "screen",
-      "name": "Console \u2014 App detail (keys list)",
+      "name": "Console — App detail (keys list)",
       "currentPath": "packages/alia-console/src/routes/_layout/apps/$appId/index.tsx",
       "summary": "Per-app overview listing its Alia API keys; creates a key and copies the freshly minted value to the clipboard. Lists show only keyPrefix.",
       "exposesProviderSecret": false,
       "proposedOwner": "oxy",
       "targetPath": "move-to-oxy-console",
       "dependsOn": ["console-api-client"],
-      "removalGate": "Oxy Console owns first-party key issuance. The key here is an ALIA-issued customer credential (alia_sk_*), not an upstream provider key \u2014 so it is in scope for a normal developer console and must not be conflated with ga-screen-keys.",
+      "removalGate": "Oxy Console owns first-party key issuance. The key here is an ALIA-issued customer credential (alia_sk_*), not an upstream provider key — so it is in scope for a normal developer console and must not be conflated with ga-screen-keys.",
       "evidence": "packages/alia-console/src/routes/_layout/apps/$appId/index.tsx:38,46-48,92 (copy to clipboard),:222 (renders key.keyPrefix)"
     },
     {
       "id": "console-screen-app-settings",
       "kind": "screen",
-      "name": "Console \u2014 App settings",
+      "name": "Console — App settings",
       "currentPath": "packages/alia-console/src/routes/_layout/apps/$appId/settings.tsx",
       "summary": "Edit an app's name, description and website URL. PATCH /developer/apps/:id.",
       "exposesProviderSecret": false,
@@ -479,7 +479,7 @@
     {
       "id": "console-screen-app-usage",
       "kind": "screen",
-      "name": "Console \u2014 App usage",
+      "name": "Console — App usage",
       "currentPath": "packages/alia-console/src/routes/_layout/apps/$appId/usage.tsx",
       "summary": "Per-app usage over a selectable period. GET /developer/apps/:id/usage.",
       "exposesProviderSecret": false,
@@ -492,7 +492,7 @@
     {
       "id": "console-screen-key-detail",
       "kind": "screen",
-      "name": "Console \u2014 API key detail",
+      "name": "Console — API key detail",
       "currentPath": "packages/alia-console/src/routes/_layout/apps/$appId/keys/$keyId.tsx",
       "summary": "Key metadata, scopes, 7-day usage, delete, and an env-var block presenting ALIA_API_KEY (masked to prefix) plus ALIA_BASE_URL.",
       "exposesProviderSecret": false,
@@ -505,9 +505,9 @@
     {
       "id": "console-screen-settings-workspace",
       "kind": "screen",
-      "name": "Console \u2014 Workspace settings",
+      "name": "Console — Workspace settings",
       "currentPath": "packages/alia-console/src/routes/_layout/settings/workspace.tsx",
-      "summary": "Largest console screen (595 lines): workspace rename, avatar upload, member invite/remove/role-change, workspace delete. Talks to /organization/* \u2014 an Oxy org concept, not an Alia one.",
+      "summary": "Largest console screen (595 lines): workspace rename, avatar upload, member invite/remove/role-change, workspace delete. Talks to /organization/* — an Oxy org concept, not an Alia one.",
       "exposesProviderSecret": false,
       "proposedOwner": "oxy",
       "targetPath": "move-to-oxy-console",
@@ -518,20 +518,20 @@
     {
       "id": "console-screen-examples",
       "kind": "screen",
-      "name": "Console \u2014 Examples",
+      "name": "Console — Examples",
       "currentPath": "packages/alia-console/src/routes/_layout/examples.tsx",
       "summary": "Static copy-paste code samples (Python/Node/curl/function-calling) all using model 'route:auto' against api.alia.onl.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep \u2014 it documents the Alia public API. It does name the OpenAI SDK as a client library (:47,63,120), which is a wire-format compatibility claim about the CLIENT, not a statement about who serves inference. Judgment call flagged, not a violation.",
+      "removalGate": "Keep — it documents the Alia public API. It does name the OpenAI SDK as a client library (:47,63,120), which is a wire-format compatibility claim about the CLIENT, not a statement about who serves inference. Judgment call flagged, not a violation.",
       "evidence": "packages/alia-console/src/routes/_layout/examples.tsx:37,55,71,83,96,146,176 (route:auto); :47,63,120 (openai SDK)"
     },
     {
       "id": "console-screen-docs-index",
       "kind": "screen",
-      "name": "Console \u2014 Documentation index",
+      "name": "Console — Documentation index",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/index.tsx",
       "summary": "Landing page linking the five documentation sub-pages.",
       "exposesProviderSecret": false,
@@ -544,7 +544,7 @@
     {
       "id": "console-screen-docs-quickstart",
       "kind": "screen",
-      "name": "Console \u2014 Docs: Quick Start",
+      "name": "Console — Docs: Quick Start",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/quickstart.tsx",
       "summary": "First-request walkthrough using model 'route:auto'; installs the openai client package.",
       "exposesProviderSecret": false,
@@ -557,7 +557,7 @@
     {
       "id": "console-screen-docs-authentication",
       "kind": "screen",
-      "name": "Console \u2014 Docs: Authentication",
+      "name": "Console — Docs: Authentication",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/authentication.tsx",
       "summary": "Bearer-token auth guide with a curl sample using model 'route:auto'.",
       "exposesProviderSecret": false,
@@ -570,7 +570,7 @@
     {
       "id": "console-screen-docs-chat-completions",
       "kind": "screen",
-      "name": "Console \u2014 Docs: Chat Completions",
+      "name": "Console — Docs: Chat Completions",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx",
       "summary": "Endpoint reference; the model parameter is documented by example as 'route:auto' / 'route:pro-standard'.",
       "exposesProviderSecret": false,
@@ -583,7 +583,7 @@
     {
       "id": "console-screen-docs-models",
       "kind": "screen",
-      "name": "Console \u2014 Docs: Models",
+      "name": "Console — Docs: Models",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/models.tsx",
       "summary": "HAND-MAINTAINED model catalog listing exactly four aliases (route:instant, route:auto, route:pro-standard, route:pro) as literal objects in the page source, while the API defines twelve.",
       "exposesProviderSecret": false,
@@ -596,20 +596,20 @@
     {
       "id": "console-screen-docs-sdks",
       "kind": "screen",
-      "name": "Console \u2014 Docs: SDKs",
+      "name": "Console — Docs: SDKs",
       "currentPath": "packages/alia-console/src/routes/_layout/documentation/sdks.tsx",
       "summary": "SDK integration guide. Densest provider-name page in any Alia frontend: 15 occurrences of OpenAI/openai, including a section headed 'OpenAI SDK Compatibility' and an @ai-sdk/openai createOpenAI sample.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep, but have a human rule on it explicitly. Every occurrence is about the CLIENT LIBRARY and the wire format ('point the OpenAI SDK at api.alia.onl'), which is a legitimate and commercially useful compatibility claim \u2014 it says nothing about who serves inference. It is nonetheless the page most likely to be read as a provider disclosure, so it deserves a decision on the record rather than a silent pass.",
+      "removalGate": "Keep, but have a human rule on it explicitly. Every occurrence is about the CLIENT LIBRARY and the wire format ('point the OpenAI SDK at api.alia.onl'), which is a legitimate and commercially useful compatibility claim — it says nothing about who serves inference. It is nonetheless the page most likely to be read as a provider disclosure, so it deserves a decision on the record rather than a silent pass.",
       "evidence": "packages/alia-console/src/routes/_layout/documentation/sdks.tsx:67,69,71,76,92,96,120,122,146,149,196,198,223,226,258"
     },
     {
       "id": "console-screen-index-redirect",
       "kind": "screen",
-      "name": "Console \u2014 / redirect",
+      "name": "Console — / redirect",
       "currentPath": "packages/alia-console/src/routes/index.tsx",
       "summary": "7-line route that redirects / to the dashboard. No UI.",
       "exposesProviderSecret": false,
@@ -629,7 +629,7 @@
       "proposedOwner": "oxy",
       "targetPath": "move-to-oxy-console",
       "dependsOn": [],
-      "removalGate": "Whatever host absorbs the console screens provides the equivalent client. Note it sets withCredentials: true (:11) despite the Oxy session model being device-first and zero-cookie \u2014 worth checking during the move, though it is not a provider-decoupling concern.",
+      "removalGate": "Whatever host absorbs the console screens provides the equivalent client. Note it sets withCredentials: true (:11) despite the Oxy session model being device-first and zero-cookie — worth checking during the move, though it is not a provider-decoupling concern.",
       "evidence": "packages/alia-console/src/lib/api/client.ts:5-12,29-45,48-72; packages/alia-console/src/lib/config.ts:2"
     },
     {
@@ -642,7 +642,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": ["console-api-client"],
-      "removalGate": "Keep. This hook plus its DTO is the contract that keeps the console's two model screens abstraction-safe \u2014 treat the absence of a provider field in ModelStats as a load-bearing invariant and gate it, since nothing today would fail if a provider field were added.",
+      "removalGate": "Keep. This hook plus its DTO is the contract that keeps the console's two model screens abstraction-safe — treat the absence of a provider field in ModelStats as a load-bearing invariant and gate it, since nothing today would fail if a provider field were added.",
       "evidence": "packages/alia-console/src/hooks/use-developer.ts:327-359"
     },
     {
@@ -655,7 +655,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": ["app-model-store", "app-entitlements-fallback"],
-      "removalGate": "Keep \u2014 this is the user-facing picker and must stay Alia-branded and API-driven. Two things to fix while the epic is open: (a) the thinking-model detection is a substring test, modelId.includes('thinking') (:26,:36), which silently misclassifies any future alias containing that word; (b) `cachedModels` is a module-level mutable `let` read from render (:21,:98), which is exactly the external-mutable-state-in-a-memoized-position hazard the React Compiler rules warn about.",
+      "removalGate": "Keep — this is the user-facing picker and must stay Alia-branded and API-driven. Two things to fix while the epic is open: (a) the thinking-model detection is a substring test, modelId.includes('thinking') (:26,:36), which silently misclassifies any future alias containing that word; (b) `cachedModels` is a module-level mutable `let` read from render (:21,:98), which is exactly the external-mutable-state-in-a-memoized-position hazard the React Compiler rules warn about.",
       "evidence": "packages/app/components/model-selector.tsx:21,26,31,36,94,104,114,132"
     },
     {
@@ -668,7 +668,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Flag for the epic: because the value is PERSISTED, retiring or renaming an alias strands every existing installation on a dead id with no migration path \u2014 the store has no validation against the fetched catalog. Verified this is the only model-holding store: the other 15 files in packages/app/lib/stores/ contain no model state.",
+      "removalGate": "Keep. Flag for the epic: because the value is PERSISTED, retiring or renaming an alias strands every existing installation on a dead id with no migration path — the store has no validation against the fetched catalog. Verified this is the only model-holding store: the other 15 files in packages/app/lib/stores/ contain no model state.",
       "evidence": "packages/app/src/features/chat/runtime/model-store.ts:16-17,26-27"
     },
     {
@@ -681,7 +681,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": ["app-model-store"],
-      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (route:instant and route:audio have no entry \u2014 correct for route:instant as the floor, unexamined for route:audio). Every alias change requires an app release to stay correct.",
+      "removalGate": "Keep the feature, but this map must become server-driven during the epic: it hard-codes both the alias graph AND the credit multipliers in a client, and it already omits two of the twelve defined aliases (route:instant and route:audio have no entry — correct for route:instant as the floor, unexamined for route:audio). Every alias change requires an app release to stay correct.",
       "evidence": "packages/app/components/credit-warning-banner.tsx:24-35"
     },
     {
@@ -754,52 +754,13 @@
       "kind": "model-alias",
       "name": "@alia.onl/sdk model defaults",
       "currentPath": "packages/alia-chat/src/hooks/useAliaChat.ts",
-      "summary": "The published SDK's model surface: a `model` prop defaulting to 'route:auto' (documented on AliaChatScreen and AliaChatSheet) plus two voice paths pinned to 'route:voice'. No model PICKER ships in the SDK \u2014 the consumer passes an id.",
+      "summary": "The published SDK's model surface: a `model` prop defaulting to 'route:auto' (documented on AliaChatScreen and AliaChatSheet) plus two voice paths pinned to 'route:voice'. No model PICKER ships in the SDK — the consumer passes an id.",
       "exposesProviderSecret": false,
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
       "removalGate": "Keep, and treat these three literals as the highest-inertia alias references in the repo: they are compiled into external consumers' apps (the package ships as RAW SOURCE), so retiring route:auto or route:voice breaks installed SDK versions that no Alia deploy can fix. Any alias retirement plan must keep both ids resolvable indefinitely or ship a major SDK version first. Verified there is no model picker component in the SDK: all 49 files under packages/alia-chat/src were enumerated.",
       "evidence": "packages/alia-chat/src/hooks/useAliaChat.ts:11,46; packages/alia-chat/src/components/AliaChatScreen.tsx:31; packages/alia-chat/src/components/AliaChatSheet.tsx:48; packages/alia-chat/src/hooks/useTTS.ts:205; packages/alia-chat/src/hooks/useVoiceRoom.ts:332"
-    },
-    {
-      "id": "codea-webview-model-picker",
-      "kind": "component",
-      "name": "Codea webview model picker",
-      "currentPath": "packages/alia-codea/webview-ui/src/components/Chat.tsx",
-      "summary": "In-editor chat model dropdown. Fetches the catalog from the API but ships a one-entry defaultModels fallback and a hard-coded initial state, both 'route:code'.",
-      "exposesProviderSecret": false,
-      "proposedOwner": "alia",
-      "targetPath": "keep-as-alia-product-setting",
-      "dependsOn": [],
-      "removalGate": "Keep. Same shipped-binary inertia as the SDK: a VS Code extension in the marketplace keeps sending 'route:code' until each user updates.",
-      "evidence": "packages/alia-codea/webview-ui/src/components/Chat.tsx:183-186,200"
-    },
-    {
-      "id": "codea-extension-model-config",
-      "kind": "model-alias",
-      "name": "Codea VS Code settings + providers",
-      "currentPath": "packages/alia-codea/package.json",
-      "summary": "The codea.model contributed setting defaults to 'route:code'; three extension entry points read it with the same literal as their fallback (chat participant, chat provider, inline completions).",
-      "exposesProviderSecret": false,
-      "proposedOwner": "alia",
-      "targetPath": "keep-as-alia-product-setting",
-      "dependsOn": ["codea-webview-model-picker"],
-      "removalGate": "Keep. The setting is correctly documented as 'available models are fetched from the API', and it is a free-form string rather than an enum, so the catalog can grow without an extension release \u2014 only the DEFAULT is frozen. Also update packages/alia-codea/README.md:15,63, which list alias ids in prose.",
-      "evidence": "packages/alia-codea/package.json:160-164; packages/alia-codea/src/chatParticipant.ts:30; packages/alia-codea/src/chatProvider.ts:592; packages/alia-codea/src/inlineCompletionProvider.ts:23"
-    },
-    {
-      "id": "codea-cli-model-defaults",
-      "kind": "model-alias",
-      "name": "Codea CLI model defaults",
-      "currentPath": "packages/alia-codea-cli/src/index.ts",
-      "summary": "Three commander --model options defaulting to 'route:code', plus the config default and the sessions fallback. The TUI strips the 'route:auto-' prefix for display.",
-      "exposesProviderSecret": false,
-      "proposedOwner": "alia",
-      "targetPath": "keep-as-alia-product-setting",
-      "dependsOn": [],
-      "removalGate": "Keep. One defect to fix while here: the --model help text advertises short names ('codea, codea-pro, codea-thinking') while the default is a full alias id \u2014 the two vocabularies disagree, and 'codea-pro'/'codea-thinking' correspond to no defined alias. Also update packages/alia-codea-cli/README.md:125.",
-      "evidence": "packages/alia-codea-cli/src/index.ts:49,62,77; packages/alia-codea-cli/src/utils/config.ts:25; packages/alia-codea-cli/src/commands/sessions.ts:115; packages/alia-codea-cli/src/app.tsx:256"
     },
     {
       "id": "cowork-model-defaults",
@@ -811,7 +772,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Note tools.ts:454 pins route:research with the inline comment 'Browser automation specialist model' \u2014 a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when kaana owns capability routing.",
+      "removalGate": "Keep. Note tools.ts:454 pins route:research with the inline comment 'Browser automation specialist model' — a capability-to-alias binding hard-coded in a desktop binary, which is the pattern most likely to break silently when kaana owns capability routing.",
       "evidence": "packages/alia-cowork/renderer/src/components/Chat.tsx:114-117,162; packages/alia-cowork/src/main/auth.ts:26; packages/alia-cowork/src/main/chat.ts:30; packages/alia-cowork/src/main/tools.ts:454"
     },
     {
@@ -824,7 +785,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Included because canvas was not named in the brief but carries six alias sites and its own /v1/models client \u2014 an alias-retirement sweep that skips it leaves saved workflow nodes pinned to a dead id. The `MODELS` export at models.ts:42 is a back-compat alias with a comment saying it will be replaced; it should be deleted rather than carried forward.",
+      "removalGate": "Keep. Included because canvas was not named in the brief but carries six alias sites and its own /v1/models client — an alias-retirement sweep that skips it leaves saved workflow nodes pinned to a dead id. The `MODELS` export at models.ts:42 is a back-compat alias with a comment saying it will be replaced; it should be deleted rather than carried forward.",
       "evidence": "packages/alia-canvas/src/lib/models.ts:8-10,26,41-42; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79; packages/alia-canvas/src/components/workflow/node-edit-panel.tsx:59,119"
     },
     {
@@ -837,7 +798,7 @@
       "proposedOwner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep and make it authoritative. It calls itself 'the canonical superset', yet the gateway admin maintains a SECOND, DIFFERENT 12-member list (missing v1-tts and v1-image) with no type relationship between them. Retiring the gateway admin removes that fork for free \u2014 which is an argument for doing workstream 9 early rather than late.",
+      "removalGate": "Keep and make it authoritative. It calls itself 'the canonical superset', yet the gateway admin maintains a SECOND, DIFFERENT 12-member list (missing v1-tts and v1-image) with no type relationship between them. Retiring the gateway admin removes that fork for free — which is an argument for doing workstream 9 early rather than late.",
       "evidence": "packages/shared-types/src/models.ts:13-31 vs packages/alia-gateway-admin/src/types/index.ts:268-281"
     }
   ],
@@ -849,8 +810,8 @@
   },
   "countNotes": {
     "gatewayAdminScreens": "10 authenticated routes (App.tsx:97-106) + 1 unauthenticated login fallback (App.tsx:84-90). Reconciles exactly with the 11 .tsx files in src/pages/ and with the 10-item sidebar array (which correctly omits Login).",
-    "consoleScreens": "18 LEAF screens from routeTree.gen.ts. Excludes 2 shells (__root.tsx, _layout.tsx) and counts the 7-line / redirect (routes/index.tsx) as the 19th route file but not as a screen \u2014 18 screens + 1 redirect + 2 shells = 21 route files, matching the file listing.",
-    "hardcodedModelAliasSites": "78 file:line sites matching a literal alia-{lite,v1,...} inside the frontend/admin/SDK/CLI scope of this workstream: app 19, alia-console 26, alia-codea 8 (incl. 2 README lines and 1 package.json), alia-codea-cli 7 (incl. 1 README line), alia-canvas 6, alia-chat 6, alia-cowork 5, alia-gateway-admin 1. Excludes packages/api and packages/integrations (other workstreams) and excludes comment-only mentions in packages/shared-types. Positive control and non-zero floor stated in method.controls.",
-    "screensExposingSecrets": "3, all in alia-gateway-admin: Keys (writes a plaintext provider key AND renders keyPrefix), Dashboard (renders provider + keyPrefix in the alerts panel), Monitoring (renders keyPrefix in two drilldowns). Zero in alia-console: the keyPrefix shown on 2 console screens is a FIRST-PARTY Alia developer key, not an upstream provider credential. Zero in packages/app, alia-chat, alia-codea, alia-codea-cli, alia-cowork, alia-canvas \u2014 'absent', measured, with the positive control named in method.controls."
+    "consoleScreens": "18 LEAF screens from routeTree.gen.ts. Excludes 2 shells (__root.tsx, _layout.tsx) and counts the 7-line / redirect (routes/index.tsx) as the 19th route file but not as a screen — 18 screens + 1 redirect + 2 shells = 21 route files, matching the file listing.",
+    "hardcodedModelAliasSites": "1 README line), alia-canvas 6, alia-chat 6, alia-cowork 5, alia-gateway-admin 1. Excludes packages/api and packages/integrations (other workstreams) and excludes comment-only mentions in packages/shared-types. Positive control and non-zero floor stated in method.controls.",
+    "screensExposingSecrets": "3, all in alia-gateway-admin: Keys (writes a plaintext provider key AND renders keyPrefix), Dashboard (renders provider + keyPrefix in the alerts panel), Monitoring (renders keyPrefix in two drilldowns). Zero in alia-console: the keyPrefix shown on 2 console screens is a FIRST-PARTY Alia developer key, not an upstream provider credential."
   }
 }

@@ -19,14 +19,6 @@
       "sha256": "fc394a637f51963bbf292c2396bedfed80f3101152077ce16fff822fd1f45a97"
     },
     {
-      "path": "packages/alia-codea-cli/package.json",
-      "sha256": "80494dfcc466b5f963891c305dd1706707472a9b8d1c29fb326f4f3d61d24be2"
-    },
-    {
-      "path": "packages/alia-codea/package.json",
-      "sha256": "15f13f5b85ccb556f01b64b691ff7c5d8491d858e191d7b2d497d773adb25acb"
-    },
-    {
       "path": "packages/alia-computer-host/package.json",
       "sha256": "937f1864484c95586ed66a5314f28eb2e0bb08beb1d0ecf650f8ceec98b3c5f1"
     },

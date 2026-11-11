@@ -14,14 +14,6 @@
       "sha256": "8d701385a1d719a09a5613363cbea317a5c220533b25c043d90c66cae1fc9dbc"
     },
     {
-      "path": "packages/alia-codea-cli/package.json",
-      "sha256": "485216ce6333ae4fbea98e149e843d33f5c50742f7ceb1f20dded961b315d166"
-    },
-    {
-      "path": "packages/alia-codea/package.json",
-      "sha256": "a2b44edd18415132ac44a17c96bcba0785762b218bb13327fb0cc3346d70c2bb"
-    },
-    {
       "path": "packages/alia-computer-host/package.json",
       "sha256": "f76f6c3dff0f274cc594975a8dc1360aed307951ffe05f829ef3dfcb931b6c27"
     },
@@ -60,16 +52,6 @@
     },
     {
       "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-chat-types.log",
-      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
-      "bytes": 15
-    },
-    {
-      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-codea-cli-types.log",
-      "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
-      "bytes": 15
-    },
-    {
-      "path": "docs/audits/2026-10-04-final-registry-adoption/records/alia-codea-types.log",
       "sha256": "8366207267355d3e3d5bf3bf6e8c94c5f93f6078c34f08973fa2b38cdda6cc92",
       "bytes": 15
     },

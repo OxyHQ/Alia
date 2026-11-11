@@ -74,7 +74,7 @@ vi.mock('../logger.js', () => {
     debug: record('debug'),
   };
   return {
-    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+    log: { agents: child, chat: child, general: child, v1: child, providers: child },
   };
 });
 
@@ -489,8 +489,8 @@ describe('the non-streaming path titles without clobbering (#139 ws6)', () => {
 
   it('the non-streaming entrypoint still calls it', () => {
     // The other "green and inert" half, and the one with no fixture at all:
-    // `chatFlowFixtures.test.ts`'s non-streaming flows are Codea and Cowork,
-    // which send no `conversationId`, so nothing in the suite reaches this call.
+    // `chatFlowFixtures.test.ts`'s non-streaming flow is Cowork's,
+    // which sends no `conversationId`, so nothing in the suite reaches this call.
     const nonStreaming = code('lib/chat/non-streaming.ts');
     expect(nonStreaming).toContain('export async function runNonStreaming');
     expect(nonStreaming).toContain(

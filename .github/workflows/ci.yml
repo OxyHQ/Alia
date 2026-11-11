@@ -480,25 +480,13 @@ jobs:
       - name: Assert the Expo generator did not rewrite tsconfig
         run: git diff --exit-code packages/app/tsconfig.json
 
-      # The VS Code extension parses `GET /catalogue` and `GET /catalogue/modes`
-      # itself — it bundles with esbuild and cannot depend on an unpublished
-      # workspace package, so the parsing is its own. It had a `test` script and
-      # a suite that no job ran, which is a suite that cannot fail.
-      - name: Test Codea extension
-        run: bun run --filter alia-codea test
-
       # `alia-cowork` declares `"test": "vitest run"` and ships a real suite —
       # `src/preload/__tests__/index.test.ts`, which caught ten no-op IPC
       # unsubscribes — and no job has ever called it. Exactly the
-      # suite-that-cannot-fail this file records having fixed for
-      # `alia-codea` and `@alia/app`; cowork was simply missed.
+      # suite-that-cannot-fail this file records having fixed for `@alia/app`;
+      # cowork was simply missed.
       - name: Test Cowork
         run: bun run --filter alia-cowork test
-
-      # `@alia-codea/cli` had no suite at all until this PR, and it is the
-      # package that applies model-authored patches to a working tree.
-      - name: Test Codea CLI
-        run: bun run --filter @alia-codea/cli test
 
       # The agents' computer host runs model-authored commands. Its isolation
       # check, path gates (TypeScript and files.py), receipts and leases have a
@@ -554,16 +542,15 @@ jobs:
       - name: Test the asset Workers
         run: node --test scripts/asset-worker.test.mjs
 
-      # `alia-canvas` and the Codea `webview-ui` are solution-style projects
-      # (`"files": []`, references only), so `tsc --noEmit` in them compiles
-      # NOTHING and exits 0 — which is why `typecheck-workspaces.ts` lists both
-      # as scriptless and points at the `tsc -b` inside their own `build`. That
+      # `alia-canvas` is a solution-style project (`"files": []`, references
+      # only), so `tsc --noEmit` in it compiles NOTHING and exits 0 — which is why
+      # `typecheck-workspaces.ts` lists it as scriptless and points at the `tsc -b`
+      # inside its own `build`. That
       # build only ran in `deploy-frontends.yml`, on main, AFTER merge. This is
       # the same check, before it.
       - name: Typecheck the solution-style frontends
         run: |
           bunx tsc -b packages/alia-canvas
-          bunx tsc -b packages/alia-codea/webview-ui
 
       # The Canvas Worker deploy, minus the publish — the same wrangler, the
       # same wrangler.toml and the same build output that `deploy-frontends.yml`

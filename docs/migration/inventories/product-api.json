@@ -7,7 +7,6 @@
     "controls": [
       "ROUTE ENUMERATION: routes were read off the actual Express mounting in packages/api/src/index.ts:221-257 and then off each router file, never from memory. Two independent patterns were run over packages/api/src/routes/v1/: a strict '^\\s*router\\.(get|post|...)\\(' and a looser '\\.(get|post|...)\\([quote]'. Both returned the SAME 16 handler definitions across all 7 v1 sub-route files, and both saw the known-present router.post('/', handleChatCompletions) at chat-completions.ts:334. Agreement of a strict and a loose pattern is the positive control that neither is over-narrow.",
       "SSE EVENT CENSUS: 'event: alia.<name>' literal grep over packages/api/src found 6 names at 9 sites. That census is knowingly blind to the emitter indirection, so a SECOND census over the repo for the token 'alia\\.[a-z_]{3,}' found 5 MORE names (approval_request, approval_result, plan_preview, model_switch, tool_call) that the first missed - the first census's clean number was partly blindness. Each extra name was then traced to its real emitter (sse-emitter.ts createResponseSSEEmitter writes 'event: <name>\\ndata:', socket.ts uses io.emit). Finally a NEGATIVE control: grep for '.emit(' with a non-literal (variable) first argument returned zero across packages/api/src, proving no event name is constructed dynamically and the literal census is therefore complete.",
-      "CALL-SITE CENSUS FOR /v1/chat/completions: a literal path grep misses every client that uses the OpenAI SDK with baseURL '<base>/v1' (Codea extension, Codea CLI, Cowork). Those were found by a second pass for 'new OpenAI(' / 'baseURL' and are included. Positive control: the literal grep did find the known-present packages/alia-chat/src/hooks/useAliaChat.ts:217.",
       "APP /v1 CENSUS CORRECTED MID-RUN: a first pattern anchored on a quote/backtick immediately before '/v1/' MISSED packages/app/components/model-selector.tsx:114 (fetch(`${config.apiUrl}/v1/models?chat=true`)). Re-run with a bare '/v1/' substring. The narrow pattern's clean output is exactly what an absent call would have produced; the corrected count is what this file reports.",
       "API_ROUTES DEAD-ENTRY CHECK: 'API_ROUTES.chat' and 'API_ROUTES.v1.chatCompletions|models|audioSpeech|audioGenerate|imagesGenerations' returned zero references in packages/app. Positive control: the same scan for bare 'API_ROUTES' returned 10+ files with multiple hits each (skills-store, agents-store, show-store, ...), so the scanner could see the identifier - the zero is absence, not blindness.",
       "body.agentId CHECK: 'body.agentId' returned zero readers in packages/api/src. Positive control: the identically-shaped 'body.skillId' returned 5 real readers (request-context.ts:174,175,264; provider-loop.ts:190,263). The zero is real.",
@@ -323,42 +322,6 @@
       "evidence": "packages/api/src/index.ts:207-218 vs packages/api/src/index.ts:133-136"
     },
     {
-      "id": "codea-resolve-model-410",
-      "kind": "route",
-      "name": "POST /codea/resolve-model (410 Gone)",
-      "currentPath": "packages/api/src/routes/codea.ts",
-      "summary": "Codea-specific tombstone, API-key authenticated, same 410 body as the /v1 one.",
-      "proposedOwner": "delete",
-      "targetPath": "delete",
-      "dependsOn": ["v1-resolve-model-410"],
-      "removalGate": "packages/alia-codea/README.md:17 already states clients no longer call it. Gate on access logs; a stale published VS Code extension version may still.",
-      "evidence": "packages/api/src/routes/codea.ts:235"
-    },
-    {
-      "id": "codea-report-usage-410",
-      "kind": "route",
-      "name": "POST /codea/report-usage (410 Gone)",
-      "currentPath": "packages/api/src/routes/codea.ts",
-      "summary": "Codea-specific usage-reporting tombstone.",
-      "proposedOwner": "delete",
-      "targetPath": "delete",
-      "dependsOn": ["v1-report-usage-410"],
-      "removalGate": "Same as codea-resolve-model-410.",
-      "evidence": "packages/api/src/routes/codea.ts:246"
-    },
-    {
-      "id": "codea-surface",
-      "kind": "route",
-      "name": "/codea/{user,token,mcp_registry,health,me}",
-      "currentPath": "packages/api/src/routes/codea.ts",
-      "summary": "Five live API-key-authenticated Codea endpoints beside the two tombstones. Only /codea/me has an in-repo caller (the CLI).",
-      "proposedOwner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": [],
-      "removalGate": "Published VS Code extension versions in the wild may call /codea/user and /codea/token. Gate on marketplace version telemetry, not on the repo.",
-      "evidence": "packages/api/src/routes/codea.ts:38,129,166,188,199; packages/alia-codea-cli/src/commands/auth.ts:162"
-    },
-    {
       "id": "internal-providers-unmounted",
       "kind": "route",
       "name": "internal providers module (/v1/providers, /v1/keys, /v1/usage, /v1/alia-models, /v1/plans, ... 12 sub-routers)",
@@ -453,54 +416,6 @@
       "dependsOn": ["v1-voice-transcribe"],
       "removalGate": "Published package.",
       "evidence": "packages/alia-chat/src/hooks/useSpeechToText.ts:164"
-    },
-    {
-      "id": "codea-chat-participant-consumer",
-      "kind": "consumer",
-      "name": "Codea VS Code extension - chat participant",
-      "currentPath": "packages/alia-codea/src/chatParticipant.ts",
-      "summary": "Raw fetch to /v1/chat/completions; model defaults to 'route:code' from VS Code settings.",
-      "proposedOwner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": ["v1-chat-completions-post", "model-id-route:code"],
-      "removalGate": "Marketplace-published; users run pinned old versions indefinitely. Wire changes need server-side back-compat, not a client release.",
-      "evidence": "packages/alia-codea/src/chatParticipant.ts:177,30"
-    },
-    {
-      "id": "codea-inline-completion-consumer",
-      "kind": "consumer",
-      "name": "Codea VS Code extension - inline completions",
-      "currentPath": "packages/alia-codea/src/inlineCompletionProvider.ts",
-      "summary": "Second raw fetch to /v1/chat/completions, model default 'route:code'. Latency-sensitive path.",
-      "proposedOwner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": ["v1-chat-completions-post", "model-id-route:code"],
-      "removalGate": "Same as codea-chat-participant-consumer.",
-      "evidence": "packages/alia-codea/src/inlineCompletionProvider.ts:93,23"
-    },
-    {
-      "id": "codea-chat-provider-consumer",
-      "kind": "consumer",
-      "name": "Codea VS Code extension - webview chat provider (OpenAI SDK)",
-      "currentPath": "packages/alia-codea/src/chatProvider.ts",
-      "summary": "Streams POST /alia/chat through src/aliaChat.ts (streamAliaChat); the OpenAI SDK client is gone. aliaChat.ts still reads the alia_meta.synthetic flag defensively, although the server no longer emits it.",
-      "proposedOwner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": ["v1-chat-completions-post", "v1-models-list", "response-ext-alia-meta"],
-      "removalGate": "None: Alia's own surface on Alia's permanent product API (ADR 0010). The defensive alia_meta.synthetic branch can go once no older server can answer it.",
-      "evidence": "packages/alia-codea/src/chatProvider.ts:12,757; packages/alia-codea/src/aliaChat.ts:15,33"
-    },
-    {
-      "id": "codea-cli-consumer",
-      "kind": "consumer",
-      "name": "@alia-codea/cli - streamChat (OpenAI SDK)",
-      "currentPath": "packages/alia-codea-cli/src/utils/api.ts",
-      "summary": "new OpenAI({ baseURL: `${baseUrl}/v1` }), default base https://api.alia.onl, model default 'route:code'. Consumes only OpenAI-standard delta.content and delta.tool_calls - it ignores every named alia.* SSE event.",
-      "proposedOwner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": ["v1-chat-completions-post", "model-id-route:code"],
-      "removalGate": "npm-published CLI. Because it ignores named events, it is the client most likely to break on a change to the DEFAULT data: frame, and least likely to notice event additions.",
-      "evidence": "packages/alia-codea-cli/src/utils/api.ts:132-137,155-160; packages/alia-codea-cli/src/utils/config.ts:25"
     },
     {
       "id": "cowork-chat-consumer",
@@ -735,7 +650,7 @@
       "kind": "stream-event",
       "name": "Unnamed `data:` frames - OpenAI chat.completion.chunk",
       "currentPath": "packages/api/src/lib/streaming-helpers.ts",
-      "summary": "The default (unnamed) SSE frames carrying standard OpenAI deltas, with system_fingerprint:'fp_alia'. This is what the three OpenAI-SDK clients (Codea webview, Codea CLI, Cowork) consume EXCLUSIVELY - they ignore every named event.",
+      "summary": "The default (unnamed) SSE frames carrying standard OpenAI deltas, with system_fingerprint:'fp_alia'. This is what the three OpenAI-SDK clients (Cowork) consume EXCLUSIVELY - they ignore every named event.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": ["v1-chat-completions-post"],
@@ -887,18 +802,6 @@
       "evidence": "packages/api/src/db/schema/agents.ts:129; packages/api/src/routes/oxy-service-events.ts:78; packages/api/drizzle/0013_exotic_domino.sql"
     },
     {
-      "id": "cli-model-id-string-surgery",
-      "kind": "model-id-usage",
-      "name": "CLI constructs and destructs model ids by string concatenation",
-      "currentPath": "packages/alia-codea-cli/src/app.tsx",
-      "summary": "`/model pro` becomes `route:auto-${args[0]}` (line 146) and the status bar renders model.replace('route:auto-','') (line 256). The CLI therefore assumes the id namespace is permanently shaped 'route:auto-<suffix>'.",
-      "proposedOwner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": ["alia-models-registry", "codea-cli-consumer"],
-      "removalGate": "Any new id not matching route:auto-<x> (e.g. route:instant, or a future alia-v2) is unreachable from the CLI's /model command and renders wrong in its status bar. Fix before adding ids outside the pattern.",
-      "evidence": "packages/alia-codea-cli/src/app.tsx:146,256"
-    },
-    {
       "id": "model-id-route:instant",
       "kind": "model-id-usage",
       "name": "route:instant as a hardcoded default (5 packages)",
@@ -909,18 +812,6 @@
       "dependsOn": ["alia-models-registry"],
       "removalGate": "Retiring route:instant silently breaks every bot channel AND invalidates the model field of saved Canvas workflows. Highest fan-out of any single id.",
       "evidence": "packages/integrations/src/shared/api-client.ts:207,269; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
-    },
-    {
-      "id": "model-id-route:code",
-      "kind": "model-id-usage",
-      "name": "route:code as the Codea default (extension setting + CLI + webview)",
-      "currentPath": "packages/alia-codea/package.json",
-      "summary": "Declared as the default of a published VS Code SETTING (package.json:162), plus chatParticipant.ts:30, inlineCompletionProvider.ts:23, chatProvider.ts:592, CLI config.ts:25 and index.ts (3 CLI option defaults), and the webview model list.",
-      "proposedOwner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": ["alia-models-registry"],
-      "removalGate": "A VS Code setting default persists in users' settings.json after an extension update - retiring this id breaks users who ever opened the setting, even after they upgrade.",
-      "evidence": "packages/alia-codea/package.json:162; packages/alia-codea-cli/src/index.ts:49,62,77"
     },
     {
       "id": "model-id-route:cowork",
@@ -967,8 +858,8 @@
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": ["response-ext-alia-usage"],
-      "removalGate": "Server side: none left to remove beyond the unused aliaMeta option. Clients (Codea's aliaChat.ts/chatParticipant.ts/inlineCompletionProvider.ts, Cowork's alia-chat.ts, @alia.onl/server) still read alia_meta.synthetic defensively so an older server cannot slip a stand-in in as an answer; drop those branches once no older server can answer them.",
-      "evidence": "packages/api/src/lib/chat/response-shapes.ts:38,70 (optional, no caller); packages/alia-codea/src/chatParticipant.ts:176-244; packages/alia-codea/src/inlineCompletionProvider.ts:164; packages/alia-cowork/src/main/alia-chat.ts:289"
+      "removalGate": "Server side: none left to remove beyond the unused aliaMeta option. drop those branches once no older server can answer them.",
+      "evidence": "packages/api/src/lib/chat/response-shapes.ts:38,70 (optional, no caller); packages/alia-cowork/src/main/alia-chat.ts:289"
     },
     {
       "id": "gateway-client-seam",
@@ -1095,12 +986,12 @@
       "kind": "doc",
       "name": "Package READMEs publishing the endpoint and event lists (12 model-id matches)",
       "currentPath": "packages/api/README.md",
-      "summary": "packages/api/README.md lists the routes (:36-40) and the event names (:70-78); packages/app/README.md:16-24 and packages/alia-cowork/README.md:9,16-20 each republish the event list; packages/alia-codea/README.md:14,17 names the endpoint and claims the removed endpoints are unused; root README.md:56 states the alias relationship.",
+      "summary": "packages/api/README.md lists the routes (:36-40) and the event names (:70-78); packages/app/README.md:16-24 and packages/alia-cowork/README.md:9,16-20 each republish the event list; root README.md:56 states the alias relationship.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": ["doc-api-reference"],
       "removalGate": "Five READMEs independently restate the same event list. They are the most likely to be forgotten in a rename - sweep them by name, not by directory.",
-      "evidence": "packages/api/README.md:36-40,70-78; packages/app/README.md:16-24; packages/alia-cowork/README.md:9,16-20; packages/alia-codea/README.md:14,17; README.md:56"
+      "evidence": "packages/api/README.md:36-40,70-78; packages/app/README.md:16-24; packages/alia-cowork/README.md:9,16-20; README.md:56"
     },
     {
       "id": "doc-gateway-admin-readme",
@@ -1149,8 +1040,8 @@
   "countDefinitions": {
     "v1Routes": "20 HTTP handlers served under /v1: GET /v1, GET /v1/models, GET /v1/models/:modelId, GET /v1/me, POST /v1/resolve-model (410), POST /v1/report-usage (410), POST /v1/chat/completions, GET /v1/chat/completions, POST /v1/responses, POST /v1/voice/token, POST /v1/voice/transcribe, POST /v1/audio/speech, POST /v1/audio/generate, GET /v1/audio/jobs/:jobId, POST /v1/images/generations, GET /v1/shows/voices, POST /v1/shows/generate, GET /v1/shows, GET /v1/shows/:id, DELETE /v1/shows/:id. Enumerated from packages/api/src/routes/v1.ts plus its 7 sub-routers, cross-checked by two independent grep patterns that agreed on 16 sub-router definitions (+4 defined directly in v1.ts).",
     "aliaChatConsumers": "1 = the single in-repo code reference, packages/app/src/shared/api/routes.ts:53, and it is DEAD (no file references API_ROUTES.chat). LIVE in-repo callers of POST /alia/chat = 0. The endpoint is nonetheless public and named in 6 documents. External callers are unknowable from source.",
-    "chatCompletionsConsumers": "11 executable call sites across 7 packages (comments and docs excluded by hand): app x2 (use-chat-conversation.ts:44, use-personality-sample-phrase.ts:68), alia-chat SDK x1 (useAliaChat.ts:217), alia-codea x3 (chatParticipant.ts:177, inlineCompletionProvider.ts:93, chatProvider.ts:705 via OpenAI baseURL), alia-codea-cli x1 (api.ts:136 via OpenAI baseURL), alia-cowork x1 (chat.ts:149 via OpenAI baseURL), alia-console x1 (playground.tsx:141), integrations x2 (api-client.ts:198,260). 3 of the 11 are invisible to a literal path grep because they go through the OpenAI SDK's baseURL.",
+    "chatCompletionsConsumers": "3 of the 11 are invisible to a literal path grep because they go through the OpenAI SDK's baseURL.",
     "streamEventTypes": "8 = named SSE events ACTUALLY EMITTED: alia.reasoning, alia.tool_result, alia.agent, alia.title, alia.agent_session, alia.research_progress, alia.plan_preview, alia.model_switch. Separately tracked as items but excluded from this number: 4 unnamed SSE frame kinds (OpenAI chunk, terminal usage chunk, [DONE], error frame), 2 Socket.IO-only alia.* events wrongly documented as SSE, 1 legacy in-data type-based event still parsed by the published SDK, and 5 further Socket.IO product events (agent-activity with its own 13-value type vocabulary, audio:job-update, show:progress, telegram-linked, notification).",
-    "aliaModelIdMentionsInDocs": "89 regex MATCHES (not lines) of alia-(lite|v1)(-suffix)* across the public documentation corpus: docs/** = 46 (model-abstraction.mdx 15, index.mdx 20, onboarding.md 5, agents.md 2, api-reference.md 2, chat-runtime.mdx 1, superpowers/plans/2026-07-15 1); README/CHANGELOG/FEATURES = 12 (root README.md 6, alia-codea/README.md 3, api/src/internal/README.md 2, alia-codea-cli/README.md 1); alia-console public portal pages = 31. NOT included in 89 (counted separately because they are code, not docs): tests 39, seed data 21, drizzle generated artefacts 18, and 0 in translation strings."
+    "aliaModelIdMentionsInDocs": "89 regex MATCHES (not lines) of alia-(lite|v1)(-suffix)* across the public documentation corpus: docs/** = 46 (model-abstraction.mdx 15, index.mdx 20, onboarding.md 5, agents.md 2, api-reference.md 2, chat-runtime.mdx 1, superpowers/plans/2026-07-15 1); alia-console public portal pages = 31. NOT included in 89 (counted separately because they are code, not docs): tests 39, seed data 21, drizzle generated artefacts 18, and 0 in translation strings."
   }
 }

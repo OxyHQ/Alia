@@ -142,7 +142,7 @@ router.post(
         ownerOxyAccountId: userId,
         character,
         tagline,
-        description: `${EXTERNAL_AGENT_CLI_LABELS[cli]} running on ${hostName}, connected to Alia through the Codea daemon.`,
+        description: `${EXTERNAL_AGENT_CLI_LABELS[cli]} running on ${hostName}, connected to Alia through its daemon.`,
         authorOxyUserId: userId,
         category: 'Assistant',
         isPublished: false,

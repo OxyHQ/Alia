@@ -2,7 +2,7 @@
  * Closed value sets and wire protocol for external agents (ADR 0030).
  *
  * A leaf module: the drizzle schema renders its CHECK from {@link EXTERNAL_AGENT_CLIS}, and the
- * daemon (`@alia-codea/cli`) mirrors the frame shapes below by hand, so keep them boring.
+ * daemon mirrors the frame shapes below by hand, so keep them boring.
  */
 
 /** The coding-agent CLIs a daemon can drive. */

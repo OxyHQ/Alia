@@ -16,7 +16,7 @@ const VOICE_PROFILE_MARKER = '# RESPONSE PROFILE: Voice';
 const GENERAL_PROFILE_MARKER = '# RESPONSE PROFILE: V1';
 
 async function build(options: {
-  surface?: 'chat' | 'codea' | 'cowork';
+  surface?: 'chat' | 'cowork';
   responseMode?: 'voice' | null;
 }): Promise<string> {
   return SystemPromptBuilder.build({ isDirectUserSession: false, ...options });
@@ -42,7 +42,7 @@ describe('the spoken-answer layer', () => {
   });
 
   it('is layered exactly once, whatever the surface', async () => {
-    for (const surface of ['chat', 'codea', 'cowork'] as const) {
+    for (const surface of ['chat', 'cowork'] as const) {
       const prompt = await build({ surface, responseMode: 'voice' });
       expect(prompt.split(VOICE_PROFILE_MARKER)).toHaveLength(2);
     }

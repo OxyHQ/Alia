@@ -57,7 +57,7 @@ vi.mock('../../agent-availability.js', () => ({ agentOpensOn: async () => 'reach
 vi.mock('../../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return {
-    log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child },
+    log: { agents: child, chat: child, general: child, v1: child, providers: child },
   };
 });
 

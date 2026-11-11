@@ -58,7 +58,6 @@
  */
 export const ALIA_INFERENCE_SURFACES = [
   'chat',
-  'codea',
   'cowork',
   'deep_research',
   'voice',

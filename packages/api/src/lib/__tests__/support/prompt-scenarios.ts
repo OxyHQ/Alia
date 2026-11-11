@@ -112,7 +112,7 @@ async function finish(
 }
 
 async function promptSections(
-  surface: 'chat' | 'codea' | 'cowork',
+  surface: 'chat' | 'cowork',
   extra: { voice?: boolean; ask?: boolean },
 ): Promise<Array<[string, number]>> {
   const names = [surface === 'chat' ? 'general' : surface, 'base'];
@@ -173,7 +173,7 @@ export async function measureScenarios(): Promise<ScenarioMeasure[]> {
   }
 
   // 4. A developer-key client. Its own editor tools belong to the client.
-  for (const surface of ['codea', 'cowork'] as const) {
+  for (const surface of ['cowork'] as const) {
     const { tools } = await chatTools({ direct: false });
     const system = await SystemPromptBuilder.build({
       surface,

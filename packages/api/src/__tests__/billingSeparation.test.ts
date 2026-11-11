@@ -690,7 +690,7 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     expect(derived).toEqual([...audit.balanceSurfaces.modules].sort());
     // Hosted provider voice/image/audio surfaces are absent after cutover; this
     // count is read from the surviving product tree rather than preserved as a
-    // compatibility floor for deleted modules. `routes/codea.ts` left with the
+    // compatibility floor for deleted modules. A deleted routes file left with the
     // `alia_sk_*` keys it was the only lane for. `lib/automation-dispatcher.ts`
     // joined when automation runs started holding credits like a goal does.
     // `lib/agent/deferred-approvals.ts` left with approvals (ADR 0020 §3).

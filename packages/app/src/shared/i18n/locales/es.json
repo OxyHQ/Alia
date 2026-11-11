@@ -925,10 +925,6 @@
     "proUsage": "Asistente IA completo",
     "maxUsage": "Capacidad extendida para usuarios avanzados",
     "ultraUsage": "Máxima potencia para cargas pesadas",
-    "codeaTitle": "Desarrolla más rápido con Codea",
-    "codeaSubtitle": "Autocompletado con IA, chat en línea y flujos agénticos para VS Code y CLI",
-    "codeaProUsage": "Completado de código y chat con IA",
-    "codeaMaxUsage": "Máxima capacidad de código",
     "sharedCredits": "Créditos compartidos con tu plan de Alia",
     "teamTitle": "Equipo",
     "teamDescription": "Escala la productividad de tu equipo con Alia",
@@ -1742,11 +1738,11 @@
     "personalEmpty": "Aún no tienes conectores personales. Añade uno con +",
     "device": {
       "title": "Apagados en tu ordenador",
-      "description": "Los conectores de comando solo se ejecutan en tu propio ordenador, los inicia Alia para escritorio o Codea, nunca los servidores de Alia. Estos están apagados: enciende uno para que vuelva a ejecutarse allí.",
+      "description": "Los conectores de comando solo se ejecutan en tu propio ordenador, los inicia Alia para escritorio , nunca los servidores de Alia. Estos están apagados: enciende uno para que vuelva a ejecutarse allí.",
       "turnOn": "Encender",
       "turnOnTitle": "¿Encender {{name}}?",
-      "turnOnDescription": "Ejecuta este comando en tu ordenador mientras Alia para escritorio o Codea esté abierto: {{command}}",
-      "turnedOnToast": "{{name}} está encendido. Se inicia la próxima vez que Alia para escritorio o Codea se conecte.",
+      "turnOnDescription": "Ejecuta este comando en tu ordenador mientras Alia para escritorio esté abierto: {{command}}",
+      "turnedOnToast": "{{name}} está encendido. Se inicia la próxima vez que Alia para escritorio se conecte.",
       "turnOnFailed": "No se pudo encender el conector. Inténtalo de nuevo."
     }
   },

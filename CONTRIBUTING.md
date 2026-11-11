@@ -1,6 +1,6 @@
 # Contributing to Alia
 
-Alia is a multi surface context agent platform: one chat runtime behind an Expo app, a VS Code extension, a desktop client, a CLI and an HTTP API.
+Alia is a multi surface context agent platform: one chat runtime behind an Expo app, a desktop client and an HTTP API.
 
 **The contribution process lives in the [Oxy organisation CONTRIBUTING guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md)**: reporting an issue, filing a feature request, opening a pull request, code review, licensing. It applies here unchanged. This file layers on top of it the same way `AGENTS.md` files layer, so it is short on purpose: it carries only what is different about this repository.
 
@@ -41,7 +41,7 @@ Other packages ship their own `.env.example` (`packages/app`, `packages/alia-cow
 
 ## Layout
 
-A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: eleven workspaces across ten directories under `packages/` (`packages/alia-codea/webview-ui` is its own workspace entry), and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
+A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: eight workspaces under `packages/`, and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
 
 Three things worth knowing before your first pull request:
 

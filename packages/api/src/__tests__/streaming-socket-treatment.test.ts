@@ -14,7 +14,7 @@ import { codeOfFile, snippet } from './support/source-code.js';
  *
  * `/alia/chat` has a per-route middleware that calls `res.socket.setNoDelay(true)`
  * and `res.socket.setTimeout(0)`; `/v1` has only `X-Accel-Buffering`. Since `/v1`
- * is the live surface — `packages/app`, `@alia.onl/sdk`, `alia-codea` and
+ * is the live surface — `packages/app`, `@alia.onl/sdk` and
  * `packages/integrations` all POST it, and `/alia/chat` has no in-repo caller —
  * that reads as the treatment being missing from the one that matters.
  *

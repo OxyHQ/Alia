@@ -31,8 +31,8 @@ const ROOT = resolve(import.meta.dirname, '..');
  * {@link NOT_A_CLIENT} below — every workspace the repo declares must be either
  * covered here or classified there, so a new package fails this script until
  * somebody says which it is. The coverage is derived from the root
- * `package.json`'s `workspaces` array, which is why the nested
- * `packages/alia-codea/webview-ui` is visible to it at all.
+ * `package.json`'s `workspaces` array, so a workspace nested inside another
+ * package's directory is visible to it too.
  *
  * A deny-list of trees to SKIP was the obvious alternative and is worse here.
  * It would walk `packages/api/src`, where hundreds of `alia-*` literals are the
@@ -43,22 +43,17 @@ const ROOT = resolve(import.meta.dirname, '..');
  * with "say which" instead of with noise, and a census that fires on the wrong
  * thing gets deleted by the next person who reads it.
  *
- * The three trees added by #244 — canvas, the Codea webview and integrations —
- * were each a live defect rather than a latent one, because `GET /v1/models`
- * has served an empty list since #178: canvas rendered a hardcoded
- * `Instant`, the webview a hardcoded `route:code`, and the Telegram and
- * Discord bots printed `Model: route:instant` to every user. This script was green
- * throughout, reporting `245 files walked`, because none of the three was in
- * this list.
+ * The trees added by #244 — canvas, a webview and integrations — were each a
+ * live defect rather than a latent one, because `GET /v1/models` has served an
+ * empty list since #178: canvas rendered a hardcoded `Instant` and the Telegram
+ * and Discord bots printed `Model: route:instant` to every user. This script
+ * was green throughout, because none of them was in this list.
  */
 export const TREES = [
   'packages/app/app',
   'packages/app/src',
   'packages/alia-canvas/src',
   'packages/alia-chat/src',
-  'packages/alia-codea/src',
-  'packages/alia-codea/webview-ui/src',
-  'packages/alia-codea-cli/src',
   'packages/alia-cowork/src',
   'packages/alia-cowork/renderer/src',
   'packages/integrations/src',
@@ -85,7 +80,7 @@ export const NOT_A_CLIENT = {
 /**
  * A retired routing identifier: the product modes (`mode:*`) and routing
  * profiles (`route:*`, `profile:*`) Alia invented before it served real models.
- * Anchored, so a package name such as `alia-codea-cli` is not mistaken for one.
+ * Anchored, so a package name such as `alia-canvas` is not mistaken for one.
  */
 const IDENTIFIER = /^(?:(?:mode|profile|route):[a-z0-9][a-z0-9-]*)$/;
 
@@ -145,9 +140,8 @@ export function identifiersIn(file, source) {
  * Every workspace the repo declares, read from the manifest rather than from
  * the directory listing.
  *
- * `packages/alia-codea/webview-ui` is a workspace nested inside another
- * package's directory, so a listing of `packages/` cannot see it — and it is
- * precisely the tree #244 found unguarded. The manifest can.
+ * A workspace nested inside another package's directory cannot be seen from a
+ * listing of `packages/`; the manifest can.
  */
 function declaredWorkspaces() {
   const root = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -198,8 +192,8 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    ['workspaces', workspaces.length, 11],
-    ['TREES', TREES.length, 10],
+    ['workspaces', workspaces.length, 8],
+    ['TREES', TREES.length, 7],
     ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
   ];
   const partition = [
@@ -227,11 +221,9 @@ function main() {
   // Vacuity floor. An empty walk satisfies every check below, and "I found less"
   // and "there is less" look identical without one.
   //
-  // 300 is not a round number: the walk is 392 files and the three trees #244
-  // added are 147 of them, so dropping all three lands on 245 — the exact size
-  // of the walk that reported "OK, 245 files walked" while canvas, the Codea
-  // webview and the bots all showed an alias. A floor left at the old 120 would
-  // have passed that. This one cannot.
+  // 300 is not a round number: it was set just above the size of the walk that
+  // reported "OK, 245 files walked" while canvas and the bots showed an alias.
+  // A floor left at the old 120 would have passed that. This one cannot.
   //
   // 300 -> 200 when `alia-console` (117 files) was deleted: the walk is 275,
   // and dropping the three #244 trees from it lands near 128, still far below.

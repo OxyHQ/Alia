@@ -160,7 +160,6 @@ export const log = {
   automations: createLogger('automations'),
   organization: createLogger('organization'),
   skills: createLogger('skills'),
-  codea: createLogger('codea'),
   memory: createLogger('memory'),
   developer: createLogger('developer'),
   webhook: createLogger('webhook'),

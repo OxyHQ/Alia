@@ -49,7 +49,7 @@ export async function loadPrompt(promptName: string): Promise<string> {
 
 /**
  * Build a complete system prompt by combining base prompt with model-specific prompt
- * @param modelId - The prompt name under `prompts/` (e.g. 'codea')
+ * @param modelId - The prompt name under `prompts/` (e.g. 'general')
  * @param clientContext - Optional additional context from the client application
  */
 export async function buildSystemPrompt(modelId: string, clientContext?: string): Promise<string> {

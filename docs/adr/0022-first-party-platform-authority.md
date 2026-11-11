@@ -86,7 +86,7 @@ build passed. Focused tests exercise actual Clarity SDK mint/refresh/disposal,
 verified service signatures, live introspection and external acting-as checks.
 The release checkpoint pins real registry versions: core 7.1.0, contracts 6.0.0,
 services 13.0.0, protocol 1.5.1, MCP 1.4.0, Kaana SDK 3.3.0/contracts 8.0.1 and
-Clarity SDK 0.10.0. It prepares Alia SDK 22.0.0, server 1.2.0 and Codea CLI 3.0.2 (3.0.1 aligned dependencies in reader phase A).
+Clarity SDK 0.10.0. It prepares Alia SDK 22.0.0, server 1.2.0 (aligned dependencies in reader phase A).
 The SDK passed 877 tests and all 11 isolated entry type checks; the server passed
 24 tests/build/entry checks, API voice passed 91 tests and API types passed.
 After replacing the last local core artifact with registry 7.1.0, frozen install,

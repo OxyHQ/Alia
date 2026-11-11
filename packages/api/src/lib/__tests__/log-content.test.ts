@@ -328,7 +328,7 @@ describe('the census reads what it claims to read', () => {
     // 850 -> 750: the clean cut deleted the agent sandbox (container manager
     // and pool, terminal session, workspace memory, container and
     // workspace-file routes, the skill-script runner), the developer-key
-    // routes, `routes/codea.ts`, the ZeroEval sync and the legacy trigger
+    // routes, the ZeroEval sync and the legacy trigger
     // routes, and their log calls with them (769 after).
     expect(calls.length).toBeGreaterThan(750);
     // 1_300 -> 1_250: `internal/providers/lib/seed-model-configs.ts` is deleted

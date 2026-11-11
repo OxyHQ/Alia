@@ -64,7 +64,6 @@ permanence.**
 | `docs/migration/ownership-matrix.json:5764` (`v1-chat-completions-post`) | `removalGate`: *"**Never removed.** If inference moves to Kaana, this endpoint stays as the Alia-facing facade…"* |
 | `docs/migration/ownership-matrix.json:5904` (`v1-router-mount`) | `removalGate`: *"**Never removed.** Any route moved OUT of `/v1` loses wildcard CORS and instantly breaks every browser-based external client."* |
 | `docs/migration/inventories/product-api.json:46,143` | the same two gates, in the inventory the matrix was derived from |
-| `docs/migration/inventories/provider-runtime.json` (`sdk-openai-client-codea`) | *"They only require that Alia keeps serving an OpenAI-compatible `/v1` surface after the Kaana switch — which is itself a contract Kaana must not break."* |
 
 Two of those rows are the loudest, but they are not the extent of it. **Thirty
 rows of `ownership-matrix.json` have a `currentPath` under
@@ -120,9 +119,6 @@ blocks naming ADR 0004), `packages/api/src/__tests__/architectureGates.test.ts:2
 `packages/api/src/routes/catalogue.ts:26` (*"the surface whose whole plan is to
 sunset"*), `packages/api/src/middleware/alias-deprecation.ts:141`,
 `packages/app/src/shared/api/routes.ts:56`, `packages/app/src/features/chat/runtime/use-chat-conversation.ts:40`,
-`packages/alia-codea/src/chatParticipant.ts:184`,
-`packages/alia-codea/src/chatProvider.ts:718`,
-`packages/alia-codea-cli/src/utils/api.ts:150`,
 `packages/alia-chat/src/hooks/useAliaChat.ts:246`,
 `packages/alia-console/src/routes/_layout/playground.tsx:162`,
 `packages/alia-cowork/src/main/chat.ts:161`,
@@ -232,9 +228,7 @@ is set for any path.
     `documentation/{authentication,chat-completions,quickstart,sdks}.tsx` plus
     `routes/_layout/examples.tsx`. Their audience *is* the generic-inference
     audience the surface exists for; they retire with the surface, not before.
-  - Four OpenAI-protocol clients — `packages/alia-codea-cli/src/utils/api.ts`
-    (published `@alia-codea/cli`), `packages/alia-codea/src/chatProvider.ts`
-    (marketplace-published extension), `packages/alia-cowork/src/main/chat.ts`
+  - Two OpenAI-protocol clients — `packages/alia-cowork/src/main/chat.ts`
     and `packages/alia-cowork/src/main/tools.ts`. Each hands a `baseURL` to the
     `openai` package or to Stagehand, which derive `POST {baseURL}/chat/completions`
     themselves — so the path is not Alia code to change.
@@ -244,7 +238,7 @@ is set for any path.
 - **What would have to move first**, in order: a CORS decision on `/alia/chat`
   taken with the SDK's consumer origins enumerated, or an `@alia.onl/sdk` major;
   the console documentation rewrite already assigned to #139 workstream 20; and
-  published majors for `@alia-codea/cli` and the VS Code extension. Then the
+  a published major for the remaining clients. Then the
   deprecation signal, then the measurement.
 - **Removal is per route, not per surface.** `compatibility-window.md:119` is
   explicit that gating the whole surface on its least-migrated route keeps the

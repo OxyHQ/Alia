@@ -94,7 +94,6 @@ const EXCLUDED: Readonly<Record<string, { readonly errors: number; readonly why:
 const NO_TYPECHECK: Readonly<Record<string, string>> = {
   'alia-canvas':
     'solution-style tsconfig ("files": [], references only) — `tsc --noEmit` compiles nothing; checked by the "Typecheck the solution-style frontends" step of Frontend Typecheck, which runs `tsc -b` on it',
-  'webview-ui': 'same solution-style tsconfig; checked by the same `tsc -b` step',
 };
 
 function assertPartition(workspaces: readonly Workspace[]): string[] {
@@ -158,10 +157,10 @@ function main(): void {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts: readonly [string, number, number][] = [
-    ['workspaces', workspaces.length, 11],
+    ['workspaces', workspaces.length, 8],
     ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 4],
     ['EXCLUDED', Object.keys(EXCLUDED).length, 0],
-    ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 2],
+    ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 1],
   ];
   const countProblems = counts
     .filter(([, actual, expected]) => actual !== expected)

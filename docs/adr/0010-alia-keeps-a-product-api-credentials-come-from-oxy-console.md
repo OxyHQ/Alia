@@ -7,7 +7,7 @@
 > **Amended 2026-09-23 by the repository owner.** § 2 kept the existing `alia_sk_*` keys
 > authenticating until section (c) of the compatibility window was satisfied. The owner
 > retired them outright instead — a clean cut with no rollback window: the API refuses
-> them `401 credential_retired`, the `/developer` and `/codea` routes and the developer
+> them `401 credential_retired`, the `/developer` routes and the developer
 > tables are gone, and `packages/alia-console` is deleted. The table in § 2 therefore
 > reads *refused* for `alia_sk_*`; everything else below stands, as the record of the
 > decision as taken.
@@ -37,8 +37,7 @@ Three roles, then, none of which is a subset of another:
 - **Oxy** is the platform and Oxy Console: accounts, identity, applications, **all** API
   keys for Alia, Kaana and Mention, billing.
 - **Alia** is the assistant product, with its own permanent product API. Its callers are
-  three groups, all authorized by Oxy: Alia's **own surfaces** — the app, Codea (the VS
-  Code extension and the CLI) and Cowork, which are Alia products, not external ones;
+  three groups, all authorized by Oxy: Alia's **own surfaces** — the app and Cowork, which are Alia products, not external ones;
   **other applications in the Oxy ecosystem**; and **third parties** through
   `@alia.onl/sdk`. Any API key among them is issued in Oxy Console.
 
@@ -49,7 +48,7 @@ is in that reading: Alia's API is not a generic inference API that happens to ca
 semantics; it is a **product API** — conversations, memory recall, agent planning, tool
 execution and approvals, deep research, the `alia.*` SSE events — that happens to accept an
 OpenAI-compatible request shape. What ADR 0001 moves to Oxy and Kaana is raw model access.
-That was never the thing `@alia.onl/sdk`, Codea, Cowork or the CLI were calling for.
+That was never the thing `@alia.onl/sdk`, Cowork were calling for.
 
 ### What the code does today
 
@@ -61,9 +60,8 @@ Measured on the tree this ADR lands in.
   `packages/api/src/index.ts:248` and `:249`. Both carry `authenticateTokenOrApiKey` and
   `apiKeyRateLimit` (`routes/chat.ts`, `routes/v1.ts:55` and `:58`). Alia's own surfaces
   post to `/alia/chat` with the user's Oxy session: the app
-  (`packages/app/src/shared/api/routes.ts:67`), Codea (`packages/alia-codea/src/chatParticipant.ts:206`),
-  the CLI (`packages/alia-codea-cli/src/utils/api.ts:152`) and Cowork
-  (`packages/alia-cowork/src/main/chat.ts:164`). `@alia.onl/sdk` enters through
+  (`packages/app/src/shared/api/routes.ts:67`)
+  and Cowork (`packages/alia-cowork/src/main/chat.ts:164`). `@alia.onl/sdk` enters through
   `/v1/chat/completions` (`packages/alia-chat/src/hooks/useAliaChat.ts`).
 - `authenticateTokenOrApiKey` (`packages/api/src/middleware/auth.ts:221`) accepts, in order:
   a request already authenticated by a channel-bot pre-middleware; a Telegram or channel bot
@@ -104,12 +102,12 @@ Measured on the tree this ADR lands in.
 of the assistant: the OpenAI-compatible request shape, the `alia_usage` / `alia_meta`
 extensions, `system_fingerprint: 'fp_alia'`, the named `alia.*` SSE events, and every
 product behaviour behind the handler. It has three groups of callers, and that is the
-reason it exists rather than a compatibility accident: **Alia's own surfaces** — the app,
-Codea (extension and CLI) and Cowork, which are Alia products and use `/alia/chat` today
+reason it exists rather than a compatibility accident: **Alia's own surfaces** — the app
+and Cowork, which are Alia products and use `/alia/chat` today
 with the user's Oxy session; **other applications in the Oxy ecosystem**; and **third
 parties** through `@alia.onl/sdk`. All three are authorized by Oxy, and any API key among
-them is issued in Oxy Console. Codea and Cowork are not "external" or "ecosystem" callers
-and are not described as such anywhere in this repository's documentation.
+them is issued in Oxy Console. Cowork is not an "external" or "ecosystem" caller
+and is not described as such anywhere in this repository's documentation.
 
 ADR 0006 is answered: `docs/migration/ownership.md` § *Product API* and the matrix rows
 `v1-chat-completions-post` and `v1-router-mount` were right that the API stays. ADR 0004 §3

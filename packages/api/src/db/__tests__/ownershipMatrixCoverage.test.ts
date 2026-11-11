@@ -229,7 +229,7 @@ interface MatrixRow {
  * ## 117 -> 121: `corte-db-alia-keys`
  *
  * The `alia_sk_*` developer keys are retired outright: `lib/api-key-crypto.ts`
- * and `routes/codea.ts` (three rows), whose every route authenticated with one
+ * and a route file (three rows) whose every route authenticated with one
  * of those keys and nothing else, are deleted.
  *
  * ## 121 -> 144: `corte-db-console`
@@ -260,8 +260,13 @@ interface MatrixRow {
  * `lib/memory/embeddings.ts` went with the rest of Alia's own memory (embeddings, recall,
  * the memory tools): her memory of a person is Nilo's now, so the two embeddings rows
  * are `alia-memory-moved-to-nilo`.
+ *
+ * ## 173 -> 170: the clients that moved to their own repository
+ *
+ * The matrix stopped describing two clients that left this repository, including the three
+ * rows already annotated for the removed route file.
  */
-const REMOVED_ROW_COUNT = 173;
+const REMOVED_ROW_COUNT = 170;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
@@ -381,9 +386,10 @@ describe('the ownership matrix still describes this repository', () => {
      * by the owner's clean cut of the dormant tables and the `alia_sk_*` key
      * path, which removed whole files rather than consolidating them — and to
      * 190 by ADR 0012, which deleted the routing-profile catalogue outright — and to
-     * 185 by Alia's memory moving to Nilo, which deleted the embeddings module.
+     * 185 by Alia's memory moving to Nilo, which deleted the embeddings module — and to
+     * 175 when two clients moved to their own repository, taking their twelve live rows.
      */
-    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(185);
+    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(175);
     expect(new Set(matrix.map((r) => r.currentPath)).size).toBeGreaterThanOrEqual(150);
   });
 

@@ -131,7 +131,7 @@ vi.mock('../../db/chat/conversationRepository.js', () => ({
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return {
-    log: { chat: child, v1: child, general: child, agents: child, providers: child, codea: child },
+    log: { chat: child, v1: child, general: child, agents: child, providers: child },
   };
 });
 

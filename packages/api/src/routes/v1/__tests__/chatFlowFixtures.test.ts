@@ -414,7 +414,6 @@ vi.mock('../../../lib/logger.js', () => {
       chat: child,
       general: child,
       providers: child,
-      codea: child,
       correlation: child,
     },
   };
@@ -1636,19 +1635,18 @@ describe('fixture: what a failure surfaces to the user', () => {
 });
 
 // ===========================================================================
-// Fixture 3 — Codea (VS Code extension), Oxy session, non-streaming completion
+// Fixture 3 — a code-completion client, Oxy session, non-streaming completion
 // ===========================================================================
 
 /**
- * `packages/alia-codea/src/inlineCompletionProvider.ts:93` posts to
- * /v1/chat/completions with `stream: false`, `max_tokens: 500` and no tools,
- * and reads `choices[0].message.content`. `chatProvider.ts:812,968` branches on
- * `alia_meta.synthetic` to suppress a bogus answer — which is why the synthetic
- * marker is part of Codea's contract and not an implementation detail
- * (`response-ext-alia-meta`, owned by Alia).
+ * A client that posts to /v1/chat/completions with `stream: false`,
+ * `max_tokens: 500` and no tools, and reads `choices[0].message.content`, and
+ * that branches on `alia_meta.synthetic` to suppress a bogus answer — which is
+ * why the synthetic marker is part of the wire contract and not an
+ * implementation detail (`response-ext-alia-meta`, owned by Alia).
  */
-describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', () => {
-  const codeaReq = (body: Record<string, unknown>) =>
+describe('fixture: code-completion flow — Oxy session, non-streaming, no client tools', () => {
+  const completionReq = (body: Record<string, unknown>) =>
     recordingReq({ user: { id: 'user-ws13' }, body });
 
   beforeEach(() => {
@@ -1659,13 +1657,13 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
   it('emits one exact ordered transcript and an OpenAI completion envelope', async () => {
     const res = recordingRes();
     await run(
-      codeaReq({
+      completionReq({
         messages: [
           { role: 'system', content: 'You are an expert code completion assistant.' },
           { role: 'user', content: 'complete this' },
         ],
         model: CHAT_MODEL,
-        surface: 'codea',
+        surface: 'chat',
         max_tokens: 500,
         temperature: 0.2,
         stream: false,
@@ -1726,10 +1724,10 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
       } as never);
       const res = recordingRes();
       await run(
-        codeaReq({
+        completionReq({
           messages: [{ role: 'user', content: 'complete this' }],
           model: CHAT_MODEL,
-          surface: 'codea',
+          surface: 'chat',
           stream: false,
         }),
         res,
@@ -1798,10 +1796,10 @@ describe('fixture: Codea flow — Oxy session, non-streaming, no client tools', 
 
     const res = recordingRes();
     await run(
-      codeaReq({
+      completionReq({
         messages: [{ role: 'user', content: 'complete this' }],
         model: CHAT_MODEL,
-        surface: 'codea',
+        surface: 'chat',
         stream: false,
       }),
       res,

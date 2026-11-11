@@ -81,13 +81,13 @@ request changes it:
   each hop's address is resolved and refused when it is private, loopback, link-local or the cloud
   metadata service, and the connection is pinned to the address that was judged.
 - A **command** connector (`stdio`) runs only on the person's own device (`runtime: 'local'`),
-  started by Cowork or Codea and reached through the MCP relay (`lib/mcp-relay.ts`). The
+  started by Cowork or reached through the MCP relay (`lib/mcp-relay.ts`). The
   integrations host is shared by every account and never starts a process; Postgres refuses a
   command connector the server would run (`mcp_servers_command_runs_locally_check`).
   Connectors written before that rule were moved to the device and turned off (migration 0111);
   Settings → Connectors lists them under "Off on your computer", shows the command each runs, and
-  turns one back on after the person confirms it (`PATCH /mcp/:id { enabled: true }`). Cowork and
-  Codea start only connectors that are `local` and enabled; the server starts none.
+  turns one back on after the person confirms it (`PATCH /mcp/:id { enabled: true }`). Cowork
+  starts only connectors that are `local` and enabled; the server starts none.
 
 A registry connector runs the registry's command or is reached at the registry's address; the
 person supplies only the values of the entry's `requiredEnv`. A custom connector is the person's,

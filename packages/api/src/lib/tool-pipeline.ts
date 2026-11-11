@@ -681,7 +681,7 @@ export class ToolPipeline {
      *
      * `isDirectSession` as well as the emitter, because these events drive
      * Alia's own composer — a plan preview, a new-conversation chip — and a
-     * developer-key client (Codea, Cowork) has no surface for either. Offering
+     * developer-key client (Cowork) has no surface for either. Offering
      * them there is a tool the model can call whose whole effect is a frame
      * nobody draws.
      */

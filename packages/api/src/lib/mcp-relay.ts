@@ -1,7 +1,7 @@
 /**
  * MCP Relay — WebSocket bridge for local MCP tool calls
  *
- * Manages WebSocket connections from Cowork/Codea clients that run
+ * Manages WebSocket connections from Cowork clients that run
  * local MCP servers. Tools are registered by clients and made available
  * to the chat pipeline. Tool calls are proxied via WebSocket.
  */
