@@ -79,8 +79,11 @@ image the model sees. Both are specified in [Embedding an agent](./agent-embeddi
 **Steps per turn.** A turn's tool loop stops after 5 model steps and 15 tool calls
 (`CHAT_TURN_STEP_BOUNDS`, `lib/chat/model-config.ts`); a turn whose host declares a tool that
 awaits its result is an agent acting in the app and gets 16 steps and 32 tool calls
-(`HOST_AGENT_TURN_STEP_BOUNDS`). The 80-second global limit is the same for both. A turn that
-spends its steps on tools without answering gets one tools-disabled synthesis pass.
+(`HOST_AGENT_TURN_STEP_BOUNDS`). The 80-second global limit is the same for both. A step that
+only calls `loadTools` is bookkeeping and does not spend those steps (it is bounded separately by `stepBudget`). A turn that ends owing an answer — tool
+results arrived after the last text it wrote, whether the steps ran out or the next step failed —
+gets one tools-disabled synthesis pass (`lib/chat/tool-synthesis.ts`); narration written before the
+tools is not that answer.
 
 `reasoningEffort` (`low` | `medium` | `high`) is accepted only when the model
 lists that level in its `reasoningEfforts`. Oxy and Kaana own route authorization and

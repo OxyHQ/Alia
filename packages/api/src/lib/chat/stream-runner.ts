@@ -4,7 +4,7 @@
  * Consumes one streaming provider attempt: translates every chunk type
  * (text/reasoning/tool-call/tool-result/tool-error/error/finish) into the
  * OpenAI-compatible SSE frames the client expects, tracks tool invocations for
- * the conversation save, and performs the in-loop synthesis retry when a
+ * the conversation save, and performs the in-loop synthesis retry (`tool-synthesis.ts`) when a
  * provider errors or the bounded agent loop finishes after emitting only tool
  * results.
  *
@@ -27,7 +27,7 @@ import { CONSULT_AGENT_TOOL } from '../tools/consult-agent.js';
 import type { AgentInfo } from '../../domain/conversation.js';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import type { Response } from 'express';
-import { streamText, type TextStreamPart, type ModelMessage, type ToolSet } from 'ai';
+import type { TextStreamPart, ToolSet } from 'ai';
 import type { ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -40,12 +40,15 @@ import {
   makeChunk,
 } from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
-import { isInvalidToolCall, toolRoundTrip } from './tool-calls.js';
+import { isInvalidToolCall } from './tool-calls.js';
 import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
 import { CHAT_TURN_STEP_BOUNDS, type StreamWatchdog, type TurnStepBounds } from './model-config.js';
 import { withoutHostImageData } from './host-image-result.js';
 import { createToolMarkupGuard } from './tool-markup.js';
+import { sizeForLog } from './log-size.js';
+import { createReasoningRelay } from './reasoning-relay.js';
+import { streamToolSynthesis } from './tool-synthesis.js';
 
 /**
  * The consultation's result: another agent's whole answer, with its identity.
@@ -62,33 +65,6 @@ interface ConsultAgentToolOutput {
   agentColor: string | null;
   agentCharacter: AvatarCharacter | null;
   response: string;
-}
-
-/**
- * How big a tool argument, tool result or reasoning chunk was, which is all a
- * log may say about it.
- *
- * This replaced a 500-character PREVIEW of the same value (epic #139 workstream
- * 15). A tool's arguments are model output and its result is usually user data
- * the tool went and fetched, so the preview was message content in an ordinary
- * request log — reachable in production behind one `LOG_LEVEL=debug`, and on by
- * default in development. The size is what the line was actually read for:
- * telling an empty payload from a truncated one from a huge one.
- *
- * The two REASONING lines are the same shape and were missed then (#139 ws19):
- * they logged 100 characters of the model's chain of thought under the key
- * `reasoning`, which the census's key list did not name, so nothing went red.
- *
- * `-1` for a value that cannot be measured, so a circular structure reports a
- * fact rather than throwing inside a log call.
- */
-function sizeForLog(value: unknown): number {
-  if (typeof value === 'string') return value.length;
-  try {
-    return JSON.stringify(value)?.length ?? -1;
-  } catch {
-    return -1;
-  }
 }
 
 /** Whether a chunk carries something the model produced, as opposed to stream bookkeeping. */
@@ -199,10 +175,6 @@ export interface RunStreamResult {
   usage: StepUsage;
 }
 
-/** The closing turn of the tools-disabled synthesis pass. */
-const SYNTHESIS_REQUEST =
-  'Answer my last request now, in the language I wrote it in, using the tool results above. Do not call any tool.';
-
 /**
  * Drive one streaming provider attempt to completion. Throws (propagating to
  * the provider loop's catch) on every `error` chunk the tool-free synthesis
@@ -260,31 +232,7 @@ export async function runStream<TOOLS extends ToolSet>(
   let finished = false;
   const invalidToolCallIds = new Set<string>();
 
-  /**
-   * Reasoning is relayed VERBATIM.
-   *
-   * A reasoning delta is a token fragment, and a token carries its own leading
-   * space ("The", " user", " is"). Trimming each fragment glued the words back
-   * together ("Theuser isasking") on every client, which only concatenates what
-   * it is sent. Only an empty fragment is skipped.
-   *
-   * Two reasoning blocks of one turn (one per model step) are joined with a
-   * paragraph break, announced by the block's own `reasoning-start`, so the
-   * end of one step's thought never runs into the start of the next.
-   */
-  let reasoningBlocksSeen = 0;
-  let reasoningSeparatorOwed = false;
-  const writeReasoning = (text: string): void => {
-    if (text === '') return;
-    const content = reasoningSeparatorOwed ? `\n\n${text}` : text;
-    reasoningSeparatorOwed = false;
-    res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`);
-    log.v1.debug({ reasoningBytes: sizeForLog(content) }, 'Reasoning chunk (provider)');
-  };
-  const openReasoningBlock = (): void => {
-    reasoningSeparatorOwed = reasoningBlocksSeen > 0;
-    reasoningBlocksSeen += 1;
-  };
+  const { writeReasoning, openReasoningBlock } = createReasoningRelay(res);
 
   /**
    * Turn completed tool results into the user-facing answer the original
@@ -304,62 +252,21 @@ export async function runStream<TOOLS extends ToolSet>(
     const completed = toolInvocations.filter((t) => t.state === 'result');
     if (completed.length === 0 || res.writableEnded) return false;
 
-    const followUpMessages: ModelMessage[] = [
-      ...baseConfig.messages,
-      ...completed.flatMap(toolRoundTrip),
-      // The history ends on a tool result. A model with no tools to call and no
-      // user turn after that result has nothing asking it to speak, and a
-      // reasoning model then spends the pass thinking and ends with no text.
-      { role: 'user', content: SYNTHESIS_REQUEST } satisfies ModelMessage,
-    ];
-
-    const retryAbort = new AbortController();
-    const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
-    // The turn's own abort (global timeout, idle watchdog) reaches this pass too.
-    const turnSignal: AbortSignal | undefined = baseConfig.abortSignal;
-    const retrySignal = turnSignal
-      ? AbortSignal.any([retryAbort.signal, turnSignal])
-      : retryAbort.signal;
-
-    try {
-      const retryResult = streamText({
-        ...baseConfig,
-        abortSignal: retrySignal,
-        messages: followUpMessages,
-        tools: undefined,
-        stopWhen: undefined,
-      });
-
-      // This pass offers no tools, so a call written as text has nothing to run: it is dropped.
-      const retryMarkup = createToolMarkupGuard();
-      for await (const retryChunk of retryResult.fullStream) {
-        if (res.writableEnded) break;
-        if (retryChunk.type === 'text-delta' && retryChunk.text) {
-          const shown = retryMarkup.push(retryChunk.text);
-          const filtered = shown ? writeTextChunk(res, requestId, modelId, shown) : null;
-          if (filtered) {
-            state.hasStreamedContent = true;
-            hasStreamedText = true;
-            answerOwed = false;
-            assistantResponse += filtered;
-          }
-        } else if (retryChunk.type === 'reasoning-start') {
-          openReasoningBlock();
-        } else if (retryChunk.type === 'reasoning-delta') {
-          writeReasoning(retryChunk.text);
-        } else if (retryChunk.type === 'error') {
-          // `fullStream` reports a failure as a part, it does not throw. Dropping
-          // it here turned every upstream refusal of the synthesis pass into
-          // "produced no assistant answer" and lost the actual cause.
-          throw retryChunk.error ?? new Error('The tool-result synthesis stream failed');
-        } else if (retryChunk.type === 'finish' && retryChunk.finishReason === 'error') {
-          throw new Error('The tool-result synthesis stream finished with an error');
-        }
-      }
-      return !answerOwed;
-    } finally {
-      clearTimeout(retryTimer);
-    }
+    await streamToolSynthesis({
+      res,
+      requestId,
+      modelId,
+      baseConfig,
+      completed,
+      relay: { writeReasoning, openReasoningBlock },
+      onText: (shown) => {
+        state.hasStreamedContent = true;
+        hasStreamedText = true;
+        answerOwed = false;
+        assistantResponse += shown;
+      },
+    });
+    return !answerOwed;
   };
 
   for await (const chunk of result.fullStream) {
