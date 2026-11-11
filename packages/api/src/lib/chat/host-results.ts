@@ -136,7 +136,9 @@ export async function submitHostResult(req: Request, res: Response): Promise<voi
   try {
     const { toolCallId, answer } = parseHostResultBody(req.body);
     const identity = await turnIdentity(req, req.params.turnId);
-    const limit = await checkWindowLimit(`rl:turn-host-results:${identity.authorityKey}`, 60);
+    const limit = await checkWindowLimit(`rl:turn-host-results:${identity.authorityKey}`, 60, {
+      onUnavailable: 'open', // authenticated; Postgres is the authority
+    });
     if (!limit.allowed) {
       res.setHeader('Retry-After', String(limit.resetInSeconds ?? 60));
       res.status(429).json({ error: { code: 'RATE_LIMIT_EXCEEDED' } });

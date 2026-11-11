@@ -71,7 +71,9 @@ export async function cancelChatTurn(req: Request, res: Response): Promise<void>
   res.setHeader('Cache-Control', 'no-store');
   try {
     const identity = await turnIdentity(req, req.params.turnId);
-    const limit = await checkWindowLimit(`rl:turn-control:${identity.authorityKey}`, 60);
+    const limit = await checkWindowLimit(`rl:turn-control:${identity.authorityKey}`, 60, {
+      onUnavailable: 'open', // authenticated; Postgres is the authority
+    });
     if (!limit.allowed) {
       res.setHeader('Retry-After', String(limit.resetInSeconds ?? 60));
       res.status(429).json({ error: { code: 'RATE_LIMIT_EXCEEDED' } });

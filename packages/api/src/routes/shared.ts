@@ -60,6 +60,8 @@ router.get('/:token', async (req: Request, res: Response) => {
     const limit = await checkWindowLimit(
       `rl:shared:${shareTokenHash(token)}`,
       SHARED_READS_PER_MINUTE,
+      // Public route: a Redis outage degrades to a bounded per-instance limit, never to none.
+      { onUnavailable: 'local' },
     );
     if (!limit.allowed) {
       res.setHeader('Retry-After', String(limit.resetInSeconds ?? 60));

@@ -439,6 +439,6 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // is the control that does not.
     const limiter = code('middleware/api-key-rate-limit.ts');
     expect(limiter).toMatch(/'User rate limit check error'\);\s*return next\(\);/);
-    expect(code('lib/sliding-window-limiter.ts')).toContain('return { allowed: true }; ');
+    expect(code('lib/sliding-window-limiter.ts')).toContain("{ onUnavailable: 'open' }");
   });
 });
