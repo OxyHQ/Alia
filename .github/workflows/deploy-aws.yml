@@ -124,8 +124,10 @@ jobs:
       # Tests), so a change that would stop here fails before it can merge.
       - name: Refuse unreviewed image build inputs
         id: reviewed
-        run: python3 -B .github/scripts/reviewed-image.py guard --recipe alia
-
+        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
+        with:
+          phase: guard
+          recipe: alia
       - name: Build and push (linux/arm64)
         id: build
         # The tight bound, on the step that hangs. Three stalls on 2026-08-19
