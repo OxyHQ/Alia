@@ -7,7 +7,7 @@ import type { AliaSuggestion } from '../types';
  */
 
 /** Up to this many rows. */
-export const MAX_ROWS = 6;
+const MAX_ROWS = 6;
 /** The draft length at which the search takes over from the welcome list. */
 export const SEARCH_FROM = 2;
 /** How long typing settles before the search is asked. */

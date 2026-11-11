@@ -33,7 +33,7 @@ export interface AgentComputer {
   browser: BrowserStatus;
 }
 
-export interface WorkspaceEntry {
+interface WorkspaceEntry {
   name: string;
   path: string;
   type: 'file' | 'directory' | 'symlink' | 'other';
@@ -46,7 +46,7 @@ export interface WorkspaceListing {
   truncated: boolean;
 }
 
-export interface CommandReceiptSummary {
+interface CommandReceiptSummary {
   operationId: string;
   command: string;
   cwd: string;
@@ -80,7 +80,7 @@ export interface BrowserScreenshot {
 
 /** The keys the live view offers — a subset of what the host accepts. */
 export const LIVE_VIEW_KEYS = ['Enter', 'Tab', 'Backspace', 'Escape'] as const;
-export type LiveViewKey = (typeof LIVE_VIEW_KEYS)[number];
+type LiveViewKey = (typeof LIVE_VIEW_KEYS)[number];
 
 export type BrowserInput =
   | { type: 'click'; x: number; y: number }

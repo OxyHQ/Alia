@@ -109,7 +109,7 @@ export interface ConversationsClient {
 }
 
 /** The runtime's conversation client for the nearest provider. */
-export function useConversationsClient(): ConversationsClient {
+function useConversationsClient(): ConversationsClient {
   const api = useAliaApi();
   const { offline, app } = useAliaRuntime();
   const { newChat } = useLabels();

@@ -31,7 +31,7 @@ import { errorStatus } from '@/shared/api/error-utils';
  * unpublished agent's owner did not agree to — so the screen shows one message
  * for both and this hook does not retry either.
  */
-export interface AgentThreadIdentity {
+interface AgentThreadIdentity {
   _id: string;
   name: string | null;
   handle: string | null;

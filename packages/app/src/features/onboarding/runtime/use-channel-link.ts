@@ -7,7 +7,7 @@ import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useState } from 'react';
 import { io as socketIO } from 'socket.io-client';
 
-export type ChannelLinkStatus = 'loading' | 'authorizing' | 'success' | 'error' | 'needLogin';
+type ChannelLinkStatus = 'loading' | 'authorizing' | 'success' | 'error' | 'needLogin';
 
 type Status = ChannelLinkStatus;
 

@@ -17,17 +17,3 @@ export interface AccountAdapter {
   /** Express router for REST endpoints (connect, QR, status, chats, send, etc.) */
   getRouter(): Router;
 }
-
-/**
- * Session state for account adapters.
- */
-export interface AccountSession {
-  sessionId: string;
-  oxyUserId: string;
-  status: 'connecting' | 'qr-pending' | 'connected' | 'disconnected' | 'logged-out';
-  phoneNumber?: string;
-  displayName?: string;
-  lastQR?: string;
-  lastConnected?: Date;
-  lastDisconnected?: Date;
-}

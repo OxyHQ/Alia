@@ -1,5 +1,5 @@
-import { Message, Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
-import { APIClient } from '../../shared/api-client';
+import { type Message, type Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
+import type { APIClient } from '../../shared/api-client';
 import {
   currentModelLabel,
   defaultLabel,
@@ -64,7 +64,7 @@ function renderModelList(
 }
 
 /** What `/model` with no argument prints: the current model and the models, featured first. */
-export function describeModels(catalogue: Catalogue, preferredModel: string | undefined): string {
+function describeModels(catalogue: Catalogue, preferredModel: string | undefined): string {
   const chosenId = resolveRequestModel(preferredModel, catalogue);
   const current = `**Current model:** ${currentModelLabel(preferredModel, catalogue)}`;
   const models = modelsForListing(catalogue);

@@ -40,13 +40,7 @@ export interface Lease {
   stopping: boolean;
 }
 
-export type CommandStatus =
-  | 'running'
-  | 'started'
-  | 'succeeded'
-  | 'failed'
-  | 'timed_out'
-  | 'interrupted';
+type CommandStatus = 'running' | 'started' | 'succeeded' | 'failed' | 'timed_out' | 'interrupted';
 
 export interface CommandReceipt {
   actorId: string;

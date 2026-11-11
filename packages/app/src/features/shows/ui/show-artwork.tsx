@@ -55,7 +55,7 @@ interface ShowArtworkProps {
  * least three device pixels per layout pixel wide, so a 64px tile asks for the
  * 256px `thumb` and the show page's hero for `w640`, never the original.
  */
-export function coverVariantFor(size: number): string {
+function coverVariantFor(size: number): string {
   const physical = size * 3;
   if (physical <= 256) return 'thumb';
   if (physical <= 640) return 'w640';

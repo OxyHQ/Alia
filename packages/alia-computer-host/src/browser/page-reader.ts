@@ -12,8 +12,8 @@
  * what is typed in a field (a password included); a password field is flagged
  * as one so the model knows to hand over to the person.
  */
-export const MAX_PAGE_TEXT = 40_000;
-export const MAX_ELEMENTS = 120;
+const MAX_PAGE_TEXT = 40_000;
+const MAX_ELEMENTS = 120;
 
 export const READ_PAGE_SCRIPT = `(() => {
   const MAX_TEXT = ${MAX_PAGE_TEXT};

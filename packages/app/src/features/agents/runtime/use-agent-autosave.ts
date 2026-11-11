@@ -18,8 +18,8 @@ import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useRef, useState } from 'react';
 
-export type LinkedSkill = Agent['skills'][number];
-export type LinkedFile = Agent['knowledge'][number];
+type LinkedSkill = Agent['skills'][number];
+type LinkedFile = Agent['knowledge'][number];
 
 /**
  * One toast for the whole editor's autosave, reused rather than stacked.
@@ -82,7 +82,7 @@ export interface IdentityDraft {
 }
 
 /** The draft an agent opens with. Seeded once; see {@link AgentDraft}. */
-export function agentDraftFrom(agent: Agent): AgentDraft {
+function agentDraftFrom(agent: Agent): AgentDraft {
   return {
     tagline: agent.tagline,
     description: agent.description,
@@ -107,7 +107,7 @@ export function agentDraftFrom(agent: Agent): AgentDraft {
  * the owner is still writing is left out rather than refused, so the rest of
  * the draft still saves.
  */
-export function savableStarters(starters: readonly AgentStarter[]): AgentStarter[] {
+function savableStarters(starters: readonly AgentStarter[]): AgentStarter[] {
   return starters
     .map((starter) => ({ title: starter.title.trim(), prompt: starter.prompt.trim() }))
     .filter((starter) => starter.title !== '' && starter.prompt !== '')

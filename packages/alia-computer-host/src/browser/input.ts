@@ -38,8 +38,8 @@ export const ALLOWED_KEYS = [
 
 export type AllowedKey = (typeof ALLOWED_KEYS)[number];
 
-export const MAX_TYPED_CHARACTERS = 2000;
-export const MAX_SCROLL_PIXELS = 5000;
+const MAX_TYPED_CHARACTERS = 2000;
+const MAX_SCROLL_PIXELS = 5000;
 
 const coordinate = (max: number) =>
   z

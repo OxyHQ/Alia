@@ -21,7 +21,7 @@ export interface DaemonOptions {
   readonly maxAuthFailures?: number;
 }
 
-export type DaemonExit =
+type DaemonExit =
   | { reason: 'stopped' }
   | { reason: 'revoked' }
   | { reason: 'unknown-agent' }

@@ -22,7 +22,7 @@ export function translator(locale: 'en' | 'es' = 'en') {
   return (key: string, params?: Record<string, unknown>): string => i18n.t(key, params);
 }
 
-export function translationModule(locale: 'en' | 'es' = 'en') {
+function translationModule(locale: 'en' | 'es' = 'en') {
   const t = translator(locale);
   return {
     useTranslation: () => ({ t, locale, changeLocale: () => {} }),

@@ -66,7 +66,7 @@ interface WorkerStatus {
   lastActiveAt: string | null;
 }
 
-export type BrowserStackLike = Pick<
+type BrowserStackLike = Pick<
   BrowserStack,
   'ensure' | 'live' | 'current' | 'isRunning' | 'stop' | 'suspect'
 >;

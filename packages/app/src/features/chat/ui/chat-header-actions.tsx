@@ -53,7 +53,7 @@ export interface ChatHeaderActionsProps {
 }
 
 /** A participant the menu offers to edit. */
-export interface ChatHeaderAgent {
+interface ChatHeaderAgent {
   id: string;
   name: string;
   character: AvatarCharacter;

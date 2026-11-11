@@ -27,12 +27,12 @@ import type {
  * host, awake; the API never wakes a sleeping host to answer a status anyway.
  */
 
-export const SCREENSHOT_POLL_MS = 1500;
+const SCREENSHOT_POLL_MS = 1500;
 const STATUS_POLL_MS = 5000;
 /** Browser actions can wait for a navigation (25 s) on a host that was asleep. */
 const ACTION_TIMEOUT_MS = 90_000;
 
-export const agentComputerKey = (agentId: string) => ['agent-computer', agentId] as const;
+const agentComputerKey = (agentId: string) => ['agent-computer', agentId] as const;
 
 /** Whether the app is in the foreground (always true on web, where the tab decides). */
 export function useAppActive(): boolean {

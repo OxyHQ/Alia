@@ -1,4 +1,4 @@
-import { type Conversation } from '@alia.onl/sdk/model';
+import type { Conversation } from '@alia.onl/sdk/model';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import type { Folder } from '@/features/projects/runtime/folders-store';
 import type { Project } from '@/features/projects/runtime/projects-store';
@@ -236,22 +236,6 @@ export function NewCollectionAction({
         <DropdownMenuItem onPress={onNewFolder}>{t('sidebar.newFolder')}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/** A folder section's own action: a new agent. */
-export function NewAgentAction({ onPress }: { onPress: () => void }) {
-  const { t } = useTranslation();
-  return (
-    <Button
-      iconOnly
-      appearance="plain"
-      tone="neutral"
-      size="xs"
-      leadingIcon={RiAddLine}
-      accessibilityLabel={t('agents.createAgent')}
-      onPress={onPress}
-    />
   );
 }
 

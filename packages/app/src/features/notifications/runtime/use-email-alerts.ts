@@ -19,7 +19,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 
 /** One owned agent and whether it tells its owner about important mail in its own mailbox. */
-export interface AgentEmailAlert {
+interface AgentEmailAlert {
   agentId: string;
   name: string | null;
   handle: string | null;

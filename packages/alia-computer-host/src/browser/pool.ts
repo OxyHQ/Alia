@@ -54,8 +54,8 @@ export class PoolError extends Error {
 
 /** The worker addresses actors by the host's hash, never by the actor id. */
 const ACTOR_KEY = /^[0-9a-f]{24}$/;
-export const MAX_PAGES_PER_CONTEXT = 3;
-export const MAX_STATE_BYTES = 8 * 1024 * 1024;
+const MAX_PAGES_PER_CONTEXT = 3;
+const MAX_STATE_BYTES = 8 * 1024 * 1024;
 const NAVIGATION_TIMEOUT_MS = 25_000;
 const SETTLE_TIMEOUT_MS = 3_000;
 const SAVE_EVERY_MS = 30_000;
@@ -106,7 +106,7 @@ const CLOSED_STATUS: SessionStatus = {
   lastActiveAt: null,
 };
 
-export function assertActorKey(actor: string): string {
+function assertActorKey(actor: string): string {
   if (!ACTOR_KEY.test(actor)) throw new PoolError('invalid_actor', 'Invalid actor key', 400);
   return actor;
 }

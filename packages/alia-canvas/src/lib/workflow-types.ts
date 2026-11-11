@@ -67,7 +67,7 @@ export interface WorkflowExecution {
   completedAt?: Date;
 }
 
-export interface WorkflowExecutionResult {
+interface WorkflowExecutionResult {
   nodeId: string;
   nodeType: string;
   output: unknown;

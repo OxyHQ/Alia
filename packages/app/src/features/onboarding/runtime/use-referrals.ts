@@ -10,7 +10,7 @@ export interface ReferralInfo {
   totalReferrals: number;
 }
 
-export interface ReferredUser {
+interface ReferredUser {
   userId: string;
   email?: string;
   creditedAt: string;

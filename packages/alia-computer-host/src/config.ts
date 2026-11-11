@@ -57,7 +57,7 @@ export interface HostConfig {
 }
 
 /** Docker's own reference grammar, narrowed: no whitespace, no shell metacharacters. */
-export const IMAGE_REFERENCE = /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,250}$/;
+const IMAGE_REFERENCE = /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,250}$/;
 
 const ROLE_ARN = /^arn:aws[a-z-]*:iam::\d{12}:role\/[A-Za-z0-9+=,.@_-]+$/;
 

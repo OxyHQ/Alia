@@ -105,7 +105,7 @@ interface StreamErrorResponse {
  * The artifact a tool result carries, if it carries one: a generated file, or
  * an `artifact` object a tool returned for its own panel.
  */
-export function artifactOf(
+function artifactOf(
   toolCallId: string,
   name: string | undefined,
   output: unknown,
