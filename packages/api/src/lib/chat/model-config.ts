@@ -27,7 +27,7 @@ import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 import type { CreditUsage } from '../credits-manager.js';
 import type { StreamRunnerState } from './stream-runner.js';
 import type { ReasoningEffort } from '../models/catalogue.js';
-import { LOAD_TOOLS_TOOL, type ToolRouting } from '../tool-budget.js';
+import { stepBudget, type ToolRouting } from '../tool-budget.js';
 
 /**
  * The stream's inactivity timer: aborts the attempt when the provider goes
@@ -99,7 +99,7 @@ export const NON_STREAMING_TIMEOUT_MS = 70_000;
  * How far one chat turn's tool loop may go: model steps (`stopWhen`) and tool calls
  * (`stream-runner.ts`).
  *
- * An ordinary turn searches, reads and answers: five steps of work (loading tools is not one, see `stepBudget`) and fifteen calls are a safety bound it
+ * An ordinary turn searches, reads and answers: five steps and fifteen calls are a safety bound it
  * never meets. A turn whose host declares an awaited host tool (`hostAwaitsResults`) is an agent
  * acting in the person's app — snapshot the tab, click, wait for it, look again — one action per
  * step, so five steps end it half-way through the first form. It gets sixteen: a step is one
@@ -119,28 +119,6 @@ export const HOST_AGENT_TURN_STEP_BOUNDS: TurnStepBounds = { maxSteps: 16, maxTo
 /** The bounds for a turn, by whether its host declares a tool that awaits its result. */
 export function turnStepBounds(hostAgentTurn: boolean): TurnStepBounds {
   return hostAgentTurn ? HOST_AGENT_TURN_STEP_BOUNDS : CHAT_TURN_STEP_BOUNDS;
-}
-
-/**
- * The turn's step bound. A step that only calls `loadTools` is bookkeeping, not work: the model
- * fetching the tools it will use next. Counting it let a turn that loaded tools twice spend its
- * budget before reading a single mail and end mid-sentence. Loading steps do not count toward
- * `maxSteps`, but they are bounded too (`maxSteps` of them), so a model that only loads cannot
- * loop.
- */
-export function stepBudget(maxSteps: number) {
-  return ({
-    steps,
-  }: {
-    steps: ReadonlyArray<{ toolCalls: ReadonlyArray<{ toolName: string }> }>;
-  }) => {
-    const loading = steps.filter(
-      (step) =>
-        step.toolCalls.length > 0 &&
-        step.toolCalls.every((call) => call.toolName === LOAD_TOOLS_TOOL),
-    ).length;
-    return steps.length - loading >= maxSteps || loading >= maxSteps;
-  };
 }
 
 export interface BuildBaseConfigParams {

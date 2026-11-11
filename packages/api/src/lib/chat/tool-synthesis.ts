@@ -8,9 +8,9 @@
 import { type ModelMessage, streamText } from 'ai';
 import type { Response } from 'express';
 import { writeTextChunk } from '../streaming-helpers.js';
-import { toolRoundTrip } from './tool-calls.js';
+import type { createReasoningRelay } from './reasoning-relay.js';
+import { type ToolInvocation, toolRoundTrip } from './tool-calls.js';
 import { createToolMarkupGuard } from './tool-markup.js';
-import type { ToolInvocation } from './stream-runner.js';
 
 /** The closing turn of the tools-disabled synthesis pass. */
 const SYNTHESIS_REQUEST =
@@ -26,7 +26,7 @@ export interface ToolSynthesisParams {
   baseConfig: any;
   /** The tool invocations that have a result. */
   completed: readonly ToolInvocation[];
-  relay: { writeReasoning(text: string): void; openReasoningBlock(): void };
+  relay: ReturnType<typeof createReasoningRelay>;
   /** Called with each piece of answer text as it is written to the client. */
   onText(shown: string): void;
 }
@@ -47,43 +47,38 @@ export async function streamToolSynthesis(params: ToolSynthesisParams): Promise<
     { role: 'user', content: SYNTHESIS_REQUEST } satisfies ModelMessage,
   ];
 
-  const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(), SYNTHESIS_TIMEOUT_MS);
   // The turn's own abort (global timeout, idle watchdog) reaches this pass too.
+  const timeout = AbortSignal.timeout(SYNTHESIS_TIMEOUT_MS);
   const turnSignal: AbortSignal | undefined = baseConfig.abortSignal;
-  const signal = turnSignal ? AbortSignal.any([timeout.signal, turnSignal]) : timeout.signal;
+  const signal = turnSignal ? AbortSignal.any([timeout, turnSignal]) : timeout;
 
-  try {
-    const synthesis = streamText({
-      ...baseConfig,
-      abortSignal: signal,
-      messages: followUpMessages,
-      tools: undefined,
-      stopWhen: undefined,
-    });
+  const synthesis = streamText({
+    ...baseConfig,
+    abortSignal: signal,
+    messages: followUpMessages,
+    tools: undefined,
+    stopWhen: undefined,
+  });
 
-    // This pass offers no tools, so a call written as text has nothing to run: it is dropped.
-    const markup = createToolMarkupGuard();
-    for await (const part of synthesis.fullStream) {
-      if (res.writableEnded) break;
-      if (part.type === 'text-delta' && part.text) {
-        const shown = markup.push(part.text);
-        const filtered = shown ? writeTextChunk(res, requestId, modelId, shown) : null;
-        if (filtered) onText(filtered);
-      } else if (part.type === 'reasoning-start') {
-        relay.openReasoningBlock();
-      } else if (part.type === 'reasoning-delta') {
-        relay.writeReasoning(part.text);
-      } else if (part.type === 'error') {
-        // `fullStream` reports a failure as a part, it does not throw. Dropping
-        // it here turned every upstream refusal of the synthesis pass into
-        // "produced no assistant answer" and lost the actual cause.
-        throw part.error ?? new Error('The tool-result synthesis stream failed');
-      } else if (part.type === 'finish' && part.finishReason === 'error') {
-        throw new Error('The tool-result synthesis stream finished with an error');
-      }
+  // This pass offers no tools, so a call written as text has nothing to run: it is dropped.
+  const markup = createToolMarkupGuard();
+  for await (const part of synthesis.fullStream) {
+    if (res.writableEnded) break;
+    if (part.type === 'text-delta' && part.text) {
+      const shown = markup.push(part.text);
+      const filtered = shown ? writeTextChunk(res, requestId, modelId, shown) : null;
+      if (filtered) onText(filtered);
+    } else if (part.type === 'reasoning-start') {
+      relay.openReasoningBlock();
+    } else if (part.type === 'reasoning-delta') {
+      relay.writeReasoning(part.text);
+    } else if (part.type === 'error') {
+      // `fullStream` reports a failure as a part, it does not throw. Dropping
+      // it here turned every upstream refusal of the synthesis pass into
+      // "produced no assistant answer" and lost the actual cause.
+      throw part.error ?? new Error('The tool-result synthesis stream failed');
+    } else if (part.type === 'finish' && part.finishReason === 'error') {
+      throw new Error('The tool-result synthesis stream finished with an error');
     }
-  } finally {
-    clearTimeout(timer);
   }
 }

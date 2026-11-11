@@ -40,7 +40,7 @@ import {
   makeChunk,
 } from '../streaming-helpers.js';
 import type { SSEWriter } from './sse-writer.js';
-import { isInvalidToolCall } from './tool-calls.js';
+import { isInvalidToolCall, type ToolInvocation } from './tool-calls.js';
 import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
 import { CHAT_TURN_STEP_BOUNDS, type StreamWatchdog, type TurnStepBounds } from './model-config.js';
@@ -95,13 +95,7 @@ function outputReportsFailure(output: unknown): boolean {
   const error = (output as { error?: unknown }).error;
   return typeof error === 'string' && error.length > 0;
 }
-export interface ToolInvocation {
-  toolCallId: string;
-  toolName: string;
-  state: 'call' | 'result';
-  args?: unknown;
-  result?: unknown;
-}
+export type { ToolInvocation };
 
 export interface AgentMessage {
   role: 'assistant';
@@ -215,6 +209,12 @@ export async function runStream<TOOLS extends ToolSet>(
    * `hasStreamedText` cannot say so (any earlier narration sets it for the whole turn).
    */
   let answerOwed = false;
+  /** Answer text reached the person: the one place the three flags that say so are written. */
+  const noteAnswerText = (): void => {
+    state.hasStreamedContent = true;
+    hasStreamedText = true;
+    answerOwed = false;
+  };
   // Text that is a tool call in the model's own syntax is never shown (see `tool-markup.ts`).
   const markup = createToolMarkupGuard();
   // What earlier steps of this turn wrote as markup; the guard starts clean at each step.
@@ -232,21 +232,12 @@ export async function runStream<TOOLS extends ToolSet>(
   let finished = false;
   const invalidToolCallIds = new Set<string>();
 
-  const { writeReasoning, openReasoningBlock } = createReasoningRelay(res);
+  const relay = createReasoningRelay(res);
 
-  /**
-   * Turn completed tool results into the user-facing answer the original
-   * request was for.
-   *
-   * `stopWhen: stepCountIs(n)` is a hard safety bound (`turnStepBounds`). A model can spend all
-   * its steps calling tools and then reach the ordinary `finish` event with
-   * no text at all. That is not a successful answer: the tool cards are
-   * progress, not the requested response. The same tools-disabled follow-up is
-   * also the safe recovery for a provider error after tools ran.
-   */
   /** The turn ended at a question card: the person's answer is the next message. */
   const endedAtQuestion = () => toolInvocations.some((t) => t.toolName === ASK_USER_QUESTION_TOOL);
 
+  /** Runs the tools-disabled pass (`tool-synthesis.ts`); true when an answer was written. */
   const synthesizeCompletedToolResults = async (): Promise<boolean> => {
     if (endedAtQuestion()) return false;
     const completed = toolInvocations.filter((t) => t.state === 'result');
@@ -258,11 +249,9 @@ export async function runStream<TOOLS extends ToolSet>(
       modelId,
       baseConfig,
       completed,
-      relay: { writeReasoning, openReasoningBlock },
+      relay,
       onText: (shown) => {
-        state.hasStreamedContent = true;
-        hasStreamedText = true;
-        answerOwed = false;
+        noteAnswerText();
         assistantResponse += shown;
       },
     });
@@ -281,9 +270,7 @@ export async function runStream<TOOLS extends ToolSet>(
 
     if (chunk.type === 'text-delta' && chunk.text) {
       sse.ensureHeaders();
-      state.hasStreamedContent = true;
-      hasStreamedText = true;
-      answerOwed = false;
+      noteAnswerText();
 
       // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
       const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
@@ -292,10 +279,7 @@ export async function runStream<TOOLS extends ToolSet>(
         thinkingMatch.forEach((match) => {
           const content = match.replace(/<\/?thinking>/g, '').trim();
           if (content) {
-            res.write(
-              `event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`,
-            );
-            log.v1.debug({ reasoningBytes: sizeForLog(content) }, 'Reasoning chunk (thinking tag)');
+            relay.writeReasoning(content);
           }
         });
       }
@@ -309,7 +293,7 @@ export async function runStream<TOOLS extends ToolSet>(
     } else if (chunk.type === 'reasoning-delta') {
       sse.ensureHeaders();
       state.hasStreamedContent = true;
-      writeReasoning(chunk.text);
+      relay.writeReasoning(chunk.text);
     } else if (chunk.type === 'tool-call') {
       // Neither this call nor the `tool-error` that follows it reaches the person.
       if (isInvalidToolCall(chunk)) {
@@ -472,7 +456,7 @@ export async function runStream<TOOLS extends ToolSet>(
     } else if (chunk.type === 'start-step') {
       log.v1.debug('Step started');
     } else if (chunk.type === 'reasoning-start') {
-      openReasoningBlock();
+      relay.openReasoningBlock();
     } else if (chunk.type === 'reasoning-end') {
       // The block's text already went out delta by delta; nothing is buffered.
     } else if (chunk.type === 'text-start' || chunk.type === 'text-end') {

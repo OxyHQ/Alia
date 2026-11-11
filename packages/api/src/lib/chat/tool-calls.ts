@@ -1,5 +1,14 @@
 import type { ModelMessage } from 'ai';
 
+/** A tool call of the turn as the conversation save records it. */
+export interface ToolInvocation {
+  toolCallId: string;
+  toolName: string;
+  state: 'call' | 'result';
+  args?: unknown;
+  result?: unknown;
+}
+
 /**
  * A tool call the AI SDK refused before `execute`.
  *
