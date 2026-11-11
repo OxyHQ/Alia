@@ -36,6 +36,7 @@ vi.mock('ai', () => ({
   generateText: vi.fn(async () => ({
     text: 'an answer',
     usage: { inputTokens: 10, outputTokens: 10 },
+    steps: [{ toolResults: [] }],
   })),
   stepCountIs: vi.fn(() => 5),
 }));

@@ -83,7 +83,9 @@ awaits its result is an agent acting in the app and gets 16 steps and 32 tool ca
 only calls `loadTools` is bookkeeping and does not spend those steps (it is bounded separately by `stepBudget`). A turn that ends owing an answer — tool
 results arrived after the last text it wrote, whether the steps ran out or the next step failed —
 gets one tools-disabled synthesis pass (`lib/chat/tool-synthesis.ts`); narration written before the
-tools is not that answer.
+tools is not that answer. The same pass, one request builder (`owedAnswerRequest`), serves every
+surface that ends a tool loop: the non-streaming chat route, Alia's tasks, `/internal` triggers,
+channel bots, `askAlia`/agent turns and the text-tool-call follow-up.
 
 `reasoningEffort` (`low` | `medium` | `high`) is accepted only when the model
 lists that level in its `reasoningEfforts`. Oxy and Kaana own route authorization and

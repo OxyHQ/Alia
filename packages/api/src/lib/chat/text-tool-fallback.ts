@@ -17,13 +17,14 @@
  * the route used inline so the timeout suite's module mocks keep intercepting them.
  */
 import type { Response } from 'express';
-import { asSchema, streamText, type ModelMessage, type ToolSet } from 'ai';
+import { asSchema, type ToolSet } from 'ai';
 import { log } from '../logger.js';
-import { writeTextChunk, makeChunk } from '../streaming-helpers.js';
+import { makeChunk } from '../streaming-helpers.js';
 import type { ResolvedModel } from '../chat-core.js';
 import type { ToolInvocation } from './tool-calls.js';
-import { toolRoundTrip } from './tool-calls.js';
-import { createToolMarkupGuard, parseDsmlToolCalls, stripDsmlToolMarkup } from './tool-markup.js';
+import { createReasoningRelay } from './reasoning-relay.js';
+import { streamToolSynthesis } from './tool-synthesis.js';
+import { parseDsmlToolCalls, stripDsmlToolMarkup } from './tool-markup.js';
 
 export interface TextToolFallbackParams {
   assistantResponse: string;
@@ -65,6 +66,7 @@ export async function runTextToolFallback(
   let textToolCallIdx = 0;
   /** Everything the follow-up completions streamed, across every executed call. */
   let followUpTotal = '';
+  const relay = createReasoningRelay(res);
   async function executeTextToolCall(toolName: string, args: unknown): Promise<boolean> {
     const toolFn = tools[toolName];
     if (!toolFn?.execute) {
@@ -142,17 +144,19 @@ export async function runTextToolFallback(
       };
       toolInvocations.push(invocation);
 
-      // Follow-up LLM call so the model generates a natural response
+      // Follow-up LLM call so the model generates a natural response: the shared tools-disabled
+      // pass, which also tells the model to speak (`tool-synthesis.ts`).
       try {
-        const followUpMessages: ModelMessage[] = [
-          ...baseConfig.messages,
-          ...toolRoundTrip(invocation),
-        ];
-        const followUpResult = streamText({
-          ...baseConfig,
-          messages: followUpMessages,
-          tools: undefined,
-          stopWhen: undefined,
+        await streamToolSynthesis({
+          res,
+          requestId,
+          modelId,
+          baseConfig,
+          completed: [invocation],
+          relay,
+          onText: (shown) => {
+            followUpTotal += shown;
+          },
           onFinish: (result: {
             usage?: Parameters<NonNullable<typeof onFollowUpUsage>>[0] & {
               outputTokenDetails?: { reasoningTokens?: number };
@@ -168,18 +172,6 @@ export async function runTextToolFallback(
             });
           },
         });
-
-        // The follow-up offers no tools: markup in it has nothing to run, and is not shown.
-        const followUpMarkup = createToolMarkupGuard();
-        for await (const followUpChunk of followUpResult.fullStream) {
-          if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
-            const shown = followUpMarkup.push(followUpChunk.text);
-            const followUpText = shown ? writeTextChunk(res, requestId, modelId, shown) : null;
-            if (followUpText) {
-              followUpTotal += followUpText;
-            }
-          }
-        }
       } catch (followUpErr) {
         log.v1.error({ err: followUpErr }, 'Error in text-tool-call follow-up LLM call');
       }

@@ -2,6 +2,7 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
 import crypto from 'node:crypto';
 import { generateText } from 'ai';
 import { stepBudget } from '../tool-budget.js';
+import { generateAnswered } from '../chat/tool-synthesis.js';
 import { resolveStoredModel, getAIModel, type ResolvedModel } from '../chat-core.js';
 import { sendChannelMessage } from '../channels/outbound.js';
 import { ToolPipeline } from '../tool-pipeline.js';
@@ -469,7 +470,7 @@ export async function processAgentBotMessage(
       agent,
     });
 
-    const result = await generateText({
+    const answered = await generateAnswered({
       model,
       system: systemPrompt + appCatalogPrompt,
       messages: messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
@@ -481,18 +482,19 @@ export async function processAgentBotMessage(
       stopWhen: stepBudget(5),
     });
 
-    const fullResponse = result.text;
+    const fullResponse = answered.text;
 
+    // Every step of the loop and the answer pass, not the last call alone.
     const tokenUsage: CreditUsage = {
-      promptTokens: result.usage?.inputTokens || 0,
-      completionTokens: result.usage?.outputTokens || 0,
-      totalTokens: (result.usage?.inputTokens || 0) + (result.usage?.outputTokens || 0),
+      promptTokens: answered.usage.inputTokens,
+      completionTokens: answered.usage.outputTokens,
+      totalTokens: answered.usage.totalTokens,
     };
     try {
       await finalizeCredits(
         creditReservation,
         tokenUsage,
-        servedModelId(modelId, servedReferenceOf(result)),
+        servedModelId(modelId, servedReferenceOf(answered.last)),
       );
       creditsSettled = true;
     } catch (error: unknown) {

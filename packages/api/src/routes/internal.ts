@@ -9,8 +9,8 @@
  */
 
 import { Router } from 'express';
-import { generateText } from 'ai';
 import { stepBudget } from '../lib/tool-budget.js';
+import { generateAnswered } from '../lib/chat/tool-synthesis.js';
 import { resolveDefaultModel, getAIModel } from '../lib/chat-core.js';
 import { oxyServiceAuth } from '../middleware/auth.js';
 import { oxy } from '../lib/oxy.js';
@@ -190,7 +190,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${buildTriggerSystemPrompt(oxyUser, memory, appName)}`;
 
     // Use generateText (non-streaming) for server-to-server
-    const result = await generateText({
+    const answered = await generateAnswered({
       model,
       system: systemPrompt + appCatalogPrompt,
       messages: [{ role: 'user', content: eventDescription }],
@@ -205,20 +205,18 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     const responseTime = Date.now() - startTime;
 
     // Extract token usage (AI SDK uses inputTokens/outputTokens)
-    const tokenUsage = result.usage
-      ? {
-          promptTokens: result.usage.inputTokens || 0,
-          completionTokens: result.usage.outputTokens || 0,
-          totalTokens: result.usage.totalTokens || 0,
-        }
-      : null;
+    const tokenUsage = {
+      promptTokens: answered.usage.inputTokens,
+      completionTokens: answered.usage.outputTokens,
+      totalTokens: answered.usage.totalTokens,
+    };
 
     // Record usage (no credits charged — platform cost)
     try {
       await recordUsage(
         req,
         200,
-        tokenUsage?.totalTokens || 0,
+        tokenUsage.totalTokens,
         responseTime,
         0, // no credits charged for internal
       );
@@ -226,7 +224,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       log.general.error({ err: error }, 'Error recording usage');
     }
 
-    const toolCalls = result.steps.flatMap((step) =>
+    const toolCalls = answered.result.steps.flatMap((step) =>
       step.toolCalls
         .filter((tc) => !isInvalidToolCall(tc))
         .map((tc) => ({ tool: tc.toolName, args: tc.input })),
@@ -239,7 +237,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
 
     res.json({
       event,
-      response: result.text,
+      response: answered.text,
       toolCalls,
       usage: tokenUsage,
       responseTime,

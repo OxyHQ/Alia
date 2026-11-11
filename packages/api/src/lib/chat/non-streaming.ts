@@ -16,7 +16,6 @@
  * inline so the timeout suite's module mocks keep intercepting them.
  */
 import type { Request, Response } from 'express';
-import { generateText } from 'ai';
 import {
   saveConversationResult,
   turnProducedOutput,
@@ -33,6 +32,7 @@ import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { SkillRuntime } from '../skills/runtime.js';
 import { isInvalidToolCall } from './tool-calls.js';
+import { generateAnswered } from './tool-synthesis.js';
 import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
 import { servedModelId } from '../models/power-levels.js';
 import { withoutToolMarkup } from './tool-markup.js';
@@ -114,32 +114,22 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
 
   log.v1.info('Non-streaming request, using generateText');
 
-  const result = await generateText(baseConfig);
+  const { result, text, finishReason, usage } = await generateAnswered(baseConfig);
   clearFirstByteTimer();
   assertLive?.();
 
-  // Capture token usage (AI SDK uses inputTokens/outputTokens)
-  let tokenUsage: CreditUsage = {
-    promptTokens: 0,
-    completionTokens: 0,
-    totalTokens: 0,
+  // Every step of the loop and the answer pass spent tokens, not the last call alone.
+  const tokenUsage: CreditUsage = {
+    promptTokens: usage.inputTokens,
+    completionTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
     systemPromptTokens,
+    reasoningTokens: usage.reasoningTokens,
   };
-  // `usage` is the last step's alone; a multi-step tool loop spent `totalUsage`.
-  const spent = result.totalUsage ?? result.usage;
-  if (spent) {
-    tokenUsage = {
-      promptTokens: spent.inputTokens || 0,
-      completionTokens: spent.outputTokens || 0,
-      totalTokens: spent.totalTokens || (spent.inputTokens || 0) + (spent.outputTokens || 0),
-      systemPromptTokens,
-      reasoningTokens: spent.outputTokenDetails?.reasoningTokens ?? spent.reasoningTokens ?? 0,
-    };
-    log.v1.info({ usage: tokenUsage }, 'Token usage');
-  }
+  log.v1.info({ usage: tokenUsage }, 'Token usage');
 
   // A call the model wrote as text is not an answer, and is never stored or returned.
-  const assistantResponse = withoutToolMarkup(result.text || '');
+  const assistantResponse = withoutToolMarkup(text || '');
 
   const nonStreamToolInvocations = result.toolCalls
     .filter((tc) => !isInvalidToolCall(tc))
@@ -158,7 +148,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   // hold is refunded by the route's release point, nothing is stored. This is
   // asked before anything below stores or charges.
   if (!turnProducedOutput(assistantResponse, nonStreamToolInvocations)) {
-    throw emptyResponseError(result.finishReason);
+    throw emptyResponseError(finishReason);
   }
 
   // Build lifecycle context for post-request operations
@@ -220,7 +210,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
       // one Oxy chose (ADR 0014); the request's own id when none was reported.
       model: servedModelId(modelId, observation.resolvedModelReference),
       content: assistantResponse,
-      finishReason: toOpenAIFinishReason(result.finishReason),
+      finishReason: toOpenAIFinishReason(finishReason),
       toolCalls,
       usage: tokenUsage,
       aliaUsage: {

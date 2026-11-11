@@ -417,6 +417,7 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       toolCalls: [],
       toolResults: [],
+      steps: [{ toolResults: [] }],
       finishReason: 'stop',
     });
   });
@@ -1066,6 +1067,7 @@ describe('deadlines - /v1/chat/completions', () => {
       totalUsage: { inputTokens: 40, outputTokens: 9, totalTokens: 49 },
       toolCalls: [],
       toolResults: [],
+      steps: [{ toolResults: [] }],
       finishReason: 'stop',
     });
     await vi.runAllTimersAsync();
@@ -1081,6 +1083,41 @@ describe('deadlines - /v1/chat/completions', () => {
       expect.objectContaining({ totalTokens: 49 }),
       expect.anything(),
     );
+  });
+
+  it('answers from the tool results when the loop ended on them, and bills both calls', async () => {
+    mockGenerateText
+      .mockResolvedValueOnce({
+        text: '',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        totalUsage: { inputTokens: 40, outputTokens: 9, totalTokens: 49 },
+        toolCalls: [{ toolCallId: 'c1', toolName: 'getCurrentDate', input: {} }],
+        toolResults: [{ toolCallId: 'c1', output: { today: 'martes' } }],
+        steps: [{ toolResults: [{ toolCallId: 'c1' }] }],
+        response: { messages: [{ role: 'tool', content: [] }] },
+        finishReason: 'tool-calls',
+      })
+      .mockResolvedValueOnce({
+        text: 'Hoy es martes.',
+        usage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+        totalUsage: { inputTokens: 5, outputTokens: 5, totalTokens: 10 },
+        toolCalls: [],
+        toolResults: [],
+        steps: [{ toolResults: [] }],
+        finishReason: 'stop',
+      });
+
+    const res = createMockRes();
+    await handler(createMockReq({ body: body(false) }), res, vi.fn());
+
+    expect(mockGenerateText).toHaveBeenCalledTimes(2);
+    const synthesis = mockGenerateText.mock.calls[1][0];
+    expect(synthesis.tools).toBeUndefined();
+    expect(synthesis.messages.at(-1).role).toBe('user');
+    const sent = res.json.mock.calls[0][0];
+    expect(sent.choices[0].message.content).toBe('Hoy es martes.');
+    expect(sent.choices[0].finish_reason).toBe('stop');
+    expect(sent.usage.total_tokens).toBe(59);
   });
 
   it('neither saves, charges nor answers twice when the call finishes after the timeout', async () => {
@@ -1107,6 +1144,7 @@ describe('deadlines - /v1/chat/completions', () => {
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       toolCalls: [],
       toolResults: [],
+      steps: [{ toolResults: [] }],
       finishReason: 'stop',
     });
     await vi.runAllTimersAsync();
@@ -1125,6 +1163,7 @@ describe('deadlines - /v1/chat/completions', () => {
       usage: { inputTokens: 10, outputTokens: 500, totalTokens: 510 },
       toolCalls: [],
       toolResults: [],
+      steps: [{ toolResults: [] }],
       finishReason: 'length',
     });
 
@@ -1147,6 +1186,7 @@ describe('deadlines - /v1/chat/completions', () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
       toolCalls: [{ toolCallId: 'c1', toolName: 'client_tool', input: { a: 1 } }],
       toolResults: [],
+      steps: [{ toolResults: [] }],
       finishReason: 'tool-calls',
     });
 
