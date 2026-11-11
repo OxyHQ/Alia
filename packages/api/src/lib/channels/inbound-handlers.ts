@@ -1,6 +1,7 @@
 import { reserveBackgroundProductCredits } from '../product-credit-access';
 import crypto from 'node:crypto';
-import { generateText, stepCountIs } from 'ai';
+import { generateText } from 'ai';
+import { stepBudget } from '../tool-budget.js';
 import { resolveStoredModel, getAIModel, type ResolvedModel } from '../chat-core.js';
 import { sendChannelMessage } from '../channels/outbound.js';
 import { ToolPipeline } from '../tool-pipeline.js';
@@ -477,7 +478,7 @@ export async function processAgentBotMessage(
       ...toolRouting,
       temperature: 0.7,
       maxOutputTokens: 2048,
-      stopWhen: stepCountIs(5),
+      stopWhen: stepBudget(5),
     });
 
     const fullResponse = result.text;

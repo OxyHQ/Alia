@@ -53,7 +53,8 @@ import { reserveBackgroundProductCredits } from '../product-credit-access';
  */
 
 import { randomUUID } from 'node:crypto';
-import { stepCountIs, streamText, type ToolSet } from 'ai';
+import { streamText, type ToolSet } from 'ai';
+import { stepBudget } from '../tool-budget.js';
 import {
   checkGatedParts,
   gatedPartsFor,
@@ -300,7 +301,7 @@ export async function runAgentTurn(input: {
         : { messages: [...input.history, { role: 'user' as const, content: task }] }),
       tools: agentTools,
       ...toolRouting,
-      stopWhen: stepCountIs(AGENT_MAX_STEPS),
+      stopWhen: stepBudget(AGENT_MAX_STEPS),
       maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
       temperature: 0.4,
       abortSignal: controller.signal,

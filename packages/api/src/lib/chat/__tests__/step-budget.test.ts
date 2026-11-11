@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stepBudget } from '../model-config.js';
+import { stepBudget } from '../../tool-budget.js';
 
 const step = (...names: string[]) => ({ toolCalls: names.map((toolName) => ({ toolName })) });
 const stops = (steps: ReturnType<typeof step>[], max: number) =>

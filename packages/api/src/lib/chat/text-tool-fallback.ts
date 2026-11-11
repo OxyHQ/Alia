@@ -21,7 +21,7 @@ import { asSchema, streamText, type ModelMessage, type ToolSet } from 'ai';
 import { log } from '../logger.js';
 import { writeTextChunk, makeChunk } from '../streaming-helpers.js';
 import type { ResolvedModel } from '../chat-core.js';
-import type { ToolInvocation } from './stream-runner.js';
+import type { ToolInvocation } from './tool-calls.js';
 import { toolRoundTrip } from './tool-calls.js';
 import { createToolMarkupGuard, parseDsmlToolCalls, stripDsmlToolMarkup } from './tool-markup.js';
 

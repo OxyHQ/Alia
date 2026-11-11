@@ -9,7 +9,8 @@
  */
 
 import { Router } from 'express';
-import { generateText, stepCountIs } from 'ai';
+import { generateText } from 'ai';
+import { stepBudget } from '../lib/tool-budget.js';
 import { resolveDefaultModel, getAIModel } from '../lib/chat-core.js';
 import { oxyServiceAuth } from '../middleware/auth.js';
 import { oxy } from '../lib/oxy.js';
@@ -198,7 +199,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       ...toolRouting,
       temperature: 0.3,
       maxRetries: 0,
-      stopWhen: stepCountIs(5),
+      stopWhen: stepBudget(5),
     });
 
     const responseTime = Date.now() - startTime;

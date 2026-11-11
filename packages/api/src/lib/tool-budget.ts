@@ -88,6 +88,28 @@ import { log } from './logger.js';
 
 export const LOAD_TOOLS_TOOL = 'loadTools';
 
+/**
+ * The step bound of a turn that carries `loadTools`. A step that only calls `loadTools` is bookkeeping, not work: the model
+ * fetching the tools it will use next. Counting it let a turn that loaded tools twice spend its
+ * budget before reading a single mail and end mid-sentence. Loading steps do not count toward
+ * `maxSteps`, but they are bounded too (`maxSteps` of them), so a model that only loads cannot
+ * loop.
+ */
+export function stepBudget(maxSteps: number) {
+  return ({
+    steps,
+  }: {
+    steps: ReadonlyArray<{ toolCalls: ReadonlyArray<{ toolName: string }> }>;
+  }) => {
+    const loading = steps.filter(
+      (step) =>
+        step.toolCalls.length > 0 &&
+        step.toolCalls.every((call) => call.toolName === LOAD_TOOLS_TOOL),
+    ).length;
+    return steps.length - loading >= maxSteps || loading >= maxSteps;
+  };
+}
+
 /** How many search matches `loadTools({ query })` loads when `limit` is not given. */
 const DEFAULT_QUERY_LOADS = 5;
 /** The most it loads for one query. */
