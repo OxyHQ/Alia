@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { stepBudget } from '../model-config.js';
 
 const step = (...names: string[]) => ({ toolCalls: names.map((toolName) => ({ toolName })) });
-const stops = (steps: ReturnType<typeof step>[], max: number) => stepBudget(max)({ steps } as never);
+const stops = (steps: ReturnType<typeof step>[], max: number) =>
+  stepBudget(max)({ steps } as never);
 
 describe('stepBudget', () => {
   it('counts a step of work', async () => {
