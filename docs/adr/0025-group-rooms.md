@@ -50,7 +50,9 @@ claim that Alia reproduces Grok Bot's internal implementation.
    participant identities, descriptions and attributed conversation data. It has no tools, private
    memory or authority to act. Validate its output against the roster. Run inference through Oxy's
    utility resolver, with bounded time/output and the existing reservation, settlement and refund
-   lifecycle; record consumption and decision metadata without transcript text.
+   lifecycle; record consumption and decision metadata without transcript text. A returned generation
+   settles its measured usage before semantic roster validation, so rejecting its actor ID does not
+   refund inference that completed. An inference call that throws releases its reservation.
 4. **Addressing is contextual.** A bare name and an `@mention` can both address a member. A name in
    a quote, code, explanation or reference to a previous answer is not automatically an invitation
    to speak. Follow-up questions use the conversation context. An ambiguous addressee produces one
@@ -80,8 +82,9 @@ claim that Alia reproduces Grok Bot's internal implementation.
    forward the existing SSE frames until `group.idle`, disconnect or `GROUP_REQUEST_BUDGET_MS`
    (70 seconds). A still-running member ends on that HTTP connection with `room_continues`, and
    continues through sockets and storage. The internal result distinguishes successful silence,
-   replies, continuation and failure. Inference failures use `failTurn`; only deliberate silence
-   can finish successfully with no answer. The SDK recognizes `alia.group_turn`, preserves the
+   replies, continuation and failure. Inference failures use `failTurn`, including a failure after an earlier member has already
+   answered; keep that partial reply without reporting the chain as successful. Only deliberate
+   silence can finish successfully with no answer. The SDK recognizes `alia.group_turn`, preserves the
    person's message and removes an empty lead placeholder on successful group completion. Ordinary
    empty one-to-one responses and interrupted streams remain failures.
 10. **A stored reply is the execution record.** Keep
@@ -94,10 +97,10 @@ claim that Alia reproduces Grok Bot's internal implementation.
 | Bound | Value | Reason |
 |---|---|---|
 | Replies per person message | 12 | Bound the cost of one request and its collaboration. |
-| Turns per person message | 24 | Failed attempts also consume work. |
+| Operations per person message | 24 | Both a selection phase and an actor execution increment the turn counter; failed attempts also consume work. |
 | Handoffs per chain | 3 | Bound agent-to-agent exchanges. |
 | Consecutive speaker | Different member | Prevent an actor from answering itself. |
-| Selector deadline | 10 seconds | Bound routing latency, including its retry. |
+| Selector generation deadline | 10 seconds | Bound the inference call including its retry; credential/credit setup is separate. |
 | Selector retries | 1 | One bounded recovery, never a fallback to all members. |
 | Selector output | `utilityOutputTokens(512)` | Reserve enough for the decision and Oxy-selected model reasoning. |
 | Supersede | Newest person message | An old chain cannot start another actor's work. |
