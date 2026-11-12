@@ -174,6 +174,31 @@ describe('a member speaking in the room', () => {
     expect(messages[0]).toMatchObject({ content: 'half', isStreaming: false });
   });
 
+  it.each(['error', 'rate_limited', 'turn_cap', 'reply_cap'])(
+    'marks only unfinished room output failed when the chain ends with %s',
+    (reason) => {
+      const { messages } = run([
+        start('k1'),
+        end({ status: 'completed', content: 'Finished', messageId: 'group-reply-p1-0' }, 'k1'),
+        start('k2'),
+        delta('unfinished', 'k2'),
+        start('k3'),
+        event('group.idle', { reason }),
+      ]);
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({
+        content: 'Finished',
+        turnOutcome: 'completed',
+        isStreaming: false,
+      });
+      expect(messages[1]).toMatchObject({
+        content: 'unfinished',
+        turnOutcome: 'failed',
+        isStreaming: false,
+      });
+    },
+  );
+
   it('ignores events of other conversations and malformed ones', () => {
     const before: Message[] = [];
     const ledger = createRoomLedger();
