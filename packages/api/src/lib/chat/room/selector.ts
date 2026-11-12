@@ -1,6 +1,11 @@
 /** The room selector has no tools and cannot act for any member. */
 import { generateObject } from 'ai';
-import { getAIModel, resolveUtilityModel, utilityOutputTokens } from '../../chat-core.js';
+import {
+  getAIModel,
+  resolveDefaultModel,
+  resolveUtilityModel,
+  utilityOutputTokens,
+} from '../../chat-core.js';
 import { reserveBackgroundProductCredits } from '../../product-credit-access.js';
 import { finalizeCredits, refundReservation } from '../../credits-manager.js';
 import { servedModelId, servedReferenceOf } from '../../models/power-levels.js';
@@ -23,7 +28,9 @@ export async function selectRoomDecision(input: RoomSelectionInput): Promise<Roo
   const choices = input.trigger ? undefined : roomDecisionChoices(input);
   const schema = choices ? roomChoiceSchema(choices) : ReactionDecisionSchema;
   const prompt = roomSelectionData(input, choices);
-  const resolved = await resolveUtilityModel();
+  // Multi-member planning uses Oxy's capability-aware default; the fixed-recipient binary
+  // feedback decision remains a utility call. Structured output reaches Oxy unchanged.
+  const resolved = input.trigger ? await resolveUtilityModel() : resolveDefaultModel();
   const reservation = await reserveBackgroundProductCredits(input.userId);
   if (!reservation) throw new Error('Room selection requires credits');
   let settled = false;
