@@ -27,6 +27,9 @@ import {
 // Auto planning may reason within its token allowance; binary feedback remains a short utility job.
 const ROOM_SELECTION_TIMEOUT_MS = 30_000;
 const REACTION_SELECTION_TIMEOUT_MS = 10_000;
+// Planning must leave room for reasoning before the structured decision. Oxy's
+// internal relationship also bounds this request; it must admit this allowance.
+const ROOM_SELECTION_OUTPUT_TOKENS = 8_192;
 
 export async function selectRoomDecision(input: RoomSelectionInput): Promise<RoomDecision> {
   const choices = input.trigger ? undefined : roomDecisionChoices(input);
@@ -48,7 +51,7 @@ export async function selectRoomDecision(input: RoomSelectionInput): Promise<Roo
       schema,
       system: input.trigger ? REACTION_SELECTION_SYSTEM : ROOM_SELECTION_SYSTEM,
       prompt,
-      maxOutputTokens: utilityOutputTokens(512),
+      maxOutputTokens: input.trigger ? utilityOutputTokens(512) : ROOM_SELECTION_OUTPUT_TOKENS,
       maxRetries: 1,
       abortSignal: input.signal ? AbortSignal.any([input.signal, timeout]) : timeout,
     });

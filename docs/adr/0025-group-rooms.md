@@ -191,7 +191,8 @@ capability and an additive payload on its existing socket event, with no new Oxy
 | General selector generation deadline | 30 seconds | Allow contextual planning through Oxy `auto`, below the 45-second actor step; bounds the call including its retry. |
 | Binary reaction selection deadline | 10 seconds | The utility call chooses only whether its fixed recipient should respond. |
 | Selector retries | 1 | One bounded recovery, never a fallback to all members. |
-| Selector output | `utilityOutputTokens(512)` | Reserve enough for the decision and Oxy-selected model reasoning. |
+| General selector output | 8,192 tokens | Bound planning reasoning plus the structured decision; requires Oxy's internal relationship to admit this ceiling. |
+| Binary reaction selector output | `utilityOutputTokens(512)` (2,560 tokens) | Preserve the smaller allowance for the fixed-recipient decision. |
 | Supersede | Newest person message | An old chain cannot start another actor's work. |
 | Rate | 60 replies per room per 10 minutes | Bound repeated requests across chains. |
 | Credits | Per inference operation | Selection and actor execution both account for their actual usage. |
