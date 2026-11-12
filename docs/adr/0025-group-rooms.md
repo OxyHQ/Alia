@@ -188,12 +188,17 @@ capability and an additive payload on its existing socket event, with no new Oxy
 | Operations per person message | 24 | Both a selection phase and an actor execution increment the turn counter; failed attempts also consume work. |
 | Handoffs per chain | 3 | Bound agent-to-agent exchanges. |
 | Consecutive substantive replies | Different member | Prevent an actor from answering itself; a one-off clarification may use the last interlocutor. |
-| Selector generation deadline | 10 seconds | Bound the inference call including its retry; credential/credit setup is separate. |
+| General selector generation deadline | 30 seconds | Allow contextual planning through Oxy `auto`, below the 45-second actor step; bounds the call including its retry. |
+| Binary reaction selection deadline | 10 seconds | The utility call chooses only whether its fixed recipient should respond. |
 | Selector retries | 1 | One bounded recovery, never a fallback to all members. |
 | Selector output | `utilityOutputTokens(512)` | Reserve enough for the decision and Oxy-selected model reasoning. |
 | Supersede | Newest person message | An old chain cannot start another actor's work. |
 | Rate | 60 replies per room per 10 minutes | Bound repeated requests across chains. |
 | Credits | Per inference operation | Selection and actor execution both account for their actual usage. |
+
+Earlier caller cancellation still aborts either selector, and supersession is checked before and
+after selection. Credential/credit setup is separate from these generation deadlines; the existing
+renewed room and worker leases continue to cover execution.
 
 ## Consequences
 
