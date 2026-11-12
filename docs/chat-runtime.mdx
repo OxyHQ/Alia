@@ -140,6 +140,57 @@ Code lives in `packages/api/src/lib/chat/room/`; `lib/chat/group-turn-http.ts` w
 [Group participation evaluation](./testing/group-participation.md) separates deterministic runtime
 checks from real-inference and multi-instance acceptance.
 
+## Reactions are conversation feedback
+
+A reaction belongs to the signed-in person, conversation and stable message ID
+(`clientMessageId`, falling back to the stored row ID for legacy messages). It is attributed
+feedback about that message, never a synthetic user message, a new task or approval to execute
+an earlier proposal. Ordinary Alia, hosted-agent and external-agent turns receive authoritative
+feedback context, including removals; they do not trust reaction metadata echoed by a client.
+
+`POST /conversations/:id/messages/:messageId/reactions` accepts `{ emoji, active, mutationId }`.
+New clients send the desired boolean state and a UUID mutation ID. Reusing that ID retries the
+same mutation, including a no-op; conflicting reuse returns 409. Omitting `active` retains the
+legacy toggle contract. The response is `{ messageId, reactions, revision, mutationId }`, and
+`conversation:reaction` adds `conversationId` on the existing authenticated Socket.IO connection.
+History exposes `reactionRevision`. Clients reconcile snapshots by revision and mutation ID;
+reload repairs a missed socket notification. A quiet reaction creates no empty assistant bubble
+or thinking indicator.
+
+For a reachable hosted agent in a direct chat or group, an added reaction can schedule one
+observation. After a short coalescing delay, the same structured room selector reads the exact
+target and surrounding conversation. Ordinary appreciation normally ends with explicit silence;
+only a useful contribution from the recipient can run. There is no compulsory thank-you, fan-out
+or handoff. Alia and external agents retain the feedback for ordinary turns but do not wake
+immediately through this observation path. Unavailable recipients also keep the feedback without
+an unauthorized response. Reach is checked at admission; membership and application boundaries
+are rechecked by the worker. Observation turns have tools, delegation and memory writes disabled,
+and retain the actor's own identity and memory isolation.
+
+Postgres commits the reaction state, monotonic revision and mutation receipt/outbox together.
+Workers claim renewable leases, persist the selection and reuse the existing room lock and actor
+runner. A newer revision, removed target or newer person message supersedes uncommitted work.
+Durable activity markers defer observations while a substantive direct turn or group chain is
+active; deferral does not consume the inference retry budget. The final reply commit checks the
+lease, current feedback and activity under the same thread lock used by message writers and
+activity admission. Its deterministic `group-reply-reaction-<event id>-1` ID permits recovery of
+an already committed answer without generating another one. Inference failures remain failures,
+separate from a deliberate idle decision.
+
+`message_reaction_states` survives message row rewrites; `messages.reactions` and
+`reactionRevision` are its read cache. Both replacement and conversation saving preserve stable
+targets and stored authorship even when a client omits display metadata. Removing or explicitly
+replacing a target clears its feedback and cancels pending observations. During a rolling deploy,
+database compatibility triggers mirror genuine legacy reaction updates with a new revision and
+restore the cache on legacy inserts; they never grant response authority or create observations.
+Deleting the owned conversation cascades its feedback and receipts and clears activity markers.
+
+Real Postgres tests in `reactionEvents.pgdb.test.ts`, `chatRepositories.pgdb.test.ts` and
+`conversation-saver.pgdb.test.ts` verify idempotency, concurrent mutation/replacement, legacy
+updates, lease recovery, activity exclusion, atomic reply guards and deletion. These deterministic
+checks prove persistence and execution rules; they do not establish the model's interpretation of
+an emoji or replace a signed-in end-to-end acceptance test.
+
 ## Product stream events
 
 Standard OpenAI-compatible chunks are emitted beside Alia product events. The
