@@ -1,8 +1,10 @@
 /** The durable reaction state reaches only the owner's existing authenticated socket room. */
+import type { MessageReactionEntry } from '../../../domain/message-reactions.js';
 export interface ConversationReactionUpdate {
   readonly conversationId: string;
   readonly messageId: string;
   readonly reactions: readonly string[];
+  readonly reactionEntries?: readonly MessageReactionEntry[];
   readonly revision: number;
   readonly mutationId: string;
 }

@@ -631,7 +631,13 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
     const first = await call('post', '/:id/messages/:messageId/reactions', request);
     const retry = await call('post', '/:id/messages/:messageId/reactions', request);
     expect(first.status).toBe(200);
-    expect(first.body).toEqual({ messageId: 'msg-1', reactions: ['❤️'], revision: 1, mutationId });
+    expect(first.body).toEqual({
+      messageId: 'msg-1',
+      reactions: ['❤️'],
+      reactionEntries: [{ emoji: '❤️', author: { kind: 'user', id: ALICE.id } }],
+      revision: 1,
+      mutationId,
+    });
     expect(retry.body).toEqual(first.body);
     expect(reactionNotifications).toEqual(
       Array.from({ length: 2 }, () => ({

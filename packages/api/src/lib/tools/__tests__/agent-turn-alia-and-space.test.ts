@@ -17,6 +17,7 @@ const H = vi.hoisted(() => ({
   owed: false,
   pipeline: null as null | Record<string, unknown>,
   tools: {} as Record<string, unknown>,
+  reaction: null as null | { output: unknown; finish: boolean },
 }));
 
 vi.mock('ai', async (importOriginal) => {
@@ -35,11 +36,29 @@ vi.mock('ai', async (importOriginal) => {
       const isLoop = args.tools !== undefined;
       return {
         fullStream: (async function* () {
+          if (H.reaction) {
+            yield {
+              type: 'tool-result',
+              toolCallId: 'react-1',
+              toolName: 'react_to_message',
+              output: H.reaction.output,
+            };
+            if (H.reaction.finish) yield { type: 'finish', finishReason: 'tool-calls' };
+            return;
+          }
           yield { type: 'text-delta', text: isLoop && H.owed ? 'Let me look. ' : 'an answer' };
         })(),
         totalUsage: Promise.resolve({ totalTokens: 3, inputTokens: 1, outputTokens: 2 }),
         providerMetadata: Promise.resolve(undefined),
-        steps: Promise.resolve([{ toolResults: isLoop && H.owed ? [{}] : [] }]),
+        steps: Promise.resolve([
+          {
+            toolResults: H.reaction
+              ? [{ toolCallId: 'react-1', toolName: 'react_to_message', output: H.reaction.output }]
+              : isLoop && H.owed
+                ? [{}]
+                : [],
+          },
+        ]),
         response: Promise.resolve({ messages: [{ role: 'tool' }] }),
       };
     },
@@ -127,6 +146,54 @@ beforeEach(() => {
   H.owed = false;
   H.pipeline = null;
   H.tools = { ...ALL_TOOLS };
+  H.reaction = null;
+});
+
+describe('nested native reaction completion', () => {
+  it.each([true, false])(
+    'requires a clean inference finish (%s) after the reaction committed',
+    async (finish) => {
+      const { createAgentReactionTurn } = await import('../../chat/reactions/agent-tool.js');
+      const complete = vi.fn(async () => true);
+      const reaction = createAgentReactionTurn(
+        {
+          userId: 'person-1',
+          conversationId: 'thread',
+          actor: { id: 'member-1', name: 'Nadia' },
+          turnId: 'turn',
+          targets: [{ id: 'target', role: 'user', content: 'Gracias', agentInfoId: null }],
+        },
+        {
+          mutate: async () => ({
+            messageId: 'target',
+            reactions: [],
+            reactionEntries: [],
+            revision: 1,
+            mutationId: 'react-1',
+          }),
+          publish: async () => undefined,
+          complete,
+        },
+      );
+      const output = await reaction.tool.execute!(
+        { messageId: 'target', emoji: '❤️', active: true, finishTurn: true },
+        { toolCallId: 'react-1', messages: [] },
+      );
+      H.reaction = { output, finish };
+      const result = await runAgentTurn({
+        agent: member(null),
+        task: 'Gracias',
+        person,
+        payerOxyUserId: 'person-1',
+        conversationReaction: reaction,
+      });
+      expect(H.streams).toHaveLength(1);
+      expect(result.response).toBe('');
+      expect(result.reactionOnly).toBe(finish ? true : undefined);
+      expect(complete).toHaveBeenCalledTimes(finish ? 1 : 0);
+      if (!finish) expect(result.error).toBeDefined();
+    },
+  );
 });
 
 describe('aliaConsultTools', () => {

@@ -509,6 +509,85 @@ const idle: RoomDecision = { action: 'idle', agentId: null, reason: 'complete' }
 const v2 = { version: 2, phase: 'select', speakerId: '', pending: [] } as const;
 
 describe('v2 room participation: selection before execution', () => {
+  it('preserves both explicitly requested reaction contributions without empty replies or unrelated actors', async () => {
+    const h = harness({
+      script: () => 'unused',
+      rows: [
+        {
+          id: 'p1',
+          clientMessageId: 'c1',
+          role: 'user',
+          content: 'Nadia y Bruno, confirmad con 👍',
+          agentName: null,
+        },
+      ],
+      select: async (input) => {
+        const reacted = new Set(input.rows[0]?.reactionEntries?.map((entry) => entry.author.id));
+        const next = ['a', 'b'].find((id) => !reacted.has(id));
+        return next ? selection(next) : idle;
+      },
+    });
+    vi.mocked(h.deps.runTurn).mockImplementation(async (input) => {
+      const agentId = input.agent!._id;
+      h.rows[0] = {
+        ...h.rows[0]!,
+        reactionEntries: [
+          ...(h.rows[0]!.reactionEntries ?? []),
+          { emoji: '👍', author: { kind: 'agent', id: agentId, name: agentId } },
+        ],
+      };
+      return { response: '', reactionOnly: true, tokensUsed: 10, creditsCharged: 1 };
+    });
+    await h.drain(h.first(v2));
+    expect(vi.mocked(h.deps.runTurn).mock.calls.map(([input]) => input.agent!._id)).toEqual([
+      'a',
+      'b',
+    ]);
+    expect(h.rows).toHaveLength(1);
+    expect(h.events.filter((event) => event.event === 'group.message')).toEqual([]);
+    expect(
+      h.events.filter((event) => event.event === 'alia.agent_end').map((event) => event.data),
+    ).toEqual([
+      expect.objectContaining({ status: 'completed', reactionOnly: true }),
+      expect.objectContaining({ status: 'completed', reactionOnly: true }),
+    ]);
+    expect(h.events.at(-1)?.data.reason).toBe('done');
+  });
+
+  it('replays durable reaction completion without another model/tool turn, then selects remaining work', async () => {
+    const h = harness({ script: () => 'must not run', select: async () => idle, agentsGone: true });
+    const replay = vi.fn(async () => undefined);
+    Object.assign(h.deps, { reactionCompleted: vi.fn(async () => true), replayReactions: replay });
+    await h.drain(
+      h.first({
+        ...v2,
+        phase: 'speak',
+        speakerId: 'a',
+        decision: { action: 'speak', agentId: 'a', reason: 'directed' },
+      }),
+    );
+    expect(h.deps.runTurn).not.toHaveBeenCalled();
+    expect(replay).toHaveBeenCalledOnce();
+    expect(h.events.find((event) => event.event === 'alia.agent_end')?.data).toMatchObject({
+      status: 'completed',
+      reactionOnly: true,
+    });
+    expect(h.rows).toHaveLength(1);
+  });
+
+  it('does not hide a real failure behind an earlier reaction side effect', async () => {
+    const h = harness({ script: () => 'unused', select: async () => selection('a') });
+    vi.mocked(h.deps.runTurn).mockResolvedValue({
+      response: '',
+      reactionOnly: true,
+      error: 'provider failed',
+      tokensUsed: 0,
+      creditsCharged: 0,
+    });
+    await h.drain(h.first(v2));
+    expect(h.events.find((event) => event.event === 'alia.agent_end')?.data.status).toBe('failed');
+    expect(h.events.at(-1)?.data.reason).toBe('error');
+  });
   it('runs only Eusebio for the reported request and preserves the exact user task', async () => {
     const request = 'Hola! Eusebio que puedes hacer?';
     const select = vi.fn(async (input: RoomSelectionInput) =>

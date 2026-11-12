@@ -85,13 +85,15 @@ export interface AnsweredResult {
 export async function generateAnswered(
   // biome-ignore lint/suspicious/noExplicitAny: the caller's AI SDK config (model, system, messages, limits), dynamically extended
   config: any,
+  answerSatisfied?: (result: AnsweredCall) => boolean,
 ): Promise<AnsweredResult> {
   const result = (await generateText(config)) as AnsweredCall;
-  const answer = owesAnswer(result.steps)
-    ? ((await generateText(
-        owedAnswerRequest(config, [...config.messages, ...result.response.messages]),
-      )) as AnsweredCall)
-    : null;
+  const answer =
+    owesAnswer(result.steps) && !answerSatisfied?.(result)
+      ? ((await generateText(
+          owedAnswerRequest(config, [...config.messages, ...result.response.messages]),
+        )) as AnsweredCall)
+      : null;
 
   const usage: AnsweredUsage = {
     inputTokens: 0,

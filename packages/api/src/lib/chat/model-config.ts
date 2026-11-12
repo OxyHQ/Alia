@@ -28,6 +28,7 @@ import type { CreditUsage } from '../credits-manager.js';
 import type { StreamRunnerState } from './stream-runner.js';
 import type { ReasoningEffort } from '../models/catalogue.js';
 import { stepBudget, type ToolRouting } from '../tool-budget.js';
+import type { AgentReactionTurn } from './reactions/agent-tool.js';
 
 /**
  * The stream's inactivity timer: aborts the attempt when the provider goes
@@ -122,6 +123,7 @@ export function turnStepBounds(hostAgentTurn: boolean): TurnStepBounds {
 }
 
 export interface BuildBaseConfigParams {
+  conversationReaction?: AgentReactionTurn;
   /** The resolved provider/model for this attempt. */
   resolved: ResolvedModel;
   /** The turn's tool-loop bounds ({@link turnStepBounds}); an ordinary chat turn's when absent. */
@@ -256,6 +258,7 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     stopWhen: [
       stepBudget((params.stepBounds ?? CHAT_TURN_STEP_BOUNDS).maxSteps),
       hasToolCall(ASK_USER_QUESTION_TOOL),
+      ...(params.conversationReaction ? [params.conversationReaction.stopWhen] : []),
     ],
     onFinish: async (result: {
       /**
