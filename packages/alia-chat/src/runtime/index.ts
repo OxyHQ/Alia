@@ -25,6 +25,7 @@ export type {
 } from './config';
 export type { RoomEvent } from './room-events';
 export type { MessageReactionUpdate } from './message-reactions';
+export type { MessageReactionEntry } from './types';
 export { AliaApiError, useAliaApi } from './api';
 export {
   ALIA_FEATURES,

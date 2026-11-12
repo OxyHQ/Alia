@@ -102,6 +102,10 @@ describe('saved message reactions', () => {
       conversationId: 'c1',
       messageId: 'm1',
       reactions: ['❤️'],
+      reactionEntries: [
+        { emoji: '❤️', author: { kind: 'user', id: 'u1' } },
+        { emoji: '❤️', author: { kind: 'agent', id: 'salina', name: 'Salina' } },
+      ],
       revision: 1,
       mutationId: 'mutation-1',
     };

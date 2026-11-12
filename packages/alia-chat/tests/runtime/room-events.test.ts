@@ -47,6 +47,85 @@ function run(events: RoomEvent[], from: Message[] = [], ledger = createRoomLedge
 }
 
 describe('a member speaking in the room', () => {
+  it('applies an authored reaction to its target and removes only the empty member draft', () => {
+    const result = {
+      kind: 'agent_reaction',
+      success: true,
+      completesTurn: true,
+      conversationId: CONV,
+      messageId: 'person',
+      actorId: 'nadia',
+      reactions: [],
+      reactionEntries: [{ emoji: '❤️', author: { kind: 'agent', id: 'nadia', name: 'Nadia' } }],
+      revision: 1,
+      mutationId: 'agent-reaction-1',
+    };
+    const { messages, ledger } = run(
+      [
+        start(),
+        event('alia.agent_tool', {
+          consultId: 'k1',
+          phase: 'result',
+          toolCallId: 'reaction',
+          name: 'react_to_message',
+          output: result,
+        }),
+        end({ status: 'completed', reactionOnly: true }),
+        start(),
+        delta('Late duplicate'),
+      ],
+      [{ id: 'person', role: 'user', content: 'Gracias' }],
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ id: 'person', reactionEntries: result.reactionEntries });
+    expect(ledger.discarded.has('k1')).toBe(true);
+  });
+
+  it('lets authoritative reaction-only completion settle a claimed SSE draft once', () => {
+    const ledger = createRoomLedger();
+    claimConsult(ledger, 'k1', 'sse-draft');
+    const { messages } = run(
+      [end({ status: 'completed', reactionOnly: true }), start()],
+      [
+        { id: 'person', role: 'user', content: 'Gracias' },
+        { id: 'sse-draft', role: 'assistant', content: '', isStreaming: true, agentInfo: NADIA },
+        { id: 'peer', role: 'assistant', content: 'Earlier completed answer' },
+      ],
+      ledger,
+    );
+    expect(messages.map((m) => m.id)).toEqual(['person', 'peer']);
+  });
+
+  it('preserves substantive words even if a reaction-only marker is inconsistent', () => {
+    const { messages } = run([
+      start(),
+      delta('A real answer'),
+      end({ status: 'completed', reactionOnly: true }),
+    ]);
+    expect(messages[0]).toMatchObject({
+      content: 'A real answer',
+      isStreaming: false,
+      turnOutcome: 'completed',
+    });
+  });
+
+  it('preserves unrelated tool cards even beside an inconsistent reaction-only completion', () => {
+    const { messages } = run([
+      start(),
+      event('alia.agent_tool', {
+        consultId: 'k1',
+        phase: 'call',
+        toolCallId: 'question',
+        name: 'askUserQuestion',
+        input: { questions: [] },
+      }),
+      end({ status: 'completed', reactionOnly: true }),
+    ]);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.toolInvocations?.[0]?.toolCallId).toBe('question');
+    expect(messages[0]?.isStreaming).toBe(false);
+  });
+
   it('shows the member typing from agent_start, as an agent message', () => {
     const { messages } = run([start()]);
     expect(messages).toHaveLength(1);
