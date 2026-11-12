@@ -240,12 +240,9 @@ async function mutateReaction(
       return undefined;
     if (agentInput && (!['user', 'assistant'].includes(row.role) || actor === agentInput.actor.id))
       return undefined;
-    if (
-      agentInput &&
-      row.role === 'assistant' &&
-      (!actor || !(await memberExists(tx, userId, conversationId, actor)))
-    )
-      return undefined;
+    // The recipient is historical message attribution, not an actor to execute.
+    // Only the reacting actor needs current membership; an old peer may have left.
+    if (agentInput && row.role === 'assistant' && !actor) return undefined;
     const targetId = stableId(row);
     if (row.clientMessageId === null)
       await tx.update(messages).set({ clientMessageId: targetId }).where(eq(messages.id, row.id));
