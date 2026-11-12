@@ -215,7 +215,7 @@ function main() {
   // and "there is less" look identical without one.
   //
   // #244 found a walk of 245 files reporting OK while the bots all showed an
-  // alias. The walk is 516 files today (611 before the integrations tree moved
+  // alias. The walk is 433 files today (611 before the integrations tree moved
   // to OxyHQ/Gemies with the backend); a floor of 200 still catches losing a
   // whole tree of that size.
   if (files.length < 200) {
