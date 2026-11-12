@@ -54,6 +54,16 @@ claim that Alia reproduces Grok Bot's internal implementation.
    lifecycle; record consumption and decision metadata without transcript text. A returned generation
    settles its measured usage before semantic roster validation, so rejecting its actor ID does not
    refund inference that completed. An inference call that throws releases its reservation.
+   For ordinary messages, the inference schema is `{ choice: <allowed decision ID> }`:
+   the server supplies `allowedChoices`, each representing one complete legal decision for the
+   current room state, maps the chosen ID to `RoomDecision`, and retains the existing validator.
+   A real-inference evaluation exposed an incompatible `clarify`/`directed` combination when
+   action, actor and reason were independent output fields. Enumerating complete decisions
+   removes that invalid combination without keyword routing or relaxed validation. It does not
+   guarantee that the model selects the contextually best option; real-inference acceptance
+   remains necessary. Reaction observations keep their separate `speak`/`idle` action schema
+   and server-bound recipient. These are internal inference contracts; authority, budgets,
+   retry limits, persisted `RoomDecision` shape and public product contracts are unchanged.
 4. **Addressing is contextual.** A bare name and an `@mention` can both address a member. A name in
    a quote, code, explanation or reference to a previous answer is not automatically an invitation
    to speak. Follow-up questions use the conversation context. An ambiguous addressee produces one

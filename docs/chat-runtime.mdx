@@ -108,6 +108,13 @@ stored replies reconcile on reload.
   A structured decision selects a participant, asks one clarification, ends deliberately or reports
   an unavailable addressee. Its selected actor is saved in the speaking job. The old `group-rooms`
   queue drains with its original policy, without accepting new chains.
+- **Choose a complete legal decision.** For ordinary messages, the server enumerates the legal
+  decisions for the current room state in `allowedChoices`. Inference returns only
+  `{ choice: <one allowed ID> }`; the server maps that ID to a complete `RoomDecision` and runs
+  the existing validator. This prevents incompatible action/actor/reason combinations while
+  leaving contextual participation to inference. Reaction observations retain their separate
+  `{ action: 'speak' | 'idle' }` contract with a server-bound recipient. Neither contract grants
+  tools, changes authority or adds retries.
 - **Natural participation.** A name without `@` can address an agent. Quotes, incidental names and
   quoted `@mentions` do not automatically activate anyone. Follow-ups use context; open questions
   select useful contributions without a compulsory round. After each stored answer, reconsider
