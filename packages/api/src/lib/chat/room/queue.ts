@@ -51,17 +51,15 @@ export async function initRoomQueue(): Promise<void> {
     return;
   }
   try {
-    queue = new Queue<RoomJobData>(QUEUE_NAME, {
-      connection,
-      defaultJobOptions: {
-        attempts: ATTEMPTS,
-        backoff: { type: 'exponential', delay: 2_000 },
-        removeOnComplete: { age: 24 * 3600, count: 1000 },
-        removeOnFail: { age: 7 * 24 * 3600, count: 2000 },
-      },
-    });
-    legacyQueue = new Queue<RoomJobData>(LEGACY_QUEUE_NAME, { connection });
-    await queue.waitUntilReady();
+    const defaultJobOptions = {
+      attempts: ATTEMPTS,
+      backoff: { type: 'exponential', delay: 2_000 },
+      removeOnComplete: { age: 24 * 3600, count: 1000 },
+      removeOnFail: { age: 7 * 24 * 3600, count: 2000 },
+    };
+    queue = new Queue<RoomJobData>(QUEUE_NAME, { connection, defaultJobOptions });
+    legacyQueue = new Queue<RoomJobData>(LEGACY_QUEUE_NAME, { connection, defaultJobOptions });
+    await Promise.all([queue.waitUntilReady(), legacyQueue.waitUntilReady()]);
     redisAvailable = true;
     log.general.info('Group room queue initialized (BullMQ + Redis)');
   } catch (err) {
