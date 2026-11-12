@@ -110,12 +110,12 @@ stored replies reconcile on reload.
   queue drains with its original policy, without accepting new chains.
 - **Choose a complete legal decision.** For ordinary messages, the server enumerates the legal
   decisions in `allowedChoices`, labelled by the request they answer. Input separates the
-  `personRequest`, preceding `context` and later `memberContributions`. Inference returns a short
-  `assessment` and one `choice`; the server maps that ID to a complete `RoomDecision` and runs
+  `personRequest`, preceding `context` and later `memberContributions`. Inference returns only
+  `{ choice: <one allowed ID> }`; the server maps that ID to a complete `RoomDecision` and runs
   the existing validator. Person-request choices remain distinct from peer-request choices;
   only the current last speaker's latest substantive post-trigger message can supply a handoff,
   matching the worker's `handedByAgentId`. Assess outstanding original work before waiting for
-  the person. The assessment is neither stored nor logged, and creates no persistent plan.
+  the person; this is internal selection policy, with no separate response field or persistent plan.
   This prevents incompatible action/actor/reason combinations while leaving contextual
   participation to inference. Reaction observations retain their separate
   `{ action: 'speak' | 'idle' }` contract with a server-bound recipient. Neither contract grants
