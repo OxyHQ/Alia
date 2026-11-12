@@ -12,6 +12,7 @@ import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { REACTION_EVENT_PHASES, REACTION_EVENT_STATUSES } from '../../domain/reaction-events';
 import { checkOneOf } from './columns';
 import { conversations } from './chat';
+import type { AgentReactionEntry } from '../../domain/message-reactions';
 
 /** Scheduling admission only; a marker carries no requester or tool authority. */
 export const conversationActivities = pgTable(
@@ -43,6 +44,7 @@ export const messageReactionStates = pgTable(
     messageId: text().notNull(),
     targetActorId: text(),
     reactions: jsonb().$type<string[]>().notNull(),
+    agentReactions: jsonb().$type<AgentReactionEntry[]>().notNull().default([]),
     revision: integer().notNull().default(0),
     updatedAt: timestamptz().notNull().defaultNow(),
   },
@@ -71,6 +73,9 @@ export const reactionEvents = pgTable(
     targetActorId: text(),
     surfaceApplicationId: text(),
     mutationId: text().notNull(),
+    /** Null means the owning person; an agent receipt never schedules a response. */
+    reactorAgentId: text(),
+    reactionTurnId: text(),
     emoji: text().notNull(),
     requestedActive: boolean(),
     active: boolean().notNull(),
@@ -99,5 +104,31 @@ export const reactionEvents = pgTable(
     index('reaction_events_target_idx').on(t.oxyUserId, t.conversationId, t.messageId),
     checkOneOf('reaction_events_status_check', t.status, REACTION_EVENT_STATUSES),
     checkOneOf('reaction_events_phase_check', t.phase, REACTION_EVENT_PHASES),
+  ],
+);
+
+/** Written only after a clean reaction-only turn finish, never merely after a tool mutation. */
+export const agentReactionTurns = pgTable(
+  'agent_reaction_turns',
+  {
+    id: generatedId(),
+    oxyUserId: text().notNull(),
+    conversationId: text().notNull(),
+    actorId: text().notNull(),
+    turnId: text().notNull(),
+    completedAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'agent_reaction_turns_conversation_fk',
+      columns: [t.oxyUserId, t.conversationId],
+      foreignColumns: [conversations.oxyUserId, conversations.conversationId],
+    }).onDelete('cascade'),
+    uniqueIndex('agent_reaction_turns_identity_key').on(
+      t.oxyUserId,
+      t.conversationId,
+      t.actorId,
+      t.turnId,
+    ),
   ],
 );
