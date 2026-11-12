@@ -8,7 +8,7 @@ order: 0
 
 Alia is Oxy's assistant. This repository holds the **Alia app** (Expo: web, iOS and
 Android) and, for as long as their consumers need them, the two packages published from
-it — `@alia.onl/sdk` and `@alia.onl/server` — plus the Canvas editor.
+it — `@alia.onl/sdk` and `@alia.onl/server`.
 
 **The backend lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** since
 2026-11-12: the API (`api.alia.onl`), the integrations service, the agents' computer host,
@@ -28,9 +28,8 @@ OxyHQ/Gemies, not here.
 | `packages/app` | — | Expo + React Native | The Alia app (web at `alia.onl`, iOS, Android) |
 | `packages/alia-chat` | `@alia.onl/sdk` | React | The client SDK: the conversation screen, hooks, voice |
 | `packages/alia-server` | `@alia.onl/server` | TypeScript | The server client a consumer backend calls Alia's API with |
-| `packages/alia-canvas` | — | Vite + React | The Canvas workflow editor (`canvas.alia.onl`) |
 
-The app and Canvas ship from `deploy-frontends.yml` (Cloudflare Workers) after CI is green
+The app ships from `deploy-frontends.yml` (a Cloudflare Worker) after CI is green
 on `main`; the native binary's JS bundle ships as an OTA update from `publish-update.yml`;
 the two packages publish to npm from `release-packages.yml`.
 

@@ -72,9 +72,8 @@ const EXPECTED = {
  * block (EXPECTED's exact set enforces that).
  */
 const EXPECTED_JOBS = {
-  // One Worker upload at a time per frontend.
+  // One Worker upload at a time.
   'deploy-frontends.yml#deploy-app': 'serialised',
-  'deploy-frontends.yml#deploy-canvas': 'serialised',
 };
 
 /** The top-level `concurrency:` block of a workflow, or `null`. */

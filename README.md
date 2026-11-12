@@ -2,7 +2,7 @@
 
 <p align="center">
   <b>Oxy's assistant: it acts for you in your Oxy apps and works in the background. Your own agents, the gemies, live in <a href="https://gemies.ai">Gemies</a>.</b><br>
-  The Alia app (web, iOS, Android), the Canvas editor, and the SDK and server client published from them.
+  The Alia app (web, iOS, Android) and the SDK and server client published from it.
 </p>
 
 <p align="center">
@@ -23,14 +23,13 @@
 
 ## Packages
 
-Four workspaces, all under `packages/`.
+Three workspaces, all under `packages/`.
 
 | Path | Package | Stack | Purpose |
 |---|---|---|---|
 | [`packages/app`](packages/app/) | `@alia/app` | Expo 58 | The Alia app: `alia.onl`, iOS and Android |
 | [`packages/alia-chat`](packages/alia-chat/) | `@alia.onl/sdk` | React | The client SDK: conversation screen, streaming, voice |
 | [`packages/alia-server`](packages/alia-server/) | `@alia.onl/server` | TypeScript | The server client a consumer backend calls Alia's API with |
-| [`packages/alia-canvas`](packages/alia-canvas/) | `alia-canvas` | Vite, React | The Canvas workflow editor (`canvas.alia.onl`) |
 
 The two published packages stay here until `@gemies/sdk` and `@gemies/server` replace them
 (Gemies ADR 0034 §6).
@@ -54,7 +53,6 @@ The bun version is pinned in `packageManager` and CI installs that exact version
 bun install
 cp packages/app/.env.example packages/app/.env   # EXPO_PUBLIC_API_URL points at the API
 bun run dev:app                                  # Expo (web + tunnel)
-bun run dev:canvas                               # Canvas
 ```
 
 The app has platform shortcuts at the root:
@@ -65,8 +63,8 @@ bun run web    # or ios, or android
 
 | Group | Scripts |
 |---|---|
-| Build | `bun run build:app`, `bun run build:canvas` |
-| Start | `bun run start:app`, `bun run start:canvas` |
+| Build | `bun run build:app` |
+| Start | `bun run start:app` |
 | Lint / format (Biome) | `bun run lint` (check), `bun run lint:fix`, `bun run format` |
 
 > [!WARNING]

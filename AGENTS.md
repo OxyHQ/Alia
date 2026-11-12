@@ -1,6 +1,6 @@
 # Alia
 
-La app del asistente de Oxy («el ChatGPT de Oxy»): app Expo (web, iOS y Android), Canvas y, mientras sus consumidores los necesiten, los paquetes publicados `@alia.onl/sdk` y `@alia.onl/server`, en un monorepo de bun workspaces.
+La app del asistente de Oxy («el ChatGPT de Oxy»): app Expo (web, iOS y Android) y, mientras sus consumidores los necesiten, los paquetes publicados `@alia.onl/sdk` y `@alia.onl/server`, en un monorepo de bun workspaces.
 
 **El backend vive en [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** desde el 2026-11-12 (su [ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md)): la API (`api.alia.onl`), integrations, el computer host, sus despliegues, canaries, runbooks y ADRs. **Los cambios de backend van a OxyHQ/Gemies**, nunca a este repo.
 
@@ -12,8 +12,7 @@ bun run lint                                          # Biome; CI: bunx biome ci
 bun run --filter @alia/app typecheck && bun run --filter @alia/app test
 bun run --filter @alia.onl/sdk typecheck && bun run --filter @alia.onl/sdk test
 bun run --filter @alia.onl/server typecheck && bun run --filter @alia.onl/server test
-bun run build:canvas
-bun run dev:app                                       # también dev:canvas
+bun run dev:app
 ```
 
 ## Mapa
@@ -40,14 +39,13 @@ Nunca:
 - Credenciales de proveedor ni claves de Kaana en Alia, ni claves `alia_sk_*` (retiradas): las claves viven en Oxy Console.
 - Un hostname de Kaana distinto de `https://kaana.ai`.
 - Copiar un componente de conversación a `packages/app`: viene de `AliaChatContent` en `packages/alia-chat` (ADR 0018).
-- Importar código de la API o leer sus ficheros desde la app, el SDK, el server o Canvas: el servidor está en otro repo.
+- Importar código de la API o leer sus ficheros desde la app, el SDK o el server: el servidor está en otro repo.
 
 Pregunta antes de: cambiar un contrato entre productos Oxy o la superficie pública de `@alia.onl/sdk` o `@alia.onl/server`; ver `docs/agent-rules.md` para cada regla.
 
 ## Pruebas
 
 - Cambio en `packages/app`, el SDK o el server: typecheck + test de ese paquete (en el SDK también `test:metro`, `check:entries` y `check:entry-types`; en el server, `check:entrypoints` tras `build`).
-- Cambio en Canvas: `bun run --filter alia-canvas test` y `bunx tsc -b packages/alia-canvas`.
 - Hecho = `bun run lint` y los tests del paquete tocado en verde, con CI verde en el PR.
 - Verifica con ejecuciones dirigidas del paquete afectado, no solo con la suite completa.
 

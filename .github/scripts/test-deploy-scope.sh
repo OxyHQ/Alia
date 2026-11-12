@@ -102,13 +102,13 @@ run 0 site=false FAKE_MARKER=$prefix$sha "FAKE_COMPARE=$(printf 'identical\n0')"
   -- target site exclude "$docs" $prefix
 run 0 site=false FAKE_MARKER=$prefix$newer "FAKE_COMPARE=$(printf 'behind\n0')" \
   -- target site exclude "$docs" $prefix
-run 0 app=false FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\npackages/alia-canvas/x.ts')" \
+run 0 app=false FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\nscripts/x.mjs')" \
   -- target app include "$app" $prefix
 
 # target: releases
 run 0 site=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nREADME.md\npackages/app/src/x.ts')" \
   -- target site exclude "$docs" $prefix
-run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\npackages/alia-canvas/x.ts\npackages/alia-chat/package.json')" \
+run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nscripts/x.mjs\npackages/alia-chat/package.json')" \
   -- target app include "$app" $prefix
 # A rename out of scope still counts the path it left.
 run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\nlegacy/x.ts\npackages/app/x.ts')" \

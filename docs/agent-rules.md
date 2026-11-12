@@ -8,7 +8,7 @@ comprobable; aquí está el texto completo. Antes de tocar un área lee su doc
   2026-11-12 (su [ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md)):
   la API, integrations, el computer host, sus despliegues, canaries, runbooks y ADRs.
   Un cambio de servidor, de rutas, de eventos del stream, de base de datos o de
-  despliegue va allí. Aquí quedan la app, `@alia.onl/sdk`, `@alia.onl/server` y Canvas.
+  despliegue va allí. Aquí quedan la app, `@alia.onl/sdk` y `@alia.onl/server`.
   Las referencias a «ADR 00xx» en el código son la serie de Gemies.
 - **Tres papeles (ADR 0010):** Kaana = API de inferencia (solo modelos; las
   credenciales de proveedor viven allí). Oxy = plataforma + Oxy Console (TODAS
