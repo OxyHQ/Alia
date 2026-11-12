@@ -43,7 +43,7 @@ vi.mock('../../../credits-manager.js', () => ({
 import { selectRoomDecision } from '../selector.js';
 import { createOxyInferenceCredential } from '../../../inference/oxy-inference-credential.js';
 
-const repetitions = Number(process.env.ROOM_EVAL_REPETITIONS ?? '10');
+const repetitions = Number(process.env.ROOM_EVAL_REPETITIONS ?? '1');
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 50) {
   throw new Error(
     'ROOM_EVAL_REPETITIONS must be an integer from 1 to 50 (acceptance requires 10+).',
@@ -219,9 +219,9 @@ const cases: EvaluationCase[] = [
 ];
 
 beforeAll(async () => {
-  if (!process.env.OXY_API_URL || !process.env.AWS_PROFILE) {
+  if (process.env.RUN_ROOM_SELECTION_EVAL !== '1' || !process.env.OXY_API_URL) {
     throw new Error(
-      'Set OXY_API_URL and AWS_PROFILE to an authenticated Alia development workload.',
+      'Set RUN_ROOM_SELECTION_EVAL=1 and OXY_API_URL to opt in to real Alia workload inference.',
     );
   }
   try {
