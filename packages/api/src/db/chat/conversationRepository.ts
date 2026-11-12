@@ -1,3 +1,5 @@
+import { conversationActivities } from '../schema/message-reactions.js';
+import { lockMessageThread } from './messageLock.js';
 /**
  * Chat threads, on Postgres.
  *
@@ -357,6 +359,15 @@ export async function deleteConversation(
 ): Promise<number> {
   // A group's members go with it: there is no foreign key to do it (`db/schema/chat.ts`).
   return db.transaction(async (tx) => {
+    await lockMessageThread(tx, oxyUserId, conversationId);
+    await tx
+      .delete(conversationActivities)
+      .where(
+        and(
+          eq(conversationActivities.oxyUserId, oxyUserId),
+          eq(conversationActivities.conversationId, conversationId),
+        ),
+      );
     await tx
       .delete(conversationMembers)
       .where(

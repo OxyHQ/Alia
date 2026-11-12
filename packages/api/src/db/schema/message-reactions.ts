@@ -1,7 +1,17 @@
-import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  foreignKey,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { REACTION_EVENT_PHASES, REACTION_EVENT_STATUSES } from '../../domain/reaction-events';
 import { checkOneOf } from './columns';
+import { conversations } from './chat';
 
 /** Scheduling admission only; a marker carries no requester or tool authority. */
 export const conversationActivities = pgTable(
@@ -37,6 +47,11 @@ export const messageReactionStates = pgTable(
     updatedAt: timestamptz().notNull().defaultNow(),
   },
   (t) => [
+    foreignKey({
+      name: 'reaction_states_conversation_fk',
+      columns: [t.oxyUserId, t.conversationId],
+      foreignColumns: [conversations.oxyUserId, conversations.conversationId],
+    }).onDelete('cascade'),
     uniqueIndex('message_reaction_states_target_key').on(
       t.oxyUserId,
       t.conversationId,
@@ -74,6 +89,11 @@ export const reactionEvents = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    foreignKey({
+      name: 'reaction_events_conversation_fk',
+      columns: [t.oxyUserId, t.conversationId],
+      foreignColumns: [conversations.oxyUserId, conversations.conversationId],
+    }).onDelete('cascade'),
     uniqueIndex('reaction_events_mutation_key').on(t.oxyUserId, t.conversationId, t.mutationId),
     index('reaction_events_delivery_idx').on(t.status, t.nextAttemptAt, t.leaseExpiresAt),
     index('reaction_events_target_idx').on(t.oxyUserId, t.conversationId, t.messageId),

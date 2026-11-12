@@ -525,6 +525,12 @@ describe('voting picks exactly one row', () => {
   });
 
   it('toggles a reaction on and off, keeps several, and reads them back with the message', async () => {
+    await createConversation(db, {
+      oxyUserId: 'react-user',
+      conversationId: 'react-conv',
+      title: 'Reactions',
+      source: 'app',
+    });
     await insertMessages(db, [
       {
         conversationId: 'react-conv',
@@ -578,6 +584,12 @@ describe('voting picks exactly one row', () => {
   });
 
   it('does not lose a reaction when two taps arrive together', async () => {
+    await createConversation(db, {
+      oxyUserId: 'react-race-user',
+      conversationId: 'react-race-conv',
+      title: 'Reactions',
+      source: 'app',
+    });
     await insertMessages(db, [
       {
         conversationId: 'react-race-conv',
@@ -670,7 +682,7 @@ describe('the wire shape', () => {
      */
     expect('agentInfo' in plain).toBe(false);
     expect('vote' in plain).toBe(false);
-    expect('id' in plain).toBe(false);
+    expect(plain.id).toBe((await listMessages(db, 'wire-user', 'wire-conv'))[1].id);
     expect(plain.content).toBe('plain');
   });
 
