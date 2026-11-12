@@ -35,6 +35,9 @@ export const queryKeys = {
   agents: {
     /** The agents this person owns, which the sidebar lists. */
     mine: ['agents', 'mine'] as const,
+    /** Owner-present work handshake, deliberately outside persisted account-query roots. */
+    workAuthority: (ownerId: string, agentId: string) =>
+      ['agent-work-authority', ownerId, agentId] as const,
     /**
      * The CATALOGUE: everything published, by anybody, narrowed by whatever the
      * screen is filtering on. A different question from `mine` — see the

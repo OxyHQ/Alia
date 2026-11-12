@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
+import { isAxiosError } from 'axios';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 import { queryKeys } from '@/shared/api/query-keys';
@@ -28,7 +28,7 @@ import type { Agent } from '@/shared/contracts/agents';
 const EXTERNAL_PRESENCE_REFRESH_MS = 30_000;
 
 export function useMyAgents() {
-  const { canUsePrivateApi, isAccountCacheReady } = useOxy();
+  const { user, canUsePrivateApi, isAccountCacheReady } = useOxy();
 
   const query = useQuery({
     queryKey: queryKeys.agents.mine,
@@ -42,20 +42,35 @@ export function useMyAgents() {
     refetchInterval: (query) =>
       query.state.data?.some((agent) => agent.external) ? EXTERNAL_PRESENCE_REFRESH_MS : false,
   });
-  useEffect(() => {
-    if (!canUsePrivateApi || !isAccountCacheReady || !query.data) return;
-    const controller = new AbortController();
-    // The actual signed-in owner establishes provenance. Events never impersonate that owner.
-    void (async () => {
-      for (const agent of query.data) {
-        if (controller.signal.aborted) break;
-        if (agent.status !== 'active' || !agent.scheduleInterval || agent.external) continue;
-        await apiClient
-          .post(`/agents/${encodeURIComponent(agent._id)}/work`, {}, { signal: controller.signal })
-          .catch(() => undefined); // Idempotent; the next successful list refresh retries setup.
-      }
-    })();
-    return () => controller.abort();
-  }, [canUsePrivateApi, isAccountCacheReady, query.data, query.dataUpdatedAt]);
+  // This handshake is not persisted. Each agent retries independently, without
+  // blocking the sidebar or requiring another list refresh after an outage.
+  const eligible =
+    canUsePrivateApi && isAccountCacheReady && user?.id
+      ? (query.data ?? []).filter(
+          (agent) =>
+            agent.ownerOxyAccountId === user.id &&
+            agent.status === 'active' &&
+            agent.scheduleInterval &&
+            !agent.external,
+        )
+      : [];
+  useQueries({
+    queries: eligible.map((agent) => ({
+      queryKey: queryKeys.agents.workAuthority(user?.id ?? '', agent._id),
+      queryFn: async ({ signal }: { signal: AbortSignal }) => {
+        await apiClient.post(`/agents/${encodeURIComponent(agent._id)}/work`, {}, { signal });
+        return true;
+      },
+      gcTime: 0,
+      staleTime: Infinity,
+      retry: (attempt: number, error: unknown) => attempt < 2 && retryableActivation(error),
+      refetchInterval: (query: { state: { status: string; error: unknown } }) =>
+        query.state.status === 'error' && retryableActivation(query.state.error) ? 60_000 : false,
+    })),
+  });
   return query;
+}
+
+function retryableActivation(error: unknown): boolean {
+  return !isAxiosError(error) || ![401, 403].includes(error.response?.status ?? 0);
 }
