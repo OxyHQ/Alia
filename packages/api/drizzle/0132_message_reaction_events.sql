@@ -15,7 +15,8 @@ CREATE TABLE "message_reaction_states" (
 	"target_actor_id" text,
 	"reactions" jsonb NOT NULL,
 	"revision" integer DEFAULT 0 NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "reaction_states_conversation_fk" FOREIGN KEY ("oxy_user_id","conversation_id") REFERENCES "public"."conversations"("oxy_user_id","conversation_id") ON DELETE cascade ON UPDATE no action
 );
 --> statement-breakpoint
 CREATE TABLE "reaction_events" (
@@ -42,6 +43,7 @@ CREATE TABLE "reaction_events" (
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"next_attempt_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL,
+	CONSTRAINT "reaction_events_conversation_fk" FOREIGN KEY ("oxy_user_id","conversation_id") REFERENCES "public"."conversations"("oxy_user_id","conversation_id") ON DELETE cascade ON UPDATE no action,
 	CONSTRAINT "reaction_events_status_check" CHECK ("reaction_events"."status" in ('pending', 'processing', 'completed', 'failed', 'cancelled')),
 	CONSTRAINT "reaction_events_phase_check" CHECK ("reaction_events"."phase" in ('select', 'speak'))
 );
