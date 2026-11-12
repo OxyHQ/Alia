@@ -278,6 +278,28 @@ describe('authored agent reactions', () => {
     expect(await direct.react('own', true, '❤️', 'peer')).toBeUndefined();
   });
 
+  it('does not replay a former user target onto an unattributed assistant replacement', async () => {
+    const f = await fixture();
+    await f.react('old-user');
+    await replaceMessages(db, f.userId, f.conversationId, [
+      { clientMessageId: 'person', role: 'assistant', content: 'Different author' },
+    ]);
+    await mutateMessageReaction(db, f.userId, f.conversationId, 'person', {
+      emoji: '👍',
+      active: true,
+      mutationId: 'new-target',
+    });
+    expect(
+      await listAgentReactionTurnSnapshots(
+        db,
+        f.userId,
+        f.conversationId,
+        f.first.id,
+        'admitted-turn',
+      ),
+    ).toEqual([]);
+  });
+
   it('keeps the same emoji independently for the person and two agents, with one snapshot revision', async () => {
     const f = await fixture();
     await mutateMessageReaction(db, f.userId, f.conversationId, 'person', {
