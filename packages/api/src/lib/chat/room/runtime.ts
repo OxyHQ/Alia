@@ -51,6 +51,8 @@ export function roomRuntime(): RoomRuntime {
         role: row.role,
         content: row.content,
         agentId: row.agentInfoId,
+        seq: row.seq,
+        createdAt: row.createdAt,
         agentName: row.agentInfoId === null ? null : (row.agentInfoName ?? ''),
       }));
     },
