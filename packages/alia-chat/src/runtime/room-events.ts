@@ -19,6 +19,18 @@ export interface RoomEvent {
   data: unknown;
 }
 
+export type RoomFailureReason = 'error' | 'rate_limited' | 'turn_cap' | 'reply_cap';
+
+/** A room failure is distinct from deliberate silence, supersession and a lost connection. */
+export function roomFailureReason(value: unknown): RoomFailureReason | null {
+  return value === 'error' ||
+    value === 'rate_limited' ||
+    value === 'turn_cap' ||
+    value === 'reply_cap'
+    ? value
+    : null;
+}
+
 /**
  * Which consultation is drawn in which message, and what the request already owns.
  *
@@ -243,7 +255,8 @@ export function applyRoomEvent(
       return [...messages, stored({ id, role: 'assistant', content: '' }, reply)];
     }
     case 'group.idle': {
-      // The room is quiet: nobody is typing any more.
+      // The room has ended. A failure must not look like deliberate silence.
+      const failure = roomFailureReason(data.reason);
       const open = [...ledger.messages].filter(
         ([cid]) => !ledger.ended.has(cid) && isLive(ledger, cid),
       );
@@ -253,7 +266,13 @@ export function applyRoomEvent(
       return messages.flatMap((m) => {
         if (!ids.has(m.id)) return [m];
         if (m.content === '' && (m.toolInvocations?.length ?? 0) === 0) return [];
-        return [{ ...m, isStreaming: false }];
+        return [
+          {
+            ...m,
+            isStreaming: false,
+            ...(failure === null ? {} : { turnOutcome: 'failed' as const }),
+          },
+        ];
       });
     }
     default:

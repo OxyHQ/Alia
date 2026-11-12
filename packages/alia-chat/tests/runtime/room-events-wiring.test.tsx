@@ -61,6 +61,7 @@ const subscribeRoomEvents = vi.fn((conversationId: string, listener: (e: RoomEve
   };
 });
 const host: AliaRuntimeHost = { subscribeRoomEvents };
+const onRoomFailure = vi.fn();
 
 let api: ReturnType<typeof useConversationStream>;
 let renderer: ReactTestRenderer | null = null;
@@ -69,7 +70,7 @@ function Probe({ conversationId }: { conversationId: string }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new conversation is a new ledger
   const room = useMemo(() => createRoomLedger(), [conversationId]);
   api = useConversationStream({ conversationId, room });
-  useRoomEvents(conversationId, room, api.setMessages);
+  useRoomEvents(conversationId, room, api.setMessages, onRoomFailure);
   return null;
 }
 
@@ -104,6 +105,7 @@ beforeEach(() => {
   unsubscribed = 0;
   subscribeRoomEvents.mockClear();
   harness.replies.length = 0;
+  onRoomFailure.mockClear();
 });
 
 afterEach(async () => {
@@ -187,6 +189,52 @@ describe('the open group conversation', () => {
     expect(members().map((m) => [m.id, m.content, m.isStreaming])).toEqual([
       ['group-reply-p1-0', 'Hola mundo', false],
     ]);
+  });
+
+  it('drops a superseded provisional reply across SSE and socket without a phantom saved message', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [
+        frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
+        sse('agent_start', { agent: NADIA }),
+        sse('agent_delta', { content: 'Old answer' }),
+        sse('agent_end', { status: 'failed', error: { code: 'agent_declined' } }),
+        'data: [DONE]\n\n',
+      ],
+    });
+    await mount();
+    await push('alia.agent_start', { consultId: 'k1', agent: NADIA });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hi' });
+    });
+    expect(api.messages).toHaveLength(1);
+    expect(api.messages[0]).toMatchObject({ role: 'user', content: 'hi' });
+    await push('alia.agent_end', { consultId: 'k1', status: 'declined' });
+    await push('alia.agent_delta', { consultId: 'k1', content: 'late fragment' });
+    await push('group.idle', { reason: 'superseded' });
+    expect(api.messages).toHaveLength(1);
+    expect(api.failedTurn).toBeNull();
+    expect(api.error).toBeNull();
+    expect(onRoomFailure).not.toHaveBeenCalled();
+  });
+
+  it.each(['error', 'rate_limited', 'turn_cap', 'reply_cap'])(
+    'reports a late %s without needing an active member, once per chain',
+    async (reason) => {
+      await mount();
+      await push('group.idle', { reason });
+      await push('group.idle', { reason });
+      expect(onRoomFailure).toHaveBeenCalledTimes(1);
+      expect(onRoomFailure).toHaveBeenCalledWith({ chainId: 'p1', reason });
+      expect(api.messages).toEqual([]);
+    },
+  );
+
+  it('does not report deliberate silence, supersession, missing events or another room as failures', async () => {
+    await mount();
+    for (const reason of ['done', 'superseded', 'silent']) await push('group.idle', { reason });
+    await push('group.idle', { reason: 'error' }, 'other');
+    expect(onRoomFailure).not.toHaveBeenCalled();
   });
 
   describe('a room that goes quiet while a member shows as typing', () => {

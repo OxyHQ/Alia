@@ -158,7 +158,11 @@ export function useConversationThread({
     room,
   });
   // A group's members keep talking after the request: their room's events join the thread.
-  useRoomEvents(conversationId, room, setMessages);
+  useRoomEvents(conversationId, room, setMessages, () => {
+    // While HTTP owns the turn its typed failure supplies the error card. Later
+    // selector failures have no agent bubble or matching client message ID.
+    if (!isLoading && failedTurn === null) toast.error(labels.sendFailed);
+  });
   const upload = useDocumentUpload();
 
   // The turn's lifecycle, published for every "Ask Alia" button (`useAliaActivity`).

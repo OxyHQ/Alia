@@ -675,6 +675,13 @@ export function useConversationStream({
           }
           return;
         }
+        if (isGroupTurn && event.errorCode === 'agent_declined') {
+          // A superseded room reply was never stored. Drop its provisional text
+          // across both transports instead of presenting it as a failed saved reply.
+          roomRef.current.ended.add(event.consultId);
+          setMessages((prev) => prev.filter((m) => m.id !== id));
+          return;
+        }
         if (event.content !== undefined) outputEvidence.agentOutputChars += event.content.length;
         setMessages((prev) =>
           prev.map((m) =>
