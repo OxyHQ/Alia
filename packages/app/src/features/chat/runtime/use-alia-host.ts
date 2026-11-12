@@ -1,6 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import type { Message } from '@alia.onl/sdk/model';
-import type { AliaRuntimeHost, AliaUsageFrame, RoomEvent } from '@alia.onl/sdk/runtime';
+import type {
+  AliaRuntimeHost,
+  AliaUsageFrame,
+  RoomEvent,
+  MessageReactionUpdate,
+} from '@alia.onl/sdk/runtime';
 import { resolveFaviconUrl } from '@clarity.surf/sdk';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { usePathname, useRouter } from 'expo-router';
@@ -121,7 +126,18 @@ export function useAliaHost(): AliaRuntimeHost {
           release();
         };
       },
-      // A group chat is a room: its members keep talking after the request, pushed as `group:event`.
+      subscribeConversationReactions: (conversationId, listener) => {
+        const { socket, release } = acquireNotificationsSocket();
+        const onReaction = (event: MessageReactionUpdate) => {
+          if (event?.conversationId === conversationId) listener(event);
+        };
+        socket.on('conversation:reaction', onReaction);
+        return () => {
+          socket.off('conversation:reaction', onReaction);
+          release();
+        };
+      },
+      // Group turns and reaction-triggered replies share the room lifecycle.
       subscribeRoomEvents: (conversationId, listener) => {
         const { socket, release } = acquireNotificationsSocket();
         const onGroupEvent = (event: RoomEvent) => {
