@@ -11,6 +11,7 @@ import {
   processRoomStep,
   replyIdOf,
 } from '../engine.js';
+import type { RoomDecision, RoomSelectionInput } from '../decision.js';
 import { createLocalRoomLock } from '../lock.js';
 import {
   MAX_MENTION_DEPTH,
@@ -43,6 +44,7 @@ function harness(options: {
   roster?: AgentInfo[];
   rows?: TranscriptRow[];
   agentsGone?: boolean;
+  select?: (input: RoomSelectionInput) => Promise<RoomDecision>;
 }) {
   const roster = options.roster ?? members;
   const rows: TranscriptRow[] = options.rows ?? [
@@ -51,13 +53,20 @@ function harness(options: {
   const events: RoomEvent[] = [];
   const bus = createInMemoryRoomBus();
   const queued: RoomJobData[] = [];
-  const runs: Array<{ agentId: string; task: string; history: unknown; person: unknown }> = [];
+  const runs: Array<{
+    agentId: string;
+    task: string;
+    history: unknown;
+    person: unknown;
+    room?: unknown;
+  }> = [];
   const revoked: string[] = [];
   let latest: string | null = 'p1';
   let recentReplies = 0;
   let seq = rows.length;
 
   const deps: RoomEngineDeps = {
+    select: options.select,
     lock: createLocalRoomLock(),
     publish: async (event) => {
       events.push(event);
@@ -73,7 +82,13 @@ function harness(options: {
       options.agentsGone ? null : ({ _id: agentId } as unknown as HydratedAgent),
     runTurn: vi.fn(async (input) => {
       const agentId = (input.agent as unknown as { _id: string })._id;
-      runs.push({ agentId, task: input.task, history: input.history, person: input.person });
+      runs.push({
+        agentId,
+        task: input.task,
+        history: input.history,
+        person: input.person,
+        room: input.room,
+      });
       const out = await options.script(agentId, {
         task: input.task,
         history: input.history ?? [],
@@ -97,6 +112,7 @@ function harness(options: {
         role: 'assistant',
         content: input.content,
         agentName: input.agentInfo.name,
+        agentId: input.agentInfo.id,
       };
       rows.push(row);
       return { id: input.clientMessageId, seq: seq++, createdAt: new Date(0) };
@@ -156,7 +172,7 @@ function harness(options: {
 
 const kinds = (events: RoomEvent[]) => events.map((e) => `${e.event}:${e.data.status ?? ''}`);
 
-describe('room engine: the first round', () => {
+describe('legacy room jobs drain their first round', () => {
   it('every member answers in the group order, each reading what the earlier ones said', async () => {
     const h = harness({ script: (id) => `reply from ${id}` });
     const spoken = await h.drain(h.first());
@@ -482,5 +498,209 @@ describe('room engine: a reply that does not store', () => {
     expect(h.runs).toHaveLength(before);
     expect(h.queued).toHaveLength(1);
     expect(h.queued[0]!.speakerId).toBe('b');
+  });
+});
+
+const selection = (
+  agentId: string,
+  reason: 'directed' | 'contribution' | 'handoff' = 'directed',
+): RoomDecision => ({ action: 'speak', agentId, reason });
+const idle: RoomDecision = { action: 'idle', agentId: null, reason: 'complete' };
+const v2 = { version: 2, phase: 'select', speakerId: '', pending: [] } as const;
+
+describe('v2 room participation: selection before execution', () => {
+  it('runs only Eusebio for the reported request and preserves the exact user task', async () => {
+    const request = 'Hola! Eusebio que puedes hacer?';
+    const select = vi.fn(async (input: RoomSelectionInput) =>
+      input.lastSpeakerId === null ? selection('e') : idle,
+    );
+    const h = harness({
+      roster: [info('s', 'Salella', 'salella'), info('e', 'Eusebio', 'eusebio')],
+      rows: [{ id: 'p1', clientMessageId: 'c1', role: 'user', content: request, agentName: null }],
+      select,
+      script: () => 'Soy Eusebio.',
+    });
+    await processRoomStep(h.first(v2), h.deps);
+    expect(h.events).toEqual([]);
+    expect(h.runs).toEqual([]);
+    const selected = h.queued.shift()!;
+    expect(selected).toMatchObject({
+      version: 2,
+      phase: 'speak',
+      speakerId: 'e',
+      decision: selection('e'),
+    });
+    await h.drain(selected);
+    expect(h.runs.map((run) => run.agentId)).toEqual(['e']);
+    expect(h.runs[0]?.task).toBe(request);
+    expect(h.runs[0]?.room).toMatchObject({
+      observations: [],
+      instructions: expect.stringContaining('group chat'),
+    });
+    expect(h.events.filter((event) => event.event === 'alia.agent_start')).toHaveLength(1);
+    expect(select).toHaveBeenCalledTimes(2);
+    // This test proves routing of the model's decision, not natural-language model accuracy.
+    expect(select.mock.calls[0]?.[0].rows[0]?.content).toBe(request);
+  });
+
+  it('a sufficient answer with an incidental @mention does not activate another member', async () => {
+    const h = harness({
+      script: () => 'El informe de @bruno ya está revisado.',
+      select: async (input) => (input.lastSpeakerId === null ? selection('a') : idle),
+    });
+    await h.drain(h.first(v2));
+    expect(h.runs.map((run) => run.agentId)).toEqual(['a']);
+  });
+
+  it('silent completion runs no agents or tools and revokes authority', async () => {
+    const h = harness({ script: () => 'must not run', select: async () => idle });
+    await h.drain(h.first(v2));
+    expect(h.runs).toEqual([]);
+    expect(kinds(h.events)).toEqual(['group.idle:']);
+    expect(h.events[0]?.data.reason).toBe('done');
+    expect(h.revoked).toHaveLength(3);
+  });
+
+  it('supports distinct contributions and a real handoff, with attributed observations', async () => {
+    const h = harness({
+      script: (id) => `from ${id}`,
+      select: async (input) =>
+        input.lastSpeakerId === null
+          ? selection('a')
+          : input.lastSpeakerId === 'a'
+            ? selection('b', 'handoff')
+            : idle,
+    });
+    await h.drain(h.first(v2));
+    expect(h.runs.map((run) => run.agentId)).toEqual(['a', 'b']);
+    const room = h.runs[1]?.room as { observations: Array<{ role: string; content: string }> };
+    expect(room.observations[0]?.role).toBe('user');
+    expect(room.observations[0]?.content).toContain('"agentId":"a"');
+  });
+
+  it('one clarification ends the chain rather than asking again', async () => {
+    const select = vi.fn(
+      async (): Promise<RoomDecision> => ({ action: 'clarify', agentId: 'a', reason: 'ambiguous' }),
+    );
+    const h = harness({ script: () => '¿A quién te refieres?', select });
+    await h.drain(h.first(v2));
+    expect(h.runs).toHaveLength(1);
+    expect(select).toHaveBeenCalledOnce();
+    expect(h.runs[0]?.room).toMatchObject({ instructions: expect.stringContaining('ONLY task') });
+  });
+
+  it.each(['invalid', 'unavailable', 'timeout'])(
+    'fails %s selection without waking any member',
+    async (kind) => {
+      const h = harness({
+        script: () => 'must not run',
+        select: async () => {
+          if (kind === 'timeout') throw new Error('model timeout with secret prompt');
+          return kind === 'invalid'
+            ? selection('outsider')
+            : { action: 'unavailable', agentId: 'b', reason: 'unavailable' };
+        },
+      });
+      const job = h.first(v2);
+      const roster = job.roster.map((m) => (m.info.id === 'b' ? { ...m, available: false } : m));
+      await h.drain({ ...job, roster });
+      expect(h.runs).toEqual([]);
+      expect(h.events.at(-1)?.data.reason).toBe('error');
+    },
+  );
+
+  it('a selected agent failure does not substitute another participant', async () => {
+    const h = harness({
+      script: () => ({ error: 'Not enough credits' }),
+      select: async () => selection('b'),
+    });
+    await h.drain(h.first(v2));
+    expect(h.runs.map((run) => run.agentId)).toEqual(['b']);
+    expect(h.events.at(-1)?.data.reason).toBe('error');
+  });
+
+  it('rechecks supersede after selection before queueing a speaker', async () => {
+    const h = harness({
+      script: () => 'must not run',
+      select: async () => {
+        h.setLatest('p2');
+        return selection('a');
+      },
+    });
+    await h.drain(h.first(v2));
+    expect(h.queued).toEqual([]);
+    expect(h.runs).toEqual([]);
+    expect(h.events.at(-1)?.data.reason).toBe('superseded');
+  });
+
+  it('a queued selected turn superseded before execution never starts', async () => {
+    const h = harness({ script: () => 'must not run', select: async () => selection('a') });
+    await processRoomStep(h.first(v2), h.deps);
+    h.setLatest('p2');
+    await h.drain(h.queued.shift()!);
+    expect(h.runs).toEqual([]);
+    expect(kinds(h.events)).toEqual(['group.idle:']);
+  });
+
+  it('a retried speak step uses its persisted selection and stored reply without inference', async () => {
+    const select = vi.fn(async () => selection('b'));
+    const h = harness({ script: () => 'one answer', select });
+    await processRoomStep(h.first(v2), h.deps);
+    const speaker = h.queued.shift()!;
+    await processRoomStep(speaker, h.deps);
+    h.queued.length = 0;
+    await processRoomStep(speaker, h.deps);
+    expect(h.runs).toHaveLength(1);
+    expect(select).toHaveBeenCalledOnce();
+    expect(h.rows.filter((r) => r.role === 'assistant')).toHaveLength(1);
+  });
+
+  it('counts selection and execution in the hard turn budget', async () => {
+    const h = harness({ script: () => 'answer', select: async () => selection('a') });
+    await h.drain(h.first({ ...v2, turns: 24 }));
+    expect(h.runs).toEqual([]);
+    expect(h.events.at(-1)?.data.reason).toBe('turn_cap');
+  });
+});
+
+describe('v2 room supersede races', () => {
+  it('does not start a member when its identity load overlaps a newer question', async () => {
+    const h = harness({ script: () => 'must not run', select: async () => selection('a') });
+    await processRoomStep(h.first(v2), h.deps);
+    const load = h.deps.loadAgent;
+    (h.deps as { loadAgent: typeof load }).loadAgent = async (id) => {
+      h.setLatest('p2');
+      return load(id);
+    };
+    await h.drain(h.queued.shift()!);
+    expect(h.runs).toEqual([]);
+    expect(kinds(h.events)).toEqual(['group.idle:']);
+    expect(h.events[0]?.data.reason).toBe('superseded');
+  });
+
+  it('an obsolete selector error ends superseded, not failed', async () => {
+    const h = harness({
+      script: () => 'must not run',
+      select: async () => {
+        h.setLatest('p2');
+        throw new Error('timeout');
+      },
+    });
+    await h.drain(h.first(v2));
+    expect(h.events.at(-1)?.data.reason).toBe('superseded');
+  });
+
+  it('does not store an old question answer when the person writes during execution', async () => {
+    const h = harness({
+      script: () => {
+        h.setLatest('p2');
+        return 'obsolete';
+      },
+      select: async () => selection('a'),
+    });
+    await h.drain(h.first(v2));
+    expect(h.rows.filter((row) => row.role === 'assistant')).toEqual([]);
+    expect(h.events.some((event) => event.data.status === 'declined')).toBe(true);
+    expect(h.events.at(-1)?.data.reason).toBe('superseded');
   });
 });

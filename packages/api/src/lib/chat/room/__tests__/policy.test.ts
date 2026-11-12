@@ -9,7 +9,6 @@ import {
   PASS_SENTINEL,
   ROOM_REPLIES_PER_WINDOW,
   createPassGate,
-  firstRound,
   isPass,
   isSuperseded,
   parseMentions,
@@ -63,16 +62,6 @@ describe('parseMentions', () => {
     expect(parseMentions('@ana', twins)).toEqual([]);
     expect(parseMentions('@ana paz', twins)).toEqual(['y']);
     expect(parseMentions('@anagil', twins)).toEqual(['x']);
-  });
-});
-
-describe('firstRound', () => {
-  it('asks every member in the group order when the person mentions nobody', () => {
-    expect(firstRound('hello all', roster)).toEqual(['a', 'b', 'c']);
-  });
-
-  it('asks only the mentioned members, in the order mentioned', () => {
-    expect(firstRound('@celia and @nadia, thoughts?', roster)).toEqual(['c', 'a']);
   });
 });
 
