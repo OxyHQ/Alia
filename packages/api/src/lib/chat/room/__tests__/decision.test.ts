@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   clarificationSpeaker,
+  roomChoiceDecision,
+  roomChoiceSchema,
+  roomDecisionChoices,
   roomSelectionData,
   validateRoomDecision,
   type RoomSelectionInput,
 } from '../decision.js';
+import { MAX_MENTION_DEPTH } from '../policy.js';
 
 const input: RoomSelectionInput = {
   userId: 'u',
@@ -32,6 +36,78 @@ const input: RoomSelectionInput = {
     },
   ],
 };
+
+describe('complete legal choices for ordinary room selection', () => {
+  it('offers exactly the existing validator authority across reach, prior speaker and handoff bounds', () => {
+    for (const unavailable of [[], ['s'], ['e'], ['s', 'e']]) {
+      for (const lastSpeakerId of [null, 's', 'e']) {
+        for (const depth of [0, MAX_MENTION_DEPTH]) {
+          const context = {
+            ...input,
+            lastSpeakerId,
+            depth,
+            roster: input.roster.map((member) => ({
+              ...member,
+              available: !unavailable.includes(member.info.id),
+            })),
+          };
+          const choices = roomDecisionChoices(context);
+          const offered = choices.map(({ id, decision }) => {
+            expect(roomChoiceSchema(choices).safeParse({ choice: id }).success).toBe(true);
+            expect(roomChoiceDecision({ choice: id }, choices)).toBe(decision);
+            expect(Object.isFrozen(decision)).toBe(true);
+            return JSON.stringify(validateRoomDecision(decision, context));
+          });
+          const legal: string[] = [];
+          for (const action of ['speak', 'clarify', 'idle', 'unavailable'])
+            for (const agentId of [null, 's', 'e', 'outsider'])
+              for (const reason of [
+                'directed',
+                'contribution',
+                'handoff',
+                'complete',
+                'ambiguous',
+                'unavailable',
+              ]) {
+                try {
+                  legal.push(
+                    JSON.stringify(validateRoomDecision({ action, agentId, reason }, context)),
+                  );
+                } catch {
+                  /* This candidate is outside the existing authority boundary. */
+                }
+              }
+          expect(offered.sort()).toEqual(legal.sort());
+        }
+      }
+    }
+  });
+
+  it('keeps idle available without a roster and the stable clarifier even when it was the last speaker', () => {
+    expect(roomDecisionChoices({ ...input, roster: [] })).toEqual([
+      { id: 'idle', decision: { action: 'idle', agentId: null, reason: 'complete' } },
+    ]);
+    const choices = roomDecisionChoices({ ...input, lastSpeakerId: 's' });
+    expect(choices.some(({ id }) => id === 'clarify:s')).toBe(true);
+    expect(
+      choices.some(({ decision }) => decision.action === 'speak' && decision.agentId === 's'),
+    ).toBe(false);
+  });
+
+  it('does not let generated fields change the server choice, and forbids contradictory flat output', () => {
+    const choices = roomDecisionChoices(input);
+    expect(
+      roomChoiceDecision({ choice: 'speak:directed:e', agentId: 's', reason: 'handoff' }, choices),
+    ).toEqual({ action: 'speak', agentId: 'e', reason: 'directed' });
+    expect(() =>
+      roomChoiceDecision({ action: 'clarify', agentId: 's', reason: 'directed' }, choices),
+    ).toThrow();
+    expect(() => roomChoiceDecision({ choice: 'speak:handoff:e' }, choices)).toThrow();
+    const data = JSON.parse(roomSelectionData(input, choices));
+    expect(data.allowedChoices).toEqual(choices.map(({ id, decision }) => ({ id, ...decision })));
+    expect(data.messages[0].content).toBe(input.rows[0]?.content);
+  });
+});
 
 describe('room decision boundary', () => {
   it('identifies a reacted-to message by the same stable ID in the trigger and attributed transcript', () => {
