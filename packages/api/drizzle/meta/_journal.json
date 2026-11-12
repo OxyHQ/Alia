@@ -932,6 +932,13 @@
       "when": 1794462497770,
       "tag": "0132_message_reaction_events",
       "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1794462888434,
+      "tag": "0133_reaction_conversation_ownership",
+      "breakpoints": true
     }
   ]
 }

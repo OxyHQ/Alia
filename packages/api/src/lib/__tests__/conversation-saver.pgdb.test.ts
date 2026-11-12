@@ -1,3 +1,4 @@
+import { mutateMessageReaction } from '../../db/chat/reactionRepository.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 
@@ -582,5 +583,55 @@ describe('a message an agent wrote on its own survives the client that has not s
       'Great',
       'Done',
     ]);
+  });
+});
+
+describe('reaction preservation during server reconciliation', () => {
+  it('keeps the latest reaction revision in a full rewrite and after another turn', async () => {
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [{ id: 'reaction-user', role: 'user', content: 'Hola' }],
+      assistantResponse: 'Respuesta',
+      assistantMessageId: 'reaction-answer',
+    });
+    await mutateMessageReaction(db, USER, CONV, 'reaction-answer', {
+      emoji: '❤️',
+      active: true,
+      mutationId: 'reaction-add',
+    });
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [
+        { id: 'reaction-user', role: 'user', content: 'Hola editado' },
+        { id: 'reaction-answer', role: 'assistant', content: 'Respuesta' },
+        { id: 'reaction-next', role: 'user', content: 'Otra cosa' },
+      ],
+      assistantResponse: 'Siguiente',
+      assistantMessageId: 'reaction-answer-2',
+    });
+    expect((await stored()).find((row) => row.clientMessageId === 'reaction-answer')).toMatchObject(
+      { reactions: ['❤️'], reactionRevision: 1 },
+    );
+    await mutateMessageReaction(db, USER, CONV, 'reaction-answer', {
+      emoji: '❤️',
+      active: false,
+      mutationId: 'reaction-remove',
+    });
+    await saveConversation({
+      userId: USER,
+      conversationId: CONV,
+      messages: [
+        { id: 'reaction-user', role: 'user', content: 'Hola editado' },
+        { id: 'reaction-answer', role: 'assistant', content: 'Respuesta' },
+        { id: 'reaction-next-edited', role: 'user', content: 'Una corrección' },
+      ],
+      assistantResponse: 'Corregido',
+      assistantMessageId: 'reaction-answer-3',
+    });
+    expect((await stored()).find((row) => row.clientMessageId === 'reaction-answer')).toMatchObject(
+      { reactions: null, reactionRevision: 2 },
+    );
   });
 });
