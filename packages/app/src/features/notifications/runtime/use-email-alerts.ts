@@ -18,18 +18,12 @@ import { useOxy } from '@oxy.so/services/ui/client';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 
-/** One owned agent and whether it tells its owner about important mail in its own mailbox. */
-interface AgentEmailAlert {
-  agentId: string;
-  name: string | null;
-  handle: string | null;
-  color: string | null;
-  enabled: boolean;
-}
-/** `GET /notifications/email-alerts`: Alia about the person's Inbox, each agent about its own. */
+/**
+ * `GET /notifications/email-alerts`, as this app reads it: Alia about the person's Inbox. The
+ * answer also lists each gemie's own mailbox switch; those live in Gemies, not here.
+ */
 export interface EmailAlerts {
   alia: { enabled: boolean };
-  agents: AgentEmailAlert[];
 }
 
 type Owner = {
@@ -38,7 +32,7 @@ type Owner = {
   projectionRevision: number;
   api: ApiSessionOwner;
 };
-type Input = { agentId: string | null; enabled: boolean; owner: Owner; changeId: string };
+type Input = { enabled: boolean; owner: Owner; changeId: string };
 type Changes = {
   latest: Map<string, string>;
   pending: Map<string, Set<string>>;
@@ -72,29 +66,18 @@ function groupKey(owner: Owner): string {
     owner.api.sessionEpoch,
   ]);
 }
-function fieldKey(owner: Owner, agentId: string | null): string {
-  return JSON.stringify([groupKey(owner), agentId]);
-}
 function releaseChange(changes: Changes, input: Input): boolean {
-  const field = fieldKey(input.owner, input.agentId);
   const group = groupKey(input.owner);
   const pending = changes.pending.get(group);
   if (!pending?.has(input.changeId)) return false;
   pending.delete(input.changeId);
-  if (changes.latest.get(field) === input.changeId) changes.latest.delete(field);
+  if (changes.latest.get(group) === input.changeId) changes.latest.delete(group);
   if (pending.size) return false;
   changes.pending.delete(group);
   return true;
 }
-function withEnabled(current: EmailAlerts, agentId: string | null, enabled: boolean): EmailAlerts {
-  return agentId === null
-    ? { ...current, alia: { enabled } }
-    : {
-        ...current,
-        agents: current.agents.map((agent) =>
-          agent.agentId === agentId ? { ...agent, enabled } : agent,
-        ),
-      };
+function withEnabled(current: EmailAlerts, enabled: boolean): EmailAlerts {
+  return { ...current, alia: { enabled } };
 }
 const ownerKey = (owner: Owner) =>
   [
@@ -140,7 +123,7 @@ async function ownedRequest<T>(
   }
 }
 
-/** "Avísame de emails importantes", per actor. */
+/** "Avísame de emails importantes": Alia's switch, about the person's own Inbox. */
 export function useEmailAlerts() {
   const { t } = useTranslation();
   const { isAuthenticated, user, activeSessionId } = useOxy();
@@ -189,44 +172,38 @@ export function useEmailAlerts() {
   });
   const mutation = useMutation({
     mutationKey: EMAIL_ALERTS_MUTATION_KEY,
-    mutationFn: async ({ agentId, enabled, owner, changeId }: Input) => {
-      if (changesFor(queryClient).latest.get(fieldKey(owner, agentId)) !== changeId)
+    mutationFn: async ({ enabled, owner, changeId }: Input) => {
+      if (changesFor(queryClient).latest.get(groupKey(owner)) !== changeId)
         throw new Error('The alert change was superseded');
+      // `agentId: null` is Alia on the wire (Gemies' `PUT /notifications/email-alerts`).
       await ownedRequest(owner, (signal) =>
-        apiClient.put(API_ROUTES.emailAlerts, { agentId, enabled }, { signal }),
+        apiClient.put(API_ROUTES.emailAlerts, { agentId: null, enabled }, { signal }),
       );
     },
-    onMutate: async ({ agentId, enabled, owner, changeId }: Input) => {
+    onMutate: async ({ enabled, owner, changeId }: Input) => {
       const changes = changesFor(queryClient);
-      if (!owns(owner) || changes.latest.get(fieldKey(owner, agentId)) !== changeId)
+      if (!owns(owner) || changes.latest.get(groupKey(owner)) !== changeId)
         throw new Error('The active account changed');
       const key = ownerKey(owner);
       await queryClient.cancelQueries({ queryKey: key, exact: true });
-      if (!owns(owner) || changes.latest.get(fieldKey(owner, agentId)) !== changeId)
+      if (!owns(owner) || changes.latest.get(groupKey(owner)) !== changeId)
         throw new Error('The active account changed');
-      const previous = queryClient.getQueryData<EmailAlerts>(key);
-      const previousEnabled =
-        agentId === null
-          ? previous?.alia.enabled
-          : previous?.agents.find((agent) => agent.agentId === agentId)?.enabled;
+      const previousEnabled = queryClient.getQueryData<EmailAlerts>(key)?.alia.enabled;
       queryClient.setQueryData<EmailAlerts>(
         key,
-        (current) => current && withEnabled(current, agentId, enabled),
+        (current) => current && withEnabled(current, enabled),
       );
       return { owner, previousEnabled };
     },
     onError: (_error, input, context) => {
       const changes = changesFor(queryClient);
-      if (
-        !owns(input.owner) ||
-        changes.latest.get(fieldKey(input.owner, input.agentId)) !== input.changeId
-      )
+      if (!owns(input.owner) || changes.latest.get(groupKey(input.owner)) !== input.changeId)
         return;
       if (context?.previousEnabled !== undefined) {
         const previousEnabled = context.previousEnabled;
         queryClient.setQueryData<EmailAlerts>(
           ownerKey(input.owner),
-          (current) => current && withEnabled(current, input.agentId, previousEnabled),
+          (current) => current && withEnabled(current, previousEnabled),
         );
       }
       if (mounted.current) toast.error(t('settings.saveFailed'));
@@ -252,17 +229,17 @@ export function useEmailAlerts() {
     alerts: query.data,
     loading: query.isPending,
     failed: query.isError,
-    setEnabled: (agentId: string | null, enabled: boolean) => {
+    setEnabled: (enabled: boolean) => {
       if (!owner || !owns(owner)) return;
       const changes = changesFor(queryClient);
       const group = groupKey(owner);
       const changeId = createRandomUuid();
-      changes.latest.set(fieldKey(owner, agentId), changeId);
+      changes.latest.set(group, changeId);
       const pending = changes.pending.get(group) ?? new Set<string>();
       if (pending.size) changes.concurrent.add(group);
       pending.add(changeId);
       changes.pending.set(group, pending);
-      mutation.mutate({ agentId, enabled, owner, changeId });
+      mutation.mutate({ enabled, owner, changeId });
     },
   };
 }

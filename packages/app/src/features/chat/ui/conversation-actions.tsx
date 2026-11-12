@@ -4,24 +4,16 @@ import { useDeleteConversation, useShareConversation } from '@alia.onl/sdk/runti
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { usePathname, useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback } from 'react';
 import { deliverMarkdownFile, deliverShareLink } from '@/features/chat/runtime/conversation-share';
-import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
-import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
 import { queryKeys } from '@/shared/api/query-keys';
 import { useTranslation } from '@/shared/i18n/use-translation';
 
 interface ConversationActionsProps {
-  /** What the chat tells its chrome: the open conversation, its messages, whether it is a thread. */
+  /** What the chat tells its chrome: the open conversation and its messages. */
   chat: AliaChatState;
-  /** The agent's name, for the title when the chat has none. */
-  agentName?: string;
-  /** The agent this chat belongs to, when it does. */
-  agentId?: string;
-  /** The handle whose thread this is, when it is one. */
-  threadHandle?: string;
   /** Whether the conversation can be shared: a temporary (ghost) chat is never stored, so it cannot. */
   shareable?: boolean;
 }
@@ -31,21 +23,14 @@ const hasStatus = (error: unknown, status: number): boolean =>
   typeof error === 'object' && error !== null && (error as { status?: unknown }).status === status;
 
 /**
- * The conversation's own actions in the breadcrumb row — search, share, export, clear, delete and
- * the agent's terminal — wired to the app: its router, its right panel, where an export goes and
+ * The conversation's own actions in the breadcrumb row — search, share, export, clear and delete —
+ * wired to the app: its router, its right panel, where an export goes and
  * how a share link is handed on.
  */
-export function ConversationActions({
-  chat,
-  agentName,
-  agentId,
-  threadHandle,
-  shareable = true,
-}: ConversationActionsProps) {
+export function ConversationActions({ chat, shareable = true }: ConversationActionsProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const pathname = usePathname();
   const { conversationId, getMessages, clearMessages, openSearch } = chat;
 
   /**
@@ -58,19 +43,18 @@ export function ConversationActions({
     const cached = queryClient.getQueryData<{ title?: string }>(
       queryKeys.conversations.detail(conversationId),
     );
-    const title = cached?.title?.trim() || agentName || t('chat.newChat');
+    const title = cached?.title?.trim() || t('chat.newChat');
     const exportedAt = new Date();
     const markdown = buildConversationMarkdown({
       title,
       messages: getMessages(),
       exportedAt,
-      assistantName: agentName,
       userLabel: t('chat.searchThreadYou'),
     });
     deliverMarkdownFile(exportFilename(title, exportedAt), markdown, title).catch(() => {
       toast.error(t('chat.exportFailed'));
     });
-  }, [queryClient, conversationId, getMessages, agentName, t]);
+  }, [queryClient, conversationId, getMessages, t]);
 
   /**
    * Share the conversation: mint its read-only link (`POST /v1/conversations/:id/share`, 24 hours)
@@ -92,7 +76,7 @@ export function ConversationActions({
     const cached = queryClient.getQueryData<{ title?: string }>(
       queryKeys.conversations.detail(conversationId),
     );
-    const title = cached?.title?.trim() || agentName || t('chat.newChat');
+    const title = cached?.title?.trim() || t('chat.newChat');
     try {
       const outcome = await deliverShareLink(url, title, t('chatHeader.shareText'));
       if (outcome === 'copied') {
@@ -103,7 +87,7 @@ export function ConversationActions({
     } catch {
       toast.error(t('chatHeader.shareDeliverFailed'));
     }
-  }, [share, conversationId, queryClient, agentName, t]);
+  }, [share, conversationId, queryClient, t]);
 
   /** End the conversation's link: whoever holds it can no longer read the conversation. */
   const handleStopSharing = useCallback(async () => {
@@ -120,11 +104,8 @@ export function ConversationActions({
   }, [revoke, conversationId, t]);
 
   /**
-   * Delete this conversation, once the person has confirmed it, and go home.
-   *
-   * Only on `/c/:id`: an agent's thread is a view over several conversations, and deleting the one
-   * on screen would quietly put the previous stretch in its place rather than remove "the chat".
-   * A refusal is already reported by the mutation's own toast.
+   * Delete this conversation, once the person has confirmed it, and go home. A refusal is already
+   * reported by the mutation's own toast.
    */
   const deleteConversation = useDeleteConversation();
   const handleDelete = useCallback(async () => {
@@ -145,48 +126,16 @@ export function ConversationActions({
     }
   }, [t, deleteConversation, conversationId, router]);
 
-  /**
-   * The agent whose terminal this chat can show: the thread's own agent, or the one a turn of THIS
-   * conversation put to work. The panel keeps it for the route it was opened on, so another chat
-   * never shows it.
-   */
-  const workingAgentId = useUIStore((s) =>
-    s.activeAgentConversationId === conversationId ? s.activeAgentId : null,
-  );
-  const terminalAgentId = agentId ?? workingAgentId ?? undefined;
-  const handleOpenTerminal = useCallback(() => {
-    if (terminalAgentId !== undefined)
-      useUIStore.getState().openAgentTerminal(terminalAgentId, pathname);
-  }, [terminalAgentId, pathname]);
-
-  const openAgentEditor = useOpenAgentEditor();
-  const startGroup = useCallback(() => useUIStore.getState().setGroupPickerOpen(true), []);
-  // The agents taking part, as the header shows them (Alia has no editor), each editable from the menu.
-  const { lead, joined } = chat.participants;
-  const agents = useMemo(
-    () =>
-      [...(lead.isAlia ? [] : [lead]), ...joined].map(({ id, name, character }) => ({
-        id,
-        name,
-        character,
-      })),
-    [lead, joined],
-  );
-
   // What needs a stored conversation is offered once there is one.
   const stored = conversationId !== undefined;
   return (
     <ChatHeaderActions
       onSearch={stored ? openSearch : undefined}
-      agents={agents}
-      onEditAgent={openAgentEditor}
-      onStartGroup={startGroup}
       onShare={stored && shareable ? handleShare : undefined}
       onStopSharing={stored && shareable ? handleStopSharing : undefined}
       onExport={stored ? handleExport : undefined}
       onClear={stored ? clearMessages : undefined}
-      onOpenTerminal={terminalAgentId === undefined ? undefined : handleOpenTerminal}
-      onDelete={stored && threadHandle === undefined ? handleDelete : undefined}
+      onDelete={stored ? handleDelete : undefined}
     />
   );
 }

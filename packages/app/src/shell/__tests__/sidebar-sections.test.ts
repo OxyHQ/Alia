@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { flatConversations, groupHistory, sidebarSections } from '../sidebar-history';
-import { type Conversation } from '@alia.onl/sdk/model';
+import type { Conversation } from '@alia.onl/sdk/model';
 
 /**
  * Where a chat sits in the sidebar's tree, and which day of History it is under.
@@ -77,7 +77,7 @@ describe('the tree sections', () => {
     expect(ids(sections.folders[0]!.conversations)).toEqual(['folder-favorite', 'in-folder']);
   });
 
-  it('keeps pinned, favourite, filed and agent chats out of History', () => {
+  it('keeps pinned, favourite, filed and gemie chats out of History', () => {
     expect(sections.history.map((b) => [b.key, ids(b.items)])).toEqual([['today', ['plain']]]);
   });
 });
@@ -101,7 +101,7 @@ describe('The flat list of chats', () => {
     favoriteIds: ['favourite'],
   });
 
-  it('is the chats filed nowhere: no project, no folder, no agent thread', () => {
+  it("is Alia's chats filed nowhere: no project, no folder, no gemie thread", () => {
     expect(ids(flat)).not.toContain('in-project');
     expect(ids(flat)).not.toContain('in-folder');
     expect(ids(flat)).not.toContain('agent-thread');

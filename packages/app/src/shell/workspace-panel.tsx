@@ -1,15 +1,9 @@
-import { AgentEditorPanel } from '@/features/agents/ui/agent-editor-panel';
-import { AgentPanel } from '@/features/chat/ui/workspace/agent-panel';
 import { CreditsLimits } from '@/features/chat/ui/workspace/credits-limits';
 import { CanvasComponent, type OutputActions, ThoughtPanel } from '@alia.onl/sdk';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { canSaveImage, imageFilename, saveImage } from '@/features/chat/runtime/save-image';
-import {
-  useUIStore,
-  type CanvasArtifact,
-  type CodePanelView,
-} from '@/features/chat/runtime/ui-store';
+import { useUIStore, type CanvasArtifact } from '@/features/chat/runtime/ui-store';
 import {
   workspacePanelKind,
   type WorkspacePanelKind,
@@ -25,49 +19,32 @@ import {
 } from '@oxy.so/bloom/ai-chat';
 import type { BloomIconComponent } from '@oxy.so/bloom/icons';
 import { RiCodeSLine } from '@oxy.so/bloom/icons/RiCodeSLine';
-import { RiEditLine } from '@oxy.so/bloom/icons/RiEditLine';
 import { RiGalleryLine } from '@oxy.so/bloom/icons/RiGalleryLine';
 import { RiLightbulbLine } from '@oxy.so/bloom/icons/RiLightbulbLine';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
-import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiSideBarLine } from '@oxy.so/bloom/icons/RiSideBarLine';
-import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
-import { LinesSkeleton } from '@/shared/ui/skeletons';
 import { alert, confirm, type AlertButton } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { usePathname } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { lazy, Suspense, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Platform, View } from 'react-native';
-
-/**
- * The agent's terminal, loaded when it is first shown: it brings xterm (web)
- * or a WebView (native) with it, which a chat that never opens it should not
- * pay for.
- */
-const AgentTerminal = lazy(() =>
-  import('@/features/chat/ui/workspace/agent-terminal').then((m) => ({ default: m.AgentTerminal })),
-);
 
 /**
  * The right panel: in flow from `xl`, a drawer below it — and only while
  * something has opened it (`rightPanel`), so a plain conversation has the
  * whole width.
  *
- * What opens it: the agent at work (its first tool of a turn opens the thought
- * panel, a file it writes the canvas, a run the agent panel), the chat menu's
- * "Show panel" (the code panel over the files Alia wrote in this chat, or the
- * gallery over images) and "Agent terminal" (the code panel's second tab), and
- * the credits page.
+ * What opens it: Alia at work (her first tool of a turn opens the thought
+ * panel, a file she writes the canvas), the chat menu's "Show panel" (the code
+ * panel over the files Alia wrote in this chat, or the gallery over images),
+ * and the credits page.
  */
 const PANEL_ICON: Record<WorkspacePanelKind, BloomIconComponent> = {
   code: RiCodeSLine,
   gallery: RiGalleryLine,
   thought: RiLightbulbLine,
   credits: RiQuillPenLine,
-  agent: RiRobot2Line,
-  editor: RiEditLine,
 };
 
 /** The label and glyph the shell shows for the panel (drawer header, open button). */
@@ -96,19 +73,9 @@ export function WorkspacePanel({ width }: { width: number | '100%' }) {
   switch (kind) {
     case 'thought':
     case 'credits':
-    case 'agent':
-    case 'editor':
       return (
         <View className="h-full min-h-0" style={{ width }}>
-          {kind === 'thought' ? (
-            <ThoughtPanelSlot />
-          ) : kind === 'credits' ? (
-            <CreditsLimits />
-          ) : kind === 'editor' ? (
-            <AgentEditorPanel />
-          ) : (
-            <AgentPanel />
-          )}
+          {kind === 'thought' ? <ThoughtPanelSlot /> : <CreditsLimits />}
         </View>
       );
     case 'gallery':
@@ -150,11 +117,6 @@ function artifactText(artifact: CanvasArtifact): string {
   return '';
 }
 
-/** The code panel's Bloom tab for each of its views: the terminal rides in the second one. */
-function tabOf(view: CodePanelView): 'changes' | 'browser' {
-  return view === 'changes' ? 'changes' : 'browser';
-}
-
 function CodePanel({
   width,
   style,
@@ -178,37 +140,16 @@ function CodePanel({
   );
   const additions = changedFiles.reduce((sum, f) => sum + (f.additions ?? 0), 0);
 
-  /**
-   * The agent terminal, as the second tab of this panel — only on the route it
-   * was opened from (see `AgentTerminalSelection`).
-   */
-  const pathname = usePathname();
-  const terminal = useUIStore((s) => s.agentTerminal);
-  const terminalAgentId =
-    terminal !== null && terminal.route === pathname ? terminal.agentId : null;
-  const storedView = useUIStore((s) => s.codePanelView);
+  const view = useUIStore((s) => s.codePanelView);
   const setView = useUIStore((s) => s.setCodePanelView);
-  const view: CodePanelView =
-    storedView === 'terminal' && terminalAgentId === null ? 'preview' : storedView;
-  const showTerminal = view === 'terminal' && terminalAgentId !== null;
 
   /**
    * The header's glyphs, each with something behind it. Bloom's defaults are a
-   * terminal, an expand and a toggle with no handlers; the terminal is offered
-   * only where there is an agent to show, and expand has nothing to do here.
+   * terminal, an expand and a toggle with no handlers; only the toggle has
+   * something behind it here.
    */
   const actions = useMemo<AiChatPanelAction[]>(
     () => [
-      ...(terminalAgentId === null
-        ? []
-        : [
-            {
-              key: 'terminal',
-              label: t('panel.terminal'),
-              icon: RiTerminalBoxLine,
-              onPress: () => setView(view === 'terminal' ? 'preview' : 'terminal'),
-            },
-          ]),
       {
         key: 'toggle',
         label: t('chatHeader.hidePanel'),
@@ -216,41 +157,36 @@ function CodePanel({
         onPress: () => useUIStore.getState().setRightPanel(null),
       },
     ],
-    [terminalAgentId, view, setView, t],
+    [t],
   );
 
   const labels = useMemo<AiChatCodePanelLabels>(
     () => ({
       changes: t('panel.changes'),
-      browser: showTerminal ? t('panel.terminal') : t('panel.preview'),
+      browser: t('panel.preview'),
       tabs: t('panel.views'),
       uncommitted: (count) => t('panel.files', { count }),
     }),
-    [showTerminal, t],
+    [t],
   );
 
   /**
-   * The second tab exists only with something in it: the terminal, or the
-   * preview of a canvas that is not code (the Changes tab already shows code).
+   * The second tab exists only with something in it: the preview of a canvas
+   * that is not code (the Changes tab already shows code).
    * Otherwise `null`, and Bloom draws no tab rather than a "Browser preview"
    * placeholder for a browser Alia does not have.
    */
-  const second = showTerminal ? (
-    <View className="min-h-0 flex-1" testID="agent-terminal-slot">
-      <Suspense fallback={<LinesSkeleton className="bg-[#0d0d0d]" />}>
-        <AgentTerminal agentId={terminalAgentId} />
-      </Suspense>
-    </View>
-  ) : current && current.type !== 'code' ? (
-    <CanvasComponent
-      component={{
-        id: current.id,
-        type: current.type,
-        title: current.title || current.type,
-        data: current.content,
-      }}
-    />
-  ) : null;
+  const second =
+    current && current.type !== 'code' ? (
+      <CanvasComponent
+        component={{
+          id: current.id,
+          type: current.type,
+          title: current.title || current.type,
+          data: current.content,
+        }}
+      />
+    ) : null;
 
   return (
     <AiChatCodePanel
@@ -260,10 +196,8 @@ function CodePanel({
       changedFiles={changedFiles}
       changeCount={changedFiles.length}
       additions={additions}
-      tab={tabOf(view)}
-      onTabChange={(tab) =>
-        setView(tab === 'changes' ? 'changes' : view === 'terminal' ? 'terminal' : 'preview')
-      }
+      tab={view === 'changes' ? 'changes' : 'browser'}
+      onTabChange={(tab) => setView(tab === 'changes' ? 'changes' : 'preview')}
       actions={actions}
       browser={second}
       labels={labels}

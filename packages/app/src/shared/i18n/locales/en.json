@@ -15,8 +15,6 @@
     "create": "Create",
     "search": "Search...",
     "noResults": "No results found",
-    "tryDifferentSearch": "Try a different search term",
-    "all": "All",
     "name": "Name",
     "category": "Category",
     "size": "Size",
@@ -183,8 +181,7 @@
       "writingStyle": "Writing Style",
       "localModels": "Local models",
       "storage": "Storage",
-      "proactive": "Notifications",
-      "externalAgents": "Connect external agent"
+      "proactive": "Notifications"
     },
     "accentColor": {
       "title": "App Color",
@@ -279,25 +276,6 @@
         "disconnectDescription": "Are you sure you want to disconnect this account? You can reconnect it anytime.",
         "disconnectedToast": "Account disconnected",
         "disconnectFailed": "Failed to disconnect account"
-      },
-      "externalAgents": {
-        "title": "Connect an external agent",
-        "description": "Use Claude Code, Codex or OpenCode on your own computer as one of your Alia agents. They answer with your own subscription, and your other agents can talk to them.",
-        "createLabel": "New connection",
-        "createHint": "Creates a single-use code and copies the text to paste into your agent.",
-        "create": "Create code",
-        "copy": "Copy text",
-        "copied": "Copied. Paste it into Claude Code, Codex or OpenCode.",
-        "createFailed": "Couldn't create the code. Try again in a minute.",
-        "codeHint": "Single use. Expires at {{time}}.",
-        "promptLabel": "Text to paste into your agent",
-        "connectedTitle": "Connected agents",
-        "online": "Online",
-        "offline": "Offline: its computer isn't connected to Alia",
-        "remove": "Remove",
-        "removed": "Agent removed.",
-        "removeFailed": "Couldn't remove the agent.",
-        "empty": "No external agents yet."
       }
     },
     "assistant": {
@@ -417,8 +395,6 @@
     "skillDetail": "Skill Detail",
     "roleDetail": "Role Detail",
     "billing": "Billing",
-    "agents": "Agents",
-    "agentDetail": "Agent",
     "invite": "Invite",
     "general": "General",
     "usage": "Usage",
@@ -434,12 +410,10 @@
   "sidebar": {
     "loadError": "Could not refresh your sidebar.",
     "newChat": "New Chat",
-    "agents": "Agents",
     "library": "Library",
     "automations": "Automations",
     "skills": "Skills",
     "projects": "Projects",
-    "noAgents": "No agents yet",
     "noProjects": "No projects yet",
     "editProject": "Edit Project",
     "deleteProject": "Delete Project",
@@ -456,17 +430,6 @@
     "earlier": "Earlier",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
-    "noAgentMessages": "No messages yet",
-    "create": {
-      "chat": "New chat",
-      "chatHint": "Talk to Alia",
-      "agent": "New agent",
-      "agentHint": "Customize a new teammate",
-      "group": "Group chat",
-      "groupHint": "Bring your agents into one chat",
-      "space": "New space",
-      "spaceHint": "A folder where your agents work together"
-    },
     "chats": "Chats",
     "support": "Support",
     "shows": "Shows",
@@ -485,6 +448,7 @@
     "deleteProjectTitle": "Delete this project?",
     "deleteProjectDescription": "“{{name}}” is removed. Its chats are kept and move back to Recent.",
     "inviteFriends": "Invite friends",
+    "yourGemies": "Your Gemies",
     "pin": "Pin",
     "unpin": "Unpin",
     "addFavorite": "Add to favorites",
@@ -523,8 +487,7 @@
       "yellow": "Amber",
       "lime": "Green",
       "cyan": "Cyan"
-    },
-    "externalOffline": "Offline: its computer is not connected"
+    }
   },
   "billing": {
     "title": "Billing",
@@ -1026,10 +989,6 @@
   },
   "chatHeader": {
     "chatActions": "Chat actions",
-    "inThisConversation": "In this conversation",
-    "editNamed": "Edit {{name}}",
-    "startGroup": "Start a group chat",
-    "agentTerminal": "Agent terminal",
     "export": "Export",
     "settings": "Settings",
     "clearConversation": "Clear conversation",
@@ -1074,368 +1033,6 @@
     "permissionDenied": "Notifications are blocked. Please enable them in your device settings to receive push notifications.",
     "channelDefault": "Default",
     "open": "Open"
-  },
-  "agents": {
-    "createViaChat": "I'd like to create a new agent. Can you help me?",
-    "byAuthor": "by {{name}}",
-    "viewAll": "View all",
-    "title": "Agents",
-    "subtitle": "Discover agents that can plan and complete real work",
-    "searchPlaceholder": "Search agents...",
-    "featured": "Featured",
-    "trending": "Trending",
-    "createAgent": "Create Agent",
-    "hire": "Hire",
-    "free": "Free",
-    "hires": "hires",
-    "uses": "uses",
-    "capabilities": "Capabilities",
-    "tags": "Tags",
-    "about": "About",
-    "noAgents": "No agents found",
-    "notFound": "Agent not found",
-    "notFoundDetail": "This agent could not be found. It may have been deleted, or it belongs to another account.",
-    "backToAgents": "Back to agents",
-    "loadFailed": "This agent could not be loaded",
-    "retry": "Retry",
-    "statusActive": "Active",
-    "statusIdle": "Idle",
-    "statusOffline": "Offline",
-    "share": "Share",
-    "chatUnavailable": "This agent can't be opened yet",
-    "activity": "Activity",
-    "hireStarted": "Agent is working on your task",
-    "chat": "Chat",
-    "native": "By Alia",
-    "rating": "rating",
-    "removeSkill": "Remove skill",
-    "removeKnowledge": "Remove knowledge",
-    "reviews": "Reviews",
-    "writeReview": "Write a review",
-    "editReview": "Edit review",
-    "deleteReview": "Delete review",
-    "deleteReviewConfirm": "Delete your review?",
-    "reviewSubmitted": "Review submitted",
-    "reviewDeleted": "Review deleted",
-    "reviewPlaceholder": "Share your experience with this agent...",
-    "noReviews": "No reviews yet",
-    "cannotReviewOwn": "You can't review your own agent",
-    "edit": "Edit",
-    "editAgent": "Edit Agent",
-    "saveAgent": "Save",
-    "saving": "Saving...",
-    "agentUpdated": "Agent updated",
-    "allAgents": "All Agents",
-    "addAgent": "Add Agent",
-    "removeAgent": "Remove Agent",
-    "removeAgentConfirm": "Remove this agent from the team?",
-    "agentRemoved": "Agent removed from team",
-    "createTitle": "Create a new agent",
-    "createSubtitle": "Describe what you want your agent to do",
-    "createPlaceholder": "Describe your agent...",
-    "generating": "Creating your agent...",
-    "instructions": "Instructions",
-    "draft": "Draft",
-    "published": "Published",
-    "publish": "Publish",
-    "unpublish": "Unpublish",
-    "systemPromptPlaceholder": "Add instructions for your agent...",
-    "resources": "Resources",
-    "settings": "Settings",
-    "skills": "Skills",
-    "knowledge": "Knowledge",
-    "addSkill": "Add skill",
-    "addKnowledge": "Add knowledge",
-    "autoSaved": "Saved",
-    "deleteAgent": "Delete Agent",
-    "deleteAgentConfirm": "Are you sure you want to delete this agent? This cannot be undone.",
-    "agentDeleted": "Agent deleted",
-    "agents": "Agents",
-    "namePlaceholder": "Agent name",
-    "colorLabel": "Colour",
-    "modelLabel": "Power level",
-    "handleLabel": "Username",
-    "handlePlaceholder": "handle",
-    "handleAdjusted": "That handle was taken — your agent is @%{handle}",
-    "handleTaken": "That handle is taken. Try another.",
-    "accessPublic": "Anyone can use it",
-    "accessPublicHint": "Off, only you and the people you add to its account can. Being listed in the catalogue is separate.",
-    "capabilitiesFooter": "An agent reaches nothing you have not switched on here.",
-    "saveFailed": "Could not save",
-    "createFirstHint": "Create an agent to give it a job, its own tools and a thread of its own.",
-    "statusPaused": "Paused",
-    "acceptingHires": "Accepting tasks",
-    "notAcceptingHires": "Not accepting tasks",
-    "archetype": {
-      "reportConfig": "Report configuration",
-      "reportTemplate": "Report template",
-      "reportTemplatePlaceholder": "## Daily standup\n### What happened\n### Key metrics\n### Action items",
-      "compareWithPrevious": "Compare with previous report",
-      "qaConfig": "Q&A configuration",
-      "citeSources": "Cite sources in answers",
-      "routingConfig": "Routing configuration",
-      "inboundChannels": "Inbound channels",
-      "routingRules": "Routing rules",
-      "ruleCondition": "When the task is about…",
-      "priority": "Priority",
-      "priorityLow": "Low",
-      "priorityMedium": "Med",
-      "priorityHigh": "High",
-      "priorityUrgent": "Urgent",
-      "routeTo": "Route to (name)",
-      "channel": {
-        "email": "Email",
-        "slack": "Slack",
-        "discord": "Discord",
-        "webhook": "Webhook",
-        "github": "GitHub",
-        "linear": "Linear"
-      },
-      "general": {
-        "label": "General",
-        "description": "Build any custom agent"
-      },
-      "qa": {
-        "label": "Q&A",
-        "description": "Answers questions from your knowledge"
-      },
-      "task_router": {
-        "label": "Task router",
-        "description": "Triages and routes incoming tasks"
-      },
-      "status_update": {
-        "label": "Status update",
-        "description": "Writes status reports"
-      }
-    },
-    "categoryName": {
-      "Assistant": "Assistant",
-      "Creative": "Creative",
-      "Developer": "Developer",
-      "Research": "Research",
-      "Business": "Business",
-      "Education": "Education"
-    },
-    "listing": {
-      "category": "Category",
-      "tagline": "Tagline",
-      "taglinePlaceholder": "Short description",
-      "description": "Description",
-      "descriptionPlaceholder": "Full description…",
-      "price": "Price per use (credits)",
-      "pricePlaceholder": "Free (leave empty)"
-    },
-    "searchLibrary": "Search library…",
-    "libraryEmpty": "No files in your library. Upload files on the Library screen.",
-    "searchSkills": "Search skills…",
-    "threadOpen": "Open",
-    "threadClosed": "Closed",
-    "reviewDeleteFailed": "Could not delete the review",
-    "publishFailed": "Could not update the agent",
-    "deleteFailed": "Could not delete the agent",
-    "statusUpdateFailed": "Could not update the status",
-    "activityGrid": {
-      "interactions": {
-        "one": "1 interaction",
-        "other": "{{count}} interactions"
-      },
-      "summary": "{{interactions}} in the last {{weeks}} weeks",
-      "day": "{{interactions}} on {{date}}"
-    },
-    "capabilityFamily": {
-      "web": {
-        "label": "Web",
-        "description": "Search the web, read pages and run deep research"
-      },
-      "browser": {
-        "label": "Browser",
-        "description": "Search and read web pages step by step during a long-running task"
-      },
-      "artifacts": {
-        "label": "Artifacts",
-        "description": "Produce charts, tables, code blocks and downloadable files"
-      },
-      "memory": {
-        "label": "Memory",
-        "description": "Read and update what Alia remembers about you"
-      },
-      "messaging": {
-        "label": "Messaging",
-        "description": "Send and read messages on your Telegram and WhatsApp"
-      },
-      "automation": {
-        "label": "Automations",
-        "description": "Create, edit and delete your scheduled triggers"
-      },
-      "delegation": {
-        "label": "Other agents",
-        "description": "Find, hire and create agents to work on its behalf"
-      },
-      "computer": {
-        "label": "Its own computer",
-        "description": "Run commands and keep files on a private Linux sandbox, and browse the web with its own browser that stays signed in"
-      }
-    },
-    "terminal": {
-      "banner": "Agent terminal",
-      "initFailed": "Could not start the terminal",
-      "waiting": "Waiting for activity…",
-      "reconnected": "Reconnected",
-      "connectionLost": "Connection lost — reconnecting…",
-      "connectionError": "Connection error — retrying…",
-      "unavailable": "The terminal is not available on this device."
-    },
-    "modelPinned": "Pinned model (%{model})",
-    "modelPinnedDescription": "Runs on this exact model. Pick a level to let Alia choose.",
-    "computer": {
-      "open": "Computer",
-      "title": "{{name}}'s computer",
-      "subtitle": "Your own computer with this agent: only you can see it.",
-      "unavailable": "Agent computers are not available here.",
-      "loadFailed": "The computer could not be loaded.",
-      "notGranted": "This agent is not allowed to use its computer. You can still look at what it left there.",
-      "state": {
-        "running": "On",
-        "stopped": "Off",
-        "asleep": "Asleep — it wakes on the next use"
-      },
-      "browser": {
-        "title": "Browser",
-        "closed": "The agent's browser is closed.",
-        "closedHint": "It opens when the agent browses, or you can open it to sign in to a site for it.",
-        "openButton": "Open browser",
-        "urlLabel": "Address",
-        "urlPlaceholder": "Page address",
-        "go": "Go",
-        "screenLabel": "The agent's browser. Tap to click.",
-        "agentInControl": "The agent is in control",
-        "youInControl": "You are in control — the agent waits",
-        "takeControl": "Take control",
-        "handBack": "Hand back to the agent",
-        "takeControlHint": "Take control to sign in or solve a captcha. Your clicks and typing go to the page; nothing you type is stored.",
-        "typeLabel": "Text to type",
-        "typePlaceholder": "Type into the selected field",
-        "send": "Send",
-        "scrollUp": "Scroll up",
-        "scrollDown": "Scroll down",
-        "keys": {
-          "Enter": "Enter",
-          "Tab": "Tab",
-          "Backspace": "Delete",
-          "Escape": "Esc"
-        },
-        "actionFailed": "That did not work: {{reason}}",
-        "disconnected": "The screen is not updating. It will retry."
-      },
-      "files": {
-        "title": "Files",
-        "off": "The computer is off. Turn it on to see its files.",
-        "turnOn": "Turn on",
-        "empty": "This folder is empty.",
-        "up": "Up",
-        "truncated": "Only the first 1000 entries are shown.",
-        "readOnly": "Read-only view of /workspace."
-      },
-      "activity": {
-        "title": "Recent activity",
-        "commands": "Commands",
-        "browser": "Browser",
-        "none": "Nothing yet.",
-        "by": {
-          "agent": "Agent",
-          "owner": "You"
-        },
-        "status": {
-          "running": "Running",
-          "started": "In background",
-          "succeeded": "Done",
-          "failed": "Failed",
-          "timed_out": "Timed out",
-          "interrupted": "Interrupted",
-          "ok": "Done",
-          "refused": "Refused"
-        },
-        "action": {
-          "open": "Opened the browser",
-          "navigate": "Went to a page",
-          "input": "Acted on the page",
-          "control": "Control changed",
-          "close": "Closed the browser",
-          "download": "Downloaded a file"
-        }
-      }
-    },
-    "editor": {
-      "work": {
-        "title": "Works on its own",
-        "heartbeat": "Heartbeat",
-        "heartbeatLabel": "Check on its own: {{name}} wakes up now and then, only if something is waiting in its inbox.",
-        "frequency": "How often",
-        "frequencyLabel": "The longest it waits before looking at what arrived",
-        "every": {
-          "one": "Every minute",
-          "other": "Every {{count}} minutes"
-        },
-        "computer": "Computer",
-        "computerLabel": "Where {{name}} works when it uses a computer",
-        "computerAlia": "Alia's computer",
-        "computerOwn": "{{name}}'s own computer",
-        "computerNote": "Alia's is the shared workspace of all your agents, so what one makes is there for the next. Only you ever see it: anyone else who uses {{name}} gets a separate machine of their own."
-      },
-      "hears": {
-        "title": "What it hears about",
-        "newEmailOwner": "Your email",
-        "newEmailOwnerLabel": "Tell {{name}} about new emails in your Inbox",
-        "newEmailAgent": "Its email",
-        "newEmailAgentLabel": "Tell {{name}} about new emails in its own mailbox",
-        "important": "Alerts",
-        "importantLabel": "Let {{name}} tell me about important emails in its own mailbox, such as a verification or a reply",
-        "sourceOwner": "Your events",
-        "sourceAgent": "Its own mailbox",
-        "remove": "Remove",
-        "loadFailed": "Could not load this. Try again.",
-        "limitReached": "This agent already hears about as many things as it can (25). Remove one first.",
-        "subscribeFailed": "Could not change what it hears about. Try again.",
-        "unsubscribeFailed": "Could not remove it. Try again."
-      },
-      "inbox": {
-        "work": "Work",
-        "state": {
-          "paused": "Paused",
-          "working": "Working",
-          "scheduled": "Next step scheduled",
-          "blocked": "Needs attention",
-          "waiting": "Waiting for news"
-        },
-        "reason": {
-          "needs_session": "Open Alia with your account to resume work.",
-          "insufficient_credits": "There are not enough credits to continue.",
-          "work_limit_reached": "Stopped at the task limit. Review its progress.",
-          "temporarily_unavailable": "A service is unavailable. It will retry later.",
-          "expired": "This follow-up expired.",
-          "execution_failed": "The last task could not finish. Check its activity."
-        },
-        "title": "Waiting in its inbox",
-        "looked": "Last look",
-        "waiting": "Waiting",
-        "empty": "Nothing is waiting for {{name}}.",
-        "lastLooked": "Last looked at its inbox: {{when}}",
-        "neverLooked": "{{name}} hasn't looked at its inbox yet.",
-        "loadFailed": "Could not load this. Try again."
-      },
-      "memory": {
-        "title": "What it remembers",
-        "empty": "{{name}} does not remember anything about you.",
-        "forget": "Forget",
-        "forgetAll": "Everything",
-        "forgetAllTitle": "Make {{name}} forget everything",
-        "forgetFileTitle": "Forget {{path}}",
-        "forgetDescription": "{{name}} will not remember it any more. This cannot be undone.",
-        "forgotten": "Forgotten",
-        "forgetFailed": "Could not forget it. Try again.",
-        "changedMeanwhile": "The agent changed this note while you were editing. Its latest version is shown."
-      }
-    }
   },
   "authorize": {
     "linkingAccount": "Linking account...",
@@ -1892,50 +1489,12 @@
     "cancelEdit": "Cancel",
     "powerLevel": "Power"
   },
-  "group": {
-    "title": "New group",
-    "choose": "Choose who is joining the conversation",
-    "start": "Start the group ({{count}})",
-    "startFailed": "Could not start the group",
-    "needTwo": "A group needs at least two agents."
-  },
-  "spaces": {
-    "createTitle": "New space",
-    "renameTitle": "Rename space",
-    "briefTitle": "Edit description",
-    "addAgentsTitle": "Add agents",
-    "name": "Name",
-    "brief": "Description",
-    "briefPlaceholder": "What is this space for?",
-    "briefHint": "Every agent in the space reads it.",
-    "chooseAgents": "Choose the agents that go in (up to {{count}})",
-    "noFreeAgents": "All your agents are already in a space.",
-    "general": "General",
-    "addAgents": "Add agents",
-    "options": "Options for {{name}}",
-    "rename": "Rename",
-    "editBrief": "Edit description",
-    "addAgent": "Add agent",
-    "delete": "Delete space",
-    "deleteTitle": "Delete this space?",
-    "deleteDescription": "“{{name}}” and its General conversation are deleted. Its agents are kept and go back to the Agents list.",
-    "deleteFailed": "Couldn't delete the space. Try again.",
-    "agentOptions": "Options for {{name}}",
-    "moveToSpace": "Move to a space…",
-    "noSpace": "No space",
-    "full": "A space holds up to {{count}} agents.",
-    "inOtherSpace": "That agent is already in another space.",
-    "saveFailed": "Couldn't save the space. Try again."
-  },
   "panel": {
-    "editor": "Edit agent",
     "editorProfile": "Profile",
-    "terminal": "Terminal",
     "resize": "Resize panel",
     "code": "Canvas",
     "gallery": "Gallery",
     "credits": "Credits",
-    "agent": "Agent",
     "new": "New",
     "emptyCanvas": "// Files Alia writes in this chat appear here.",
     "files": {
@@ -1972,63 +1531,9 @@
       "emptyTitle": "No notifications yet",
       "emptyDescription": "Set up triggers and routines to get proactive updates from Alia.",
       "dismiss": "Dismiss notification"
-    },
-    "agents": {
-      "categories": "Categories",
-      "back": "Back",
-      "agentType": "Agent type",
-      "sessionTitle": "Session activity",
-      "sessionSteps": "%{count} steps",
-      "sessionEvents": "%{count} events",
-      "sessionThreats": "%{count} threats",
-      "sessionErrors": "%{count} errors",
-      "sessionEmpty": "No activity recorded",
-      "agentActions": "Agent actions",
-      "moreActions": "More actions",
-      "addRoutingRule": "Add routing rule",
-      "removeRoutingRule": "Remove routing rule"
     }
   },
   "panels": {
-    "agent": {
-      "tabs": {
-        "steps": "Steps",
-        "sources": "Sources"
-      },
-      "close": "Close agent panel",
-      "working": "Agent working",
-      "complete": "Task complete",
-      "failed": "Task failed",
-      "waitingToStart": "Waiting for the agent to start",
-      "noSteps": "No steps yet",
-      "noSources": "No sources found yet",
-      "websites": {
-        "one": "Websites (1)",
-        "other": "Websites ({{count}})"
-      },
-      "planSteps": "{{completed}}/{{total}} steps",
-      "stepsLeft": {
-        "one": "1 step left",
-        "other": "{{count}} steps left"
-      },
-      "allCompleted": "All steps completed",
-      "minimizeSteps": "Minimize steps",
-      "expandSteps": "Expand steps",
-      "step": {
-        "thinking": "Thinking…",
-        "complete": "Task completed",
-        "error": "Error occurred",
-        "threat": "Threat detected",
-        "browser": "Browser: {{action}} {{target}}",
-        "action": "action",
-        "completing": "Completing task",
-        "updatingPlan": "Updating plan",
-        "delegate": "Hiring @{{agent}}",
-        "result": "Result received",
-        "found": "Found: {{title}}",
-        "source": "source"
-      }
-    },
     "code": {
       "copy": "Copy code",
       "copied": "Code copied"
@@ -2058,7 +1563,6 @@
       "groupRecentConversations": "Recent conversations",
       "newChat": "New chat",
       "searchLibrary": "Search library",
-      "agents": "Agents",
       "library": "Library",
       "automations": "Automations",
       "skills": "Skills",
@@ -2345,12 +1849,5 @@
     "title": "Shared conversation",
     "open": "Open Alia",
     "footer": "A read-only copy, shared by the person who had this conversation."
-  },
-  "profile": {
-    "kind": {
-      "organization": "Organization",
-      "project": "Project",
-      "channel": "Channel"
-    }
   }
 }

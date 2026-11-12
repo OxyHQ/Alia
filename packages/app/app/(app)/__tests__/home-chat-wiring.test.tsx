@@ -14,12 +14,12 @@ import { APP_ROOT } from '@/shared/testing/app-root';
  * fresh thread had no answer. In ghost mode the WHOLE conversation happens on this screen, so
  * those capabilities were missing for its entire life.
  *
- * The cure is structural rather than a longer prop list: `/`, `/c/:id` and `/@agent` are three
+ * The cure is structural rather than a longer prop list: `/` and `/c/:id` are two
  * doors onto ONE `ConversationScreen`, which mounts the SDK's conversation (`AliaChatContent`,
  * the same one the bottom sheet mounts) and brings the app around it. So this file pins the doors:
  * the new-chat route names no conversation (that absence is what makes its first turn create
  * one, and what keeps its draft its own), shows the intro to the signed-out and the chat after,
- * and the other two routes mount the very same screen.
+ * and the other route mounts the very same screen.
  */
 
 const auth = vi.hoisted(() => ({ isAuthenticated: true, isAuthResolved: true }));
@@ -125,10 +125,10 @@ describe('the new-chat route', () => {
   });
 });
 
-describe('the three doors onto one chat', () => {
+describe('the two doors onto one chat', () => {
   const route = (file: string) => readFileSync(join(APP_ROOT, 'app/(app)', file), 'utf8');
 
-  it.each(['index.tsx', 'c/[id]/index.tsx', '[username]/index.tsx'])(
+  it.each(['index.tsx', 'c/[id]/index.tsx'])(
     '%s mounts the conversation screen and draws no thread of its own',
     (file) => {
       const source = route(file);

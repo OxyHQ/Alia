@@ -12,12 +12,12 @@ import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
-import { RiTeamLine } from '@oxy.so/bloom/icons/RiTeamLine';
 import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
 import { useConversations } from '@alia.onl/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
+import { isAliaChat } from '@/shell/sidebar-history';
 
 /** How many conversations the palette offers before the user types anything. */
 const RESTING_CONVERSATIONS = 8;
@@ -35,7 +35,8 @@ export function CommandPalette() {
 
   const conversations = React.useMemo(() => {
     if (!conversationsData?.pages) return [];
-    const all = conversationsData.pages.flatMap((page) => page.conversations);
+    // Alia's chats, as the sidebar lists them: the gemies' conversations live in Gemies.
+    const all = conversationsData.pages.flatMap((page) => page.conversations).filter(isAliaChat);
     // At rest the palette is a shortlist of what you were just doing; once
     // there is a query it searches far wider.
     return query.trim()
@@ -57,13 +58,6 @@ export function CommandPalette() {
         icon: RiChatNewLine,
         shortcut: '⌘⇧N',
         onSelect: () => router.replace('/(app)'),
-      },
-      {
-        id: 'agents',
-        label: t('dialogs.commandPalette.agents'),
-        group: t('dialogs.commandPalette.groupNavigate'),
-        icon: RiTeamLine,
-        onSelect: () => router.push('/(app)/agents'),
       },
       {
         id: 'skills',

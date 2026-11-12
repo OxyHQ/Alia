@@ -1,7 +1,7 @@
 # Alia
 
 <p align="center">
-  <b>Oxy's assistant: it acts for you in your Oxy apps, works in the background, and lets you create agents of your own.</b><br>
+  <b>Oxy's assistant: it acts for you in your Oxy apps and works in the background. Your own agents, the gemies, live in <a href="https://gemies.ai">Gemies</a>.</b><br>
   The Alia app (web, iOS, Android) and the SDK and server client published from it.
 </p>
 

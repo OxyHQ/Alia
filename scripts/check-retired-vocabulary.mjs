@@ -51,11 +51,13 @@ const retiredLane = new RegExp(
 );
 
 /**
- * What an agent is on the wire, as the app reads it: no application binding.
- * The server's schema and repository moved to OxyHQ/Gemies with the backend on
- * 2026-11-12, and carry the same check there.
+ * What an agent is on the wire, as this repository reads it: no application
+ * binding. The app is Alia's alone and reads no agent since 2026-11-12; the
+ * SDK still reads a gemie's profile (the chat opened on one, a consulted one).
+ * The server's schema and repository moved to OxyHQ/Gemies with the backend,
+ * and carry the same check there.
  */
-const agentSchemas = ['packages/app/src/shared/contracts/agents.ts'];
+const agentSchemas = ['packages/alia-chat/src/runtime/agents.ts'];
 const applicationBinding = new RegExp(`application${'Id'}|application${'_id'}`, 'g');
 
 const failures = [];

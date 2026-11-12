@@ -19,9 +19,7 @@ import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
 import { useAliaSpeech } from '@/features/chat/runtime/use-alia-speech';
 import config from '@/shared/platform/config';
 import { useAccountLifecycle } from '@/shell/account-lifecycle';
-import { AgentThemeScope } from '@/features/agents/ui/agent-theme-scope';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
-import { useSpacesOpenStore } from '@/features/spaces/runtime/spaces-open-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';
@@ -37,28 +35,17 @@ import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Routes that compose their own `AiChatContainer` (theirs holds the composer). */
-const CHAT_ROUTES = new Set(['index', 'c/[id]/index', '[username]/index']);
-
-/**
- * Routes whose screen draws its own header, with Bloom's own controls (the agent editor's undo, title
- * and close): the layout puts the surface under them and no `ShellPageHeader` above, so the screen
- * has one header, not two.
- */
-const OWN_HEADER_ROUTES = new Set(['[username]/edit']);
+const CHAT_ROUTES = new Set(['index', 'c/[id]/index']);
 
 /**
  * A chat route — or a local visual fixture (`__*.tsx`, never committed), which
  * mounts a chat screen and composes its own container the same way.
  */
-/** The agent editor's panel width: Bloom's own multi-agent chat sets its editor at this order. */
-const EDITOR_PANEL_WIDTH = 380;
-
 const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('__');
 
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
   shows: 'sidebar.shows',
-  agents: 'sidebar.agents',
   notifications: 'sidebar.notifications',
 };
 
@@ -67,7 +54,6 @@ export default function AppLayout() {
   const router = useRouter();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
-  const loadSpacesOpen = useSpacesOpenStore((state) => state.loadSpacesOpen);
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
   const loadPinned = usePinnedStore((state) => state.loadPinned);
   const rightPanel = useUIStore((state) => state.rightPanel);
@@ -106,7 +92,6 @@ export default function AppLayout() {
   useEffect(() => {
     loadProjects(userId);
     loadFolders(userId);
-    loadSpacesOpen(userId);
     loadFavorites(userId);
     loadPinned(userId);
     // Composer drafts too: another account's half-written message and files
@@ -114,7 +99,7 @@ export default function AppLayout() {
     useComposerDraftStore.getState().bindAccount(userId);
     // And the offline copy of the conversations (`offline-conversations.ts`).
     offlineConversations.bind(userId);
-  }, [userId, loadProjects, loadFolders, loadSpacesOpen, loadFavorites, loadPinned]);
+  }, [userId, loadProjects, loadFolders, loadFavorites, loadPinned]);
 
   // Everything else the previous account left in memory, on a sign-out or a
   // switch (`src/shell/account-lifecycle.ts`).
@@ -158,11 +143,6 @@ export default function AppLayout() {
    */
   const screenLayout = ({ route, options, children }: ScreenLayoutProps) => {
     if (isChatRoute(route.name)) return children;
-    if (OWN_HEADER_ROUTES.has(route.name)) {
-      // `header` replaces the shared bar (Bloom's container draws its own when it is absent), so an
-      // empty one is how the screen's own header becomes the only one.
-      return <AiChatContainer header={<></>}>{children}</AiChatContainer>;
-    }
     const section = route.name.split('/')[0];
     const title =
       options.title ?? (PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined);
@@ -198,21 +178,16 @@ export default function AppLayout() {
   const shell = (
     <AiChatShell
       // Bounded (the default), as the AI chat template declares it: every panel fills the height
-      // and scrolls its own content, so the editor beside a chat stretches.
+      // and scrolls its own content.
       sidebar={sidebar}
       // The sidebar is plain, with no panel at its edge: its scrollbar sits at its start edge, away
       // from the conversation.
       sidebarScrollbarSide="start"
       mobileSidebar={mobileSidebar}
       labels={shellLabels}
-      defaultPanelWidth={rightPanel === 'editor' ? EDITOR_PANEL_WIDTH : rightPanelWidth}
-      // The editor has a width of its own; every other panel is dragged.
-      panelResizable={rightPanel !== 'editor'}
-      // The editor is worked in beside the agent it edits: it stays a panel wherever the sidebar,
-      // the conversation and its 380px fit (from `lg`) rather than becoming a modal at `xl`.
-      panelFloatingBelow={rightPanel === 'editor' ? 'lg' : 'xl'}
-      // The panel exists only while something has opened it: the agent at
-      // work (its tools, the files it writes, a run) or the chat's menu.
+      defaultPanelWidth={rightPanelWidth}
+      // The panel exists only while something has opened it: Alia at work
+      // (her tools, the files she writes) or the chat's menu.
       // Closed, the conversation has the whole width.
       panelOpen={rightPanel !== null}
       onPanelOpenChange={(open) => {
@@ -259,33 +234,29 @@ export default function AppLayout() {
           settings pages call `useAliaSettings()`. On web both are no-ops and
           the portal goes to the document. Gate: native-portal-host.test.ts */}
         <PortalProvider>
-          {/* The agent you are with themes the whole app, dialogs included: the scope is inside the
-              portal, so what the portal draws reads it too. */}
-          <AgentThemeScope>
-            <AliaSettingsProvider>
-              <ChatLabelsProvider>
-                {/* Hides the app from a screen reader while a portaled modal is up
+          <AliaSettingsProvider>
+            <ChatLabelsProvider>
+              {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
-                <OverlayInertBoundary>
-                  {Platform.OS === 'web' ? (
-                    shell
-                  ) : (
-                    // Android draws the app edge to edge and Bloom's shell takes no
-                    // safe area: without this its frame, the chat header's menu button
-                    // and the drawer all start under the status bar, where the system
-                    // takes the touch (the button did nothing to a tap on its top two
-                    // thirds). The strip above shows the root's background, which is
-                    // the shell's own surface colour. The chat keeps the bottom
-                    // inset itself (`conversation-screen.tsx`).
-                    <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-                  )}
-                </OverlayInertBoundary>
-                <CommandPalette />
-                <KeyboardShortcutsDialog />
-                <PortalOutlet />
-              </ChatLabelsProvider>
-            </AliaSettingsProvider>
-          </AgentThemeScope>
+              <OverlayInertBoundary>
+                {Platform.OS === 'web' ? (
+                  shell
+                ) : (
+                  // Android draws the app edge to edge and Bloom's shell takes no
+                  // safe area: without this its frame, the chat header's menu button
+                  // and the drawer all start under the status bar, where the system
+                  // takes the touch (the button did nothing to a tap on its top two
+                  // thirds). The strip above shows the root's background, which is
+                  // the shell's own surface colour. The chat keeps the bottom
+                  // inset itself (`conversation-screen.tsx`).
+                  <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+                )}
+              </OverlayInertBoundary>
+              <CommandPalette />
+              <KeyboardShortcutsDialog />
+              <PortalOutlet />
+            </ChatLabelsProvider>
+          </AliaSettingsProvider>
         </PortalProvider>
       </AliaRuntimeProvider>
     </AppErrorBoundary>

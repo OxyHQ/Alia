@@ -32,7 +32,7 @@ export default function ImportSkillScreen() {
       if (result.rejected.length > 0) {
         toast.info(t('skills.importRejected', { count: result.rejected.length }));
       }
-      router.replace('/(app)/skills');
+      router.replace('/(app)/settings/skills');
     } catch (error) {
       const message = (error as { response?: { data?: { error?: { message?: string } } } }).response
         ?.data?.error?.message;
