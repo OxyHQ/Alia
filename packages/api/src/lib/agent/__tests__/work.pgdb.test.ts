@@ -3,11 +3,17 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { TEST_CHARACTER } from '../../../db/__tests__/support/agent-character';
 
+// Parallel pgdb files share a database; keep this global sweeper on this suite's rows.
 const owners = vi.hoisted(() => new Set<string>());
-vi.mock('../../agent-account', () => ({
-  canReachAgent: async (_agent: unknown, requester: { oxyUserId: string }) =>
-    owners.has(requester.oxyUserId) ? 'reachable' : 'unavailable',
-}));
+vi.mock('../../../db/agents/agentWorkRepository', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../../db/agents/agentWorkRepository')>();
+  return {
+    ...original,
+    pendingWork: async (...args: Parameters<typeof original.pendingWork>) =>
+      (await original.pendingWork(...args)).filter((work) => owners.has(work.ownerAccountId)),
+  };
+});
+vi.mock('../../agent-availability', () => ({ agentOpensOn: async () => 'reachable' }));
 vi.mock('../../oxy-task-authority', () => ({
   createOxyTask: async () => randomUUID(),
   revokeOxyTask: vi.fn(async () => {}),
@@ -67,15 +73,23 @@ async function seed() {
     description: 'test',
     category: 'research',
     price: 15,
+    access: 'private',
     scheduleInterval: 60,
   });
   const id = randomUUID();
+  const taskId = randomUUID();
+  await db.insert(agentWorkAuthorities).values({
+    agentId: agent.id,
+    ownerAccountId: owner,
+    oxyTaskId: taskId,
+    expiresAt: new Date(Date.now() + 86400000),
+  });
   await db.insert(agentWorkItems).values({
     id,
     rootId: id,
     agentId: agent.id,
     ownerAccountId: owner,
-    oxyTaskId: randomUUID(),
+    oxyTaskId: taskId,
     kind: 'heartbeat',
     objective: 'Review new events',
     dueAt: new Date(),
@@ -135,7 +149,12 @@ it('a continuation cannot reset the original work budget', async () => {
     .where(eq(agentSessions.id, source.id));
   await db
     .update(agentWorkItems)
-    .set({ rootId: source.id, sourceSessionId: source.id, kind: 'follow_up' })
+    .set({
+      rootId: source.id,
+      sourceSessionId: source.id,
+      oxyTaskId: source.oxyTaskId!,
+      kind: 'follow_up',
+    })
     .where(eq(agentWorkItems.id, id));
   await dispatchAgentWork();
   expect(await balance(owner)).toBe(100);
@@ -154,14 +173,12 @@ it('pausing stops already queued work before it can call inference', async () =>
 });
 
 it('persists cancellation and retries revocation after an Oxy outage', async () => {
-  const { agent, id, owner } = await seed();
-  const taskId = randomUUID();
-  await db.insert(agentWorkAuthorities).values({
-    agentId: agent.id,
-    ownerAccountId: owner,
-    oxyTaskId: taskId,
-    expiresAt: new Date(Date.now() + 86400000),
-  });
+  const { agent, id } = await seed();
+  const [authority] = await db
+    .select()
+    .from(agentWorkAuthorities)
+    .where(eq(agentWorkAuthorities.agentId, agent.id));
+  const taskId = authority.oxyTaskId;
   vi.mocked(revokeOxyTask).mockRejectedValueOnce(new Error('Oxy unavailable'));
   await stopAgentWork(agent.id);
   const [work] = await db.select().from(agentWorkItems).where(eq(agentWorkItems.id, id));
@@ -176,4 +193,32 @@ it('persists cancellation and retries revocation after an Oxy outage', async () 
   expect(
     await db.select().from(agentWorkRevocations).where(eq(agentWorkRevocations.oxyTaskId, taskId)),
   ).toHaveLength(0);
+});
+
+it('preserves a hiring requester on continuations instead of substituting the agent owner', async () => {
+  const { agent, owner, id } = await seed();
+  const taskId = randomUUID();
+  await db
+    .update(agents)
+    .set({ ownerOxyAccountId: randomUUID(), access: 'public' })
+    .where(eq(agents.id, agent.id));
+  const source = await sessions.createAgentSession(db, {
+    agentId: agent.id,
+    oxyUserId: owner,
+    oxyTaskId: taskId,
+    task: 'Original request',
+    status: 'completed',
+  });
+  await db
+    .update(agentWorkItems)
+    .set({ kind: 'follow_up', rootId: source.id, sourceSessionId: source.id, oxyTaskId: taskId })
+    .where(eq(agentWorkItems.id, id));
+  // Remove the unrelated standing root: a hired continuation owns its source task.
+  await db.delete(agentWorkAuthorities).where(eq(agentWorkAuthorities.agentId, agent.id));
+  await dispatchAgentWork();
+  const [work] = await db.select().from(agentWorkItems).where(eq(agentWorkItems.id, id));
+  expect(work.status).toBe('running');
+  expect(await autonomousWorkMayRun(work.sessionId!)).toBe(true);
+  expect(await balance(owner)).toBe(85);
+  await stopAgentWork(agent.id);
 });

@@ -87,7 +87,13 @@ export async function pendingWork(db: Executor, now: Date) {
   return db
     .select()
     .from(agentWorkItems)
-    .where(and(eq(agentWorkItems.status, 'pending'), lte(agentWorkItems.dueAt, now)))
+    .where(
+      and(
+        eq(agentWorkItems.status, 'pending'),
+        lte(agentWorkItems.dueAt, now),
+        sql`not exists (select 1 from agent_sessions s where s.agent_id = ${agentWorkItems.agentId} and s.oxy_user_id = ${agentWorkItems.ownerAccountId} and s.status in ('queued', 'running'))`,
+      ),
+    )
     .orderBy(agentWorkItems.dueAt, agentWorkItems.id)
     .limit(100);
 }

@@ -19,7 +19,7 @@ import { createOxyTask, revokeOxyTask } from '../oxy-task-authority';
 import { prepareBackgroundCreditReservation } from '../product-credit-access';
 import { getOrCreateUserCredits } from '../user-credits-helpers';
 import { enqueueAgentSession } from '../task-queue';
-import { canReachAgent } from '../agent-account';
+import { agentOpensOn } from '../agent-availability';
 import { log } from '../logger';
 import { agentHirePrice } from './session-handoff';
 
@@ -122,19 +122,15 @@ export async function dispatchAgentWork(now = new Date()): Promise<number> {
       const agent = await findAgentById(db, work.agentId);
       if (
         !agent ||
-        agent.ownerOxyAccountId !== work.ownerAccountId ||
+        (!work.sourceSessionId && agent.ownerOxyAccountId !== work.ownerAccountId) ||
         agent.status !== 'active' ||
         (work.kind === 'heartbeat' && !agent.scheduleInterval)
       )
         continue;
-      if (
-        (await canReachAgent(agent, {
-          oxyUserId: work.ownerAccountId,
-          accessToken: undefined,
-          surfaceApplicationId: null,
-        })) !== 'reachable'
-      )
-        continue;
+      // The requester already authorized this durable task. A private agent does
+      // not need the now-absent interactive bearer again; confinement stays live.
+      if ((await agentOpensOn(agent.oxyAccountId, null)) !== 'reachable')
+        throw new Error('Agent availability could not authorize this surface');
       await getOrCreateUserCredits(work.ownerAccountId);
       const reserve = await prepareBackgroundCreditReservation(
         work.ownerAccountId,
@@ -156,7 +152,7 @@ export async function dispatchAgentWork(now = new Date()): Promise<number> {
           if (
             !live ||
             live.status !== 'active' ||
-            live.ownerOxyAccountId !== work.ownerAccountId ||
+            (!work.sourceSessionId && live.ownerOxyAccountId !== work.ownerAccountId) ||
             (work.kind === 'heartbeat' && !live.scheduleInterval)
           )
             return null;
@@ -168,6 +164,29 @@ export async function dispatchAgentWork(now = new Date()): Promise<number> {
                   .where(eq(agentSessions.id, work.sourceSessionId))
               )[0]
             : null;
+          if (
+            work.sourceSessionId &&
+            (!source ||
+              source.agentId !== work.agentId ||
+              source.oxyUserId !== work.ownerAccountId ||
+              source.oxyTaskId !== work.oxyTaskId ||
+              source.oxyTaskRetiredAt)
+          )
+            return null;
+          if (work.kind === 'heartbeat') {
+            const authority = await findWorkAuthority(tx, work.agentId, work.ownerAccountId);
+            if (
+              !authority ||
+              authority.oxyTaskId !== work.oxyTaskId ||
+              authority.expiresAt <= now
+            ) {
+              await tx
+                .update(agentWorkItems)
+                .set({ status: 'failed', failure: 'needs_session', updatedAt: now })
+                .where(eq(agentWorkItems.id, work.id));
+              return null;
+            }
+          }
           if (source && ['queued', 'running'].includes(source.status)) return null;
           const [used] = await tx
             .select({
@@ -348,7 +367,7 @@ export async function autonomousWorkMayRun(sessionId: string): Promise<boolean> 
         eq(agentWorkItems.sessionId, sessionId),
         eq(agentWorkItems.status, 'running'),
         eq(agents.status, 'active'),
-        eq(agents.ownerOxyAccountId, agentWorkItems.ownerAccountId),
+        sql`(${agentWorkItems.sourceSessionId} is not null or ${agents.ownerOxyAccountId} = ${agentWorkItems.ownerAccountId})`,
         sql`(${agentWorkItems.kind} <> 'heartbeat' or ${agents.scheduleInterval} > 0)`,
       ),
     );
