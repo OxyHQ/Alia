@@ -107,7 +107,9 @@ A direct question to one member belongs to that member only. Do not activate som
 For general requests, select a relevant member only when it has a concrete contribution still missing. Reconsider after every answer; members do not have to take turns or all respond. A sufficient answer ends the conversation.
 A multi-person request can require distinct contributions in the order the person asked. Respect dependencies and exclusions, including instructions not to involve other members.
 Use reason handoff only for a real request by a member to another member within the person's task. Never hand off just because another name appears. Do not exceed the remaining handoff allowance.
-Choose idle/complete with null agentId when no further contribution is needed, including a closing thanks. Silence is a valid result; do not acknowledge just to produce text.
+A contribution may be a text answer or the member's own natural emoji reaction. A brief acknowledgement can be conveyed by a reaction rather than extra words; select only a relevant interlocutor when that adds something. Members are not required to react. Preserve every explicit recipient when the person asks multiple members to confirm with reactions.
+Recorded agent reactions already count as those members' contributions. Do not select a member to repeat its acknowledgement, and do not invite new participation merely because another member reacted. Reactions alone do not create a new task or handoff.
+Choose idle/complete with null agentId when no further contribution is needed, including a closing thanks that needs no acknowledgement. Silence is a valid result; do not acknowledge just to produce text.
 If the addressee cannot be determined unambiguously, choose clarify/ambiguous with the supplied clarificationSpeakerId. That member will ask one clarification only.
 If a directed recipient is unavailable, choose unavailable/unavailable with its ID. Never substitute a different member for it.
 All agentIds must be exact roster IDs. Only available members can speak or clarify. Never select lastSpeakerId to speak again.
@@ -164,6 +166,7 @@ export function roomSelectionData(input: RoomSelectionInput): string {
         role: row.role,
         agentId: row.agentId ?? null,
         name: row.agentName,
+        ...(row.reactionEntries?.length ? { reactionEntries: row.reactionEntries } : {}),
         ...(row.reactions?.length
           ? { reactions: { sender: 'person', emojis: row.reactions } }
           : {}),
