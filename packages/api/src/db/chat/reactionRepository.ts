@@ -329,6 +329,7 @@ export async function listReactionContext(
       reactions: Array.isArray(row.reactions) ? (row.reactions as string[]) : [],
       revision: row.reactionRevision,
       targetActorId: await actorOf(db, userId, conversationId, row),
+      targetContent: row.content,
     })),
   );
 }
