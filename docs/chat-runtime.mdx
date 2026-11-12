@@ -118,11 +118,13 @@ stored replies reconcile on reload.
   memory, and every operation retains the original requester's authority.
 - **Silence is explicit.** A completed exchange or “gracias, era eso” can end without a new reply.
   This is distinct from empty model output, invalid routing, missing authority or inference failure;
-  those remain typed errors even after an earlier participant has produced a partial answer. HTTP waits for the chain, not a count of first-round responses. The
+  those remain typed errors even after an earlier participant has produced a partial answer.
+  Supersession and background continuation can also close an empty HTTP subscription successfully,
+  without claiming that an answer was produced. HTTP waits for the chain, not a count of first-round responses. The
   SDK accepts deliberate empty group completion and removes the empty lead placeholder, while
   ordinary empty responses and cut-off streams still fail.
 - **Bounded execution.** Retain the room lock across instances, 12 replies, 24 turns and 3 handoffs
-  per person message (both selection and speaking count toward the 24 operations), no consecutive self-answer, supersession by the newest person message and
+  per person message (both selection and speaking count toward the 24 operations), no consecutive substantive self-answer, supersession by the newest person message and
   60 replies per room per 10 minutes. Selection uses Oxy's utility resolver, a 10-second generation deadline,
   at most one retry and accounted usage. A returned generation is settled before roster validation;
   throwing inference calls release their reservations. No hardcoded model or fallback that wakes every member.

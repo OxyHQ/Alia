@@ -226,7 +226,10 @@ beforeAll(async () => {
   }
   try {
     const credential = createOxyInferenceCredential();
-    await credential();
+    const accessToken = typeof credential === 'function' ? await credential() : credential;
+    if (typeof accessToken !== 'string' || accessToken.length === 0) {
+      throw new Error('Alia workload returned no credential.');
+    }
   } catch {
     // Do not let SDK error serialization expose credential material in an evaluation report.
     throw new Error(
