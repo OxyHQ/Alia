@@ -208,6 +208,7 @@ export const messages = pgTable(
     vote: text({ enum: MESSAGE_VOTES as unknown as [string, ...string[]] }),
     /** The emoji the person left on this message (`domain/message-reactions.ts`), a JSON array of strings; NULL when none. */
     reactions: jsonb(),
+    reactionRevision: integer().notNull().default(0),
     toolInvocations: jsonb(),
     agentInfoId: text(),
     agentInfoName: text(),
