@@ -1,6 +1,6 @@
 /**
  * Opt-in real inference against production reaction tools and room selection.
- * Conversation mutations are in-memory; selector billing alone is mocked. No real
+ * Conversation mutations are in-memory; selector billing is mocked and validation is observed through an unchanged pass-through. No real
  * users, agents, database, Redis, connectors or balances are read or written.
  */
 import { generateText, type ModelMessage } from 'ai';
@@ -16,6 +16,7 @@ const metrics = vi.hoisted(() => ({
   toolModelSteps: 0,
   toolAttempts: 0,
   selectorInvocations: 0,
+  parsedDecisions: [] as Array<{ action: string; agentId: string | null; reason: string }>,
 }));
 vi.mock('../../../product-credit-access.js', () => ({
   reserveBackgroundProductCredits: vi.fn(async (userId: string) => ({
@@ -44,6 +45,70 @@ vi.mock('../../../credits-manager.js', () => ({
   ),
   refundReservation: vi.fn(async () => undefined),
 }));
+
+// Observe structured decisions without changing production validation: the exact real validator receives and returns the unchanged value.
+vi.mock('../../room/decision.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../room/decision.js')>();
+  return {
+    ...actual,
+    validateRoomDecision(
+      value: unknown,
+      input: import('../../room/decision.js').RoomSelectionInput,
+    ) {
+      const decision = value as Record<string, unknown>;
+      const memberIds = input.roster.map((member) => member.info.id);
+      metrics.parsedDecisions.push({
+        action: ['speak', 'idle', 'clarify', 'unavailable'].includes(String(decision?.action))
+          ? String(decision.action)
+          : 'other',
+        agentId:
+          decision?.agentId === null
+            ? null
+            : memberIds.includes(String(decision?.agentId))
+              ? String(decision.agentId)
+              : 'other',
+        reason: [
+          'directed',
+          'contribution',
+          'handoff',
+          'complete',
+          'ambiguous',
+          'unavailable',
+        ].includes(String(decision?.reason))
+          ? String(decision.reason)
+          : 'other',
+      });
+      return actual.validateRoomDecision(value, input);
+    },
+  };
+});
+
+function safeError(error: unknown): string {
+  const name = error instanceof Error ? error.name : '';
+  const message = error instanceof Error ? error.message : '';
+  const semantic = [
+    'Invalid idle decision',
+    'Room decision names a non-member',
+    'Invalid unavailable decision',
+    'Room decision selects an unavailable member',
+    'Invalid clarification decision',
+    'Invalid speaking reason',
+    'A room member cannot speak twice in a row',
+    'Invalid or exhausted handoff',
+    'Reaction participation must be a useful contribution by its recipient',
+  ];
+  if (semantic.includes(message)) return message;
+  return [
+    'TimeoutError',
+    'AbortError',
+    'ZodError',
+    'AI_NoObjectGeneratedError',
+    'AI_APICallError',
+    'AI_TypeValidationError',
+  ].includes(name)
+    ? name
+    : 'unclassified';
+}
 
 import { createAgentReactionTurn, reactionStepCalls } from '../agent-tool.js';
 import { selectRoomDecision } from '../../room/selector.js';
@@ -212,6 +277,16 @@ type RecordRow = {
     | 'criteria-failed';
   actions?: Action[];
   decisions?: Array<{ action: string; agentId: string | null }>;
+  diagnostic?: {
+    finishReason: string;
+    clean: boolean;
+    textLength: number;
+    has391: boolean;
+    completed: number;
+    reactionOnly: boolean;
+  };
+  errorCategory?: string;
+  parsedDecisions?: Array<{ action: string; agentId: string | null; reason: string }>;
 };
 const records: RecordRow[] = [];
 
@@ -269,7 +344,7 @@ async function evaluateTool(testCase: ToolCase, iteration: number): Promise<Reco
           metrics.toolAttempts += phase === 'prepared' ? 1 : -1;
         },
       }),
-      system: `${buildIdentityGuard({ agentName: actor.name })}\n\n${agentSectionHeading(actor.name)}\n\nAyuda con las preguntas y la revisión editorial de esta conversación.\n\n${turn.prompt}`,
+      system: `${buildIdentityGuard({ agentName: actor.name })}\n\n${agentSectionHeading(actor.name)}\n\nAyuda con las preguntas, los cálculos aritméticos y la revisión editorial de esta conversación.\n\n${turn.prompt}`,
       messages: testCase.messages,
       tools: { react_to_message: turn.tool },
       stopWhen: [stepBudget(4), turn.stopWhen],
@@ -347,9 +422,27 @@ async function evaluateTool(testCase: ToolCase, iteration: number): Promise<Reco
       passed: valid,
       latencyMs: Date.now() - started,
       outcome: valid ? outcome : 'criteria-failed',
+      diagnostic: {
+        finishReason: [
+          'stop',
+          'tool-calls',
+          'length',
+          'content-filter',
+          'error',
+          'other',
+          'unknown',
+        ].includes(result.finishReason)
+          ? result.finishReason
+          : 'other',
+        clean,
+        textLength: text.length,
+        has391: text.includes('391'),
+        completed,
+        reactionOnly,
+      },
       actions,
     };
-  } catch {
+  } catch (error) {
     // Never serialize provider exceptions, request headers, credentials or raw model output.
     return {
       label: testCase.label,
@@ -357,6 +450,7 @@ async function evaluateTool(testCase: ToolCase, iteration: number): Promise<Reco
       passed: false,
       latencyMs: Date.now() - started,
       outcome: 'inference-failed',
+      errorCategory: safeError(error),
       actions,
     };
   }
@@ -387,6 +481,7 @@ const selection = (rows: TranscriptRow[], lastSpeakerId: string | null): RoomSel
 async function evaluateSelection(label: string, iteration: number): Promise<RecordRow> {
   const started = Date.now();
   const decisions: Array<{ action: string; agentId: string | null }> = [];
+  const parsedStart = metrics.parsedDecisions.length;
   const isTwo = label === 'six-members-two-reaction-recipients';
   const request: TranscriptRow = {
     id: 'request',
@@ -445,15 +540,18 @@ async function evaluateSelection(label: string, iteration: number): Promise<Reco
       passed,
       latencyMs: Date.now() - started,
       outcome: passed ? 'selection' : 'criteria-failed',
+      parsedDecisions: metrics.parsedDecisions.slice(parsedStart),
       decisions,
     };
-  } catch {
+  } catch (error) {
     return {
       label,
       iteration,
       passed: false,
       latencyMs: Date.now() - started,
       outcome: 'inference-failed',
+      errorCategory: safeError(error),
+      parsedDecisions: metrics.parsedDecisions.slice(parsedStart),
       decisions,
     };
   }
