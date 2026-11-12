@@ -8,8 +8,9 @@ against real Oxy inference, followed by a staging room test for the complete exp
 ## Evaluation boundaries
 
 Use synthetic participant identities and text for selector evaluation. Do not run a live user's
-agents or their tools. Use an authenticated **Alia development workload** through the ordinary Oxy
-SDK path; never use another product's profile, customer API keys or direct provider credentials.
+agents or their tools. Use an approved **Alia workload** through the ordinary Oxy SDK path: a
+development role or an isolated evaluation task using Alia's existing registered task role.
+Never use another product's profile, customer API keys or direct provider credentials.
 The evaluation replaces only credit reservation/settlement with an in-memory test adapter. The
 production selector, prompt, schema and validator all run unchanged. No database balance is
 modified, but Oxy still meters real inference; this is an explicit opt-in evaluation, outside the
@@ -109,6 +110,39 @@ but starting a new database service was unnecessary.
 The Oxy workload-authentication probe stopped before the exchange: the AWS default identity was
 valid, but the SDK rejected its credentials because an Oxy workload requires temporary AWS role
 credentials with a session token and expiration. No Alia development assume-role/SSO profile was
-configured. Real selector inference and staging acceptance are therefore **not verified** by this
-probe. Supply an authenticated Alia development workload profile with a live Oxy binding to run
-them. No production credentials, account data or workload bindings were changed.
+configured. This local probe performed no inference. The later isolated task described below used
+Alia's existing registered ECS role successfully. No credentials, account data, IAM trust or
+workload bindings were changed.
+
+## Real-inference record — 2026-11-12
+
+Evaluated code: `1bca80b5d07b505f79f520abc08db77e1b0193ce` ([PR #1079](https://github.com/OxyHQ/Alia/pull/1079)).
+The exact committed production selector and 26-case Vitest fixture ran from a SHA256-verified
+archive; its dependency lock matched the runtime image. The one-shot task reused `oxy-alia:714`
+and the registered `oxy-alia-task` workload in `oxy-cluster`, with the live service's network,
+capacity provider and pinned image. Its outer command was Bun; a temporary official Node 24.21.0
+binary, verified against its published SHA256, ran Vitest. No image or service was deployed.
+
+Only runtime variables, the Oxy API URL and the ECS temporary-credential URI reached the test
+process. Database, Redis and unrelated secrets were absent. Only reservation/settlement were
+replaced with the existing in-memory adapter; there were no balance writes or agent/tool runs.
+Oxy still metered the inference. Its resolved model ID was `openai/gpt-oss-120b` in both runs;
+that records this evaluation, not a model selection in product code.
+
+| Run | Passed / total | Failed | Input / output tokens | Median / p95 / max latency |
+|---|---:|---:|---:|---:|
+| Smoke, one repetition | 26 / 26 | 0 | 18,868 / 1,993 | 1,648.5 / 7,030 / 7,761 ms |
+| Acceptance, ten repetitions | 260 / 260 | 0 | 190,216 / 20,521 | 2,693.5 / 3,411 / 6,769 ms |
+
+Every one of the 26 cases passed all ten acceptance repetitions. Combined with smoke, this is
+286 successful selections and zero failures. Latency is measured around each selector invocation;
+p95 uses the nearest rank. Smoke usage was 20,861 total tokens, acceptance usage was 210,737,
+and the combined measured total was 231,598 tokens.
+
+Both the smoke task `7138f72c5a9548ef88f1f198fbcbd3ff` and acceptance task
+`8c020c0d20564b07890e8282376a5058` were confirmed `STOPPED`, exit code 0, with the exact reviewed
+task revision and image digest. No evaluation task remains running.
+
+This is selector evidence for synthetic transcripts. Full staging UI, live agent execution and
+cross-instance runtime acceptance in the checklist above have **not** been performed by this
+evaluation.
