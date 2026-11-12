@@ -786,3 +786,76 @@ export async function listAgentReactionTargets(
     revision: row.reactionRevision,
   }));
 }
+
+/** Recover only this completed turn's touched targets, even after newer messages move them offscreen. */
+export async function listAgentReactionTurnSnapshots(
+  db: Executor,
+  userId: string,
+  conversationId: string,
+  actorId: string,
+  turnId: string,
+) {
+  return db.transaction(async (db) => {
+    await lockMessageThread(db, userId, conversationId);
+    const receipts = await db
+      .selectDistinct({
+        messageId: reactionEvents.messageId,
+        targetActorId: reactionEvents.targetActorId,
+      })
+      .from(reactionEvents)
+      .where(
+        and(
+          eq(reactionEvents.oxyUserId, userId),
+          eq(reactionEvents.conversationId, conversationId),
+          eq(reactionEvents.reactorAgentId, actorId),
+          eq(reactionEvents.reactionTurnId, turnId),
+          eq(reactionEvents.status, 'completed'),
+          eq(reactionEvents.responseEligible, false),
+        ),
+      )
+      .orderBy(asc(reactionEvents.messageId))
+      .limit(6);
+    if (!receipts.length) return [];
+    const rows = await db
+      .select(getTableColumns(messages))
+      .from(messages)
+      .innerJoin(
+        messageReactionStates,
+        and(
+          eq(messageReactionStates.oxyUserId, messages.oxyUserId),
+          eq(messageReactionStates.conversationId, messages.conversationId),
+          sql`${messageReactionStates.messageId} = coalesce(${messages.clientMessageId}, ${messages.id})`,
+        ),
+      )
+      .where(
+        and(
+          scope(userId, conversationId),
+          inArray(
+            messageReactionStates.messageId,
+            receipts.map((row) => row.messageId),
+          ),
+        ),
+      )
+      .limit(6);
+    const current = await hydrateReactionRows(db, userId, conversationId, rows);
+    const snapshots = [];
+    for (const row of current) {
+      const targetActorId = await actorOf(db, userId, conversationId, row);
+      if (
+        !receipts.some(
+          (receipt) =>
+            receipt.messageId === stableId(row) && receipt.targetActorId === targetActorId,
+        )
+      )
+        continue;
+      snapshots.push({
+        messageId: stableId(row),
+        reactions: Array.isArray(row.reactions) ? (row.reactions as string[]) : [],
+        reactionEntries: row.reactionEntries,
+        revision: row.reactionRevision,
+        mutationId: turnId,
+      });
+    }
+    return snapshots;
+  });
+}
