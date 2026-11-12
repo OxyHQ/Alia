@@ -1,3 +1,4 @@
+import type { MessageReactionUpdate } from './message-reactions';
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import { ALIA_API_URL } from '../lib/origins';
 import type { RoomEvent } from './room-events';
@@ -114,8 +115,13 @@ export interface AliaRuntimeHost {
     conversationId: string,
     listener: (message: Message) => void,
   ) => () => void;
+  /** Authoritative reaction changes on existing messages, including another device. */
+  subscribeConversationReactions?: (
+    conversationId: string,
+    listener: (update: MessageReactionUpdate) => void,
+  ) => () => void;
   /**
-   * The live events of a GROUP conversation's room (ADR 0025): the host's `group:event` socket
+   * Live actor responses (group turns or reactions in an agent chat): the host's `group:event` socket
    * event for this conversation. Returns the unsubscribe. Without it, what a group's members say
    * after the request ended appears on reload.
    */

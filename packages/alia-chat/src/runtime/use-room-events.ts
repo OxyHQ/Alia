@@ -10,8 +10,8 @@ import type { Message } from './types';
 
 /**
  * While a conversation is open, fold its room's events (`group:event`, ADR 0025) into the thread.
- * Only a group has a room, so for any other conversation the host never sends one. A host without
- * `subscribeRoomEvents` has no live room: members' replies then arrive on reload.
+ * Group turns and reaction-triggered agent replies share this lifecycle. A host without
+ * `subscribeRoomEvents` sees background replies on reload.
  */
 /**
  * How long a room may say nothing while a member still shows as typing before the thread stops

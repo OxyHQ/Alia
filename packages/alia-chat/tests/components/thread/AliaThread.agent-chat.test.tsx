@@ -153,12 +153,12 @@ vi.mock('../../../src/runtime/model', async (importOriginal) => ({
 // Stable across renders, as the real hook's API is (memoised on the Oxy client and the origin).
 const api = vi.hoisted(() => ({ patch: async () => ({}) }));
 vi.mock('../../../src/runtime/api', () => ({ useAliaApi: () => api }));
+vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ user: { id: 'u1' } }) }));
 // Stable across renders, as the real hook's `t` is (see `use-translation.ts`).
 const translation = vi.hoisted(() => ({ t: (key: string) => key, locale: 'en-GB' }));
 vi.mock('../../../src/lib/labels', () => ({ useLabels: () => translation }));
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ getQueryState: () => undefined }),
-}));
+const queryClient = vi.hoisted(() => ({ getQueryState: () => undefined }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => queryClient }));
 vi.mock('expo-clipboard', () => ({ setStringAsync: async () => true }));
 // The turn's actions reach TTS, dictation and Bloom's context menu; none of
 // them takes part in what a token re-renders. `stateOf` is stable, as the real

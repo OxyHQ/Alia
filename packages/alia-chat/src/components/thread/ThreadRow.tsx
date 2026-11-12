@@ -52,12 +52,18 @@ export interface ThreadActions {
   copy: (text: string) => Promise<boolean>;
   vote: (messageId: string, vote: Vote, conversationId: string | undefined) => void;
   /** The emoji left on a message: what this screen holds for it, and the tap that leaves or takes one. */
-  reactionsOf: (messageId: string, stored?: readonly string[]) => readonly string[];
+  reactionsOf: (
+    messageId: string,
+    stored?: readonly string[],
+    conversationId?: string,
+    revision?: number,
+  ) => readonly string[];
   react: (
     messageId: string,
     emoji: string,
     stored: readonly string[] | undefined,
     conversationId: string | undefined,
+    revision?: number,
   ) => void;
   readAloud: (messageId: string, text: string, conversationId: string | undefined) => void;
   /** Absent where the host has no thought panel: the "worked for" line is then plain text. */
@@ -392,11 +398,17 @@ function ReplyTurn({
   const moreActions = hasFeedback
     ? [readAloudAction, copyAction, regenerateAction, likeAction, dislikeAction].filter(isPresent)
     : [];
-  const reactions = actions.reactionsOf(message.id, message.reactions);
+  const reactions = actions.reactionsOf(
+    message.id,
+    message.reactions,
+    storedIn,
+    message.reactionRevision,
+  );
   const onReact =
     readOnly || message.isStreaming || text.length === 0
       ? undefined
-      : (emoji: string) => actions.react(message.id, emoji, message.reactions, storedIn);
+      : (emoji: string) =>
+          actions.react(message.id, emoji, message.reactions, storedIn, message.reactionRevision);
   const quote = actions.reply;
   const onReply =
     quote !== undefined && !readOnly && text.length > 0 ? () => quote(text) : undefined;
