@@ -7,6 +7,7 @@ import { servedModelId, servedReferenceOf } from '../../models/power-levels.js';
 import { log } from '../../logger.js';
 import {
   ROOM_SELECTION_SYSTEM,
+  REACTION_SELECTION_POLICY,
   RoomDecisionSchema,
   roomSelectionData,
   validateRoomDecision,
@@ -25,11 +26,13 @@ export async function selectRoomDecision(input: RoomSelectionInput): Promise<Roo
     const result = await generateObject({
       model: getAIModel(resolved, 'agent_run'),
       schema: RoomDecisionSchema,
-      system: ROOM_SELECTION_SYSTEM,
+      system: ROOM_SELECTION_SYSTEM + (input.trigger ? `\n\n${REACTION_SELECTION_POLICY}` : ''),
       prompt,
       maxOutputTokens: utilityOutputTokens(512),
       maxRetries: 1,
-      abortSignal: AbortSignal.timeout(10_000),
+      abortSignal: input.signal
+        ? AbortSignal.any([input.signal, AbortSignal.timeout(10_000)])
+        : AbortSignal.timeout(10_000),
     });
     const usage = result.usage;
     const { creditsCharged } = await finalizeCredits(

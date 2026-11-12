@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+vi.mock('../../../lib/chat/activity.js', () => ({
+  holdConversationActivity: vi.fn(async () => async () => undefined),
+}));
+vi.mock('../../../lib/chat/reaction-context.js', () => ({
+  conversationReactionContext: vi.fn(async () => ''),
+}));
+
 // ── Shared mock state (hoisted alongside vi.mock calls) ─────────────────────
 
 const {

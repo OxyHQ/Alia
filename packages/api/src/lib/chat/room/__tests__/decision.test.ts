@@ -34,6 +34,37 @@ const input: RoomSelectionInput = {
 };
 
 describe('room decision boundary', () => {
+  it('identifies a reacted-to message by the same stable ID in the trigger and attributed transcript', () => {
+    const data = JSON.parse(
+      roomSelectionData({
+        ...input,
+        triggerId: 'reaction-event',
+        trigger: {
+          kind: 'reaction',
+          eventId: 'reaction-event',
+          messageId: 'client-answer',
+          actorId: 'e',
+          senderId: 'u',
+          emoji: '❤️',
+          reactions: ['❤️'],
+        },
+        rows: [
+          ...input.rows,
+          {
+            id: 'new-database-row',
+            clientMessageId: 'client-answer',
+            role: 'assistant',
+            content: 'My answer',
+            agentId: 'e',
+            agentName: 'Eusebio',
+          },
+        ],
+      }),
+    );
+    expect(
+      data.messages.find((row: { id: string }) => row.id === data.trigger.messageId)?.content,
+    ).toBe('My answer');
+  });
   it('validates available roster IDs and quiet completion', () => {
     expect(
       validateRoomDecision({ action: 'speak', agentId: 'e', reason: 'directed' }, input).agentId,

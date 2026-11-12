@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { markConversationActive, clearConversationActive } from '../activity.js';
 import { findAgentById } from '../../../db/agents/agentRepository.js';
 import { findLatestUserMessage, listMessages } from '../../../db/chat/messageRepository.js';
 import { findSpaceByConversation } from '../../../db/spaces/spaceRepository.js';
@@ -148,25 +149,33 @@ export const prepareRoom: PrepareRoom = async (input) => {
   return {
     chainId: trigger.id,
     ready: roster.some((member) => member.available !== false),
-    start: () =>
-      enqueueRoomJob({
-        version: 2,
-        phase: 'select',
-        userId,
-        conversationId,
-        triggerId: trigger.id,
-        roster,
-        speakerId: '',
-        handedByAgentId: null,
-        pending: [],
-        depth: 0,
-        replies: 0,
-        turns: 0,
-        lastSpeakerId: null,
-        surfaceApplicationId: input.surfaceApplicationId,
-        space: spaceBrief,
-      } satisfies RoomJobData),
+    start: async () => {
+      await markConversationActive(userId, conversationId, trigger.id);
+      try {
+        await enqueueRoomJob({
+          version: 2,
+          phase: 'select',
+          userId,
+          conversationId,
+          triggerId: trigger.id,
+          roster,
+          speakerId: '',
+          handedByAgentId: null,
+          pending: [],
+          depth: 0,
+          replies: 0,
+          turns: 0,
+          lastSpeakerId: null,
+          surfaceApplicationId: input.surfaceApplicationId,
+          space: spaceBrief,
+        } satisfies RoomJobData);
+      } catch (error) {
+        await clearConversationActive(userId, conversationId, trigger.id);
+        throw error;
+      }
+    },
     abandon: async () => {
+      await clearConversationActive(userId, conversationId, trigger.id);
       await Promise.allSettled(taskIds.map((id) => revokeOxyTask(id)));
     },
   };
