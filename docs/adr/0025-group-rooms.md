@@ -133,6 +133,27 @@ history carries `reactionRevision`. This is an event on the existing connection,
 WebSocket route. [The runtime contract](../chat-runtime.mdx#reactions-are-conversation-feedback)
 defines the fields and recovery behavior.
 
+### Agents can author feedback
+
+An agent may react during its authorized turn to a person or peer message in that conversation.
+Bind the reactor to the executing actor on the server, check current membership and recheck the
+stored target and latest person message atomically. Do not accept author identity from the client
+or a model tool argument. This capability does not extend the tool authority of reaction-observation
+turns, and a reaction never constitutes consent or approval to act.
+
+Preserve the old `reactions` field as the owning person's emoji selection and add attributed
+`reactionEntries` for all authors. Store agent entries separately from that legacy projection,
+allowing several authors to use the same emoji independently. Use one monotonic snapshot revision,
+including for removals; an agent mutation may supersede an older observation but cannot enqueue
+one. Existing replacement, deletion and conversation ownership rules apply to every author.
+
+Agent tool receipts are durable and idempotent, but are not evidence of a successful whole turn.
+Persist a separate completion only after a clean reaction-only finish backed by the same
+actor/thread/turn's receipts. Fence it against supersession and use a canonical admitted-turn key
+that also distinguishes trigger content. Recovery delivers an already completed action without
+rerunning inference or creating an empty assistant message. This remains an internal Alia
+capability and an additive payload on its existing socket event, with no new Oxy authority contract.
+
 ### Bounds
 
 | Bound | Value | Reason |
