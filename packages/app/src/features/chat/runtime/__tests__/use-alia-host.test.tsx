@@ -4,7 +4,7 @@ import type { AliaRuntimeHost } from '@alia.onl/sdk/runtime';
 
 /**
  * What the app does when a server tool finishes: the tools that change what other screens show
- * (the memory document, the person's own agents) refresh it, and the rest touch nothing.
+ * (the memory document) refresh it, and the rest touch nothing.
  */
 
 const invalidated: unknown[] = [];
@@ -26,9 +26,6 @@ vi.mock('@clarity.surf/sdk', () => ({ resolveFaviconUrl: () => undefined }));
 vi.mock('@oxy.so/bloom/hooks', () => ({ useHaptics: () => () => undefined }));
 vi.mock('@/features/chat/runtime/global-store', () => ({ useStore: { getState: () => ({}) } }));
 vi.mock('@/features/chat/runtime/model-store', () => ({ useModelStore: { getState: () => ({}) } }));
-vi.mock('@/features/chat/runtime/use-agent-row-preview', () => ({
-  useAgentRowPreview: () => vi.fn(),
-}));
 vi.mock('@/features/chat/runtime/ui-store', () => ({ useUIStore: { getState: () => ({}) } }));
 vi.mock('@/features/memory/runtime/use-user-data', () => ({
   USER_MEMORY_QUERY_KEY: ['user-memory'],
@@ -43,7 +40,6 @@ vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: () => ({}) 
 
 import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
 import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
-import { queryKeys } from '@/shared/api/query-keys';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -62,7 +58,7 @@ function host(): AliaRuntimeHost {
 const finish = (name: string) =>
   host().onToolResult?.({ toolCallId: 't1', name, output: {} } as never);
 
-describe('a group chat’s room', () => {
+describe('a conversation’s room (the replies a reaction starts)', () => {
   it('listens to group:event on the notifications socket for its own conversation only, and lets go', () => {
     const handlers = new Map<string, (event: unknown) => void>();
     const release = vi.fn();
@@ -115,14 +111,6 @@ describe('saved message reactions', () => {
 });
 
 describe('a server tool finishing', () => {
-  it('refreshes the sidebar’s agents when Alia creates or changes one', () => {
-    for (const name of ['createAgent', 'updateAgent']) {
-      invalidated.length = 0;
-      finish(name);
-      expect(invalidated, name).toContainEqual(queryKeys.agents.mine);
-    }
-  });
-
   it('refreshes the memory document when it is rewritten, and nothing for other tools', () => {
     invalidated.length = 0;
     finish('saveUserMemory');

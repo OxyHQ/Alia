@@ -7,7 +7,6 @@ import { AccountsSection } from './accounts-section';
 import { BillingSection } from './billing-section';
 import { ConnectorDetailSection } from './connector-detail-section';
 import { ConnectorsSection } from './connectors-section';
-import { ExternalAgentsSection } from './external-agents-section';
 import { GeneralSection } from './general-section';
 import { LocalModelsSection } from './local-models-section';
 import { MemorySection } from './memory-section';
@@ -26,7 +25,6 @@ const CONTENT: Record<string, ReactNode> = {
   storage: <StorageSection />,
   personalization: <PersonalizationSection />,
   accounts: <AccountsSection />,
-  'external-agents': <ExternalAgentsSection />,
   connectors: <ConnectorsSection />,
   'local-models': <LocalModelsSection />,
   usage: <BillingSection />,

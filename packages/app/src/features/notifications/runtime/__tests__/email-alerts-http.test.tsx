@@ -49,7 +49,7 @@ it.each(['projection', 'shell-unmount'] as const)(
     const server = createServer((request, response) => {
       requests.push(`${request.method} ${request.url}`);
       response.setHeader('content-type', 'application/json');
-      response.end(JSON.stringify({ alia: { enabled: false }, agents: [] }));
+      response.end(JSON.stringify({ alia: { enabled: false } }));
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     world.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -111,7 +111,7 @@ it.each(['projection', 'shell-unmount'] as const)(
         });
       });
       await act(async () => {
-        state.setEnabled(null, true);
+        state.setEnabled(true);
       });
       await entered;
       if (change === 'projection') {
@@ -168,12 +168,8 @@ it('drops an old response after an already dispatched request changes owner', as
     const subject = token
       ? JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).userId
       : null;
-    response.end(
-      JSON.stringify({
-        alia: { enabled: false },
-        agents: [{ agentId: subject, name: null, handle: null, color: null, enabled: false }],
-      }),
-    );
+    // Alia's switch, and an opaque marker of whose answer it is (the hook passes it through).
+    response.end(JSON.stringify({ alia: { enabled: false }, owner: subject }));
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   world.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -205,9 +201,11 @@ it('drops an old response after an already dispatched request changes owner', as
     await act(async () => {
       renderer = create(tree('A'));
     });
-    await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+    await vi.waitFor(() =>
+      expect((state.alerts as { owner?: string } | undefined)?.owner).toBe('A'),
+    );
     await act(async () => {
-      state.setEnabled(null, true);
+      state.setEnabled(true);
     });
     await requestArrived;
     world.userId = 'B';
@@ -217,7 +215,9 @@ it('drops an old response after an already dispatched request changes owner', as
       renderer.update(tree('B'));
     });
     finishResponse();
-    await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('B'));
+    await vi.waitFor(() =>
+      expect((state.alerts as { owner?: string } | undefined)?.owner).toBe('B'),
+    );
     expect(world.toastError).not.toHaveBeenCalled();
     expect(requests.filter((request) => request.startsWith('PUT '))).toHaveLength(1);
   } finally {

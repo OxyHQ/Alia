@@ -17,7 +17,6 @@ describe('which of the template panels the slot shows', () => {
   it('gives the slot to a panel something opened, and "canvas" means the code panel', () => {
     expect(workspacePanelKind('thought', [artifact('image')])).toBe('thought');
     expect(workspacePanelKind('credits', [])).toBe('credits');
-    expect(workspacePanelKind('agent', [])).toBe('agent');
     expect(workspacePanelKind('canvas', [artifact('image')])).toBe('code');
     expect(workspacePanelKind('gallery', [])).toBe('gallery');
   });

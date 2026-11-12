@@ -18,12 +18,11 @@ function ControlShape({ shape }: { shape: SettingsControlShape }) {
 }
 
 /**
- * The rows of a settings card that are on their way, for a card that holds other things too (a
- * list that is empty or full once it is here). Each row has Bloom's geometry (52 tall, 16 between
+ * The rows of a settings card that are on their way. Each row has Bloom's geometry (52 tall, 16 between
  * the label and its control, the hairline under all but the last), with the label and the control
  * drawn as placeholders: the row holds its place and nothing moves when the data arrives.
  */
-export function SettingsSkeletonRows({
+function SettingsSkeletonRows({
   rows = 1,
   control = 'value',
 }: {

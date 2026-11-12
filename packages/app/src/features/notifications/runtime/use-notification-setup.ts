@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import apiClient from '@/shared/api/client';
 import i18n from '@/shared/i18n';
 import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
 import { queryKeys } from '@/shared/api/query-keys';
+import { gemieThreadUrl } from '@/shared/routing/gemies';
 
 // ── Constants ──────────────────────────────────────────────────────
 const PROJECT_ID =
@@ -99,10 +100,9 @@ export function useNotificationSetup() {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       if (!isAuthenticated) return;
       const data = response.notification.request.content.data;
-      // An agent's message opens its permanent thread (`/@handle`), where the
-      // conversation lives, not the plain `/c/:id` screen.
+      // A gemie's message opens its thread in Gemies, where the gemies live; this app is Alia's.
       if (typeof data?.agentHandle === 'string' && data.agentHandle) {
-        router.push(`/@${data.agentHandle}`);
+        void Linking.openURL(gemieThreadUrl(data.agentHandle));
       } else if (data?.conversationId) {
         router.push(`/(app)/c/${data.conversationId}`);
       }
@@ -187,23 +187,14 @@ export function useNotificationSetup() {
     };
     socket.on('notification', onNotification);
 
-    // An agent wrote into a conversation on its own. The open chat appends it
-    // itself (`use-chat-conversation`); everything else that shows the
-    // conversation — the sidebar, the thread history — is refetched.
-    const onConversationMessage = (event: {
-      conversationId?: string;
-      agentHandle?: string | null;
-    }) => {
+    // Somebody wrote into a conversation on their own (a task's result, a check-in). The open chat
+    // appends it itself (`use-chat-conversation`); everything else that shows the conversation —
+    // the sidebar — is refetched.
+    const onConversationMessage = (event: { conversationId?: string }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
       if (event.conversationId) {
         queryClient.invalidateQueries({
           queryKey: queryKeys.conversations.detail(event.conversationId),
-        });
-      }
-      if (event.agentHandle) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(event.agentHandle) });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.agents.threadMessages(event.agentHandle),
         });
       }
     };

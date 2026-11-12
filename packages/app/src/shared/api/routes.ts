@@ -10,7 +10,7 @@ export const API_ROUTES = {
     resetPassword: '/auth/reset-password',
   },
 
-  /** "Avísame de emails importantes", per actor: Alia and each owned agent. */
+  /** "Avísame de emails importantes" from Alia, about the person's Inbox. */
   emailAlerts: '/notifications/email-alerts',
 
   /**
@@ -39,70 +39,6 @@ export const API_ROUTES = {
     generate: '/skills/generate',
     import: '/skills/import',
     install: (id: string) => `/skills/${id}/install`,
-  },
-
-  /** Spaces: folders that group the person's agents (ADR 0028). */
-  spaces: {
-    list: '/spaces',
-    detail: (id: string) => `/spaces/${encodeURIComponent(id)}`,
-    member: (id: string, agentId: string) =>
-      `/spaces/${encodeURIComponent(id)}/members/${encodeURIComponent(agentId)}`,
-  },
-
-  // Agents routes
-  agents: {
-    list: '/agents',
-    me: '/agents/me',
-    /** External agents: coding-agent CLIs the person connected (ADR 0030). */
-    external: {
-      list: '/agents/external',
-      pair: '/agents/external/pair',
-      remove: (agentId: string) => `/agents/external/${encodeURIComponent(agentId)}`,
-    },
-    get: (id: string) => `/agents/${id}`,
-    /**
-     * The permanent thread between the caller and one agent, resolved-or-created
-     * from the agent's Oxy username. Answers 404 both for an agent that does not
-     * exist and for one the caller cannot reach — a 403 would confirm it exists.
-     */
-    thread: (username: string) => `/agents/thread/${encodeURIComponent(username)}`,
-    /**
-     * A page of that thread, oldest-first, crossing the seams between the
-     * conversations it is made of. `before=<cursor>` walks backwards; the
-     * cursors come from the messages themselves.
-     */
-    /**
-     * Everything said in the thread that matches, across every conversation in
-     * it. Each hit carries the cursor that opens the window containing it,
-     * which is what makes a result reachable rather than just visible.
-     */
-    create: '/agents',
-    /** One agent's card by its Oxy handle: what `/@username/details` and `/@username/edit` read. */
-    byHandle: (username: string) => `/agents/handle/${encodeURIComponent(username)}`,
-    update: (id: string) => `/agents/${id}`,
-    delete: (id: string) => `/agents/${id}`,
-    threads: (id: string) => `/agents/${id}/threads`,
-    threadById: (threadId: string) => `/agents/threads/${threadId}`,
-    memory: (id: string) => `/agents/${id}/memory`,
-    /** What the agent subscribes to, and what is waiting in its inbox (ADR 0026). */
-    subscriptions: (id: string) => `/agents/${id}/subscriptions`,
-    subscription: (id: string, subscriptionId: string) =>
-      `/agents/${id}/subscriptions/${subscriptionId}`,
-    inbox: (id: string) => `/agents/${id}/inbox`,
-    activityGrid: (id: string) => `/agents/${id}/activity-grid`,
-    status: (id: string) => `/agents/${id}/status`,
-    reviews: (id: string) => `/agents/${id}/reviews`,
-    /** The agent's computer as the caller sees it — always the caller's own (`routes/agents/computer.ts`). */
-    computer: (id: string) => `/agents/${id}/computer`,
-    computerStart: (id: string) => `/agents/${id}/computer/start`,
-    computerFiles: (id: string, path: string) =>
-      `/agents/${id}/computer/files?path=${encodeURIComponent(path)}`,
-    computerReceipts: (id: string) => `/agents/${id}/computer/receipts`,
-    computerScreenshot: (id: string) => `/agents/${id}/computer/browser/screenshot`,
-    computerBrowserOpen: (id: string) => `/agents/${id}/computer/browser/open`,
-    computerBrowserNavigate: (id: string) => `/agents/${id}/computer/browser/navigate`,
-    computerBrowserInput: (id: string) => `/agents/${id}/computer/browser/input`,
-    computerBrowserControl: (id: string) => `/agents/${id}/computer/browser/control`,
   },
 
   // Library routes
@@ -134,7 +70,7 @@ export const API_ROUTES = {
    *
    * Under `/shows`, not `/v1/shows`. `/v1` is a frozen compatibility surface
    * that ADR 0004 closes to new routes, and shows are an Alia product resource
-   * — so they moved beside `/conversations`, `/skills` and `/agents`, which is
+   * — so they moved beside `/conversations` and `/skills`, which is
    * where the workstream 1 inventory had already assigned them.
    */
   shows: {

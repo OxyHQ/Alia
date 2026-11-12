@@ -4,19 +4,13 @@ import type { CanvasArtifact, RightPanel } from '@/features/chat/runtime/ui-stor
  * Which panel the right slot shows. Its own module so that what OPENS the panel
  * (the chat menu, the shell's label) can decide without mounting the panels.
  */
-export type WorkspacePanelKind = 'code' | 'gallery' | 'thought' | 'credits' | 'agent' | 'editor';
+export type WorkspacePanelKind = 'code' | 'gallery' | 'thought' | 'credits';
 
 export function workspacePanelKind(
   rightPanel: RightPanel,
   artifacts: readonly CanvasArtifact[],
 ): WorkspacePanelKind {
-  if (
-    rightPanel === 'thought' ||
-    rightPanel === 'credits' ||
-    rightPanel === 'agent' ||
-    rightPanel === 'editor'
-  )
-    return rightPanel;
+  if (rightPanel === 'thought' || rightPanel === 'credits') return rightPanel;
   if (rightPanel === 'gallery') return 'gallery';
   if (rightPanel === 'canvas') return 'code';
   return artifacts[artifacts.length - 1]?.type === 'image' ? 'gallery' : 'code';

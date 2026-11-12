@@ -60,10 +60,8 @@ vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
     DropdownMenuContent: host('Content'),
     DropdownMenuItem: host('MenuItem'),
     DropdownMenuSeparator: host('Separator'),
-    DropdownMenuLabel: host('MenuLabel'),
   };
 });
-vi.mock('@oxy.so/bloom/agent-avatar', () => ({ AgentAvatar: () => null }));
 vi.mock('@oxy.so/bloom/button', () => ({ Button: () => null }));
 const surfaces = vi.hoisted(() => ({
   confirm: vi.fn(async (_options: Record<string, unknown>) => true),
@@ -72,14 +70,12 @@ vi.mock('@oxy.so/bloom/surfaces', () => surfaces);
 for (const icon of [
   'RiDeleteBinLine',
   'RiDeleteBin6Line',
-  'RiTerminalBoxLine',
   'RiDownloadLine',
   'RiMoreFill',
   'RiSearchLine',
   'RiMenuLine',
   'RiShareLine',
   'RiShare2Line',
-  'RiGroupLine',
   'RiEyeOffLine',
 ]) {
   vi.doMock(`@oxy.so/bloom/icons/${icon}`, () => ({ [icon]: () => null }));
@@ -222,25 +218,17 @@ describe('ChatHeaderActions', () => {
   });
 });
 
-describe('ChatHeaderActions — clear and terminal', () => {
+describe('ChatHeaderActions — clear', () => {
   const item = (r: ReactTestRenderer, label: string) =>
     all(r, 'MenuItem').find((node) => node.props.children === label);
 
-  it('offers "Clear conversation" and the agent terminal only when the screen can do them', () => {
+  it('offers "Clear conversation" only when the screen can do it', () => {
     let r = render(<ChatHeaderActions onExport={vi.fn()} />);
     expect(item(r, 'chatHeader.clearConversation')).toBeUndefined();
-    expect(item(r, 'chatHeader.agentTerminal')).toBeUndefined();
     act(() => renderer?.unmount());
 
-    r = render(
-      <ChatHeaderActions
-        onExport={vi.fn()}
-        onClear={vi.fn(async () => true)}
-        onOpenTerminal={vi.fn()}
-      />,
-    );
+    r = render(<ChatHeaderActions onExport={vi.fn()} onClear={vi.fn(async () => true)} />);
     expect(item(r, 'chatHeader.clearConversation')?.props.tone).toBe('danger');
-    expect(item(r, 'chatHeader.agentTerminal')).toBeDefined();
   });
 
   it('asks before clearing, and clears only on a yes', async () => {
@@ -275,13 +263,6 @@ describe('ChatHeaderActions — clear and terminal', () => {
     });
     expect(onClear).toHaveBeenCalledOnce();
     await act(async () => finish(true));
-  });
-
-  it('opens the terminal through the screen', () => {
-    const onOpenTerminal = vi.fn();
-    const r = render(<ChatHeaderActions onExport={vi.fn()} onOpenTerminal={onOpenTerminal} />);
-    act(() => item(r, 'chatHeader.agentTerminal')?.props.onPress());
-    expect(onOpenTerminal).toHaveBeenCalledOnce();
   });
 });
 

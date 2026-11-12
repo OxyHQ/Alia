@@ -14,7 +14,6 @@ import type { CreditsInfo } from '@/features/billing/runtime/use-credits';
 import { parseContextUsage } from '@/features/chat/model/context-usage';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useModelStore } from '@/features/chat/runtime/model-store';
-import { useAgentRowPreview } from '@/features/chat/runtime/use-agent-row-preview';
 import type { UsageWarning } from '@/features/chat/runtime/use-credit-warnings';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { USER_MEMORY_QUERY_KEY } from '@/features/memory/runtime/use-user-data';
@@ -31,21 +30,17 @@ const MEMORY_WRITING_TOOLS = new Set([
   'updateUserContext',
 ]);
 
-/** Server tools that create or change the person's agents (`lib/tools/agent-create.ts`, `agent-manage.ts`). */
-const AGENT_WRITING_TOOLS = new Set(['createAgent', 'updateAgent']);
-
 /**
  * What the Alia app tells the SDK's conversation runtime about itself.
  *
  * The runtime — transport, cache, streaming, drafts, failed turns — is the SDK's, the same one the
  * bottom sheet runs. This is only what belongs to the app around it: its routes, its credits and
- * memory, its right panel and its sidebar's agent rows.
+ * memory and its right panel.
  */
 export function useAliaHost(): AliaRuntimeHost {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const previewAgentRow = useAgentRowPreview();
   const haptic = useHaptics();
 
   // Read when a conversation is opened, not when the host is built: a pathname that changed
@@ -83,14 +78,10 @@ export function useAliaHost(): AliaRuntimeHost {
           });
         }
       },
-      // The assistant just rewrote the memory document, or made or changed one of the person's
-      // agents, so any screen showing them (the sidebar's agent rows) is out of date.
+      // The assistant just rewrote the memory document, so any screen showing it is out of date.
       onToolResult: ({ name }) => {
         if (name && MEMORY_WRITING_TOOLS.has(name)) {
           void queryClient.invalidateQueries({ queryKey: USER_MEMORY_QUERY_KEY });
-        }
-        if (name && AGENT_WRITING_TOOLS.has(name)) {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.agents.mine });
         }
       },
       onArtifact: (artifact) => {
@@ -102,9 +93,6 @@ export function useAliaHost(): AliaRuntimeHost {
         const usage = parseContextUsage(payload);
         if (usage) useUIStore.getState().setContextUsage(conversationId, usage);
       },
-      onAgentTurn: ({ turnId, agentId, conversationId }) =>
-        useUIStore.getState().openAgentPanel(turnId, agentId, conversationId),
-      onTurnPreview: previewAgentRow,
       // The work of a turn is read in the right panel. A running turn's first tool opens it only
       // while nothing else is open: a reader who has the canvas up keeps it.
       showThought: (opening) => {
@@ -137,7 +125,7 @@ export function useAliaHost(): AliaRuntimeHost {
           release();
         };
       },
-      // Group turns and reaction-triggered replies share the room lifecycle.
+      // The replies a reaction starts run in the conversation's room.
       subscribeRoomEvents: (conversationId, listener) => {
         const { socket, release } = acquireNotificationsSocket();
         const onGroupEvent = (event: RoomEvent) => {
@@ -158,6 +146,6 @@ export function useAliaHost(): AliaRuntimeHost {
       },
       closeConversation: () => router.replace('/(app)'),
     }),
-    [queryClient, previewAgentRow, router, haptic],
+    [queryClient, router, haptic],
   );
 }

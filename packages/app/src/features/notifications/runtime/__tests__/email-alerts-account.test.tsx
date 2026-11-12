@@ -62,10 +62,13 @@ import { useAccountLifecycle } from '@/shell/account-lifecycle';
 import { getAccountProjection } from '@/shared/state/account-epoch';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-const alerts = (id: string) => ({
-  alia: { enabled: false },
-  agents: [{ agentId: id, name: id, handle: null, color: null, enabled: false }],
-});
+/**
+ * Alia's switch, and an opaque marker of whose answer it is: the hook hands the server's answer
+ * through as it is, so the marker tells two accounts' (or two versions') data apart.
+ */
+const alerts = (id: string) => ({ alia: { enabled: false }, owner: id });
+/** Whose answer the hook is showing. */
+const shownOwner = () => (state.alerts as { owner?: string } | undefined)?.owner;
 let client: QueryClient;
 let renderer: ReactTestRenderer;
 let state: ReturnType<typeof useEmailAlerts>;
@@ -107,9 +110,9 @@ it('does not restore account A email alerts or show its error after account B is
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   world.account = 'B';
@@ -118,14 +121,14 @@ it('does not restore account A email alerts or show its error after account B is
   await act(async () => {
     renderer.update(tree('B'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('B'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('B'));
   await act(async () => {
     rejectA(new Error('offline'));
   });
   expect(
     client
-      .getQueriesData<{ agents: Array<{ agentId: string }> }>({ queryKey: ['email-alerts'] })
-      .find(([key]) => key[1] === 'B')?.[1]?.agents[0]?.agentId,
+      .getQueriesData<{ owner: string }>({ queryKey: ['email-alerts'] })
+      .find(([key]) => key[1] === 'B')?.[1]?.owner,
   ).toBe('B');
   expect(world.toast.error).not.toHaveBeenCalled();
 });
@@ -147,12 +150,12 @@ it('attempts once offline under Services 13.11 defaults and suppresses toast aft
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   act(() => {
     onlineManager.setOnline(false);
   });
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   expect(client.getMutationCache().getAll()[0].state.isPaused).toBe(false);
@@ -180,9 +183,9 @@ it('rejects a late A rollback after observed A to B to A, even with the original
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A-old'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A-old'));
   await act(async () => {
-    state.setEnabled('A-old', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   version = 'B';
@@ -192,7 +195,7 @@ it('rejects a late A rollback after observed A to B to A, even with the original
   await act(async () => {
     renderer.update(tree('B'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('B'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('B'));
   version = 'A-new';
   world.account = 'A';
   world.bearer = 'A';
@@ -200,11 +203,11 @@ it('rejects a late A rollback after observed A to B to A, even with the original
   await act(async () => {
     renderer.update(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A-new'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A-new'));
   await act(async () => {
     reject(new Error('offline'));
   });
-  expect(state.alerts?.agents[0]?.agentId).toBe('A-new');
+  expect(shownOwner()).toBe('A-new');
   expect(world.toast.error).not.toHaveBeenCalled();
 });
 
@@ -221,9 +224,9 @@ it('aborts a pending request when the committed session changes without changing
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   world.session = 'session-A-2';
@@ -249,9 +252,9 @@ it('does not dispatch a prepared A mutation after account B commits', async () =
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   act(() => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(finishCancellation).toBeTypeOf('function'));
   world.account = 'B';
@@ -291,9 +294,9 @@ it('preserves a pending same-owner request across screen unmount without a stale
   await act(async () => {
     renderer = create(screenTree(true));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   await act(async () => {
@@ -328,12 +331,12 @@ it('resumes a paused same-owner mutation after screen unmount without serializin
   await act(async () => {
     renderer = create(screenTree(true));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   act(() => {
     onlineManager.setOnline(false);
   });
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   const queued = client.getMutationCache().getAll()[0];
   expect(queued.state.isPaused).toBe(true);
@@ -349,58 +352,7 @@ it('resumes a paused same-owner mutation after screen unmount without serializin
   client.unmount();
 });
 
-it('does not undo a later toggle for a different agent when the first fails', async () => {
-  const initial = {
-    alia: { enabled: false },
-    agents: [
-      { agentId: 'one', name: 'one', handle: null, color: null, enabled: false },
-      { agentId: 'two', name: 'two', handle: null, color: null, enabled: false },
-    ],
-  };
-  let server = initial;
-  world.api.get.mockImplementation(async () => ({ data: server }));
-  let rejectFirst!: (error: Error) => void;
-  world.api.put
-    .mockImplementationOnce(
-      () =>
-        new Promise((_resolve, reject) => {
-          rejectFirst = reject;
-        }),
-    )
-    .mockImplementation(async () => {
-      server = {
-        ...initial,
-        agents: initial.agents.map((agent) =>
-          agent.agentId === 'two' ? { ...agent, enabled: true } : agent,
-        ),
-      };
-      return { data: {} };
-    });
-  await act(async () => {
-    renderer = create(tree('A'));
-  });
-  await vi.waitFor(() => expect(state.alerts?.agents).toHaveLength(2));
-  await act(async () => {
-    state.setEnabled('one', true);
-  });
-  await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
-  await act(async () => {
-    state.setEnabled('two', true);
-  });
-  await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(2));
-  await vi.waitFor(() => expect(state.alerts?.agents[1]?.enabled).toBe(true));
-  await act(async () => {
-    rejectFirst(new Error('offline'));
-  });
-  const entry = client
-    .getQueriesData<{ agents: Array<{ agentId: string; enabled: boolean }> }>({
-      queryKey: ['email-alerts'],
-    })
-    .find(([key]) => key[1] === 'A')?.[1];
-  expect(entry?.agents.map((agent) => agent.enabled)).toEqual([false, true]);
-});
-
-it('does not undo a newer toggle of the same agent when an older request fails last', async () => {
+it('does not undo a newer toggle when an older request fails last', async () => {
   let server = alerts('A');
   world.api.get.mockImplementation(async () => ({ data: server }));
   let failFirst!: (error: Error) => void;
@@ -412,29 +364,29 @@ it('does not undo a newer toggle of the same agent when an older request fails l
         }),
     )
     .mockImplementation(async () => {
-      server = { ...server, agents: server.agents.map((agent) => ({ ...agent, enabled: false })) };
+      server = { ...server, alia: { enabled: false } };
       return { data: {} };
     });
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   await act(async () => {
-    state.setEnabled('A', false);
+    state.setEnabled(false);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(2));
   await act(async () => {
     failFirst(new Error('offline'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.enabled).toBe(false));
+  await vi.waitFor(() => expect(state.alerts?.alia.enabled).toBe(false));
   expect(world.toast.error).not.toHaveBeenCalled();
 });
 
-it('does not dispatch an older same-agent toggle that was delayed during preparation', async () => {
+it('does not dispatch an older toggle that was delayed during preparation', async () => {
   world.api.get.mockResolvedValue({ data: alerts('A') });
   world.api.put.mockResolvedValue({ data: {} });
   let finishFirst!: () => void;
@@ -447,20 +399,20 @@ it('does not dispatch an older same-agent toggle that was delayed during prepara
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   act(() => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(finishFirst).toBeTypeOf('function'));
   await act(async () => {
-    state.setEnabled('A', false);
+    state.setEnabled(false);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   await act(async () => {
     finishFirst();
   });
   expect(world.api.put).toHaveBeenCalledTimes(1);
-  expect(world.api.put.mock.calls[0][1]).toEqual({ agentId: 'A', enabled: false });
+  expect(world.api.put.mock.calls[0][1]).toEqual({ agentId: null, enabled: false });
   expect(world.toast.error).not.toHaveBeenCalled();
 });
 
@@ -478,9 +430,9 @@ it('keeps a pending same-owner request when its session id arrives during recove
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   world.session = 'session-A';
@@ -506,9 +458,9 @@ it('hides the old query when signed out and drops its late mutation error', asyn
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   world.account = null;
@@ -530,7 +482,7 @@ it('does not expose A or start B requests while B projection and A bearer disagr
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   world.account = 'B';
   world.session = 'session-B';
   await act(async () => {
@@ -539,7 +491,7 @@ it('does not expose A or start B requests while B projection and A bearer disagr
   expect(state.alerts).toBeUndefined();
   expect(world.api.get).toHaveBeenCalledTimes(1);
   await act(async () => {
-    state.setEnabled(null, true);
+    state.setEnabled(true);
   });
   expect(world.api.put).not.toHaveBeenCalled();
 });
@@ -555,12 +507,12 @@ it('does not replay a restored paused mutation without a registered mutation fun
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   act(() => {
     onlineManager.setOnline(false);
   });
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   const original = client.getMutationCache().getAll()[0];
   expect(original.state.isPaused).toBe(true);
@@ -596,12 +548,12 @@ it('releases a removed paused mutation without blocking a later change', async (
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   act(() => {
     onlineManager.setOnline(false);
   });
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   const removed = client.getMutationCache().getAll()[0];
   expect(removed.state.isPaused).toBe(true);
@@ -610,7 +562,7 @@ it('releases a removed paused mutation without blocking a later change', async (
     onlineManager.setOnline(true);
   });
   await act(async () => {
-    state.setEnabled('A', false);
+    state.setEnabled(false);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   await act(async () => {
@@ -626,12 +578,12 @@ it('restores a failed single change without forcing an unnecessary refetch', asy
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.toast.error).toHaveBeenCalledTimes(1));
-  expect(state.alerts?.agents[0]?.enabled).toBe(false);
+  expect(state.alerts?.alia.enabled).toBe(false);
   expect(world.api.get).toHaveBeenCalledTimes(1);
 });
 
@@ -641,7 +593,7 @@ it('does not invalidate the committed owner when a different projection suspends
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   let resume!: () => void;
   const pending = new Promise<void>((resolve) => {
     resume = resolve;
@@ -686,7 +638,7 @@ it('does not invalidate the committed owner when a different projection suspends
   });
   expect(attempted).toHaveBeenCalled();
   await act(async () => {
-    state.setEnabled('A', true);
+    state.setEnabled(true);
   });
   await vi.waitFor(() => expect(world.api.put).toHaveBeenCalledTimes(1));
   act(() => candidate.unmount());
@@ -702,14 +654,14 @@ it('rejects a retained action after the entire account shell unmounts while bear
   await act(async () => {
     renderer = create(tree('A'));
   });
-  await vi.waitFor(() => expect(state.alerts?.agents[0]?.agentId).toBe('A'));
+  await vi.waitFor(() => expect(shownOwner()).toBe('A'));
   const retained = state.setEnabled;
   await act(async () => {
     renderer.unmount();
   });
   expect(world.bearer).toBe('A');
   await act(async () => {
-    retained('A', true);
+    retained(true);
   });
   expect(world.api.put).not.toHaveBeenCalled();
 });
@@ -732,7 +684,7 @@ it('keeps an accepted request through StrictMode effect replay and aborts it on 
     useEffect(() => {
       if (hook.alerts && !started.current) {
         started.current = true;
-        hook.setEnabled('A', true);
+        hook.setEnabled(true);
       }
     }, [hook]);
     return null;

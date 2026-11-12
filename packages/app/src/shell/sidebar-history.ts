@@ -1,18 +1,23 @@
 import type { Conversation } from '@alia.onl/sdk/model';
 
 /**
- * What the sidebar's History lists: everything not already shown somewhere else.
+ * Whether a conversation is one of Alia's own chats, the only ones this app lists.
  *
- * Two exclusions, for the same reason. A conversation inside a project is listed
- * under its project. A conversation with an agent is one stretch of that agent's
- * THREAD, listed once by the agent above — without that, an agent somebody has
- * talked to five times puts five rows in History beside its single row in
- * Agents, which is the shape the permanent thread exists to replace.
+ * `GET /conversations` answers every conversation of the account, and the gemies' live in Gemies
+ * (`https://gemies.ai`): a gemie's thread (`agentId`), a group of gemies (`memberAgentIds`) and a
+ * space's room (`spaceId`). The wire spells Alia's own gemie as no `agentId`.
  *
- * `agentId` is checked for a usable VALUE rather than against `undefined`: the
- * wire carries an explicit `null` for every ordinary conversation, so comparing
- * to `undefined` keeps all of them and hides none — and comparing to `null`
- * alone would drop the ones restored from local storage, which have neither.
+ * Each field is checked for a usable VALUE rather than against `undefined`: the wire carries an
+ * explicit `null` (or `[]`) on every chat of Alia's, and a chat restored from local storage has
+ * neither.
+ */
+export function isAliaChat(conversation: Conversation): boolean {
+  return !conversation.agentId && !conversation.memberAgentIds?.length && !conversation.spaceId;
+}
+
+/**
+ * What the sidebar's History lists: Alia's chats not already shown somewhere else. A conversation
+ * inside a project is listed under its project.
  */
 export function conversationsForHistory(
   conversations: readonly Conversation[],
@@ -20,14 +25,14 @@ export function conversationsForHistory(
 ): Conversation[] {
   return conversations.filter(
     (conversation) =>
-      !conversation.agentId &&
+      isAliaChat(conversation) &&
       !projects.some((project) => project.conversationIds.includes(conversation.id)),
   );
 }
 
 /**
- * The sidebar's flat list of chats: the ones filed nowhere (not in a project, not in a folder, not
- * an agent's thread), pinned first, then favourites, then the rest by recency. No date buckets and
+ * The sidebar's flat list of chats: Alia's chats filed nowhere (not in a project, not in a
+ * folder), pinned first, then favourites, then the rest by recency. No date buckets and
  * no folders: an ordinary chat is a row, not a place.
  */
 export function flatConversations({
@@ -54,11 +59,11 @@ export function flatConversations({
 }
 
 /** The primary sidebar rows that are routes, keyed by the first path segment they own. */
-const ROUTE_ITEMS = ['agents', 'tasks', 'shows', 'notifications'] as const;
+const ROUTE_ITEMS = ['tasks', 'shows', 'notifications'] as const;
 
 /**
  * The sidebar's selected primary row for a pathname: its first segment, when
- * that is one of the rows (`/agents/abc` selects Agents). A chat is selected
+ * that is one of the rows (`/shows/abc` selects Shows). A chat is selected
  * through the tree instead, and every other route selects nothing.
  */
 export function selectedItemForPath(pathname: string): string | undefined {
@@ -116,9 +121,8 @@ export interface SidebarSections<P extends Filed, F extends Filed> {
  * of History — the same row twice in the same undifferentiated list is noise.
  * A chat both pinned and favourite is listed under Pinned only.
  *
- * Agent conversations stay out of all of it (see `conversationsForHistory`);
- * the agent's own row stands for them. Inside a project or folder, favourites
- * come first and recency decides the rest.
+ * Only Alia's chats are in any of it (`isAliaChat`). Inside a project or
+ * folder, favourites come first and recency decides the rest.
  */
 export function sidebarSections<P extends Filed, F extends Filed>({
   conversations,
@@ -139,7 +143,7 @@ export function sidebarSections<P extends Filed, F extends Filed>({
   const favorite = new Set(favoriteIds);
   const favoritesFirst = (rows: Conversation[]) =>
     rows.sort((a, b) => Number(favorite.has(b.id)) - Number(favorite.has(a.id)));
-  const ownChats = conversations.filter((conversation) => !conversation.agentId);
+  const ownChats = conversations.filter(isAliaChat);
   const unfiled = conversationsForHistory(conversations, projects);
   const inFolder = new Set(folders.flatMap((folder) => folder.conversationIds));
 
@@ -148,9 +152,7 @@ export function sidebarSections<P extends Filed, F extends Filed>({
     favorites: ownChats.filter((c) => favorite.has(c.id) && !pinned.has(c.id)),
     projects: projects.map((project) => ({
       project,
-      conversations: favoritesFirst(
-        conversations.filter((c) => project.conversationIds.includes(c.id)),
-      ),
+      conversations: favoritesFirst(ownChats.filter((c) => project.conversationIds.includes(c.id))),
     })),
     folders: folders.map((folder) => ({
       folder,

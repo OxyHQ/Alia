@@ -14,16 +14,6 @@ describe('the same opener on every top-level page', () => {
     readFileSync(fileURLToPath(new URL(`../${name}.tsx`, import.meta.url)), 'utf8');
 
   /**
-   * Agents stands on the same container; only the opener is pinned here, the
-   * rest of that page belongs to its own tests.
-   */
-  it('agents.tsx leaves the opener to the layout', () => {
-    const source = page('agents');
-    expect(source).not.toMatch(/drawer-toggle/);
-    expect(source).not.toContain('<DrawerToggle');
-  });
-
-  /**
    * Skills stands on the layout's `AiChatContainer`, whose mobile header owns
    * the menu button and whose crumb owns the title. A second opener, or a
    * second title, on the page itself is the duplicate this guards against.

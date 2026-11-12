@@ -42,19 +42,7 @@ import { APP_ROOT } from '@/shared/testing/app-root';
 /** Feature → the features it may import. Anything not here imports only `shared/`. */
 const ALLOWED: Record<string, readonly string[]> = {
   // memory and shows: the account lifecycle resets their stores (`src/shell/account-lifecycle.ts`).
-  shell: [
-    'agents',
-    'chat',
-    'library',
-    'memory',
-    'onboarding',
-    'projects',
-    'settings',
-    'shows',
-    'spaces',
-  ],
-  // spaces: the dialogs and rows name agents (`agentDisplayName`).
-  spaces: ['agents'],
+  shell: ['chat', 'library', 'memory', 'onboarding', 'projects', 'settings', 'shows'],
   settings: [
     'billing',
     'chat',
@@ -65,8 +53,6 @@ const ALLOWED: Record<string, readonly string[]> = {
     'notifications',
     'skills',
   ],
-  // notifications: an agent's own mailbox alert is a switch in its editor.
-  agents: ['chat', 'notifications'],
   chat: [
     'billing',
     'connections',
@@ -329,7 +315,7 @@ describe('the feature tree', () => {
   const tree = readTree();
 
   it('read the app, so an empty tree cannot pass as a clean one', () => {
-    expect(tree.filter((f) => f.path.startsWith('src/features/')).length).toBeGreaterThan(200);
+    expect(tree.filter((f) => f.path.startsWith('src/features/')).length).toBeGreaterThan(100);
     expect(tree.filter((f) => f.path.startsWith('app/')).length).toBeGreaterThan(40);
   });
 
@@ -436,7 +422,7 @@ describe('the gate catches', () => {
       rules([
         file(
           'src/features/chat/ui/__tests__/x.test.tsx',
-          '@/features/agents/ui/y',
+          '@/features/settings/ui/y',
           '@/shell/sidebar',
         ),
       ]),

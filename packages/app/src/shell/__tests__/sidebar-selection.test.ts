@@ -10,8 +10,6 @@ import { selectedItemForPath } from '../sidebar-history';
  */
 describe('selectedItemForPath', () => {
   it.each([
-    ['/agents', 'agents'],
-    ['/agents/abc', 'agents'],
     ['/tasks', 'tasks'],
     ['/skills/create', undefined],
     ['/shows/9', 'shows'],
@@ -20,10 +18,7 @@ describe('selectedItemForPath', () => {
     expect(selectedItemForPath(path)).toBe(key);
   });
 
-  it.each(['/', '/c/abc', '/settings/general', '/nate', '/agentsx'])(
-    '%s selects no row',
-    (path) => {
-      expect(selectedItemForPath(path)).toBeUndefined();
-    },
-  );
+  it.each(['/', '/c/abc', '/settings/general', '/nate', '/agents'])('%s selects no row', (path) => {
+    expect(selectedItemForPath(path)).toBeUndefined();
+  });
 });
