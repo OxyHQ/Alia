@@ -12,6 +12,16 @@ export const RoomDecisionSchema = z.object({
 });
 export type RoomDecision = z.infer<typeof RoomDecisionSchema>;
 export type RoomSpeakerDecision = RoomDecision & { action: 'speak' | 'clarify'; agentId: string };
+/** A person's feedback is observed conversation data, never a new instruction or approval. */
+export interface ReactionTrigger {
+  readonly kind: 'reaction';
+  readonly eventId: string;
+  readonly messageId: string;
+  readonly actorId: string;
+  readonly senderId: string;
+  readonly emoji: string;
+  readonly reactions: readonly string[];
+}
 export interface RoomSelectionInput {
   readonly userId: string;
   readonly conversationId: string;
@@ -21,6 +31,9 @@ export interface RoomSelectionInput {
   readonly lastSpeakerId: string | null;
   readonly depth: number;
   readonly space?: { readonly name: string; readonly instructions: string } | null;
+  readonly trigger?: ReactionTrigger;
+  /** Internal cancellation; never part of the serialized conversation data. */
+  readonly signal?: AbortSignal;
 }
 
 /** A clarification is one question from a stable participant, not an assignment of the task. */
@@ -37,6 +50,14 @@ export function clarificationSpeaker(input: RoomSelectionInput): string | null {
 /** Validate semantics as well as JSON shape. The model cannot widen authority or bypass bounds. */
 export function validateRoomDecision(value: unknown, input: RoomSelectionInput): RoomDecision {
   const decision = RoomDecisionSchema.parse(value);
+  if (input.trigger?.kind === 'reaction' && decision.action !== 'idle') {
+    if (
+      decision.action !== 'speak' ||
+      decision.agentId !== input.trigger.actorId ||
+      decision.reason !== 'contribution'
+    )
+      throw new Error('Reaction participation must be a useful contribution by its recipient');
+  }
   if (decision.action === 'idle') {
     if (decision.agentId !== null || decision.reason !== 'complete')
       throw new Error('Invalid idle decision');
@@ -84,9 +105,15 @@ If a directed recipient is unavailable, choose unavailable/unavailable with its 
 All agentIds must be exact roster IDs. Only available members can speak or clarify. Never select lastSpeakerId to speak again.
 Use reason directed for an outstanding request from the person, contribution for new useful input to an open group request, complete for idle. Do not invent requests or capabilities.`;
 
+export const REACTION_SELECTION_POLICY = `The trigger is a reaction event, not a new message or instruction from the person. Interpret its emoji together with the exact reacted-to message and surrounding conversation. Do not infer a new task, consent, permission, or approval to use tools from a reaction, including a thumbs-up or heart on a proposed action.
+Only the reaction's recipient may contribute, with speak/contribution. Choose idle/complete for ordinary appreciation, acknowledgement, or feedback with nothing useful to add. Never produce forced thanks, identity corrections, greetings, or a reply merely to show the reaction was noticed. A useful brief explanation or clarification may warrant one response. There are no handoffs, follow-on turns, or substitute recipients for a reaction.`;
+
 /** Bounded attributed data; no instructions, tools, or private agent memory are loaded here. */
 export function roomSelectionData(input: RoomSelectionInput): string {
-  const triggerIndex = input.rows.findIndex((row) => row.id === input.triggerId);
+  const reaction = input.trigger;
+  const triggerIndex = input.rows.findIndex((row) =>
+    reaction ? (row.clientMessageId ?? row.id) === reaction.messageId : row.id === input.triggerId,
+  );
   if (triggerIndex < 0) throw new Error('Room trigger missing');
   const rows = [
     ...input.rows.slice(Math.max(0, triggerIndex - 24), triggerIndex + 1),
@@ -99,6 +126,7 @@ export function roomSelectionData(input: RoomSelectionInput): string {
     throw new Error('Room space exceeds selection budget');
   return JSON.stringify({
     triggerId: input.triggerId,
+    ...(reaction ? { trigger: reaction } : {}),
     space: input.space ?? null,
     lastSpeakerId: input.lastSpeakerId,
     remainingHandoffs: MAX_MENTION_DEPTH - input.depth,
@@ -113,11 +141,14 @@ export function roomSelectionData(input: RoomSelectionInput): string {
     messages: rows
       .filter((row) => row.role === 'user' || row.role === 'assistant')
       .map((row) => ({
-        id: row.id,
+        id: reaction ? (row.clientMessageId ?? row.id) : row.id,
         role: row.role,
         agentId: row.agentId ?? null,
         name: row.agentName,
-        content: textOf(row.content).slice(0, row.id === input.triggerId ? 16000 : 4000),
+        ...(row.reactions?.length
+          ? { reactions: { sender: 'person', emojis: row.reactions } }
+          : {}),
+        content: textOf(row.content).slice(0, row === input.rows[triggerIndex] ? 16000 : 4000),
       })),
   });
 }

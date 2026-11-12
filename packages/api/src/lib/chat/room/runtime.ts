@@ -5,6 +5,7 @@
  */
 
 import { isUniqueViolation } from '@oxy.so/db';
+import type { Executor } from '../../../db/index.js';
 import type { RoomEngineDeps, RoomJobData } from './engine.js';
 import { abandonRoomChain, processRoomStep } from './engine.js';
 import { getRoomLock } from './lock.js';
@@ -29,6 +30,10 @@ export function roomRuntime(): RoomRuntime {
       return getRoomLock();
     },
     publish: async (event) => {
+      if (event.event === 'group.idle') {
+        const { clearConversationActive } = await import('../activity.js');
+        await clearConversationActive(event.userId, event.conversationId, event.chainId);
+      }
       const { publishRoomEvent } = await import('./bus.js');
       await publishRoomEvent(event);
     },
@@ -43,7 +48,9 @@ export function roomRuntime(): RoomRuntime {
     },
     loadTranscript: async (userId, conversationId) => {
       const { getDb } = await import('../../../db/index.js');
-      const { listMessages } = await import('../../../db/chat/messageRepository.js');
+      const { listMessages, toStoredMessage } = await import(
+        '../../../db/chat/messageRepository.js'
+      );
       const rows = await listMessages(getDb(), userId, conversationId);
       return rows.map((row) => ({
         id: row.id,
@@ -53,7 +60,9 @@ export function roomRuntime(): RoomRuntime {
         agentId: row.agentInfoId,
         seq: row.seq,
         createdAt: row.createdAt,
+        reactions: Array.isArray(row.reactions) ? (row.reactions as string[]) : [],
         agentName: row.agentInfoId === null ? null : (row.agentInfoName ?? ''),
+        agentInfo: toStoredMessage(row).agentInfo,
       }));
     },
     repliesSince: async (userId, conversationId, since) => {
@@ -78,39 +87,11 @@ export function roomRuntime(): RoomRuntime {
     },
     storeReply: async (input) => {
       const { getDb } = await import('../../../db/index.js');
-      const { findLastMessage, insertMessages } = await import(
-        '../../../db/chat/messageRepository.js'
-      );
-      const { upsertConversation } = await import('../../../db/chat/conversationRepository.js');
-      const db = getDb();
-      // Appended at the end: `seq` is where the client renders the message, and a concurrent
-      // writer (the person's next message, another room) may take the same one — retried on that.
       for (let attempt = 1; ; attempt++) {
-        const last = await findLastMessage(db, input.userId, input.conversationId);
-        const seq = last?.seq == null ? 0 : last.seq + 1;
-        const createdAt = new Date();
         try {
-          await insertMessages(db, [
-            {
-              conversationId: input.conversationId,
-              oxyUserId: input.userId,
-              clientMessageId: input.clientMessageId,
-              role: 'assistant',
-              content: input.content,
-              agentInfo: input.agentInfo,
-              seq,
-              createdAt,
-            },
-          ]);
-          await upsertConversation(db, {
-            oxyUserId: input.userId,
-            conversationId: input.conversationId,
-            lastMessage: input.content.slice(0, 100),
-            titleOnInsert: input.agentInfo.name,
-          });
-          return { id: input.clientMessageId, seq, createdAt };
-        } catch (err: unknown) {
-          if (attempt >= MAX_APPEND_ATTEMPTS || !isUniqueViolation(err, SEQ_INDEX)) throw err;
+          return await appendRoomReply(getDb(), input);
+        } catch (error) {
+          if (attempt >= MAX_APPEND_ATTEMPTS || !isUniqueViolation(error, SEQ_INDEX)) throw error;
         }
       }
     },
@@ -124,9 +105,66 @@ export function roomRuntime(): RoomRuntime {
   runtime = {
     deps,
     processStep: async (data) => {
-      await processRoomStep(data, deps);
+      const { holdConversationActivity } = await import('../activity.js');
+      const controller = new AbortController();
+      const stopRenewing = await holdConversationActivity(
+        data.userId,
+        data.conversationId,
+        data.triggerId,
+        () => controller.abort(),
+        { clearOnStop: false },
+      );
+      try {
+        await processRoomStep(data, {
+          ...deps,
+          select: (input) => deps.select!({ ...input, signal: controller.signal }),
+          runTurn: (input) => deps.runTurn({ ...input, signal: controller.signal }),
+          publish: async (event) => {
+            // Drain an in-flight renewal before clearing: it must not resurrect an idle chain.
+            if (event.event === 'group.idle') await stopRenewing();
+            await deps.publish(event);
+          },
+        });
+      } finally {
+        await stopRenewing();
+      }
     },
     abandon: (data) => abandonRoomChain(data, deps),
   };
   return runtime;
+}
+
+/** The shared room reply writer, usable inside a guarded reaction transaction. */
+export async function appendRoomReply(
+  db: Executor,
+  input: Parameters<RoomEngineDeps['storeReply']>[0],
+) {
+  const { findLastMessage, insertMessages } = await import('../../../db/chat/messageRepository.js');
+  const { upsertConversation } = await import('../../../db/chat/conversationRepository.js');
+  const { lockMessageThread } = await import('../../../db/chat/messageLock.js');
+  return db.transaction(async (tx) => {
+    await lockMessageThread(tx, input.userId, input.conversationId);
+    const last = await findLastMessage(tx, input.userId, input.conversationId);
+    const seq = last?.seq == null ? 0 : last.seq + 1;
+    const createdAt = new Date();
+    await insertMessages(tx, [
+      {
+        conversationId: input.conversationId,
+        oxyUserId: input.userId,
+        clientMessageId: input.clientMessageId,
+        role: 'assistant',
+        content: input.content,
+        agentInfo: input.agentInfo,
+        seq,
+        createdAt,
+      },
+    ]);
+    await upsertConversation(tx, {
+      oxyUserId: input.userId,
+      conversationId: input.conversationId,
+      lastMessage: input.content.slice(0, 100),
+      titleOnInsert: input.agentInfo.name,
+    });
+    return { id: input.clientMessageId, seq, createdAt };
+  });
 }

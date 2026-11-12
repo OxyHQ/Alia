@@ -12,6 +12,8 @@ import { turnStepBounds } from '../../lib/chat/model-config.js';
 import { recordToolResults } from '../../db/chat/messageRepository.js';
 import { listGroupMembers } from '../../db/chat/conversationMemberRepository.js';
 import { serveGroupTurn } from '../../lib/chat/group-turn-http.js';
+import { conversationReactionContext } from '../../lib/chat/reaction-context.js';
+import { holdConversationActivity } from '../../lib/chat/activity.js';
 import { getDb } from '../../db/index.js';
 import { ToolLimitExceededError } from '../../lib/inference/tool-limit.js';
 import { estimateMessageTokens } from '../../lib/token-counter.js';
@@ -136,6 +138,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
    * after the client had already been told it timed out).
    */
   const providerAbort = new AbortController();
+  let releaseActivity: (() => Promise<void>) | undefined;
   const globalTimer = setTimeout(() => {
     state.globalTimedOut = true;
     log.v1.error('Global request timeout after 80s');
@@ -168,6 +171,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
   try {
     log.v1.info('Request received');
+    if (req.user?.id && typeof req.body?.conversationId === 'string') {
+      releaseActivity = await holdConversationActivity(
+        req.user.id,
+        req.body.conversationId,
+        requestId,
+        () => providerAbort.abort(new Error('Conversation admission unavailable')),
+      );
+    }
 
     if (req.body?.turnId !== undefined) {
       try {
@@ -350,6 +361,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // An external agent (ADR 0030) answers from the person's own machine: no tools of ours, no
     // system prompt, no model. The reservation stays unsettled, so the release point refunds it.
+    const reactionContext =
+      req.user?.id && isDirectUserSession && conversationId
+        ? await conversationReactionContext(req.user.id, conversationId)
+        : '';
     if (
       linkedAgent &&
       req.user?.id &&
@@ -358,6 +373,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     ) {
       clearTimeout(globalTimer);
       const answered = await serveExternalDirectTurn({
+        reactionContext,
         req,
         res,
         sse,
@@ -492,7 +508,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       toolNames: Object.keys(allTools ?? {}),
       askUserQuestion: Boolean(allTools?.[ASK_USER_QUESTION_TOOL]),
     });
-    const systemMessage = systemPrompt.text;
+    const systemMessage = systemPrompt.text + reactionContext;
 
     // Replace or inject system message
     const rawMessages = [...messages];
@@ -688,6 +704,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }
     } else failTurn(aliaError);
   } finally {
+    await releaseActivity?.().catch(() =>
+      log.v1.warn({ requestId }, 'Conversation activity cleanup failed'),
+    );
     clearTimeout(globalTimer);
     observation?.stop();
     if (controlIdentity) {

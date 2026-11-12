@@ -12,6 +12,10 @@ const h = vi.hoisted(() => ({
   revoke: vi.fn(),
   enqueue: vi.fn(),
 }));
+vi.mock('../../activity.js', () => ({
+  markConversationActive: vi.fn(async () => undefined),
+  clearConversationActive: vi.fn(async () => undefined),
+}));
 vi.mock('../../../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../../../db/agents/agentRepository.js', () => ({ findAgentById: h.find }));
 vi.mock('../../../../db/chat/messageRepository.js', () => ({
@@ -65,6 +69,15 @@ beforeEach(() => {
 });
 
 describe('room preparation', () => {
+  it('cannot enqueue work when durable activity admission fails', async () => {
+    const { markConversationActive } = await import('../../activity.js');
+    vi.mocked(markConversationActive).mockRejectedValueOnce(new Error('admission unavailable'));
+    const room = await prepareRoom(input);
+    await expect(room.start()).rejects.toThrow('admission unavailable');
+    expect(h.enqueue).not.toHaveBeenCalled();
+    await room.abandon();
+    expect(h.revoke).toHaveBeenCalled();
+  });
   it('queues selection, not a roster-wide round, with no bearer in its data', async () => {
     const room = await prepareRoom(input);
     expect(room.ready).toBe(true);

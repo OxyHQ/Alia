@@ -1,5 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+
+const reactionNotifications = vi.hoisted(
+  () => [] as Array<{ room: string; event: string; data: unknown }>,
+);
+vi.mock('../../socket.js', () => ({
+  getIO: () => ({
+    to: (room: string) => ({
+      emit: (event: string, data: unknown) => reactionNotifications.push({ room, event, data }),
+    }),
+  }),
+}));
 
 /**
  * The conversation lifecycle — epic #139 workstream 6, *"`/alia/chat` or its
@@ -167,6 +179,7 @@ beforeEach(async () => {
   await db.delete(conversations).where(sql`${conversations.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
   await db.delete(speechClips).where(sql`${speechClips.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
   removedObjects.length = 0;
+  reactionNotifications.length = 0;
   vi.clearAllMocks();
 });
 
@@ -605,6 +618,44 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
     expect(theirs.status).toBe(404);
     // The vote Alice cast is still hers.
     expect((await storedMessages(ALICE.id))[0].vote).toBe('up');
+  });
+
+  it('returns an idempotent reaction revision and scopes live feedback to the person who owns the message', async () => {
+    const conversationId = await seed();
+    const mutationId = randomUUID();
+    const request = {
+      user: ALICE,
+      params: { id: conversationId, messageId: 'msg-1' },
+      body: { emoji: '❤️', active: true, mutationId },
+    };
+    const first = await call('post', '/:id/messages/:messageId/reactions', request);
+    const retry = await call('post', '/:id/messages/:messageId/reactions', request);
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual({ messageId: 'msg-1', reactions: ['❤️'], revision: 1, mutationId });
+    expect(retry.body).toEqual(first.body);
+    expect(reactionNotifications).toEqual(
+      Array.from({ length: 2 }, () => ({
+        room: `user:${ALICE.id}`,
+        event: 'conversation:reaction',
+        data: { conversationId, ...(first.body as object) },
+      })),
+    );
+    const theirs = await call('post', '/:id/messages/:messageId/reactions', {
+      ...request,
+      user: BOB,
+    });
+    expect(theirs.status).toBe(404);
+    const conflict = await call('post', '/:id/messages/:messageId/reactions', {
+      ...request,
+      body: { ...request.body, active: false },
+    });
+    expect(conflict.status).toBe(409);
+    const removed = await call('post', '/:id/messages/:messageId/reactions', {
+      ...request,
+      body: { emoji: '❤️', active: false, mutationId: randomUUID() },
+    });
+    expect(removed.body).toMatchObject({ messageId: 'msg-1', reactions: [], revision: 2 });
+    expect(reactionNotifications).toHaveLength(3);
   });
 
   it('does not let a second user write into it', async () => {
