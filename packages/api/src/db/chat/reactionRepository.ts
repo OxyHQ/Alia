@@ -1,13 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, getTableColumns, isNull, lte, or, sql } from 'drizzle-orm';
+import { isDeepStrictEqual } from 'node:util';
+import { and, asc, desc, eq, getTableColumns, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index';
-import { conversations, messages } from '../schema/chat';
+import { conversationMembers, conversations, messages } from '../schema/chat';
 import {
+  agentReactionTurns,
   conversationActivities,
   messageReactionStates,
   reactionEvents,
 } from '../schema/message-reactions';
-import { MAX_REACTIONS_PER_MESSAGE, toggleReaction } from '../../domain/message-reactions';
+import {
+  MAX_REACTIONS_PER_MESSAGE,
+  toggleReaction,
+  attributedReactions,
+  type MessageReactionEntry,
+  type AgentReactionEntry,
+} from '../../domain/message-reactions';
+import { agents } from '../schema/agents';
 import { lockMessageThread } from './messageLock';
 
 type EventRow = typeof reactionEvents.$inferSelect;
@@ -84,7 +93,11 @@ export async function findReactionTarget(
 
 async function latestUser(db: Executor, userId: string, conversationId: string) {
   const [row] = await db
-    .select({ id: messages.id, clientMessageId: messages.clientMessageId })
+    .select({
+      id: messages.id,
+      clientMessageId: messages.clientMessageId,
+      content: messages.content,
+    })
     .from(messages)
     .where(and(scope(userId, conversationId), eq(messages.role, 'user')))
     .orderBy(sql`${messages.seq} desc nulls last`, desc(messages.createdAt))
@@ -103,6 +116,7 @@ export interface ReactionMutation {
 export interface ReactionMutationResult {
   messageId: string;
   reactions: string[];
+  reactionEntries: MessageReactionEntry[];
   revision: number;
   mutationId: string;
   changed: boolean;
@@ -116,6 +130,87 @@ export async function mutateMessageReaction(
   messageId: string,
   input: ReactionMutation,
 ): Promise<ReactionMutationResult | undefined> {
+  return mutateReaction(db, userId, conversationId, messageId, input);
+}
+
+export type ReactionUserSnapshot = { id: string; content: unknown } | null;
+
+export interface AgentReactionMutation {
+  /** Bound by the authorized actor runtime; never parsed from public reaction input. */
+  actor: { id: string; name: string };
+  turnId: string;
+  expectedLatestUserMessage: ReactionUserSnapshot;
+  expectedTarget: { content: unknown; role: string; actorId: string | null };
+  mutationId: string;
+  emoji: string;
+  active: boolean;
+}
+
+export async function mutateAgentMessageReaction(
+  db: ApiDatabase,
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  input: AgentReactionMutation,
+): Promise<ReactionMutationResult | undefined> {
+  return mutateReaction(db, userId, conversationId, messageId, input, input);
+}
+
+async function memberExists(db: Executor, userId: string, conversationId: string, actorId: string) {
+  const [agent] = await db
+    .select({ id: agents.id })
+    .from(agents)
+    .where(eq(agents.id, actorId))
+    .limit(1)
+    .for('share');
+  if (!agent) return false;
+  const [conversation] = await db
+    .select({ agentId: conversations.agentId })
+    .from(conversations)
+    .where(
+      and(eq(conversations.oxyUserId, userId), eq(conversations.conversationId, conversationId)),
+    )
+    .limit(1)
+    .for('share');
+  if (!conversation) return false;
+  if (conversation.agentId) return conversation.agentId === actorId;
+  const [member] = await db
+    .select({ id: conversationMembers.id })
+    .from(conversationMembers)
+    .where(
+      and(
+        eq(conversationMembers.oxyUserId, userId),
+        eq(conversationMembers.conversationId, conversationId),
+        eq(conversationMembers.agentId, actorId),
+      ),
+    )
+    .limit(1)
+    .for('share');
+  return !!member;
+}
+
+async function latestMatches(
+  db: Executor,
+  userId: string,
+  conversationId: string,
+  expected: ReactionUserSnapshot,
+) {
+  const current = await latestUser(db, userId, conversationId);
+  return current
+    ? expected !== null &&
+        stableId(current) === expected.id &&
+        isDeepStrictEqual(current.content, expected.content)
+    : expected === null;
+}
+
+async function mutateReaction(
+  db: ApiDatabase,
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  input: ReactionMutation,
+  agentInput?: AgentReactionMutation,
+): Promise<ReactionMutationResult | undefined> {
   return db.transaction(async (tx) => {
     await lockMessageThread(tx, userId, conversationId);
     const [conversation] = await tx
@@ -126,12 +221,31 @@ export async function mutateMessageReaction(
       )
       .limit(1);
     if (!conversation) return undefined;
+    if (agentInput && !(await memberExists(tx, userId, conversationId, agentInput.actor.id)))
+      return undefined;
+    if (
+      agentInput &&
+      !(await latestMatches(tx, userId, conversationId, agentInput.expectedLatestUserMessage))
+    )
+      return undefined;
     const row = await targetRow(tx, userId, conversationId, messageId, true);
     if (!row) return undefined;
+    const actor = await actorOf(tx, userId, conversationId, row);
+    if (
+      agentInput &&
+      (!isDeepStrictEqual(row.content, agentInput.expectedTarget.content) ||
+        row.role !== agentInput.expectedTarget.role ||
+        actor !== agentInput.expectedTarget.actorId)
+    )
+      return undefined;
+    if (agentInput && (!['user', 'assistant'].includes(row.role) || actor === agentInput.actor.id))
+      return undefined;
     const targetId = stableId(row);
     if (row.clientMessageId === null)
       await tx.update(messages).set({ clientMessageId: targetId }).where(eq(messages.id, row.id));
-    const mutationId = input.mutationId ?? randomUUID();
+    const mutationId = agentInput
+      ? `agent:${JSON.stringify([agentInput.actor.id, agentInput.turnId, agentInput.mutationId])}`
+      : (input.mutationId ?? randomUUID());
     const [receipt] = await tx
       .select()
       .from(reactionEvents)
@@ -145,6 +259,8 @@ export async function mutateMessageReaction(
       .limit(1);
     if (receipt) {
       if (
+        receipt.reactorAgentId !== (agentInput?.actor.id ?? null) ||
+        receipt.reactionTurnId !== (agentInput?.turnId ?? null) ||
         receipt.messageId !== targetId ||
         receipt.emoji !== input.emoji ||
         receipt.requestedActive !== (input.active ?? null)
@@ -153,12 +269,21 @@ export async function mutateMessageReaction(
       return {
         messageId: targetId,
         reactions: Array.isArray(row.reactions) ? (row.reactions as string[]) : [],
+        reactionEntries: row.reactionEntries,
         revision: row.reactionRevision,
         mutationId,
         changed: false,
       };
     }
-    const held = Array.isArray(row.reactions) ? (row.reactions as string[]) : [];
+    const human = Array.isArray(row.reactions) ? (row.reactions as string[]) : [];
+    const previousAgents = row.reactionEntries.filter(
+      (entry): entry is AgentReactionEntry => entry.author.kind === 'agent',
+    );
+    const held = agentInput
+      ? previousAgents
+          .filter((entry) => entry.author.id === agentInput.actor.id)
+          .map((entry) => entry.emoji)
+      : human;
     const next =
       input.active === undefined
         ? toggleReaction(held, input.emoji)
@@ -169,7 +294,18 @@ export async function mutateMessageReaction(
           : held.filter((emoji) => emoji !== input.emoji);
     const changed = JSON.stringify(held) !== JSON.stringify(next);
     const revision = row.reactionRevision + Number(changed);
-    const actor = await actorOf(tx, userId, conversationId, row);
+    const nextHuman = agentInput ? human : next;
+    const nextAgents: AgentReactionEntry[] =
+      agentInput && changed
+        ? [
+            ...previousAgents.filter((entry) => entry.author.id !== agentInput.actor.id),
+            ...next.map((emoji) => ({
+              emoji,
+              author: { kind: 'agent' as const, ...agentInput.actor },
+            })),
+          ]
+        : previousAgents;
+    const entries = attributedReactions(userId, nextHuman, nextAgents);
     const baseline = await latestUser(tx, userId, conversationId);
     if (baseline?.clientMessageId === null)
       await tx
@@ -178,6 +314,7 @@ export async function mutateMessageReaction(
         .where(eq(messages.id, baseline.id));
     const active = next.includes(input.emoji);
     const responseEligible =
+      !agentInput &&
       changed &&
       active &&
       actor !== null &&
@@ -191,7 +328,8 @@ export async function mutateMessageReaction(
         conversationId,
         messageId: targetId,
         targetActorId: actor,
-        reactions: next,
+        reactions: nextHuman,
+        agentReactions: nextAgents,
         revision,
       })
       .onConflictDoUpdate({
@@ -200,11 +338,17 @@ export async function mutateMessageReaction(
           messageReactionStates.conversationId,
           messageReactionStates.messageId,
         ],
-        set: { targetActorId: actor, reactions: next, revision, updatedAt: new Date() },
+        set: {
+          targetActorId: actor,
+          reactions: nextHuman,
+          agentReactions: nextAgents,
+          revision,
+          updatedAt: new Date(),
+        },
       });
     await tx
       .update(messages)
-      .set({ reactions: next.length ? next : null, reactionRevision: revision })
+      .set({ reactions: nextHuman.length ? nextHuman : null, reactionRevision: revision })
       .where(and(scope(userId, conversationId), eq(messages.clientMessageId, targetId)));
     const [saved] = await tx
       .insert(reactionEvents)
@@ -215,6 +359,8 @@ export async function mutateMessageReaction(
         targetActorId: actor,
         surfaceApplicationId: input.surfaceApplicationId ?? null,
         mutationId,
+        reactorAgentId: agentInput?.actor.id ?? null,
+        reactionTurnId: agentInput?.turnId ?? null,
         emoji: input.emoji,
         requestedActive: input.active ?? null,
         active,
@@ -229,7 +375,8 @@ export async function mutateMessageReaction(
       .returning();
     return {
       messageId: targetId,
-      reactions: next,
+      reactions: nextHuman,
+      reactionEntries: entries,
       revision,
       mutationId,
       changed,
@@ -273,7 +420,13 @@ export async function hydrateReactionRows<
     reactions: unknown;
     reactionRevision?: number;
   },
->(db: Executor, userId: string, conversationId: string, rows: readonly T[]): Promise<T[]> {
+>(
+  db: Executor,
+  userId: string,
+  conversationId: string,
+  rows: readonly T[],
+): Promise<Array<T & { reactionEntries: MessageReactionEntry[] }>> {
+  if (!rows.length) return [];
   const states = await db
     .select()
     .from(messageReactionStates)
@@ -281,6 +434,7 @@ export async function hydrateReactionRows<
       and(
         eq(messageReactionStates.oxyUserId, userId),
         eq(messageReactionStates.conversationId, conversationId),
+        inArray(messageReactionStates.messageId, rows.map(stableId)),
       ),
     );
   const byId = new Map(states.map((state) => [state.messageId, state]));
@@ -291,8 +445,15 @@ export async function hydrateReactionRows<
           ...row,
           reactions: state.reactions.length ? state.reactions : null,
           reactionRevision: state.revision,
+          reactionEntries: attributedReactions(userId, state.reactions, state.agentReactions),
         }
-      : row;
+      : {
+          ...row,
+          reactionEntries: attributedReactions(
+            userId,
+            Array.isArray(row.reactions) ? row.reactions : [],
+          ),
+        };
   });
 }
 
@@ -328,6 +489,7 @@ export async function listReactionContext(
       senderId: userId,
       reactions: Array.isArray(row.reactions) ? (row.reactions as string[]) : [],
       revision: row.reactionRevision,
+      reactionEntries: row.reactionEntries,
       targetActorId: await actorOf(db, userId, conversationId, row),
       targetContent: row.content,
     })),
@@ -529,4 +691,95 @@ export async function withCurrentReaction<T>(
       return null;
     return commit(tx);
   });
+}
+
+/** Historical completion, unlike a mutation receipt, proves the runtime finished cleanly. */
+export async function findAgentReactionTurnComplete(
+  db: Executor,
+  userId: string,
+  conversationId: string,
+  actorId: string,
+  turnId: string,
+) {
+  const [row] = await db
+    .select()
+    .from(agentReactionTurns)
+    .where(
+      and(
+        eq(agentReactionTurns.oxyUserId, userId),
+        eq(agentReactionTurns.conversationId, conversationId),
+        eq(agentReactionTurns.actorId, actorId),
+        eq(agentReactionTurns.turnId, turnId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** Runtime only: call after clean completion, not after a tool call or failed inference. */
+export async function markAgentReactionTurnComplete(
+  db: ApiDatabase,
+  userId: string,
+  conversationId: string,
+  actorId: string,
+  turnId: string,
+  expectedLatestUserMessage: ReactionUserSnapshot,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await lockMessageThread(tx, userId, conversationId);
+    if (!(await latestMatches(tx, userId, conversationId, expectedLatestUserMessage))) return false;
+    if (!(await memberExists(tx, userId, conversationId, actorId))) return false;
+    const [receipt] = await tx
+      .select({ id: reactionEvents.id })
+      .from(reactionEvents)
+      .where(
+        and(
+          eq(reactionEvents.oxyUserId, userId),
+          eq(reactionEvents.conversationId, conversationId),
+          eq(reactionEvents.reactorAgentId, actorId),
+          eq(reactionEvents.reactionTurnId, turnId),
+          eq(reactionEvents.status, 'completed'),
+          eq(reactionEvents.responseEligible, false),
+        ),
+      )
+      .limit(1);
+    if (!receipt) return false;
+    await tx
+      .insert(agentReactionTurns)
+      .values({ oxyUserId: userId, conversationId, actorId, turnId })
+      .onConflictDoNothing();
+    return true;
+  });
+}
+
+/** Server-only bounded tool target snapshots; never infer a target from client display metadata. */
+export async function listAgentReactionTargets(
+  db: Executor,
+  userId: string,
+  conversationId: string,
+  limit = 24,
+) {
+  const [conversation] = await db
+    .select({ agentId: conversations.agentId })
+    .from(conversations)
+    .where(
+      and(eq(conversations.oxyUserId, userId), eq(conversations.conversationId, conversationId)),
+    )
+    .limit(1);
+  if (!conversation) return [];
+  const rows = await db
+    .select()
+    .from(messages)
+    .where(and(scope(userId, conversationId), inArray(messages.role, ['user', 'assistant'])))
+    .orderBy(sql`${messages.seq} desc nulls last`, desc(messages.createdAt))
+    .limit(Math.max(1, Math.min(limit, 100)));
+  return (await hydrateReactionRows(db, userId, conversationId, rows)).map((row) => ({
+    id: stableId(row),
+    role: row.role,
+    content: row.content,
+    agentInfoId: row.role === 'assistant' ? (row.agentInfoId ?? conversation.agentId) : null,
+    agentInfoName: row.agentInfoName,
+    reactionEntries: row.reactionEntries,
+    revision: row.reactionRevision,
+  }));
 }
