@@ -146,6 +146,86 @@ describe('a member speaking in the room', () => {
     expect(messages[0]?.content).toBe('a');
   });
 
+  it.each(['end-first', 'message-only'] as const)(
+    'recovers a stored reply after a failed attempt without duplicating it (%s)',
+    (replay) => {
+      const id = 'group-reply-p1-1';
+      const failed = run([
+        start(id),
+        delta('Partial', id),
+        end({ status: 'failed', error: { code: 'store_failed' } }, id),
+      ]);
+      expect(failed.messages[0]?.turnOutcome).toBe('failed');
+      const completed = end({ status: 'completed', content: 'Stored answer', messageId: id }, id);
+      const { messages, ledger } = run(
+        [
+          start(id),
+          ...(replay === 'end-first' ? [completed] : []),
+          reply(id, 'Stored answer'),
+          completed,
+          reply(id, 'Stored answer'),
+          delta('late duplicate', id),
+          end({ status: 'failed', error: { code: 'store_failed' } }, id),
+        ],
+        failed.messages,
+        failed.ledger,
+      );
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        id,
+        content: 'Stored answer',
+        turnOutcome: 'completed',
+        isStreaming: false,
+      });
+      expect(messages[0]?.unsaved).toBeUndefined();
+      expect(ledger.messages.get(id)).toBe(id);
+    },
+  );
+
+  it.each([false, true])(
+    'recovers a stored completion claimed by SSE (released: %s)',
+    (released) => {
+      const id = 'group-reply-p1-1';
+      const ledger = createRoomLedger();
+      claimConsult(ledger, id, 'sse-draft');
+      if (released) releaseConsult(ledger, id);
+      ledger.ended.add(id);
+      const { messages } = run(
+        [
+          start(id),
+          end({ status: 'completed', content: 'Stored answer', messageId: id }, id),
+          reply(id, 'Stored answer'),
+        ],
+        [
+          {
+            id: 'sse-draft',
+            role: 'assistant',
+            content: 'Partial',
+            turnOutcome: 'failed',
+            agentInfo: NADIA,
+          },
+        ],
+        ledger,
+      );
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ id, content: 'Stored answer', turnOutcome: 'completed' });
+    },
+  );
+
+  it('does not revive an explicitly discarded reply through a late completion replay', () => {
+    const id = 'group-reply-p1-1';
+    const { messages, ledger } = run([
+      start(id),
+      delta('Superseded draft', id),
+      end({ status: 'declined' }, id),
+      start(id),
+      end({ status: 'completed', messageId: id, content: 'Stale answer' }, id),
+      reply(id, 'Stale answer'),
+    ]);
+    expect(messages).toEqual([]);
+    expect(ledger.discarded.has(id)).toBe(true);
+  });
+
   it('ends a failed member as failed, and a declined one as nothing', () => {
     const failed = run([start(), end({ status: 'failed', error: { code: 'agent_unavailable' } })]);
     expect(failed.messages[0]).toMatchObject({ isStreaming: false, turnOutcome: 'failed' });

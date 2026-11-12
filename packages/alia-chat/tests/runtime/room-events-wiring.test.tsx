@@ -191,6 +191,107 @@ describe('the open group conversation', () => {
     ]);
   });
 
+  it.each(['sse', 'socket-first', 'socket-completed-first'] as const)(
+    'converges a failed attempt and stored completion replay across transports (%s)',
+    async (ownership) => {
+      const id = 'group-reply-p1-1';
+      const completion = {
+        consultId: id,
+        status: 'completed',
+        content: 'Stored answer',
+        messageId: id,
+      };
+      harness.replies.push({
+        status: 200,
+        frames: [
+          frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
+          sse('agent_start', { consultId: id, agent: NADIA }),
+          sse('agent_delta', { consultId: id, content: 'Partial' }),
+          sse('agent_end', { consultId: id, status: 'failed', error: { code: 'store_failed' } }),
+          sse('agent_start', { consultId: id, agent: NADIA }),
+          sse('agent_end', completion),
+          sse('agent_end', completion),
+          sse('agent_delta', { consultId: id, content: 'late duplicate' }),
+          'data: [DONE]\n\n',
+        ],
+      });
+      await mount();
+      if (ownership !== 'sse') {
+        await push('alia.agent_start', { consultId: id, agent: NADIA });
+        await push('alia.agent_delta', { consultId: id, content: 'Socket partial' });
+        await push('alia.agent_end', {
+          consultId: id,
+          status: 'failed',
+          error: { code: 'store_failed' },
+        });
+        if (ownership === 'socket-completed-first') await push('alia.agent_end', completion);
+      }
+      await act(async () => {
+        await api.append({ role: 'user', content: 'hi' });
+      });
+      expect(members()).toHaveLength(1);
+      expect(members()[0]).toMatchObject({
+        id,
+        content: 'Stored answer',
+        turnOutcome: 'completed',
+        isStreaming: false,
+      });
+      await push('alia.agent_end', completion);
+      await push('group.message', {
+        message: { id, role: 'assistant', agentInfo: NADIA, content: 'Stored answer' },
+      });
+      expect(api.messages).toHaveLength(2);
+      expect(members()[0]).toMatchObject({
+        id,
+        content: 'Stored answer',
+        turnOutcome: 'completed',
+      });
+      expect(members()[0]?.unsaved).toBeUndefined();
+      expect(api.failedTurn).toBeNull();
+      expect(api.error).toBeNull();
+    },
+  );
+
+  it('repairs the failed provisional row when stored socket replay arrives after HTTP failed', async () => {
+    const id = 'group-reply-p1-1';
+    harness.replies.push({
+      status: 200,
+      frames: [
+        frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
+        sse('agent_start', { consultId: id, agent: NADIA }),
+        sse('agent_delta', { consultId: id, content: 'Partial' }),
+        sse('agent_end', { consultId: id, status: 'failed', error: { code: 'store_failed' } }),
+        frame({ error: { code: 'provider_unavailable', message: 'Room failed', retryable: true } }),
+      ],
+    });
+    await mount();
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hi' });
+    });
+    expect(members()[0]?.turnOutcome).toBe('failed');
+    expect(api.failedTurn).not.toBeNull();
+    await push('alia.agent_start', { consultId: id, agent: NADIA });
+    // The stored event alone must recover the row if the completed frame was lost.
+    await push('group.message', {
+      message: { id, role: 'assistant', agentInfo: NADIA, content: 'Stored answer' },
+    });
+    await push('alia.agent_end', {
+      consultId: id,
+      status: 'completed',
+      content: 'Stored answer',
+      messageId: id,
+    });
+    expect(api.messages).toHaveLength(2);
+    expect(members()[0]).toMatchObject({
+      id,
+      content: 'Stored answer',
+      turnOutcome: 'completed',
+      isStreaming: false,
+    });
+    // A stored reply cannot disprove a separate selector failure in the same request.
+    expect(api.failedTurn?.anchorMessageId).toBe(api.messages.find((m) => m.role === 'user')?.id);
+  });
+
   it('drops a superseded provisional reply across SSE and socket without a phantom saved message', async () => {
     harness.replies.push({
       status: 200,

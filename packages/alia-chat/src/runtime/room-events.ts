@@ -47,6 +47,8 @@ export interface RoomLedger {
   released: Set<string>;
   /** Consultations whose end was applied. */
   ended: Set<string>;
+  /** Provisional replies explicitly discarded by the room, never restored by late frames. */
+  discarded: Set<string>;
 }
 
 export function createRoomLedger(): RoomLedger {
@@ -56,6 +58,7 @@ export function createRoomLedger(): RoomLedger {
     claimed: new Set(),
     released: new Set(),
     ended: new Set(),
+    discarded: new Set(),
   };
 }
 
@@ -237,12 +240,13 @@ export function applyRoomEvent(
       });
     }
     case 'alia.agent_end': {
-      if (consultId === undefined || ledger.ended.has(consultId)) return messages;
+      if (consultId === undefined || ledger.discarded.has(consultId)) return messages;
       const draftId = ledger.messages.get(consultId);
       const { status } = data;
       const messageId = text(data.messageId);
       if (status === 'completed' && messageId !== undefined) {
-        // Even a reply the request drew: the stored id (`group-reply-…`) is not the request's.
+        // A stored completion is authoritative, even after a prior failed attempt.
+        // Replaying it converges on the same row rather than reviving a failed draft.
         ledger.ended.add(consultId);
         return settleCompleted(
           messages,
@@ -253,12 +257,15 @@ export function applyRoomEvent(
           consultId,
         );
       }
-      if (!isLive(ledger, consultId)) return messages;
+      if (ledger.ended.has(consultId) || !isLive(ledger, consultId)) return messages;
       // `room_continues` is the request letting go, never a failure.
       if (isObject(data.error) && data.error.code === 'room_continues') return messages;
       ledger.ended.add(consultId);
       if (draftId === undefined) return messages;
-      if (status === 'declined') return messages.filter((m) => m.id !== draftId);
+      if (status === 'declined') {
+        ledger.discarded.add(consultId);
+        return messages.filter((m) => m.id !== draftId);
+      }
       return replace(messages, draftId, (m) => ({
         ...m,
         isStreaming: false,
@@ -272,10 +279,26 @@ export function applyRoomEvent(
       if (id === undefined || (reply.role !== undefined && reply.role !== 'assistant')) {
         return messages;
       }
-      if (messages.some((m) => m.id === id)) {
-        return replace(messages, id, (m) => stored(m, reply));
+      // v2 room turns use their canonical reply ID as consultId. The stored
+      // message can therefore repair a failed draft even if agent_end was lost.
+      if (ledger.discarded.has(id)) return messages;
+      const draftId = ledger.messages.get(id);
+      const reconciled =
+        draftId === undefined
+          ? messages
+          : settleCompleted(
+              messages,
+              draftId,
+              id,
+              typeof reply.content === 'string' ? reply.content : undefined,
+              ledger,
+              id,
+            );
+      if (draftId !== undefined) ledger.ended.add(id);
+      if (reconciled.some((m) => m.id === id)) {
+        return replace(reconciled, id, (m) => stored(m, reply));
       }
-      return [...messages, stored({ id, role: 'assistant', content: '' }, reply)];
+      return [...reconciled, stored({ id, role: 'assistant', content: '' }, reply)];
     }
     case 'group.idle': {
       // The room has ended. A failure must not look like deliberate silence.

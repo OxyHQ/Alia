@@ -17,6 +17,7 @@ import {
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
 import { aliaQueryKeys } from './query-keys';
 import {
+  applyRoomEvent,
   claimConsult,
   createRoomLedger,
   isRoomOwned,
@@ -601,14 +602,19 @@ export function useConversationStream({
       /** What a consult frame does to the thread: the agent's own message, from start to end. */
       const applyConsult = (event: ConsultEvent): void => {
         if (event.type === 'start') {
-          if (consults.has(event.consultId)) return;
+          if (consults.has(event.consultId) || roomRef.current.discarded.has(event.consultId))
+            return;
           const id = nextAgentMessageId();
           consults.set(event.consultId, id);
           // The room's socket may have drawn this member typing already: that is its message.
           const adopted = claimConsult(roomRef.current, event.consultId, id);
           if (adopted !== null) {
             consults.set(event.consultId, adopted);
-            setMessages((prev) => prev.map((m) => (m.id === adopted ? { ...m, content: '' } : m)));
+            if (!roomRef.current.ended.has(event.consultId)) {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === adopted ? { ...m, content: '' } : m)),
+              );
+            }
             return;
           }
           const agentMessage: Message = {
@@ -631,7 +637,12 @@ export function useConversationStream({
           return;
         }
         const id = consults.get(event.consultId);
-        if (id === undefined) return;
+        if (id === undefined || roomRef.current.discarded.has(event.consultId)) return;
+        if (
+          roomRef.current.ended.has(event.consultId) &&
+          !(event.type === 'end' && event.status === 'completed' && event.messageId !== undefined)
+        )
+          return;
         if (event.type === 'delta') {
           if (event.content === '') return;
           outputEvidence.agentOutputChars += event.content.length;
@@ -679,10 +690,29 @@ export function useConversationStream({
           // A superseded room reply was never stored. Drop its provisional text
           // across both transports instead of presenting it as a failed saved reply.
           roomRef.current.ended.add(event.consultId);
+          roomRef.current.discarded.add(event.consultId);
           setMessages((prev) => prev.filter((m) => m.id !== id));
           return;
         }
         if (event.content !== undefined) outputEvidence.agentOutputChars += event.content.length;
+        if (isGroupTurn && event.status === 'completed' && event.messageId !== undefined) {
+          roomRef.current.ended.add(event.consultId);
+          consults.set(event.consultId, event.messageId);
+          setMessages((prev) =>
+            applyRoomEvent(prev, roomRef.current, conversationId ?? '', {
+              conversationId: conversationId ?? '',
+              event: 'alia.agent_end',
+              data: {
+                consultId: event.consultId,
+                status: event.status,
+                content: event.content,
+                messageId: event.messageId,
+              },
+            }),
+          );
+          return;
+        }
+        if (isGroupTurn) roomRef.current.ended.add(event.consultId);
         setMessages((prev) =>
           prev.map((m) =>
             m.id !== id
