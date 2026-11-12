@@ -50,7 +50,7 @@ beforeEach(() => {
   h.reserve.mockResolvedValue({ id: 'reservation' });
   h.settle.mockResolvedValue({ creditsCharged: 1 });
   h.generate.mockResolvedValue({
-    object: { action: 'speak', agentId: 'e', reason: 'directed' },
+    object: { choice: 'speak:directed:e' },
     usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
   });
 });
@@ -64,10 +64,13 @@ describe('room selection inference accounting', () => {
     expect(call.maxRetries).toBe(1);
     expect(call.abortSignal).toBeInstanceOf(AbortSignal);
     expect(call.system).toBe(ROOM_SELECTION_SYSTEM);
-    expect(call.schema.parse({ action: 'clarify', agentId: 'e', reason: 'ambiguous' })).toEqual({
-      action: 'clarify',
+    expect(call.schema.parse({ choice: 'clarify:e' })).toEqual({ choice: 'clarify:e' });
+    expect(Object.keys(call.schema.shape)).toEqual(['choice']);
+    expect(JSON.parse(call.prompt).allowedChoices).toContainEqual({
+      id: 'speak:directed:e',
+      action: 'speak',
       agentId: 'e',
-      reason: 'ambiguous',
+      reason: 'directed',
     });
     expect(JSON.parse(call.prompt).messages[0].content).toBe(input.rows[0]?.content);
     expect(h.settle).toHaveBeenCalledWith(
@@ -93,10 +96,24 @@ describe('room selection inference accounting', () => {
 
   it('settles a completed generation even if its selected ID is invalid', async () => {
     h.generate.mockResolvedValue({
-      object: { action: 'speak', agentId: 'outsider', reason: 'directed' },
+      object: { choice: 'speak:directed:outsider' },
       usage: {},
     });
-    await expect(selectRoomDecision(input)).rejects.toThrow('non-member');
+    await expect(selectRoomDecision(input)).rejects.toThrow();
+    expect(h.settle).toHaveBeenCalledOnce();
+    expect(h.refund).not.toHaveBeenCalled();
+  });
+
+  it('rejects the observed clarify/directed contradiction rather than repairing its recipient', async () => {
+    h.generate.mockResolvedValue({
+      object: { action: 'clarify', agentId: 'e', reason: 'directed' },
+      usage: {},
+    });
+    await expect(selectRoomDecision(input)).rejects.toThrow();
+    const schema = h.generate.mock.calls[0]?.[0].schema;
+    expect(schema.safeParse({ action: 'clarify', agentId: 'e', reason: 'directed' }).success).toBe(
+      false,
+    );
     expect(h.settle).toHaveBeenCalledOnce();
     expect(h.refund).not.toHaveBeenCalled();
   });
