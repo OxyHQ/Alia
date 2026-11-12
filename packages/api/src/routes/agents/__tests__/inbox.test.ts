@@ -47,6 +47,11 @@ vi.mock('../../../lib/logger.js', () => {
   return { log: { agents: child, general: child } };
 });
 
+vi.mock('../../../db/agents/agentWorkRepository.js', () => ({
+  listAgentWork: async () => [],
+  readAgentWorkState: async () => ({ state: 'waiting', reason: null }),
+}));
+
 const { default: router } = await import('../inbox.js');
 
 const app = express();
@@ -180,6 +185,8 @@ describe('GET /agents/:id/inbox', () => {
     expect(status).toBe(200);
     expect(body).toEqual({
       items: [],
+      work: [],
+      workStatus: { state: 'waiting', reason: null },
       heartbeat: { intervalMinutes: 30, lastHeartbeatAt: '2026-11-09T12:00:00.000Z' },
     });
   });

@@ -416,6 +416,8 @@ export const automationEvents = pgTable(
     occurredAt: timestamptz().notNull(),
     data: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     status: text({ enum: AUTOMATION_EVENT_STATUSES as unknown as [string, ...string[]] }).notNull(),
+    attempts: integer().notNull().default(0),
+    retryAfter: timestamptz(),
     receivedAt: createdAt(),
     updatedAt: updatedAt(),
   },

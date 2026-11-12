@@ -70,7 +70,12 @@ vi.mock('../../src/runtime/conversations', () => ({
   useClearConversation: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ user: null, isAuthenticated: true }),
+  useOxy: () => ({
+    user: null,
+    isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
+  }),
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // Platform modules the hook imports for its SEND path. Neither takes part in

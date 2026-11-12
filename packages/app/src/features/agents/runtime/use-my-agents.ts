@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
@@ -27,18 +28,34 @@ import type { Agent } from '@/shared/contracts/agents';
 const EXTERNAL_PRESENCE_REFRESH_MS = 30_000;
 
 export function useMyAgents() {
-  const { isAuthenticated } = useOxy();
+  const { canUsePrivateApi, isAccountCacheReady } = useOxy();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.agents.mine,
-    queryFn: async (): Promise<Agent[]> => {
-      const response = await apiClient.get<{ agents: Agent[] }>(API_ROUTES.agents.me);
+    queryFn: async ({ signal }): Promise<Agent[]> => {
+      const response = await apiClient.get<{ agents: Agent[] }>(API_ROUTES.agents.me, { signal });
       return response.data.agents;
     },
-    enabled: isAuthenticated,
+    enabled: canUsePrivateApi && isAccountCacheReady,
     staleTime: 1000 * 60 * 5,
     // A connected computer comes and goes: while any of the agents is one, look again now and then.
     refetchInterval: (query) =>
       query.state.data?.some((agent) => agent.external) ? EXTERNAL_PRESENCE_REFRESH_MS : false,
   });
+  useEffect(() => {
+    if (!canUsePrivateApi || !isAccountCacheReady || !query.data) return;
+    const controller = new AbortController();
+    // The actual signed-in owner establishes provenance. Events never impersonate that owner.
+    void (async () => {
+      for (const agent of query.data) {
+        if (controller.signal.aborted) break;
+        if (agent.status !== 'active' || !agent.scheduleInterval || agent.external) continue;
+        await apiClient
+          .post(`/agents/${encodeURIComponent(agent._id)}/work`, {}, { signal: controller.signal })
+          .catch(() => undefined); // Idempotent; the next successful list refresh retries setup.
+      }
+    })();
+    return () => controller.abort();
+  }, [canUsePrivateApi, isAccountCacheReady, query.data, query.dataUpdatedAt]);
+  return query;
 }

@@ -21,6 +21,8 @@ vi.mock('@oxy.so/services/ui/client', async () => ({
   ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
     user: { id: 'u1' },
     oxyServices: {
       createLinkedClient: ({ baseURL }: { baseURL: string }) => ({

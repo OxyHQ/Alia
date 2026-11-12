@@ -11,9 +11,16 @@ const H = vi.hoisted(() => ({
   insert: vi.fn(),
   notify: vi.fn(),
   emit: vi.fn(),
+  receipt: vi.fn(),
 }));
 
-vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
+vi.mock('../../../db/index.js', () => {
+  const tx = {
+    execute: async () => {},
+    transaction: async (work: (db: unknown) => unknown): Promise<unknown> => work(tx),
+  };
+  return { getDb: () => tx };
+});
 vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: H.findAgent }));
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
   findActiveThreadConversation: H.findConversation,
@@ -25,6 +32,7 @@ vi.mock('../../../db/chat/messageRepository.js', () => ({
   listLatestMessageMarks: H.latestMarks,
   findLastMessage: H.findLast,
   insertMessages: H.insert,
+  findMessageReceipt: H.receipt,
 }));
 vi.mock('../../agent-identity.js', () => ({
   attachAgentIdentity: async (agent: object) => ({
@@ -46,6 +54,7 @@ import { CHECK_IN_DAILY_LIMIT, postAgentMessage } from '../agent-outreach.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  H.receipt.mockResolvedValue(null);
   H.findAgent.mockResolvedValue({ _id: 'agent-1', oxyAccountId: 'bot-1' });
   H.findConversation.mockResolvedValue({ conversationId: 'conv-1' });
   H.countOutreach.mockResolvedValue(0);
@@ -136,4 +145,19 @@ describe('an agent writing to a person first', () => {
     const [[, [row]]] = H.insert.mock.calls as [[unknown, Array<Record<string, unknown>>]];
     expect(row).toMatchObject({ seq: 0 });
   });
+});
+
+it('replays a stored delivery without another insert or notification', async () => {
+  H.receipt.mockResolvedValue({ conversationId: 'conv-1' });
+  expect(
+    await postAgentMessage({
+      oxyUserId: 'u',
+      agentId: 'agent-1',
+      kind: 'check_in',
+      content: 'Done',
+      idempotencyKey: 'run:1',
+    }),
+  ).toMatchObject({ posted: true });
+  expect(H.insert).not.toHaveBeenCalled();
+  expect(H.notify).not.toHaveBeenCalled();
 });

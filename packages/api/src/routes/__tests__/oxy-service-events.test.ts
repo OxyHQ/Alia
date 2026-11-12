@@ -264,6 +264,7 @@ describe('normalized Oxy app events', () => {
     });
     expect(state.emailOutreach).toHaveBeenCalledTimes(1);
     expect(state.emailOutreach).toHaveBeenCalledWith({
+      eventId: withSnippet.eventId,
       accountId: 'account-1',
       occurredAt: new Date(withSnippet.occurredAt),
       data: withSnippet.data,

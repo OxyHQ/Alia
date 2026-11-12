@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 /**
  * An agent writing to a person first — into its conversation with them.
  *
@@ -21,7 +22,7 @@
  * turn (`keepAgentOutreach`).
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { isUniqueViolation } from '@oxy.so/db';
 import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
@@ -33,6 +34,7 @@ import {
 import {
   countAgentOutreachSince,
   findLastMessage,
+  findMessageReceipt,
   insertMessages,
 } from '../../db/chat/messageRepository.js';
 import { AGENT_OUTREACH_MESSAGE_ID_PREFIX } from '../../domain/conversation.js';
@@ -61,6 +63,7 @@ export interface AgentOutreachInput {
   readonly agentId: string;
   readonly content: string;
   readonly kind: AgentOutreachKind;
+  readonly idempotencyKey?: string;
   /** A short notification title; defaults to the agent's name. */
   readonly title?: string;
   /**
@@ -94,26 +97,7 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
   const agent = await attachAgentIdentity(found);
   const name = agentPromptName(agent);
 
-  const conversation =
-    (await findActiveThreadConversation(getDb(), input.oxyUserId, agent._id)) ??
-    (await createConversation(getDb(), {
-      oxyUserId: input.oxyUserId,
-      conversationId: randomUUID(),
-      title: name,
-      source: 'app',
-      agentId: agent._id,
-    }));
-
-  if (input.kind === 'check_in') {
-    const refusal = await checkInRefusal({
-      oxyUserId: input.oxyUserId,
-      conversationId: conversation.conversationId,
-      countSince: (since) => countAgentOutreachSince(getDb(), input.oxyUserId, agent._id, since),
-    });
-    if (refusal) return { posted: false, reason: refusal };
-  }
-
-  const messageId = `${AGENT_OUTREACH_MESSAGE_ID_PREFIX}${randomUUID()}`;
+  const messageId = `${AGENT_OUTREACH_MESSAGE_ID_PREFIX}${input.kind === 'result' ? 'result-' : ''}${input.idempotencyKey ? createHash('sha256').update(input.idempotencyKey).digest('hex') : randomUUID()}`;
   const agentInfo = {
     id: agent._id,
     name,
@@ -121,37 +105,75 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
     character: agent.character,
     handle: agent.handle ?? '',
   };
-  // Appended at the end: `seq` is the position the client renders by, and a
-  // row without one would render at the TOP. A concurrent turn may take the
-  // same seq, so the append is retried on exactly that conflict.
-  for (let attempt = 0; ; attempt++) {
-    const last = await findLastMessage(getDb(), input.oxyUserId, conversation.conversationId);
-    const seq = last?.seq == null ? 0 : last.seq + 1;
-    try {
-      await insertMessages(getDb(), [
-        {
-          conversationId: conversation.conversationId,
-          oxyUserId: input.oxyUserId,
-          clientMessageId: messageId,
-          role: 'assistant',
-          content,
-          agentInfo,
-          seq,
-          createdAt: new Date(),
-        },
-      ]);
-      break;
-    } catch (err: unknown) {
-      if (attempt >= 3 || !isUniqueViolation(err, SEQ_INDEX)) throw err;
+  const written = await getDb().transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`agent-outreach:${input.oxyUserId}:${agent._id}`}))`,
+    );
+    const receipt = await findMessageReceipt(tx, input.oxyUserId, messageId);
+    if (receipt)
+      return {
+        posted: true as const,
+        duplicate: true,
+        conversationId: receipt.conversationId,
+        messageId,
+      };
+    const conversation =
+      (await findActiveThreadConversation(tx, input.oxyUserId, agent._id)) ??
+      (await createConversation(tx, {
+        oxyUserId: input.oxyUserId,
+        conversationId: randomUUID(),
+        title: name,
+        source: 'app',
+        agentId: agent._id,
+      }));
+    if (input.kind === 'check_in') {
+      const refusal = await checkInRefusal({
+        db: tx,
+        oxyUserId: input.oxyUserId,
+        conversationId: conversation.conversationId,
+        countSince: (since) => countAgentOutreachSince(tx, input.oxyUserId, agent._id, since),
+      });
+      if (refusal) return { posted: false as const, reason: refusal };
     }
-  }
-
-  await upsertConversation(getDb(), {
-    oxyUserId: input.oxyUserId,
-    conversationId: conversation.conversationId,
-    lastMessage: content.slice(0, 100),
-    titleOnInsert: name,
+    for (let attempt = 0; ; attempt++) {
+      const last = await findLastMessage(tx, input.oxyUserId, conversation.conversationId);
+      try {
+        // A concurrent chat append may take this sequence; the savepoint keeps the outer transaction usable.
+        await tx.transaction((savepoint) =>
+          insertMessages(savepoint, [
+            {
+              conversationId: conversation.conversationId,
+              oxyUserId: input.oxyUserId,
+              clientMessageId: messageId,
+              role: 'assistant',
+              content,
+              agentInfo,
+              seq: last?.seq == null ? 0 : last.seq + 1,
+              createdAt: new Date(),
+            },
+          ]),
+        );
+        break;
+      } catch (err) {
+        if (attempt >= 3 || !isUniqueViolation(err, SEQ_INDEX)) throw err;
+      }
+    }
+    await upsertConversation(tx, {
+      oxyUserId: input.oxyUserId,
+      conversationId: conversation.conversationId,
+      lastMessage: content.slice(0, 100),
+      titleOnInsert: name,
+    });
+    return {
+      posted: true as const,
+      duplicate: false,
+      conversationId: conversation.conversationId,
+      messageId,
+    };
   });
+  if (!written.posted) return written;
+  if (written.duplicate) return { posted: true, conversationId: written.conversationId, messageId };
+  const conversation = { conversationId: written.conversationId };
 
   // Live, for a client that has this conversation open.
   getIO()

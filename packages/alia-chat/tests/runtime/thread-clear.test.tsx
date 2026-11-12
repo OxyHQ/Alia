@@ -71,7 +71,12 @@ vi.mock('../../src/runtime/conversations', () => ({
   }),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ user: null, isAuthenticated: true }),
+  useOxy: () => ({
+    user: null,
+    isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
+  }),
 }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast }));

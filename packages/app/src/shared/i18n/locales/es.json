@@ -432,6 +432,7 @@
     "security": "Seguridad"
   },
   "sidebar": {
+    "loadError": "No se ha podido actualizar la barra lateral.",
     "newChat": "Nueva conversación",
     "agents": "Agentes",
     "library": "Biblioteca",
@@ -1402,6 +1403,22 @@
         "unsubscribeFailed": "No se pudo quitar. Inténtalo de nuevo."
       },
       "inbox": {
+        "work": "Trabajo",
+        "state": {
+          "paused": "En pausa",
+          "working": "Trabajando",
+          "scheduled": "Próximo paso programado",
+          "blocked": "Necesita atención",
+          "waiting": "Esperando novedades"
+        },
+        "reason": {
+          "needs_session": "Abre Alia con tu cuenta para continuar.",
+          "insufficient_credits": "No hay suficientes créditos para continuar.",
+          "work_limit_reached": "Ha llegado al límite de la tarea. Revisa sus avances.",
+          "temporarily_unavailable": "Un servicio no está disponible. Se reintentará más tarde.",
+          "expired": "Este seguimiento ha caducado.",
+          "execution_failed": "La última tarea no pudo terminar. Revisa su actividad."
+        },
         "title": "Esperando en su bandeja",
         "looked": "Última vez",
         "waiting": "Esperando",

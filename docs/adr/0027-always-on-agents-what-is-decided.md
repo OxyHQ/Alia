@@ -3,6 +3,8 @@
 Status: Accepted (2026-11-10).
 Date: 2026-11-10.
 
+The handoff and autonomous-work policy are updated by [ADR 0033](./0033-durable-autonomous-work.md), accepted 2026-11-12.
+
 ## Context
 
 The plan to make agents attentive on their own (ADR 0026, and the sweeps, caps and pause that came with

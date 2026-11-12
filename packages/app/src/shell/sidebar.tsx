@@ -81,6 +81,8 @@ import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import {
   Linking,
+  Pressable,
+  Text,
   Platform,
   View,
   type NativeScrollEvent,
@@ -149,9 +151,22 @@ function useSidebarProps() {
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
   const streamingChatId = useConversationStore((state) => state.streamingConversationId);
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isLoading } =
-    useConversations();
-  const { data: myAgents } = useMyAgents();
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    isPending,
+    isError,
+    refetch,
+  } = useConversations();
+  const {
+    data: myAgents,
+    isPending: agentsPending,
+    isError: agentsError,
+    refetch: retryAgents,
+  } = useMyAgents();
   const { isAuthenticated } = useOxy();
   const spacesUi = useSidebarSpaces({ enabled: isAuthenticated, agents: myAgents });
   const { signIn } = useAuth();
@@ -773,19 +788,37 @@ function useSidebarProps() {
   }, [searchQuery, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
   /** While the first page loads, ghost rows; while a later one does, two more at the foot. */
-  const content = isLoading ? (
-    <HistorySkeleton />
-  ) : isFetchingNextPage ? (
-    <HistorySkeleton rows={2} />
-  ) : undefined;
+  const content =
+    isAuthenticated && !data && isPending ? (
+      <HistorySkeleton />
+    ) : isFetchingNextPage ? (
+      <HistorySkeleton rows={2} />
+    ) : undefined;
   // The spaces' first read has the shape of the folders it will bring, not a spinner.
-  const after = spacesUi.isLoading ? (
+  const loadError = isError || agentsError || spacesUi.isError;
+  const retryLists = () => {
+    void refetch();
+    void retryAgents();
+    void spacesUi.retry();
+  };
+  const after = (
     <>
-      <FolderRowsSkeleton />
-      {content}
+      {loadError ? (
+        <Pressable accessibilityRole="button" onPress={retryLists}>
+          <Text>{t('sidebar.loadError')}</Text>
+          <Text>{t('common.retry')}</Text>
+        </Pressable>
+      ) : null}
+      {isAuthenticated && !myAgents && agentsPending ? <HistorySkeleton rows={2} /> : null}
+      {spacesUi.isLoading ? (
+        <>
+          <FolderRowsSkeleton />
+          {content}
+        </>
+      ) : (
+        content
+      )}
     </>
-  ) : (
-    content
   );
 
   const selectedAgentKey = selectedTreeItemForPath(pathname, myAgents);

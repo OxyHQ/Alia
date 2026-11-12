@@ -831,6 +831,7 @@ export interface CreateAgentInput {
   category: string;
   tags?: string[];
   price?: number | null;
+  scheduleInterval?: number | null;
   /** `family` or `family:instanceId`. EMPTY DENIES — see `domain/capability-grants.ts`. */
   capabilityGrants?: string[];
   isPublished?: boolean;
@@ -868,6 +869,7 @@ export async function createAgent(db: ApiDatabase, input: CreateAgentInput): Pro
         category: input.category,
         tags: input.tags ?? [],
         price: input.price ?? null,
+        scheduleInterval: input.scheduleInterval ?? null,
         capabilityGrants: input.capabilityGrants ?? [],
         isPublished: input.isPublished ?? true,
         access: input.access ?? 'private',

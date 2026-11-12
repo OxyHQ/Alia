@@ -536,7 +536,7 @@ export async function searchThread(
  * the append path against it.
  */
 export async function findLastMessage(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   conversationId: string,
 ): Promise<{ seq: number | null; role: string; content: unknown } | undefined> {
@@ -606,7 +606,7 @@ export async function messageExistsInConversation(
  * Nothing partial is what the caller wants — it rewrites the whole thread on the error path — and a
  * half-written history was never a state anything could use.
  */
-export async function insertMessages(db: ApiDatabase, rows: readonly NewMessage[]): Promise<void> {
+export async function insertMessages(db: Executor, rows: readonly NewMessage[]): Promise<void> {
   if (rows.length === 0) return;
   await db.insert(messages).values(rows.map(toInsert));
 }
@@ -833,7 +833,7 @@ export async function clientMessageExists(
  * across all their conversations with it. The outreach budget reads this.
  */
 export async function countAgentOutreachSince(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   agentId: string,
   since: Date,
@@ -845,6 +845,7 @@ export async function countAgentOutreachSince(
       and(
         eq(messages.oxyUserId, oxyUserId),
         eq(messages.agentInfoId, agentId),
+        sql`${messages.clientMessageId} not like 'agent-push-result-%'`,
         sql`${messages.clientMessageId} like ${`${AGENT_OUTREACH_MESSAGE_ID_PREFIX}%`}`,
         sql`${messages.createdAt} >= ${since.toISOString()}::timestamptz`,
       ),
@@ -881,7 +882,7 @@ export async function countOutreachInConversationSince(
 
 /** The newest `limit` messages of a conversation, newest first, id and role only. */
 export async function listLatestMessageMarks(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   conversationId: string,
   limit: number,
@@ -942,4 +943,13 @@ export async function countGroupRepliesSince(
       ),
     );
   return row?.count ?? 0;
+}
+
+export async function findMessageReceipt(db: Executor, oxyUserId: string, clientMessageId: string) {
+  const [row] = await db
+    .select({ conversationId: messages.conversationId })
+    .from(messages)
+    .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.clientMessageId, clientMessageId)))
+    .limit(1);
+  return row ?? null;
 }

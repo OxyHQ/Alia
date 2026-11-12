@@ -9,7 +9,7 @@
  * for is never budgeted; only initiative is.
  */
 
-import { getDb } from '../../db/index.js';
+import { getDb, type Executor } from '../../db/index.js';
 import { listLatestMessageMarks } from '../../db/chat/messageRepository.js';
 import { isAgentOutreachMessageId } from '../../domain/conversation.js';
 
@@ -31,6 +31,7 @@ export type CheckInRefusal = 'daily_limit' | 'unanswered';
  * email classifier) can ask first and spend nothing when the answer is no.
  */
 export async function checkInRefusal(input: {
+  readonly db?: Executor;
   readonly oxyUserId: string;
   readonly conversationId: string | null;
   readonly countSince: (since: Date) => Promise<number>;
@@ -39,14 +40,18 @@ export async function checkInRefusal(input: {
   if ((await input.countSince(since)) >= CHECK_IN_DAILY_LIMIT) return 'daily_limit';
   if (input.conversationId === null) return null;
   const latest = await listLatestMessageMarks(
-    getDb(),
+    input.db ?? getDb(),
     input.oxyUserId,
     input.conversationId,
     UNANSWERED_CHECK_IN_LIMIT,
   );
   if (
     latest.length === UNANSWERED_CHECK_IN_LIMIT &&
-    latest.every((m) => isAgentOutreachMessageId(m.clientMessageId))
+    latest.every(
+      (m) =>
+        isAgentOutreachMessageId(m.clientMessageId) &&
+        !m.clientMessageId?.startsWith('agent-push-result-'),
+    )
   ) {
     return 'unanswered';
   }

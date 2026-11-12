@@ -230,7 +230,12 @@ vi.mock('../../../src/runtime/attachment-utils', () => ({
   buildMessageContent: async (text: string) => ({ content: text, dropped: [] }),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ user: { id: 'me' }, isAuthenticated: true }),
+  useOxy: () => ({
+    user: { id: 'me' },
+    isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
+  }),
 }));
 
 const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');

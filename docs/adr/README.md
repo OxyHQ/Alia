@@ -83,3 +83,5 @@ ADR 0019 applies Oxy ADR 0043 to Alia: who owns each kind of stored bytes, how e
 - [0028 — A Space groups a person's agents](./0028-spaces.md).
 - [0031 — External agents edit their working directory by default and are reachable from any instance](./0031-external-agents-edit-by-default-and-span-instances.md).
 - [0032 — External agents continue the CLI's own session and are deleted with their link](./0032-external-agents-resume-sessions-and-leave-with-their-link.md).
+
+- [0033 — Durable autonomous work](./0033-durable-autonomous-work.md).

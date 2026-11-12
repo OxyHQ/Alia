@@ -2,6 +2,7 @@ import { uuidv7 } from '@oxy.so/db';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  retryAutomationEvent,
   claimAutomationEvent,
   claimStalledAutomationEvents,
   markAutomationEventStatus,
@@ -94,4 +95,31 @@ describe('claimStalledAutomationEvents', () => {
     const again = await claimStalledAutomationEvents(db, options);
     expect(again.map((e) => e.eventId)).not.toContain(mine.eventId);
   });
+});
+
+it('backs off transient events and makes exhaustion terminal exactly once', async () => {
+  const mine = await stored(5);
+  expect(await retryAutomationEvent(db, mine.appId, mine.eventId, NOW)).toBe(false);
+  const [first] = await db
+    .select()
+    .from(automationEvents)
+    .where(eq(automationEvents.eventId, mine.eventId));
+  expect(first).toMatchObject({ status: 'received', attempts: 1 });
+  expect(first.retryAfter).toEqual(new Date(NOW.getTime() + 60000));
+  await db
+    .update(automationEvents)
+    .set({ updatedAt: minutes(5), retryAfter: new Date(NOW.getTime() + 60000) })
+    .where(eq(automationEvents.eventId, mine.eventId));
+  expect((await claimStalledAutomationEvents(db, options)).map((row) => row.eventId)).not.toContain(
+    mine.eventId,
+  );
+  for (let n = 1; n < 11; n++)
+    expect(await retryAutomationEvent(db, mine.appId, mine.eventId, NOW)).toBe(false);
+  expect(await retryAutomationEvent(db, mine.appId, mine.eventId, NOW)).toBe(true);
+  expect(await retryAutomationEvent(db, mine.appId, mine.eventId, NOW)).toBe(false);
+  const [last] = await db
+    .select()
+    .from(automationEvents)
+    .where(eq(automationEvents.eventId, mine.eventId));
+  expect(last).toMatchObject({ status: 'failed', attempts: 12 });
 });

@@ -83,12 +83,18 @@ async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> 
     // also notifies them; a finished run used to reach them only as a push
     // whose body was the first 500 characters, with nowhere to tap through to.
     // A child run (delegated, orchestrated) reports to its parent instead.
-    if (session && !session.parentSessionId && !(await isAgentFollowUp(session.automationRunId))) {
+    if (
+      session &&
+      !session.parentSessionId &&
+      !session.workItemId &&
+      !(await isAgentFollowUp(session.automationRunId))
+    ) {
       const { postAgentMessage } = await import('./agent/agent-outreach.js');
       await postAgentMessage({
         oxyUserId: userId,
         agentId: session.agentId,
         kind: 'result',
+        idempotencyKey: `session-result:${sessionId}`,
         content: status === 'completed' ? result : `I couldn't finish this task. ${result}`,
       });
     }

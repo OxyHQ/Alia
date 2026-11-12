@@ -1,6 +1,17 @@
 import http from 'node:http';
 import { WebSocket } from 'ws';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Exercise the real SDK with this suite's declared no-service-identity setup.
+// Alia's production client supplies an AWS provider, which starts a revocation
+// feed even on hosts without ECS credentials. Its asynchronous challenge/retry
+// requests would otherwise leak into the next test's fetch recorder.
+vi.mock('../oxy.js', async () => {
+  const { OxyServer } = await import('@oxy.so/core/server');
+  return { oxy: new OxyServer({ baseURL: 'https://api.oxy.so' }) };
+});
+import { oxy } from '../oxy.js';
+afterAll(() => oxy.dispose());
 
 import { canAttestWorkloadIdentity } from '@oxy.so/core/server';
 import { callLocalTool, getLocalTools, mcpRelayRoute, shutdownMcpRelay } from '../mcp-relay.js';
@@ -215,9 +226,8 @@ describe('MCP relay authentication', () => {
    * would answer the second handshake `auth-ok` from memory.
    */
   it('asks Oxy on every handshake and refuses a revoked session on the next one', async () => {
-    // The precondition, stated: the one Oxy client (`lib/oxy.ts`) holds no
-    // service credential, and with no ECS task role to attest it cannot open
-    // the feed at all.
+    // The suite supplies no workload credential provider; with no ECS task
+    // role either, this client cannot open a revocation feed.
     expect(canAttestWorkloadIdentity()).toBe(false);
     sessions.set('sess-1', { id: 'user-from-session' });
     const token = relayToken({ userId: 'user-from-session', sessionId: 'sess-1' });
