@@ -54,6 +54,7 @@ export interface MessageRow {
   readonly vote: string | null;
   readonly reactions: unknown;
   readonly reactionRevision?: number;
+  readonly reactionEntries?: import('../../domain/message-reactions').MessageReactionEntry[];
   readonly toolInvocations: unknown;
   readonly agentInfoId: string | null;
   readonly agentInfoName: string | null;
@@ -90,6 +91,7 @@ export interface StoredMessage {
   /** The emoji the person left on it. */
   readonly reactions?: string[];
   readonly reactionRevision?: number;
+  readonly reactionEntries?: import('../../domain/message-reactions').MessageReactionEntry[];
   readonly toolInvocations?: ToolInvocation[];
   readonly agentInfo?: AgentInfo;
   readonly seq?: number;
@@ -110,6 +112,7 @@ export function toStoredMessage(row: MessageRow): StoredMessage {
   return {
     id: row.clientMessageId ?? row.id,
     reactionRevision: row.reactionRevision ?? 0,
+    ...(row.reactionEntries ? { reactionEntries: row.reactionEntries } : {}),
     role: row.role,
     content: row.content as MessageContent,
     ...(row.vote === null ? {} : { vote: row.vote as MessageVote }),
