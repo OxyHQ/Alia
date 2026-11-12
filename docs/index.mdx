@@ -7,8 +7,8 @@ order: 0
 # Alia
 
 Alia is Oxy's assistant. One runtime serves the Expo app (web, iOS, Android), the
-Codea VS Code extension and CLI, other Oxy apps and
-third parties through the SDK. Alia acts for the person in their Oxy apps, runs
+Codea VS Code extension and CLI ([OxyHQ/Codea](https://github.com/OxyHQ/Codea)), other
+Oxy apps and third parties through the SDK. Alia acts for the person in their Oxy apps, runs
 tasks in the background, writes first when something needs them, and lets people
 create **agents** — personas with their own Oxy account, memory and computer.
 
@@ -107,8 +107,6 @@ PostgreSQL is Alia's only product store: conversations, messages, agents, organi
 | --- | --- | --- |
 | `packages/app` | Expo + React Native | Main app (web + iOS + Android) |
 | `packages/api` | Express + TypeScript | Core API runtime |
-| `packages/alia-codea` | VS Code extension | Coding assistant surface |
-| `packages/alia-codea-cli` | Bun CLI | Terminal coding assistant |
 | `packages/alia-canvas` | Vite + React | Canvas / diagram editor |
 | `packages/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges, and the MCP client |
 | `packages/alia-chat` | React | Published as `@alia.onl/sdk` — the CLIENT SDK (components, hooks, voice) |
@@ -139,7 +137,6 @@ Or run individual workspaces:
 bun run dev:api          # Express API only
 bun run dev:app          # Expo app (web + tunnel)
 bun run dev:canvas       # Canvas app
-bun run dev:codea        # VS Code extension
 ```
 
 Hit the unified chat endpoint:

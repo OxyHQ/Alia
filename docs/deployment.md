@@ -395,20 +395,6 @@ bump it for a native change, which releases a new binary, and never for a
 JS-only one. Both builds take their environment from the `production` profile's
 `env` in `packages/app/eas.json` (public `EXPO_PUBLIC_*` values only).
 
-## Codea desktop artifact
-
-`alia-codea` is a private workspace package. The npm release workflow does not
-publish it, and the repository currently has no Marketplace distribution
-workflow. A successful main CI or Alia backend rollout therefore does not mean
-this version reached users.
-
-After the matching Alia API rollout is verified, produce Codea's VSIX with
-`bun run --cwd packages/alia-codea package`. Its manifest version is the extension
-version. The web and Node bundles are built together; local workspace tools
-still require their supported extension host capabilities. Signing in on an
-installed extension is a separate acceptance check from unit tests and artifact
-creation.
-
 ## Avatares: nada que publicar
 
 Desde Bloom 17.22 los avatares se dibujan como SVG en web y nativo: ya no hay un runtime 3D que

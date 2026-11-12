@@ -41,7 +41,7 @@ Other packages ship their own `.env.example` (`packages/app`). Copy the ones for
 
 ## Layout
 
-A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: eleven workspaces across ten directories under `packages/` (`packages/alia-codea/webview-ui` is its own workspace entry), and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
+A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: seven workspaces under `packages/` (Codea lives in OxyHQ/Codea), and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
 
 Three things worth knowing before your first pull request:
 

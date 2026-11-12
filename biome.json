@@ -185,9 +185,7 @@
       "includes": [
         "packages/api/src/**",
         "packages/alia-computer-host/src/**",
-        "packages/alia-codea-cli/src/**",
-        "packages/alia-canvas/**",
-        "packages/alia-codea/webview-ui/**"
+        "packages/alia-canvas/**"
       ],
       "linter": {
         "rules": {

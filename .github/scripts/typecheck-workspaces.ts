@@ -93,8 +93,7 @@ const EXCLUDED: Readonly<Record<string, { readonly errors: number; readonly why:
 /** Has no `typecheck` script, and why that is the right answer for it. */
 const NO_TYPECHECK: Readonly<Record<string, string>> = {
   'alia-canvas':
-    'solution-style tsconfig ("files": [], references only) — `tsc --noEmit` compiles nothing; checked by the "Typecheck the solution-style frontends" step of Frontend Typecheck, which runs `tsc -b` on it',
-  'webview-ui': 'same solution-style tsconfig; checked by the same `tsc -b` step',
+    'solution-style tsconfig ("files": [], references only) — `tsc --noEmit` compiles nothing; checked by the "Typecheck the solution-style frontend" step of Frontend Typecheck, which runs `tsc -b` on it',
 };
 
 function assertPartition(workspaces: readonly Workspace[]): string[] {
@@ -158,10 +157,10 @@ function main(): void {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts: readonly [string, number, number][] = [
-    ['workspaces', workspaces.length, 10],
+    ['workspaces', workspaces.length, 7],
     ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 4],
     ['EXCLUDED', Object.keys(EXCLUDED).length, 0],
-    ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 2],
+    ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 1],
   ];
   const countProblems = counts
     .filter(([, actual, expected]) => actual !== expected)
@@ -180,8 +179,9 @@ function main(): void {
 
   // The vacuity floor. An empty checked set satisfies "no package failed", and a
   // filter bug, a renamed workspace or an over-grown exclusion list all produce
-  // exactly that.
-  if (checked.length < 3) {
+  // exactly that. Two today (`@alia/computer-host`, `@alia/integrations`);
+  // it was four before Codea's two packages moved to OxyHQ/Codea.
+  if (checked.length < 2) {
     console.error(`Only ${checked.length} workspace(s) would be checked; the gate has eroded.`);
     process.exit(1);
   }
