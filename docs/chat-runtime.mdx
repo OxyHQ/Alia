@@ -109,10 +109,15 @@ stored replies reconcile on reload.
   an unavailable addressee. Its selected actor is saved in the speaking job. The old `group-rooms`
   queue drains with its original policy, without accepting new chains.
 - **Choose a complete legal decision.** For ordinary messages, the server enumerates the legal
-  decisions for the current room state in `allowedChoices`. Inference returns only
-  `{ choice: <one allowed ID> }`; the server maps that ID to a complete `RoomDecision` and runs
-  the existing validator. This prevents incompatible action/actor/reason combinations while
-  leaving contextual participation to inference. Reaction observations retain their separate
+  decisions in `allowedChoices`, labelled by the request they answer. Input separates the
+  `personRequest`, preceding `context` and later `memberContributions`. Inference returns a short
+  `assessment` and one `choice`; the server maps that ID to a complete `RoomDecision` and runs
+  the existing validator. Person-request choices remain distinct from peer-request choices;
+  only the current last speaker's latest substantive post-trigger message can supply a handoff,
+  matching the worker's `handedByAgentId`. Assess outstanding original work before waiting for
+  the person. The assessment is neither stored nor logged, and creates no persistent plan.
+  This prevents incompatible action/actor/reason combinations while leaving contextual
+  participation to inference. Reaction observations retain their separate
   `{ action: 'speak' | 'idle' }` contract with a server-bound recipient. Neither contract grants
   tools, changes authority or adds retries.
 - **Natural participation.** A name without `@` can address an agent. Quotes, incidental names and
