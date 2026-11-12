@@ -141,8 +141,10 @@ stored replies reconcile on reload.
   ordinary empty responses and cut-off streams still fail.
 - **Bounded execution.** Retain the room lock across instances, 12 replies, 24 turns and 3 handoffs
   per person message (both selection and speaking count toward the 24 operations), no consecutive substantive self-answer, supersession by the newest person message and
-  60 replies per room per 10 minutes. Selection uses Oxy's utility resolver, a 10-second generation deadline,
-  at most one retry and accounted usage. A returned generation is settled before roster validation;
+  60 replies per room per 10 minutes. General room selection uses the existing Oxy `auto` resolver,
+  allowing Oxy to match the structured-output request and input to its capabilities. Binary reaction
+  observations retain the utility resolver. Both keep a 10-second generation deadline, at most one
+  retry and usage accounting at the actual served price. A returned generation is settled before roster validation;
   throwing inference calls release their reservations. No hardcoded model or fallback that wakes every member.
 - **One execution record.** Replies use `group-reply-<person message id>-<turn>` IDs. Retried
   speaking jobs find their stored reply before running again. The saver preserves unseen replies.
