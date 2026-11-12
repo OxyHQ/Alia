@@ -198,8 +198,9 @@ an emoji or replace a signed-in end-to-end acceptance test.
 During an authorized turn, a hosted agent can choose to react to a person's message or another
 agent's message in the same conversation. The runtime binds the reacting actor and its display
 name; neither a public reaction request nor a client history echo can supply that identity.
-Current direct-chat or group membership is checked when the reaction commits. The agent cannot
-react to its own message. A bounded set of stored targets supplies stable IDs and attribution;
+The reacting agent's current direct-chat or group membership is checked when the reaction commits.
+An identifiable peer's historical message remains a valid target after that peer leaves: reacting
+does not execute the recipient. The agent cannot react to its own message. A bounded set of stored targets supplies stable IDs and attribution;
 the commit rechecks the target's content, role and actor, plus the latest person's message, under
 the thread lock. A newer message or a replaced target invalidates the pending operation.
 

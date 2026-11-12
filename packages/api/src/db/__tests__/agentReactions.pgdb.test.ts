@@ -260,7 +260,7 @@ describe('authored agent reactions', () => {
     expect(await direct.react('outsider', true, '❤️', 'person', direct.second)).toBeUndefined();
   });
 
-  it('rejects an old peer target after its author leaves the room', async () => {
+  it('allows an owned historical peer target after its author leaves without waking it', async () => {
     const f = await fixture();
     await db
       .delete(conversationMembers)
@@ -270,10 +270,19 @@ describe('authored agent reactions', () => {
           eq(conversationMembers.agentId, f.second.id),
         ),
       );
-    expect(await f.react('removed-peer', true, '👍', 'peer')).toBeUndefined();
+    expect(await f.react('removed-peer', true, '👍', 'peer')).toMatchObject({ changed: true });
     expect(
       await db.select().from(reactionEvents).where(eq(reactionEvents.oxyUserId, f.userId)),
-    ).toEqual([]);
+    ).toEqual([
+      expect.objectContaining({
+        reactorAgentId: f.first.id,
+        targetActorId: f.second.id,
+        status: 'completed',
+        responseEligible: false,
+      }),
+    ]);
+    await db.delete(agents).where(eq(agents.id, f.second.id));
+    expect(await f.react('deleted-peer', true, '🎉', 'peer')).toMatchObject({ changed: true });
     expect((await f.react('still-user'))?.changed).toBe(true);
   });
 
