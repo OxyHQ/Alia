@@ -173,7 +173,7 @@ function main(): void {
   // filter bug, a renamed workspace or an over-grown exclusion list all produce
   // exactly that. One today (`@alia/app`): it was two until the computer host
   // and integrations moved to OxyHQ/Gemies with the backend on 2026-11-12, and
-  // four before Codea's two packages moved to OxyHQ/Codea.
+  // four before two packages moved to their own repository.
   if (checked.length < 1) {
     console.error(`Only ${checked.length} workspace(s) would be checked; the gate has eroded.`);
     process.exit(1);

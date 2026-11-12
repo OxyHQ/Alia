@@ -16,7 +16,7 @@ import { Linking, Platform } from 'react-native';
 /**
  * Links a chat channel (Telegram, Discord, ...) to the signed-in account.
  *
- * The channel link is the only flow here: Codea signs in with Oxy directly.
+ * The channel link is the only flow here.
  */
 const CHANNEL_NAMES: Record<string, string> = {
   telegram: 'Telegram',

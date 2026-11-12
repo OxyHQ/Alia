@@ -23,8 +23,7 @@
 
 ## Packages
 
-Four workspaces, all under `packages/`. Codea — the VS Code extension and the CLI — lives in
-its own repository, [OxyHQ/Codea](https://github.com/OxyHQ/Codea).
+Four workspaces, all under `packages/`.
 
 | Path | Package | Stack | Purpose |
 |---|---|---|---|

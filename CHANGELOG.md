@@ -32,9 +32,6 @@ All notable changes to Alia are documented here.
 - Public direct model-resolution and usage-report routes:
   - `/v1/resolve-model`
   - `/v1/report-usage`
-  - `/codea/resolve-model`
-  - `/codea/report-usage`
-- Legacy chat compatibility route under `/v1/codea/chat/completions`.
 
 ## [2026-02-11]
 

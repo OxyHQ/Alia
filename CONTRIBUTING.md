@@ -25,7 +25,7 @@ Root scripts are named `dev:*`, `build:*` and `start:*`, one per frontend; read 
 
 ## Layout
 
-A bun workspaces monorepo, no Turborepo and no Nx: four workspaces under `packages/` (Codea lives in OxyHQ/Codea, the backend in OxyHQ/Gemies). The package map is in `README.md`.
+A bun workspaces monorepo, no Turborepo and no Nx: four workspaces under `packages/` (the backend lives in OxyHQ/Gemies). The package map is in `README.md`.
 
 Two things worth knowing before your first pull request:
 
