@@ -299,12 +299,40 @@ beforeAll(async () => {
   }
 });
 
+function safeError(error: unknown): string {
+  const name = error instanceof Error ? error.name : '';
+  const message = error instanceof Error ? error.message : '';
+  const semantic = [
+    'Invalid idle decision',
+    'Room decision names a non-member',
+    'Invalid unavailable decision',
+    'Room decision selects an unavailable member',
+    'Invalid clarification decision',
+    'Invalid speaking reason',
+    'A room member cannot speak twice in a row',
+    'Invalid or exhausted handoff',
+    'Reaction participation must be a useful contribution by its recipient',
+  ];
+  if (semantic.includes(message)) return message;
+  return [
+    'TimeoutError',
+    'AbortError',
+    'ZodError',
+    'AI_NoObjectGeneratedError',
+    'AI_APICallError',
+    'AI_TypeValidationError',
+  ].includes(name)
+    ? name
+    : 'unclassified';
+}
+
 const records: Array<{
   label: string;
   iteration: number;
   passed: boolean;
   latencyMs: number;
   decision: Pick<RoomDecision, 'action' | 'agentId' | 'reason'> | null;
+  errorCategory?: string;
 }> = [];
 
 describe('real Oxy group participation (synthetic rooms; no agent execution)', () => {
@@ -313,9 +341,11 @@ describe('real Oxy group participation (synthetic rooms; no agent execution)', (
     for (let iteration = 1; iteration <= repetitions; iteration++) {
       const started = Date.now();
       let decision: RoomDecision | null = null;
+      let errorCategory: string | undefined;
       try {
         decision = await selectRoomDecision(input);
-      } catch {
+      } catch (error) {
+        errorCategory = safeError(error);
         // A failed inference is an acceptance failure, never a passing quiet result.
       }
       const passed =
@@ -331,6 +361,7 @@ describe('real Oxy group participation (synthetic rooms; no agent execution)', (
         iteration,
         passed,
         latencyMs: Date.now() - started,
+        ...(errorCategory ? { errorCategory } : {}),
         decision: decision
           ? { action: decision.action, agentId: decision.agentId, reason: decision.reason }
           : null,
