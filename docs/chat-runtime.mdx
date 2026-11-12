@@ -98,34 +98,44 @@ application's routing policy (`lib/chat/request-context.ts`).
 ## Group conversations are rooms
 
 A conversation with `conversation_members` is a group. Its members answer in a **room** that lives
-in the API's workers, not inside the chat request (ADR 0025). `POST /v1/chat/completions` for a
-group stores the person's message, checks which members the person may reach, mints each member's
-Oxy task, queues the first step on the `group-rooms` BullMQ queue and then only *forwards* the
-room's events as the SSE frames it has always sent (`alia.group_turn`, `alia.agent_start`,
-`agent_delta`, `agent_tool`, `agent_end`) until the first round settles or the request's own limit
-nears (`GROUP_REQUEST_BUDGET_MS`, 70 s). The room goes on after the request: a member can answer
-another member's `@mention`, and every event is also pushed to the person's sockets as
-`group:event` (`{ conversationId, chainId, event, data }`) and stored as a message.
+in API workers (ADR 0025). The request stores the person's message, checks member reach, mints Oxy
+task authority and subscribes before queueing. It forwards `alia.group_turn` and the existing
+`alia.agent_*` frames until the chain ends or its 70-second HTTP budget expires. Work can continue
+after that connection ends; the same room events arrive through `group:event` on Socket.IO, and
+stored replies reconcile on reload.
 
-- Code: `packages/api/src/lib/chat/room/` — `policy.ts` (mentions, bounds, prompt; pure),
-  `engine.ts` (one step), `queue.ts` (BullMQ, direct fallback without Redis), `lock.ts` (one speaker
-  per room across instances), `bus.ts` (Redis pub/sub, in-process fallback), `start.ts` (the edge),
-  `runtime.ts` (real wiring); the HTTP subscriber is `lib/chat/group-turn-http.ts`.
-- A person's message with no `@mention` is answered by every member in the group's order; with
-  mentions, by those members first.
-- A member's reply that `@mentions` another member (case- and accent-insensitive, name or handle,
-  never itself, never a non-member) gives that member the floor next. A member handed the floor may
-  answer exactly `[pass]`: nothing is stored or shown and it is not an error.
-- Bounds per person message: 12 replies, 24 turns, 3 mention hand-offs, 2 hand-offs per reply, nobody
-  twice in a row; a newer person message makes the older chain skip; 60 replies per room per 10
-  minutes. Reasons in ADR 0025.
-- Room replies are stored under `group-reply-<person message id>-<turn>` ids, which the saver keeps
-  when a client that has not seen them sends its next turn (like `agent-push-` outreach).
-- A member's failure ends only its own turn (`alia.agent_end` `failed`, nothing stored).
-- Room events (`event` of `group:event`, and the bus): the four `alia.agent_*` frames (an `agent_end`
-  may also be `declined`; a completed one carries `messageId`), `group.message` (`{ message }`, the
-  stored reply) and `group.idle` (`{ reason }`: `done`, `superseded`, `reply_cap`, `turn_cap`,
-  `rate_limited`, `error`).
+- **Select before running.** The versioned `group-rooms-v2` queue separates selection and speaking.
+  A structured decision selects a participant, asks one clarification, ends deliberately or reports
+  an unavailable addressee. Its selected actor is saved in the speaking job. The old `group-rooms`
+  queue drains with its original policy, without accepting new chains.
+- **Natural participation.** A name without `@` can address an agent. Quotes, incidental names and
+  quoted `@mentions` do not automatically activate anyone. Follow-ups use context; open questions
+  select useful contributions without a compulsory round. After each stored answer, reconsider
+  whether another contribution or handoff is needed. The selector has no tools or private memories.
+- **Identity by ID.** Build each actor's history from stored `agentInfoId`. Only its own replies
+  retain role `assistant`; other actors' words are attributed observations, not user instructions.
+  Room policy is separate from the person's original request. Each actor retains its own tools and
+  memory, and every operation retains the original requester's authority.
+- **Silence is explicit.** A completed exchange or “gracias, era eso” can end without a new reply.
+  This is distinct from empty model output, invalid routing, missing authority or inference failure;
+  those remain typed errors. HTTP waits for the chain, not a count of first-round responses. The
+  SDK accepts deliberate empty group completion and removes the empty lead placeholder, while
+  ordinary empty responses and cut-off streams still fail.
+- **Bounded execution.** Retain the room lock across instances, 12 replies, 24 turns and 3 handoffs
+  per person message, no consecutive self-answer, supersession by the newest person message and
+  60 replies per room per 10 minutes. Selection uses Oxy's utility resolver, a 10-second deadline,
+  at most one retry and accounted usage. No hardcoded model or fallback that wakes every member.
+- **One execution record.** Replies use `group-reply-<person message id>-<turn>` IDs. Retried
+  speaking jobs find their stored reply before running again. The saver preserves unseen replies.
+- **Existing events.** `alia.agent_start` is emitted only when a selected actor runs, followed by
+  its deltas, tools and end. `group.message` carries a stored reply and `group.idle` closes the
+  chain. These travel through the existing room bus and `group:event`; no new WebSocket route or
+  public request field is introduced.
+
+Code lives in `packages/api/src/lib/chat/room/`; `lib/chat/group-turn-http.ts` watches its events.
+[ADR 0025](./adr/0025-group-rooms.md) records the policy and deployment transition.
+[Group participation evaluation](./testing/group-participation.md) separates deterministic runtime
+checks from real-inference and multi-instance acceptance.
 
 ## Product stream events
 

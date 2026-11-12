@@ -2,8 +2,8 @@
 
 Status: Accepted (2026-11-09, the owner's decision: the agents of a group chat live in a real,
 real-time room where they talk to each other "como un chat de grupo de una app de chat").
-Phase 1 is the API; the SDK and the app (Phase 2) follow.
 Date: 2026-11-09.
+Revised: 2026-11-12 — natural participation and deliberate silence, approved by the owner.
 
 ## Context
 
@@ -21,85 +21,105 @@ ADR 0020 made every agent the same agent and `consultAgent` already runs "a nest
 paid-for agent turn" (`lib/tools/agent-turn.ts`); ADR 0011 made agents durable and able to speak
 first. What was missing is a place for several of them to speak to each other that is not a request.
 
+### Why participation needed a second decision
+
+The first room implementation kept the old rule: without an `@mention`, every member answered.
+It also told each member that the person was asking it. Thus “Hola! Eusebio que puedes hacer?”
+activated Salella first, even though the person had addressed Eusebio. Asking the model not to
+repeat other replies did not correct the runtime's decision to run all members.
+
+[Grok Bot's public collaboration documentation](https://docs.x.ai/grok-bot/chat-and-collaboration)
+describes ordinary messages with selective participation, explicit addressing and handoffs. It does
+not disclose its selection algorithm. [AutoGen's Selector Group Chat](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/selector-group-chat.html)
+documents a concrete implementation pattern: select a speaker from attributed context, run that
+speaker, then evaluate continuation. These are references for behavior and architecture, not a
+claim that Alia reproduces Grok Bot's internal implementation.
+
 ## Decision
 
-1. **The room is the unit, and it runs in workers.** A person's message is stored, then the chain
-   that answers it runs as jobs on a `group-rooms` BullMQ queue (`lib/chat/room/queue.ts`, the
-   pattern of `lib/alia-task-queue.ts`, including direct execution without Redis). A chain is a
-   sequence of steps, one member each; a step is one job and enqueues the next when it ends.
-2. **One speaker at a time per room, across instances.** Every step takes the room's lock
-   (`room/lock.ts`: Redis `SET NX PX` with a renewed lease and a token-checked release; a promise
-   chain per room without Redis) for the whole of reading the transcript, running the member and
-   storing the reply. Replies never interleave and each member reads the transcript as it is *now*.
-3. **A member's turn is `runAgentTurn`, unchanged**: credits reserved and settled per turn, the
-   member's own memory and tools (never Alia's), typed failures, no filler text. A failure ends that
-   member's turn with `alia.agent_end` `failed`; nothing is stored and the chain goes on.
-4. **Members talk by `@mention`** (`room/policy.ts#parseMentions`): name or handle, case- and
-   accent-insensitive, `@Nadia Ruiz`, `@NadiaRuiz` or the first name when unambiguous, never the
-   speaker itself, never a non-member (the roster is fixed when the chain starts). A mentioned member
-   goes to the front of the queue and reads the whole transcript. A member that was handed the floor
-   may answer exactly `[pass]` (`PASS_SENTINEL`): nothing is stored or published but its end, and it
-   is not an error. A person who mentions members is answered by those first; with no mention every
-   member answers in the group's order, as before.
-5. **Each member is told it is in a group chat**: who is in it, that anyone may talk to anyone with
-   `@name`, to speak in its own voice and add only what is its own (`roomPrompt`).
-6. **Authority is minted at the edge and carried as an id.** The request holds the person's bearer; a
-   worker must not. `room/start.ts` checks `canReachAgent` (including the surface, ADR 0021) per
-   member, stores the person's message and mints one Oxy task per member (`createOxyTask`, origin
-   `request`, actor = the member's bot account, the pattern of `session-handoff.ts`). The job carries
-   only task ids; the worker runs the turn as a task turn (`isDirectSession: false`, `taskId`),
-   as background agent sessions do, and revokes the tasks when the chain ends. A task that cannot be
-   minted leaves that member without Oxy apps — less authority, never more.
-7. **Real time is an event bus** (`room/bus.ts`). The engine publishes `alia.agent_start`,
-   `agent_delta`, `agent_tool`, `agent_end` (now also `declined`, and `messageId` on completion),
-   `group.message` (the stored reply) and `group.idle` (the chain ended, with a reason). The bus is
-   Redis pub/sub on the existing clients, an in-process emitter without Redis. Each event is also
-   pushed to the person's sockets as `group:event` through `getIO()` to `user:<id>`, scoped by
-   `conversationId` and `chainId` (the Socket.IO Redis adapter carries it across instances).
-8. **The chat request becomes one subscriber** (`lib/chat/group-turn-http.ts`). It stores and
-   enqueues, subscribes *before* queuing so it misses nothing, forwards the chain's events as the
-   exact SSE frames it always sent, and ends cleanly when the first round settles or at
-   `GROUP_REQUEST_BUDGET_MS` (70 s). A member still running then is closed on the wire with a typed
-   `room_continues` end; its reply is stored and pushed anyway. A declined member is invisible. When
-   the first round ends with nobody having answered, the request still ends with the typed
-   `EMPTY_RESPONSE` failure. The SSE frame shapes and the `/v1` contract are unchanged.
-9. **Replies are stored by the worker** under `group-reply-<person message id>-<turn>`. The id is
-   derived from the step, so a retried step finds its reply and does not answer twice, and the prefix
-   makes `saveConversation` keep a reply a client had not seen yet (the role `agent-push-` plays for
-   outreach; `isAgentWrittenMessageId`). No schema change.
+1. **The room is the unit, and it runs in workers.** Store the person's message, then use separate
+   selection and speaking jobs on `group-rooms-v2`. The selection is saved in the queued speaking
+   job before an agent can run. Job IDs include the phase and turn, so selection cannot collide
+   with execution. The old `group-rooms` queue is drained with its original policy.
+2. **One speaker at a time per room, across instances.** Both phases take the room lock
+   (`room/lock.ts`: a renewed Redis lease and token-checked release, or a local promise chain).
+   Read the current stored transcript under that lock. Recheck supersession after selection and
+   before speaking: a newer person message ends the older chain.
+3. **Selection precedes activity.** A structured `RoomDecision` chooses a speaker, requests one
+   clarification, ends the chain deliberately, or reports an unavailable addressee. It sees only
+   participant identities, descriptions and attributed conversation data. It has no tools, private
+   memory or authority to act. Validate its output against the roster. Run inference through Oxy's
+   utility resolver, with bounded time/output and the existing reservation, settlement and refund
+   lifecycle; record consumption and decision metadata without transcript text.
+4. **Addressing is contextual.** A bare name and an `@mention` can both address a member. A name in
+   a quote, code, explanation or reference to a previous answer is not automatically an invitation
+   to speak. Follow-up questions use the conversation context. An ambiguous addressee produces one
+   clarification, not several guesses; an unavailable addressee is not silently replaced. General
+   requests select useful contributions, without a compulsory round or a permanent lead agent.
+5. **Reevaluate after each answer.** The next selection reads the stored reply and decides whether
+   a complementary contribution or a genuine handoff is needed. Merely writing `@name` does not
+   run another agent. Stop once the request is satisfied. “Gracias, era eso” may end without a
+   reply. Deliberate silence is a successful room outcome, distinct from a model returning empty
+   text or failing. `[pass]` remains only in the legacy queue's drain policy.
+6. **Each actor reads its own conversation perspective.** Use stored `agentInfoId`, not display
+   names, to attribute history. Only that actor's own messages are `assistant` messages; peers'
+   words are delimited, attributed observations, never the person's instructions or the actor's own
+   statements. Keep the person's original message separate from room instructions. Preserve the
+   actor's identity, remit, memory and tools; it describes capabilities from what is actually
+   available. External agents receive this context through their existing task/history interface.
+7. **Authority stays at the edge.** `room/start.ts` checks `canReachAgent` including the surface
+   (ADR 0021), then mints each reachable member's Oxy task while the person's bearer is present.
+   Jobs carry task IDs, never bearers. A selected member runs through `runAgentTurn` as a task turn
+   (`isDirectSession: false`, `taskId`) with its own memory and tools, never Alia's. Failure to mint
+   a task gives that member no Oxy apps. Every chain exit revokes its tasks.
+8. **Real time remains the existing event bus.** The bus publishes `alia.agent_start`,
+   `agent_delta`, `agent_tool`, `agent_end`, `group.message` and `group.idle`. It uses Redis pub/sub
+   or the local emitter and also sends `group:event` on the existing Socket.IO connection. Selection
+   itself emits no agent activity. Only a selected actor appears as thinking or answering.
+9. **The HTTP request watches the chain, not a fixed round.** Subscribe before enqueueing and
+   forward the existing SSE frames until `group.idle`, disconnect or `GROUP_REQUEST_BUDGET_MS`
+   (70 seconds). A still-running member ends on that HTTP connection with `room_continues`, and
+   continues through sockets and storage. The internal result distinguishes successful silence,
+   replies, continuation and failure. Inference failures use `failTurn`; only deliberate silence
+   can finish successfully with no answer. The SDK recognizes `alia.group_turn`, preserves the
+   person's message and removes an empty lead placeholder on successful group completion. Ordinary
+   empty one-to-one responses and interrupted streams remain failures.
+10. **A stored reply is the execution record.** Keep
+    `group-reply-<person message id>-<turn>` IDs. A retried speaking job finds its existing reply
+    before running the actor, and the saver preserves replies the client has not seen yet.
+    Selection and execution require no database schema migration or new public request fields.
 
-### Bounds (why each exists)
-
-A room is the first place where agents can trigger agents, so every bound is the reason a loop or a
-bill cannot grow. All are in `room/policy.ts` and tested as pure functions.
+### Bounds
 
 | Bound | Value | Reason |
 |---|---|---|
-| Replies per person message | 12 | The hard cost ceiling of one message: a full group of six plus a handful of hand-offs. |
-| Turns per person message | 24 | A failed or declined turn is still work (a model call, a credit hold). |
-| Mention hand-offs per chain | 3 | Person, A, B, C, D is a real exchange; beyond it two agents that keep mentioning each other are a loop. |
-| Hand-offs per reply | 2 | A reply that mentions everybody must not fan out. |
-| Nobody twice in a row | — | The speaker of the latest reply is skipped as next; a reply never answers itself. |
-| Supersede | newest person message | A step runs only while its person message is the latest in the conversation (read from the store, so it holds across instances); the older chain skips and gives its tasks back. |
-| Rate | 60 replies per room per 10 min | A person sending quickly supersedes chains but a running turn is paid for. |
-| Credits | per turn | Each turn reserves and settles through `reserveBackgroundProductCredits`; no credits is that member's `failed`. |
+| Replies per person message | 12 | Bound the cost of one request and its collaboration. |
+| Turns per person message | 24 | Failed attempts also consume work. |
+| Handoffs per chain | 3 | Bound agent-to-agent exchanges. |
+| Consecutive speaker | Different member | Prevent an actor from answering itself. |
+| Selector deadline | 10 seconds | Bound routing latency, including its retry. |
+| Selector retries | 1 | One bounded recovery, never a fallback to all members. |
+| Selector output | `utilityOutputTokens(512)` | Reserve enough for the decision and Oxy-selected model reasoning. |
+| Supersede | Newest person message | An old chain cannot start another actor's work. |
+| Rate | 60 replies per room per 10 minutes | Bound repeated requests across chains. |
+| Credits | Per inference operation | Selection and actor execution both account for their actual usage. |
 
 ## Consequences
 
-- A group no longer fits or fails by the request's clock: a slow member does not starve the others,
-  and the conversation continues after the request.
-- The person's message is stored before anyone answers (it used to be stored with the replies). A
-  group where nobody is reachable now stores the person's message only if at least one member is.
-- The job data holds ids, never bearers. Redis holds the transcript-free job (ids and counters) for
-  the retention of BullMQ; the transcript is read from Postgres per step.
-- Step failures from infrastructure (database, lock) are retried once by BullMQ; a step whose retries
-  are spent publishes `group.idle` `error` and revokes the tasks, so a room never stays "typing".
-  Delivery of events is at-most-once; the stored message is the record.
-- Streaming deltas are published one per model delta, to Redis and to the socket adapter. Coalescing
-  is an optimisation not made here.
-- Phase 2 (SDK/app) consumes: the `group:event` socket event; `group.message` to append a stored
-  reply; `alia.agent_start`/`agent_end` for typing state, with `declined` and `failed` clearing it;
-  `group.idle` as "the room is quiet"; and the `group-reply-` ids when reconciling with a reload.
+- The group can respond to natural language without requiring `@` syntax. In the reported case,
+  only Eusebio runs; Salella has neither an answer nor a transient activity indicator.
+- A general question may have one or several useful contributions. No member owes an answer just
+  because it belongs to the room, and a completed exchange can stay quiet.
+- Selection adds a bounded inference call before an actor runs. Schema/roster validation makes
+  control flow testable, but understanding a request still requires real-inference evaluation.
+- Jobs contain roster metadata, counters, task IDs and a selected decision, not the transcript or
+  bearer. Workers load conversation data from Postgres when needed.
+- Infrastructure retries and at-most-once event delivery retain their existing limits. The stored
+  message is the record after reconnection; the in-process queue fallback is not durable across a
+  process restart.
+- Roll out SDK handling before activating new group jobs. Keep the legacy queue drain worker until
+  its waiting, active, delayed and retryable jobs have finished, then retire it separately. Do not
+  reinterpret old round-robin job data as a semantic selection.
 
 ## Alternatives considered
 
@@ -121,14 +141,13 @@ bill cannot grow. All are in `room/policy.ts` and tested as pure functions.
 
 ## Enforcement
 
-- `room/__tests__/policy.test.ts`: mention parsing (case, accents, ambiguity, self, non-members),
-  the first round, `planNext` (hand-offs, depth, caps, twice-in-a-row, termination), supersede, rate,
-  the decline sentinel and the prompt.
-- `room/__tests__/engine.test.ts`: the engine on an in-memory store, bus and lock with a fake
-  `runAgentTurn`: order, transcript reading, failure isolation, decline, retry idempotency,
-  supersede, rate limit, caps and per-room serialization.
-- `room/__tests__/bus-lock.test.ts`: both buses and both locks.
-- `lib/chat/__tests__/group-turn-http.test.ts`: the request as a subscriber.
-- `lib/__tests__/background-services.test.ts`: the queue starts and stops with the others.
-- Not checked yet: multi-instance Redis behaviour (lock hand-over, pub/sub across tasks) and real
-  agent turns have no automated test; they need a staging room.
+- Room decision tests validate structured output, roster membership, bounded failures and usage
+  accounting. Mocked model outputs prove runtime control, not natural-language understanding.
+- Room engine tests cover selection before execution, complementary contributions, silence,
+  attributed history, failure behavior, retry identity, supersession, rate/cost bounds and locking.
+- Transcript tests verify that shared names or renamed actors cannot turn peers' messages into the
+  current actor's own history.
+- HTTP and SDK tests cover deliberate quiet completion, typed errors, interrupted streams,
+  continued work and SSE/socket reconciliation without empty or duplicate messages.
+- Postgres checks exercise the existing stored actor IDs and reply identities. Real inference and
+  multi-instance Redis acceptance follow the [group participation evaluation](../testing/group-participation.md).
