@@ -7,10 +7,13 @@ const h = vi.hoisted(() => ({
   refund: vi.fn(),
   model: vi.fn(),
   info: vi.fn(),
+  defaultModel: vi.fn(() => ({ modelId: 'auto' })),
+  utilityModel: vi.fn(async () => ({ modelId: 'instant' })),
 }));
 vi.mock('ai', () => ({ generateObject: h.generate }));
 vi.mock('../../../chat-core.js', () => ({
-  resolveUtilityModel: async () => ({ modelId: 'instant' }),
+  resolveDefaultModel: h.defaultModel,
+  resolveUtilityModel: h.utilityModel,
   getAIModel: h.model,
   utilityOutputTokens: (n: number) => n + 2048,
 }));
@@ -61,6 +64,9 @@ beforeEach(() => {
 describe('room selection inference accounting', () => {
   it('uses bounded structured inference with no tools and settles actual served-model usage', async () => {
     expect((await selectRoomDecision(input)).agentId).toBe('e');
+    expect(h.defaultModel).toHaveBeenCalledOnce();
+    expect(h.utilityModel).not.toHaveBeenCalled();
+    expect(h.model).toHaveBeenCalledWith({ modelId: 'auto' }, 'agent_run');
     const call = h.generate.mock.calls[0]?.[0];
     expect(call.tools).toBeUndefined();
     expect(call.maxOutputTokens).toBe(2560);
@@ -168,6 +174,9 @@ describe('reaction selection generation contract', () => {
     // This tests the generation contract and authority boundary, not model semantics.
     h.generate.mockResolvedValue({ object: { action: expected.action }, usage: {} });
     expect(await selectRoomDecision(reaction)).toEqual(expected);
+    expect(h.utilityModel).toHaveBeenCalledOnce();
+    expect(h.defaultModel).not.toHaveBeenCalled();
+    expect(h.model).toHaveBeenCalledWith({ modelId: 'instant' }, 'agent_run');
     const call = h.generate.mock.calls[0]?.[0];
     expect(call.system).toBe(REACTION_SELECTION_SYSTEM);
     expect(call.schema.parse({ action: expected.action })).toEqual({ action: expected.action });
