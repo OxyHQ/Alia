@@ -134,7 +134,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/app/**", "packages/alia-canvas/**"],
+      "includes": ["packages/app/**"],
       "linter": {
         "rules": {
           "style": {
@@ -177,25 +177,6 @@
         "./biome-plugins/expo-no-dynamic-env-var.grit",
         "./biome-plugins/expo-no-env-var-destructuring.grit"
       ]
-    },
-    {
-      "includes": ["packages/alia-canvas/**"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noUnusedVariables": {
-              "level": "error",
-              "options": {
-                "ignoreRestSiblings": true
-              }
-            },
-            "useHookAtTopLevel": "error"
-          },
-          "suspicious": {
-            "noTsIgnore": "error"
-          }
-        }
-      }
     }
   ]
 }

@@ -1,12 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import aliaCanvasWorker from '../packages/alia-canvas/worker/index.js';
 import appWorker from '../packages/app/worker/index.js';
 
-for (const [name, worker] of [
-  ['app', appWorker],
-  ['alia-canvas', aliaCanvasWorker],
-]) {
+for (const [name, worker] of [['app', appWorker]]) {
   test(`${name} keeps asset streams, headers and errors`, async () => {
     const response = new Response('asset bytes', {
       headers: {

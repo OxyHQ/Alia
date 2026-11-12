@@ -1,7 +1,7 @@
 {
   "name": "alia-monorepo",
   "version": "1.0.0",
-  "description": "Monorepo de Alia: la app (web+móvil), el SDK y el server publicados y Canvas. El backend vive en OxyHQ/Gemies.",
+  "description": "Monorepo de Alia: la app (web+móvil) y el SDK y el server publicados. El backend vive en OxyHQ/Gemies.",
   "private": true,
   "trustedDependencies": [
     "@shopify/react-native-skia"
@@ -9,25 +9,20 @@
   "workspaces": [
     "packages/app",
     "packages/alia-chat",
-    "packages/alia-server",
-    "packages/alia-canvas"
+    "packages/alia-server"
   ],
   "packageManager": "bun@1.4.3",
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "dev:app": "bun run --filter @alia/app dev -- --clear --tunnel",
-    "dev:canvas": "bun run --filter alia-canvas dev",
     "build": "bun run --filter '*' build",
     "build:app": "bun run --filter @alia/app build",
-    "build:canvas": "bun run --filter alia-canvas build",
     "start:app": "bun run --filter @alia/app start",
-    "start:canvas": "bun run --filter alia-canvas preview",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "doctor:oxy": "oxy-doctor --ci",
     "i18n:check": "oxy-doctor-i18n --ci",
-    "lint:canvas": "bun run --filter alia-canvas lint",
     "android": "bun run --filter @alia/app android",
     "ios": "bun run --filter @alia/app ios",
     "web": "bun run --filter @alia/app web"

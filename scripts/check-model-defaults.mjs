@@ -44,20 +44,14 @@ const ROOT = resolve(import.meta.dirname, '..');
  * with "say which" instead of with noise, and a census that fires on the wrong
  * thing gets deleted by the next person who reads it.
  *
- * The trees added by #244 — canvas, a webview and integrations — were each a
- * live defect rather than a latent one, because `GET /v1/models` has served an
- * empty list since #178: canvas rendered a hardcoded `Instant` and the Telegram
- * and Discord bots printed `Model: route:instant` to every user. This script
- * was green throughout, reporting `245 files walked`, because none of them was
- * in this list. The webview and the bots have since left this repository (the
- * bots with integrations, to OxyHQ/Gemies).
+ * The trees added by #244 were each a live defect rather than a latent one,
+ * because `GET /v1/models` has served an empty list since #178: the Telegram and
+ * Discord bots printed `Model: route:instant` to every user. This script was
+ * green throughout, reporting `245 files walked`, because none of them was in
+ * this list. Those trees have since left this repository (the bots with
+ * integrations, to OxyHQ/Gemies).
  */
-export const TREES = [
-  'packages/app/app',
-  'packages/app/src',
-  'packages/alia-canvas/src',
-  'packages/alia-chat/src',
-];
+export const TREES = ['packages/app/app', 'packages/app/src', 'packages/alia-chat/src'];
 
 /**
  * Every workspace that ships no client picker, and why.
@@ -76,7 +70,7 @@ export const NOT_A_CLIENT = {
 /**
  * A retired routing identifier: the product modes (`mode:*`) and routing
  * profiles (`route:*`, `profile:*`) Alia invented before it served real models.
- * Anchored, so a package name such as `alia-canvas` is not mistaken for one.
+ * Anchored, so a package name such as `alia-chat` is not mistaken for one.
  */
 const IDENTIFIER = /^(?:(?:mode|profile|route):[a-z0-9][a-z0-9-]*)$/;
 
@@ -191,8 +185,8 @@ function main() {
   const counts = [
     // Four workspaces since the backend (`api`, `integrations`, the computer
     // host) moved to OxyHQ/Gemies on 2026-11-12: three walked, one transport.
-    ['workspaces', workspaces.length, 4],
-    ['TREES', TREES.length, 4],
+    ['workspaces', workspaces.length, 3],
+    ['TREES', TREES.length, 3],
     ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 1],
   ];
   const partition = [
@@ -220,10 +214,10 @@ function main() {
   // Vacuity floor. An empty walk satisfies every check below, and "I found less"
   // and "there is less" look identical without one.
   //
-  // #244 found a walk of 245 files reporting OK while canvas and the bots all
-  // showed an alias. The walk is 551 files
-  // today (611 before the integrations tree moved to OxyHQ/Gemies with the
-  // backend); a floor of 200 still catches losing a whole tree of that size.
+  // #244 found a walk of 245 files reporting OK while the bots all showed an
+  // alias. The walk is 516 files today (611 before the integrations tree moved
+  // to OxyHQ/Gemies with the backend); a floor of 200 still catches losing a
+  // whole tree of that size.
   if (files.length < 200) {
     console.error(`check-model-defaults: walked only ${files.length} files; expected 200+.`);
     process.exit(1);

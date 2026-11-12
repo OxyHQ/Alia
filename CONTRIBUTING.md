@@ -1,6 +1,6 @@
 # Contributing to Alia
 
-This repository is the Alia app (Expo: web, iOS and Android), the Canvas editor, and the two packages published from them, `@alia.onl/sdk` and `@alia.onl/server`. **The backend — the API, the integrations service and the agents' computer host — lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)**; a backend change is a pull request there.
+This repository is the Alia app (Expo: web, iOS and Android) and the two packages published from it, `@alia.onl/sdk` and `@alia.onl/server`. **The backend — the API, the integrations service and the agents' computer host — lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)**; a backend change is a pull request there.
 
 **The contribution process lives in the [Oxy organisation CONTRIBUTING guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md)**: reporting an issue, filing a feature request, opening a pull request, code review, licensing. It applies here unchanged. This file layers on top of it the same way `AGENTS.md` files layer, so it is short on purpose: it carries only what is different about this repository.
 
@@ -18,10 +18,9 @@ git clone https://github.com/OxyHQ/Alia.git && cd Alia
 bun install
 cp packages/app/.env.example packages/app/.env   # fill in your values
 bun run dev:app                                  # Expo app (runs with --clear --tunnel)
-bun run dev:canvas                               # Canvas
 ```
 
-Root scripts are named `dev:*`, `build:*` and `start:*`, one per frontend; read the root `package.json` for the full set. Anything without a shortcut is reachable as `bun run --filter <package> <script>`.
+Root scripts are named `dev:*`, `build:*` and `start:*`; read the root `package.json` for the full set. Anything without a shortcut is reachable as `bun run --filter <package> <script>`.
 
 ## Layout
 
@@ -51,8 +50,6 @@ bun run --filter @alia.onl/server test
 bun run --filter @alia.onl/server check:entrypoints
 bun .github/scripts/typecheck-workspaces.ts       # every workspace's typecheck (the app's included)
 bun run --filter @alia/app test
-bun run --filter alia-canvas test
-bunx tsc -b packages/alia-canvas
 node scripts/check-model-defaults.mjs
 node scripts/check-retired-vocabulary.mjs
 ```
