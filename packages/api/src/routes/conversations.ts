@@ -1,6 +1,7 @@
 import { parseReaction } from '../domain/message-reactions.js';
 import { ReactionMutationConflict } from '../db/chat/reactionRepository.js';
 import { applyConversationReaction } from '../lib/chat/reactions/mutation.js';
+import { publishConversationReaction } from '../lib/chat/reactions/bus.js';
 import { checkWindowLimit } from '../lib/sliding-window-limiter.js';
 import { channelAccountOf } from '../middleware/channel-auth.js';
 import { parseAvatarCharacter } from '@oxy.so/contracts';
@@ -599,10 +600,7 @@ router.post(
         mutationId: result.mutationId,
       };
       // State is durable before this best-effort notification. HTTP retry/reload repairs missed events.
-      const { getIO } = await import('../socket.js');
-      getIO()
-        ?.to(`user:${req.user.id}`)
-        .emit('conversation:reaction', { conversationId, ...payload });
+      await publishConversationReaction(req.user.id, { conversationId, ...payload });
       res.json(payload);
     } catch (error: unknown) {
       if (error instanceof ReactionMutationConflict)
