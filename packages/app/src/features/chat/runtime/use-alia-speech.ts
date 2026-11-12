@@ -1,4 +1,4 @@
-import type { SpeechPreferences } from '@alia.onl/sdk/runtime';
+import type { SpeechPreferences } from '@gemies/sdk/runtime';
 import { useMemo } from 'react';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
 import { speechLocale } from '@/features/voice/model/speech-locale';

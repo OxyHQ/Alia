@@ -123,4 +123,4 @@ jobs:
         if: steps.gate.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/deploy-scope.sh target app include '^(packages/app/|packages/alia-chat/|package\.json$|\.github/workflows/deploy-frontends\.yml$|bun\.lock$)' alia-release-app-
+        run: bash .github/scripts/deploy-scope.sh target app include '^(packages/app/|package\.json$|\.github/workflows/deploy-frontends\.yml$|bun\.lock$)' alia-release-app-

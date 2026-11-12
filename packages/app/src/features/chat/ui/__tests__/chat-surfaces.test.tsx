@@ -46,7 +46,7 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 vi.mock('@/shared/platform/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { primary: '#000' } }),
 }));
-vi.mock('@alia.onl/sdk', () => ({ IdentityMark: () => null }));
+vi.mock('@gemies/sdk', () => ({ IdentityMark: () => null }));
 
 vi.mock('@oxy.so/bloom/dropdown-menu', async () => {
   const ReactModule = await import('react');

@@ -29,12 +29,12 @@ const world = vi.hoisted(() => ({
   menu: null as null | Record<string, any>,
 }));
 
-vi.mock('@alia.onl/sdk/model', () => ({
+vi.mock('@gemies/sdk/model', () => ({
   buildConversationMarkdown: (input: { title: string; assistantName?: string }) =>
     `# ${input.title} (${input.assistantName ?? 'Alia'})`,
   exportFilename: (title: string) => `${title}.md`,
 }));
-vi.mock('@alia.onl/sdk/runtime', () => ({
+vi.mock('@gemies/sdk/runtime', () => ({
   useShareConversation: () => ({
     share: async (id: string) => {
       if (world.shareFails) throw new Error('refused');

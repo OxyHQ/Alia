@@ -1,6 +1,6 @@
 # Contributing to Alia
 
-This repository is the Alia app (Expo: web, iOS and Android) and the two packages published from it, `@alia.onl/sdk` and `@alia.onl/server`. **The backend — the API, the integrations service and the agents' computer host — lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)**; a backend change is a pull request there.
+This repository is the Alia app (Expo: web, iOS and Android) and the two packages published from it, `@gemies/sdk` and `@gemies/server`. **The backend — the API, the integrations service and the agents' computer host — lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)**; a backend change is a pull request there.
 
 **The contribution process lives in the [Oxy organisation CONTRIBUTING guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md)**: reporting an issue, filing a feature request, opening a pull request, code review, licensing. It applies here unchanged. This file layers on top of it the same way `AGENTS.md` files layer, so it is short on purpose: it carries only what is different about this repository.
 
@@ -24,12 +24,7 @@ Root scripts are named `dev:*`, `build:*` and `start:*`; read the root `package.
 
 ## Layout
 
-A bun workspaces monorepo, no Turborepo and no Nx: four workspaces under `packages/` (the backend lives in OxyHQ/Gemies). The package map is in `README.md`.
-
-Two things worth knowing before your first pull request:
-
-- `packages/alia-chat` publishes to npm as `@alia.onl/sdk`, as **raw source**, so consumers compile `src/` with their own Metro or tsc. It has to resolve and typecheck under a real external install, not only inside this monorepo.
-- `packages/alia-server` publishes compiled ESM + CJS + types as `@alia.onl/server`; `check:entrypoints` compiles a CommonJS consumer against the build.
+A bun workspaces monorepo with one workspace, `packages/app`. The backend, `@gemies/sdk` and `@gemies/server` live in OxyHQ/Gemies; the app installs `@gemies/sdk` from npm, so an SDK change is a Gemies pull request and a version bump here.
 
 ## Tests
 
@@ -39,15 +34,6 @@ CI runs the following on every pull request, and each line runs locally as writt
 bun install --frozen-lockfile
 bunx biome ci .                                   # Biome: format check + lint, whole repo
 node scripts/check-ts-directives.mjs
-bun run --filter @alia.onl/sdk typecheck
-bun run --filter @alia.onl/sdk test
-bun run --filter @alia.onl/sdk test:metro
-bun run --filter @alia.onl/sdk check:entries
-bun run --filter @alia.onl/sdk check:entry-types
-bun run --filter @alia.onl/server build
-bun run --filter @alia.onl/server typecheck
-bun run --filter @alia.onl/server test
-bun run --filter @alia.onl/server check:entrypoints
 bun .github/scripts/typecheck-workspaces.ts       # every workspace's typecheck (the app's included)
 bun run --filter @alia/app test
 node scripts/check-model-defaults.mjs

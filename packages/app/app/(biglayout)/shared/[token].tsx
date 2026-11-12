@@ -1,4 +1,4 @@
-import { AliaSharedConversation, type AliaChatLabels } from '@alia.onl/sdk';
+import { GemieSharedConversation, type GemieChatLabels } from '@gemies/sdk';
 import { PageHeader } from '@oxy.so/bloom/page-header';
 import { Screen } from '@oxy.so/bloom/screen';
 import { Text } from '@oxy.so/bloom/typography';
@@ -11,7 +11,7 @@ import config from '@/shared/platform/config';
 
 /**
  * A shared conversation (`/shared/<token>`): the one public page every app's share link opens
- * (`aliaSharedConversationUrl`, `docs/agent-embedding.md` §6), whichever agent led it and
+ * (`gemiesSharedConversationUrl`, Gemies `docs/agent-embedding.md` §6), whichever agent led it and
  * whichever app it was minted in. Anybody with the link reads it, signed in or not; the thread
  * is the SDK's, read-only, with the canvas artifacts Alia drew and no other tool's output. Not for search engines: a share is
  * somebody's conversation, handed to the people they chose.
@@ -20,7 +20,7 @@ export default function SharedConversationScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
   const { t, locale } = useTranslation();
-  const labels = useMemo<Partial<AliaChatLabels>>(() => ({ t, locale }), [t, locale]);
+  const labels = useMemo<Partial<GemieChatLabels>>(() => ({ t, locale }), [t, locale]);
 
   return (
     <>
@@ -41,7 +41,7 @@ export default function SharedConversationScreen() {
       >
         <View className="flex-1">
           {token ? (
-            <AliaSharedConversation token={token} apiUrl={config.apiUrl} labels={labels} />
+            <GemieSharedConversation token={token} apiUrl={config.apiUrl} labels={labels} />
           ) : null}
         </View>
         <Text className="px-4 py-3 text-center text-xs text-muted-foreground">

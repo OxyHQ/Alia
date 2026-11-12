@@ -1,8 +1,8 @@
 /**
  * `/__fixtures/:id` — the chat page, fed a generated conversation.
  *
- * Fixtures build only (`fixtures/entry.tsx`). It renders the SDK's `AliaThread`, the
- * thread `/c/:id` renders through `ConversationScreen` and `AliaChatContent`, in the same container
+ * Fixtures build only (`fixtures/entry.tsx`). It renders the SDK's `GemieThread`, the
+ * thread `/c/:id` renders through `ConversationScreen` and `GemieChatContent`, in the same container
  * and with the conversation from `fixtures/conversation.ts` in place of the one the API would
  * return (the conversation's own runtime is a network client, so the thread is fed directly).
  * Everything under it — the shell, the thread, the rows, the cards — is the production component
@@ -29,9 +29,9 @@
 import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
 import { KeyboardFrame } from '@/features/chat/ui/chat-workspace';
 import { fixtureConversation, fixtureReply } from '../../../conversation';
-import { AliaComposer, AliaThread } from '@alia.onl/sdk';
-import type { Message } from '@alia.onl/sdk/model';
-import { useComposerDraft, useComposerDraftStore, useTurnEdit } from '@alia.onl/sdk/runtime';
+import { GemieComposer, GemieThread } from '@gemies/sdk';
+import type { Message } from '@gemies/sdk/model';
+import { useComposerDraft, useComposerDraftStore, useTurnEdit } from '@gemies/sdk/runtime';
 import { AiChatContainer, type AiChatThreadHandle } from '@oxy.so/bloom/ai-chat';
 import { router, useFocusEffect, useLocalSearchParams, type Href } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -190,7 +190,7 @@ export default function FixtureChatPage() {
         actions={actions}
         floatingChrome
         composer={
-          <AliaComposer
+          <GemieComposer
             value={draft.text}
             onValueChange={setText}
             onSubmit={() => void submit()}
@@ -199,7 +199,7 @@ export default function FixtureChatPage() {
           />
         }
       >
-        <AliaThread
+        <GemieThread
           messages={messages}
           conversationId={id}
           isLoading={isLoading}

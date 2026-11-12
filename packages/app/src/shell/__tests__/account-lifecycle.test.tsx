@@ -28,7 +28,7 @@ vi.mock('@/shared/i18n', () => ({ default: { t: (k: string) => k } }));
 vi.mock('react-native', () => ({ Platform: { OS: 'web' } }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { useConversationStore, useThoughtStore } from '@alia.onl/sdk/runtime';
+import { useConversationStore, useThoughtStore } from '@gemies/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';

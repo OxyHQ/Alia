@@ -18,7 +18,7 @@ updates:
       oxy-platform:
         patterns:
           - "@oxy.so/*"
-          - "@alia.onl/*"
+          - "@gemies/*"
           - "@clarity.surf/*"
       # Everything else that is minor or patch, as ONE pull request. Majors
       # still arrive one per dependency, for a person to read.

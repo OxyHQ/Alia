@@ -1,14 +1,14 @@
 /**
- * Files `@alia.onl/sdk` loads from this origin in every app that embeds it: the voice call's
+ * Files `@alia.onl/sdk` loads from this origin in every app that still embeds it: the voice call's
  * worklets (`/sdk/voice-worklets/<revision>.js`). A cross-origin `audioWorklet.addModule` needs
- * CORS to run at all.
+ * CORS to run at all. `@gemies/sdk` loads them from `gemies.ai` instead.
  */
 const SHARED_PREFIXES = ['/sdk/'];
 
 /**
  * Paths whose file name carries a hash of its content, so a name is never reused for other bytes:
- * the SDK's voice worklets (`<16 hex>.js`, committed and append-only, see
- * `scripts/stamp-voice-worklets.mjs`) and Expo's web export (`/_expo/static/…-<32 hex>.js|css`,
+ * `@alia.onl/sdk`'s voice worklets (`<16 hex>.js`, committed and append-only, see
+ * `__tests__/voice-worklets-served.test.ts`) and Expo's web export (`/_expo/static/…-<32 hex>.js|css`,
  * `/assets/….<32 hex>.png`). Entry files — `index.html`, `public/` — are not here and keep the
  * asset server's revalidate-every-time default.
  */

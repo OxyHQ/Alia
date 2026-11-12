@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import type { ComposerPanelPermissionOption } from '@oxy.so/bloom/composer-panel';
-import { buildPowerLevelOptions, type DeviceModel } from '@alia.onl/sdk';
-import { resolveModeSelection, type ModeSelection } from '@alia.onl/sdk/model';
+import { buildPowerLevelOptions, type DeviceModel } from '@gemies/sdk';
+import { resolveModeSelection, type ModeSelection } from '@gemies/sdk/model';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useLocalModelOptions } from '@/features/local-models/runtime/use-local-runtimes';
 

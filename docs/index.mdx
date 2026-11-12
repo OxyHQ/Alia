@@ -8,7 +8,7 @@ order: 0
 
 Alia is Oxy's assistant. This repository holds the **Alia app** (Expo: web, iOS and
 Android) and, for as long as their consumers need them, the two packages published from
-it — `@alia.onl/sdk` and `@alia.onl/server`.
+it — `@gemies/sdk` and `@gemies/server`.
 
 **The backend lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** since
 2026-11-12: the API (`api.gemies.ai`), the integrations service, the agents' computer host,
@@ -26,12 +26,11 @@ OxyHQ/Gemies, not here.
 | Package | Published as | Stack | Purpose |
 | --- | --- | --- | --- |
 | `packages/app` | — | Expo + React Native | The Alia app (web at `alia.onl`, iOS, Android) |
-| `packages/alia-chat` | `@alia.onl/sdk` | React | The client SDK: the conversation screen, hooks, voice |
-| `packages/alia-server` | `@alia.onl/server` | TypeScript | The server client a consumer backend calls Alia's API with |
 
 The app ships from `deploy-frontends.yml` (a Cloudflare Worker) after CI is green
-on `main`; the native binary's JS bundle ships as an OTA update from `publish-update.yml`;
-the two packages publish to npm from `release-packages.yml`.
+on `main`; the native binary's JS bundle ships as an OTA update from `publish-update.yml`. The conversation, voice and runtime
+come from `@gemies/sdk`, installed from npm and published from OxyHQ/Gemies (it replaced
+`@alia.onl/sdk` and `@alia.onl/server`, published from here until 2026-11-12).
 
 ## Where each topic lives
 
@@ -47,12 +46,12 @@ One canonical page per topic; other pages link to it rather than repeat it.
   [bundle](./bundle-baseline.mdx), [native validation](./native-validation.mdx)
 - [Oxy authentication and packages](./oxyhq-auth.md)
 
-### The SDK and the server client
+### The SDK (OxyHQ/Gemies)
 
-- [Embedding an agent: the wire contract](./agent-embedding.md) — opening any agent from any
+- [Embedding a gemie: the wire contract](https://github.com/OxyHQ/Gemies/blob/main/docs/agent-embedding.md) (OxyHQ/Gemies) — opening any agent from any
   app, host tools, consultations, feature gates, documents, sharing
-- [`@alia.onl/sdk`](../packages/alia-chat/README.md) and
-  [`@alia.onl/server`](../packages/alia-server/README.md)
+- [`@gemies/sdk`](https://github.com/OxyHQ/Gemies/blob/main/packages/sdk/README.md) and
+  [`@gemies/server`](https://github.com/OxyHQ/Gemies/blob/main/packages/server/README.md)
 
 ### The repository
 

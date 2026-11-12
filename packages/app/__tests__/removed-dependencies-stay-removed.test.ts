@@ -26,7 +26,7 @@ import { APP_ROOT } from '@/shared/testing/app-root';
  * honest: `event-target-shim` is vendored inside `@livekit/react-native-webrtc`
  * (`./vendor/event-target-shim`) and declared as a peer by nobody; `expo-speech`
  * survives only in a stale comment in `metro.config.js`, because TTS runs
- * through `useTTS` in `@alia.onl/sdk` on top of `expo-audio`; and
+ * through `useTTS` in `@gemies/sdk` on top of `expo-audio`; and
  * `prettier-plugin-tailwindcss` has no prettier config anywhere in the repo to
  * load it, so it never activated.
  */

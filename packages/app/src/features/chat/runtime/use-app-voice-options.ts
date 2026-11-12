@@ -2,7 +2,7 @@
  * What the Alia app tells the SDK's voice call about where it runs.
  *
  * The call itself — its bar, its states, what it says when it fails or ends, how it gives way to
- * another screen, where it lives — is the SDK's (`AliaChatContent`), the same one the bottom sheet
+ * another screen, where it lives — is the SDK's (`GemieChatContent`), the same one the bottom sheet
  * has. Here is only what belongs to the app: the plan and credits that gate a call (and where to
  * send the person when they do), what to refresh when a call ends, and the sounds it plays.
  */
@@ -11,13 +11,13 @@ import { useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@oxy.so/services/ui/client';
-import type { AliaVoiceOptions, VoiceBlockReason } from '@alia.onl/sdk';
+import type { GemieVoiceOptions, VoiceBlockReason } from '@gemies/sdk';
 import { queryKeys } from '@/shared/api/query-keys';
 import { VOICE_SOUNDS } from '@/features/voice/model/voice-sounds';
 import { useEntitlements } from '@/features/billing/runtime/use-billing';
 import { useCredits } from '@/features/billing/runtime/use-credits';
 
-export function useAppVoiceOptions(): AliaVoiceOptions {
+export function useAppVoiceOptions(): GemieVoiceOptions {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { isAuthenticated, signIn } = useAuth();

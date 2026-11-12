@@ -1,5 +1,5 @@
-import { type VoiceErrorCode } from '@alia.onl/sdk';
-import type { VoiceCloseReason } from '@alia.onl/sdk/voice';
+import { type VoiceErrorCode } from '@gemies/sdk';
+import type { VoiceCloseReason } from '@gemies/sdk/voice';
 
 /**
  * What went wrong with dictation or a call, in the app's language.

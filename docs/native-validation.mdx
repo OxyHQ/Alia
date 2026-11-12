@@ -426,7 +426,7 @@ would work; `en-US` is what it asked for, correctly. Two changes, in the SDK:
   its package to `expo-speech-recognition`. That is what makes dictation work
   on a Pixel whose default service lacks the language but whose Google speech
   service has it. The same choice is made when a voice call connects.
-  Gates: `packages/alia-chat/tests/lib/speech-recognition.native.test.ts`,
+  Gates: `packages/sdk/tests/lib/speech-recognition.native.test.ts`,
   `tests/hooks/useSpeechToText.recognizer.test.tsx`.
 - When every service answered with no language and the default then refuses,
   dictation says "Speech recognition is not available on this device or

@@ -1,6 +1,6 @@
-import { buildConversationMarkdown, exportFilename } from '@alia.onl/sdk/model';
-import type { AliaChatState } from '@alia.onl/sdk';
-import { useDeleteConversation, useShareConversation } from '@alia.onl/sdk/runtime';
+import { buildConversationMarkdown, exportFilename } from '@gemies/sdk/model';
+import type { GemieChatState } from '@gemies/sdk';
+import { useDeleteConversation, useShareConversation } from '@gemies/sdk/runtime';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,12 +13,12 @@ import { useTranslation } from '@/shared/i18n/use-translation';
 
 interface ConversationActionsProps {
   /** What the chat tells its chrome: the open conversation and its messages. */
-  chat: AliaChatState;
+  chat: GemieChatState;
   /** Whether the conversation can be shared: a temporary (ghost) chat is never stored, so it cannot. */
   shareable?: boolean;
 }
 
-/** Whether Alia answered a request with this status (`AliaApiError.status`). */
+/** Whether Alia answered a request with this status (`GemieApiError.status`). */
 const hasStatus = (error: unknown, status: number): boolean =>
   typeof error === 'object' && error !== null && (error as { status?: unknown }).status === status;
 
@@ -61,7 +61,7 @@ export function ConversationActions({ chat, shareable = true }: ConversationActi
    * and hand `share.url` — Alia's one shared page, the same link every app's sheet mints — to the
    * platform's share sheet or the clipboard. Sharing again replaces the link, so an older one stops
    * working. What a reader sees is text, images and who said them, never a tool's output
-   * (`docs/agent-embedding.md` §6).
+   * (Gemies `docs/agent-embedding.md` §6).
    */
   const { share, revoke } = useShareConversation();
   const handleShare = useCallback(async () => {
