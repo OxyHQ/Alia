@@ -39,6 +39,8 @@ export function roomFailureReason(value: unknown): RoomFailureReason | null {
 export interface RoomLedger {
   /** `consultId` to the id of the message that draws it. */
   messages: Map<string, string>;
+  /** Socket-observed chain for a consult, including one initially drawn by SSE. */
+  chains: Map<string, string>;
   /** Consultations the chat request's SSE frames drew: the socket must not draw them again. */
   claimed: Set<string>;
   /** Claimed consultations whose request ended with `room_continues`: the socket carries them now. */
@@ -48,7 +50,13 @@ export interface RoomLedger {
 }
 
 export function createRoomLedger(): RoomLedger {
-  return { messages: new Map(), claimed: new Set(), released: new Set(), ended: new Set() };
+  return {
+    messages: new Map(),
+    chains: new Map(),
+    claimed: new Set(),
+    released: new Set(),
+    ended: new Set(),
+  };
 }
 
 /** The id a consultation drawn from the socket gets until its stored reply names it. */
@@ -146,6 +154,21 @@ export function applyRoomEvent(
   if (incoming.conversationId !== conversationId || !isObject(incoming.data)) return messages;
   const data = incoming.data;
   const consultId = text(data.consultId);
+  const chainId = text(incoming.chainId);
+  if (
+    consultId !== undefined &&
+    chainId !== undefined &&
+    (incoming.event === 'alia.agent_start' ||
+      incoming.event === 'alia.agent_delta' ||
+      incoming.event === 'alia.agent_tool' ||
+      incoming.event === 'alia.agent_end')
+  ) {
+    // SSE may already own this consult, but only the socket carries its chain.
+    // Record it before the duplicate/ownership guards can discard the frame.
+    const knownChain = ledger.chains.get(consultId);
+    if (knownChain !== undefined && knownChain !== chainId) return messages;
+    ledger.chains.set(consultId, chainId);
+  }
 
   switch (incoming.event) {
     case 'alia.agent_start': {
@@ -257,8 +280,14 @@ export function applyRoomEvent(
     case 'group.idle': {
       // The room has ended. A failure must not look like deliberate silence.
       const failure = roomFailureReason(data.reason);
+      // An old chain can finish after a new one starts. Unknown ownership is left
+      // for the synthetic silence timeout, never guessed from a terminal event.
+      if (chainId === undefined && data.reason !== 'silent') return messages;
       const open = [...ledger.messages].filter(
-        ([cid]) => !ledger.ended.has(cid) && isLive(ledger, cid),
+        ([cid]) =>
+          !ledger.ended.has(cid) &&
+          isLive(ledger, cid) &&
+          (chainId === undefined || ledger.chains.get(cid) === chainId),
       );
       if (open.length === 0) return messages;
       const ids = new Set(open.map(([, id]) => id));

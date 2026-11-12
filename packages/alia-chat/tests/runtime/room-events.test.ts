@@ -271,3 +271,97 @@ describe('a member the chat request already drew', () => {
     expect(drawn.messages).toHaveLength(1);
   });
 });
+
+describe('room chain ownership', () => {
+  const inChain = (chainId: string, frame: RoomEvent): RoomEvent => ({ ...frame, chainId });
+
+  it.each(['done', 'superseded', 'error'])(
+    'a delayed old-chain %s cannot settle a new chain',
+    (reason) => {
+      const { messages, ledger } = run([
+        inChain('old', start('old-consult')),
+        inChain('old', delta('old output', 'old-consult')),
+        inChain('new', start('new-consult')),
+        inChain('new', delta('new output', 'new-consult')),
+        inChain('old', event('group.idle', { reason })),
+      ]);
+      expect(messages[0]).toMatchObject({ content: 'old output', isStreaming: false });
+      expect(messages[1]).toMatchObject({ content: 'new output', isStreaming: true });
+      expect(messages[1]?.turnOutcome).toBeUndefined();
+      expect(ledger.ended.has('old-consult')).toBe(true);
+      expect(ledger.ended.has('new-consult')).toBe(false);
+    },
+  );
+
+  it.each([
+    start('claimed'),
+    delta('duplicate', 'claimed'),
+    event('alia.agent_tool', {
+      consultId: 'claimed',
+      phase: 'call',
+      toolCallId: 't1',
+      name: 'search',
+    }),
+    end({ status: 'failed', error: { code: 'room_continues' } }, 'claimed'),
+  ])('learns the chain from an SSE-owned $event before release', (socketEvent) => {
+    const ledger = createRoomLedger();
+    claimConsult(ledger, 'claimed', 'sse-reply');
+    const initial: Message[] = [
+      { id: 'sse-reply', role: 'assistant', content: 'SSE text', isStreaming: true },
+    ];
+    const observed = run([inChain('new', socketEvent)], initial, ledger);
+    expect(ledger.chains.get('claimed')).toBe('new');
+    expect(observed.messages).toEqual(initial);
+    releaseConsult(ledger, 'claimed');
+    const oldEnded = run(
+      [inChain('old', event('group.idle', { reason: 'error' }))],
+      observed.messages,
+      ledger,
+    );
+    expect(oldEnded.messages[0]?.isStreaming).toBe(true);
+    const ownEnded = run(
+      [inChain('new', event('group.idle', { reason: 'error' }))],
+      oldEnded.messages,
+      ledger,
+    );
+    expect(ownEnded.messages[0]).toMatchObject({
+      content: 'SSE text',
+      isStreaming: false,
+      turnOutcome: 'failed',
+    });
+  });
+
+  it('leaves unknown released SSE ownership alone until the synthetic silence timeout', () => {
+    const ledger = createRoomLedger();
+    claimConsult(ledger, 'unknown', 'sse-reply');
+    releaseConsult(ledger, 'unknown');
+    const initial: Message[] = [
+      { id: 'sse-reply', role: 'assistant', content: 'SSE text', isStreaming: true },
+    ];
+    const afterIdle = run([event('group.idle', { reason: 'error' })], initial, ledger);
+    expect(afterIdle.messages).toBe(initial);
+    expect(ledger.ended.has('unknown')).toBe(false);
+    const afterSilence = run(
+      [{ conversationId: CONV, event: 'group.idle', data: { reason: 'silent' } }],
+      afterIdle.messages,
+      ledger,
+    );
+    expect(afterSilence.messages[0]).toMatchObject({ content: 'SSE text', isStreaming: false });
+  });
+
+  it('ignores unscoped real terminals and does not let a conflicting event reassign a consult', () => {
+    const ledger = createRoomLedger();
+    const started = run([inChain('new', start()), inChain('new', delta('current'))], [], ledger);
+    const result = run(
+      [
+        inChain('old', delta('incorrect')),
+        { conversationId: CONV, event: 'group.idle', data: { reason: 'error' } },
+        inChain('old', event('group.idle', { reason: 'error' })),
+      ],
+      started.messages,
+      ledger,
+    );
+    expect(result.messages[0]).toMatchObject({ content: 'current', isStreaming: true });
+    expect(ledger.chains.get('k1')).toBe('new');
+  });
+});
