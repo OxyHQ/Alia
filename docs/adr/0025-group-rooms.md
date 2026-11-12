@@ -54,12 +54,20 @@ claim that Alia reproduces Grok Bot's internal implementation.
    lifecycle; record consumption and decision metadata without transcript text. A returned generation
    settles its measured usage before semantic roster validation, so rejecting its actor ID does not
    refund inference that completed. An inference call that throws releases its reservation.
-   For ordinary messages, the inference schema is `{ choice: <allowed decision ID> }`:
-   the server supplies `allowedChoices`, each representing one complete legal decision for the
-   current room state, maps the chosen ID to `RoomDecision`, and retains the existing validator.
+   For ordinary messages, inference returns a short `assessment` and one `choice` from an enum.
+   The server supplies `allowedChoices`, each representing one complete legal decision labelled
+   by its request source, maps the chosen ID to `RoomDecision`, and retains the existing validator.
+   Input separates `personRequest`, preceding `context` and later `memberContributions`. A peer
+   request can originate only in the current last speaker's latest substantive post-trigger
+   message, preserving the worker's existing `handedByAgentId` attribution. Outstanding original
+   work is assessed before deciding to wait for the person. The assessment is not stored or logged;
+   this introduces no persistent planner, extra inference stage or authority.
    A real-inference evaluation exposed an incompatible `clarify`/`directed` combination when
    action, actor and reason were independent output fields. Enumerating complete decisions
-   removes that invalid combination without keyword routing or relaxed validation. It does not
+   removes that invalid combination without keyword routing or relaxed validation. Later tests
+   still observed premature idle decisions with an original recipient outstanding and peer
+   requests labelled `directed`. Explicit request sources address that distinction in the contract;
+   those observations do not establish the model's internal cause. This representation does not
    guarantee that the model selects the contextually best option; real-inference acceptance
    remains necessary. Reaction observations keep their separate `speak`/`idle` action schema
    and server-bound recipient. These are internal inference contracts; authority, budgets,
