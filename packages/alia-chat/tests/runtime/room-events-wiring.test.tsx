@@ -157,6 +157,7 @@ describe('the open group conversation', () => {
     harness.replies.push({
       status: 200,
       frames: [
+        frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
         sse('agent_start', { agent: NADIA }),
         sse('agent_delta', { content: 'Hola ' }),
         sse('agent_end', { status: 'failed', error: { code: 'room_continues' } }),
@@ -170,6 +171,8 @@ describe('the open group conversation', () => {
       await api.append({ role: 'user', content: 'hi' });
     });
     expect(members()).toHaveLength(1);
+    expect(api.messages).toHaveLength(2);
+    expect(api.error).toBeNull();
     expect(members()[0]).toMatchObject({ content: 'Hola ', isStreaming: true });
     expect(members()[0]?.turnOutcome).toBeUndefined();
 
