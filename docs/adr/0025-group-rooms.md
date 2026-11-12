@@ -49,8 +49,10 @@ claim that Alia reproduces Grok Bot's internal implementation.
 3. **Selection precedes activity.** A structured `RoomDecision` chooses a speaker, requests one
    clarification, ends the chain deliberately, or reports an unavailable addressee. It sees only
    participant identities, descriptions and attributed conversation data. It has no tools, private
-   memory or authority to act. Validate its output against the roster. Run inference through Oxy's
-   utility resolver, with bounded time/output and the existing reservation, settlement and refund
+   memory or authority to act. Validate its output against the roster. General room selection uses
+   the existing Oxy `auto` resolver (`resolveDefaultModel`), so Oxy can route according to the
+   structured-output request and input. Binary reaction observation uses `resolveUtilityModel`.
+   Both retain bounded time/output and the existing reservation, settlement and refund
    lifecycle; record consumption and decision metadata without transcript text. A returned generation
    settles its measured usage before semantic roster validation, so rejecting its actor ID does not
    refund inference that completed. An inference call that throws releases its reservation.
