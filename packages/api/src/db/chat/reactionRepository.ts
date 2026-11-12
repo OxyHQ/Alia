@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, isNull, lte, or, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index';
 import { conversations, messages } from '../schema/chat';
 import {
@@ -24,8 +24,14 @@ export class ReactionMutationConflict extends Error {
   }
 }
 
-async function targetRow(db: Executor, userId: string, conversationId: string, messageId: string) {
-  const [row] = await db
+async function targetRow(
+  db: Executor,
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  forUpdate = false,
+) {
+  const query = db
     .select()
     .from(messages)
     .where(
@@ -36,7 +42,9 @@ async function targetRow(db: Executor, userId: string, conversationId: string, m
     )
     .orderBy(sql`${messages.seq} asc nulls first`, asc(messages.createdAt))
     .limit(1);
-  return row;
+  const [row] = forUpdate ? await query.for('update') : await query;
+  if (!row) return undefined;
+  return (await hydrateReactionRows(db, userId, conversationId, [row]))[0];
 }
 
 async function actorOf(
@@ -110,7 +118,15 @@ export async function mutateMessageReaction(
 ): Promise<ReactionMutationResult | undefined> {
   return db.transaction(async (tx) => {
     await lockMessageThread(tx, userId, conversationId);
-    const row = await targetRow(tx, userId, conversationId, messageId);
+    const [conversation] = await tx
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(eq(conversations.oxyUserId, userId), eq(conversations.conversationId, conversationId)),
+      )
+      .limit(1);
+    if (!conversation) return undefined;
+    const row = await targetRow(tx, userId, conversationId, messageId, true);
     if (!row) return undefined;
     const targetId = stableId(row);
     if (row.clientMessageId === null)
@@ -164,6 +180,7 @@ export async function mutateMessageReaction(
     const responseEligible =
       changed &&
       active &&
+      actor !== null &&
       row.role === 'assistant' &&
       input.authorizedActorId !== undefined &&
       input.authorizedActorId === actor;
@@ -207,6 +224,7 @@ export async function mutateMessageReaction(
         revision,
         baselineUserMessageId: baseline ? stableId(baseline) : null,
         status: responseEligible ? 'pending' : 'completed',
+        nextAttemptAt: new Date(Date.now() + 2000),
       })
       .returning();
     return {
@@ -247,6 +265,37 @@ export async function isReactionEventCurrent(db: Executor, event: ReactionEvent)
   return (latest ? stableId(latest) : null) === event.baselineUserMessageId;
 }
 
+/** Canonical state survives old-version writers replacing message-row caches during a rollout. */
+export async function hydrateReactionRows<
+  T extends {
+    id: string;
+    clientMessageId: string | null;
+    reactions: unknown;
+    reactionRevision?: number;
+  },
+>(db: Executor, userId: string, conversationId: string, rows: readonly T[]): Promise<T[]> {
+  const states = await db
+    .select()
+    .from(messageReactionStates)
+    .where(
+      and(
+        eq(messageReactionStates.oxyUserId, userId),
+        eq(messageReactionStates.conversationId, conversationId),
+      ),
+    );
+  const byId = new Map(states.map((state) => [state.messageId, state]));
+  return rows.map((row) => {
+    const state = byId.get(stableId(row));
+    return state
+      ? {
+          ...row,
+          reactions: state.reactions.length ? state.reactions : null,
+          reactionRevision: state.revision,
+        }
+      : row;
+  });
+}
+
 export async function listReactionContext(
   db: Executor,
   userId: string,
@@ -254,21 +303,33 @@ export async function listReactionContext(
   limit = 100,
 ) {
   const rows = await db
-    .select()
+    .select(getTableColumns(messages))
     .from(messages)
-    .where(and(scope(userId, conversationId), sql`${messages.reactions} is not null`))
+    .leftJoin(
+      messageReactionStates,
+      and(
+        eq(messageReactionStates.oxyUserId, messages.oxyUserId),
+        eq(messageReactionStates.conversationId, messages.conversationId),
+        sql`${messageReactionStates.messageId} = coalesce(${messages.clientMessageId}, ${messages.id})`,
+      ),
+    )
+    .where(
+      and(
+        scope(userId, conversationId),
+        sql`(${messageReactionStates.revision} > 0 or ${messages.reactionRevision} > 0 or ${messages.reactions} is not null)`,
+      ),
+    )
     .orderBy(sql`${messages.seq} desc nulls last`, desc(messages.createdAt))
     .limit(Math.max(1, Math.min(limit, 200)));
+  const current = await hydrateReactionRows(db, userId, conversationId, rows);
   return Promise.all(
-    rows
-      .filter((row) => Array.isArray(row.reactions) && row.reactions.length > 0)
-      .map(async (row) => ({
-        messageId: stableId(row),
-        senderId: userId,
-        reactions: row.reactions as string[],
-        revision: row.reactionRevision,
-        targetActorId: await actorOf(db, userId, conversationId, row),
-      })),
+    current.map(async (row) => ({
+      messageId: stableId(row),
+      senderId: userId,
+      reactions: Array.isArray(row.reactions) ? (row.reactions as string[]) : [],
+      revision: row.reactionRevision,
+      targetActorId: await actorOf(db, userId, conversationId, row),
+    })),
   );
 }
 
@@ -363,11 +424,13 @@ export async function retryReactionEvent(
   id: string,
   token: string,
   delayMs: number,
+  options: { deferred?: boolean } = {},
 ): Promise<boolean> {
   const rows = await db
     .update(reactionEvents)
     .set({
       status: 'pending',
+      ...(options.deferred ? { attempts: sql`greatest(${reactionEvents.attempts} - 1, 0)` } : {}),
       nextAttemptAt: new Date(Date.now() + Math.max(0, delayMs)),
       leaseToken: null,
       leaseExpiresAt: null,
@@ -384,18 +447,21 @@ export async function markConversationActivity(
   activityId: string,
   ttlMs = 900_000,
 ): Promise<void> {
-  const expiresAt = new Date(Date.now() + Math.max(100, ttlMs));
-  await db
-    .insert(conversationActivities)
-    .values({ oxyUserId: userId, conversationId, activityId, expiresAt })
-    .onConflictDoUpdate({
-      target: [
-        conversationActivities.oxyUserId,
-        conversationActivities.conversationId,
-        conversationActivities.activityId,
-      ],
-      set: { expiresAt },
-    });
+  await db.transaction(async (tx) => {
+    await lockMessageThread(tx, userId, conversationId);
+    const expiresAt = new Date(Date.now() + Math.max(100, ttlMs));
+    await tx
+      .insert(conversationActivities)
+      .values({ oxyUserId: userId, conversationId, activityId, expiresAt })
+      .onConflictDoUpdate({
+        target: [
+          conversationActivities.oxyUserId,
+          conversationActivities.conversationId,
+          conversationActivities.activityId,
+        ],
+        set: { expiresAt },
+      });
+  });
 }
 export async function clearConversationActivity(
   db: Executor,
@@ -433,4 +499,33 @@ export async function isConversationActive(
 }
 export async function expireConversationActivities(db: Executor): Promise<void> {
   await db.delete(conversationActivities).where(lte(conversationActivities.expiresAt, new Date()));
+}
+
+/** Only database reads/writes belong in these callbacks, never inference or tool calls. */
+export async function withCurrentReaction<T>(
+  db: ApiDatabase,
+  event: ReactionEvent,
+  leaseToken: string,
+  commit: (tx: Executor) => Promise<T>,
+  recover?: (tx: Executor) => Promise<T | undefined>,
+): Promise<T | null> {
+  return db.transaction(async (tx) => {
+    await lockMessageThread(tx, event.userId, event.conversationId);
+    await targetRow(tx, event.userId, event.conversationId, event.messageId, true);
+    const [held] = await tx
+      .select()
+      .from(reactionEvents)
+      .where(lease(event.id, leaseToken))
+      .for('update');
+    if (!held || held.oxyUserId !== event.userId || held.conversationId !== event.conversationId)
+      return null;
+    const recovered = await recover?.(tx);
+    if (recovered !== undefined) return recovered;
+    if (
+      !(await isReactionEventCurrent(tx, eventOf(held))) ||
+      (await isConversationActive(tx, event.userId, event.conversationId))
+    )
+      return null;
+    return commit(tx);
+  });
 }

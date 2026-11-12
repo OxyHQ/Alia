@@ -24,7 +24,9 @@
  * rather than narrowed to a string anywhere it is merely being moved.
  */
 
-import { toggleReaction } from '../../domain/message-reactions.js';
+import { lockMessageThread } from './messageLock.js';
+import { hydrateReactionRows, mutateMessageReaction } from './reactionRepository.js';
+import { messageReactionStates, reactionEvents } from '../schema/message-reactions.js';
 import type { AvatarCharacter } from '@oxy.so/contracts';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type {
@@ -51,6 +53,7 @@ export interface MessageRow {
   readonly content: unknown;
   readonly vote: string | null;
   readonly reactions: unknown;
+  readonly reactionRevision?: number;
   readonly toolInvocations: unknown;
   readonly agentInfoId: string | null;
   readonly agentInfoName: string | null;
@@ -86,6 +89,7 @@ export interface StoredMessage {
   readonly vote?: MessageVote;
   /** The emoji the person left on it. */
   readonly reactions?: string[];
+  readonly reactionRevision?: number;
   readonly toolInvocations?: ToolInvocation[];
   readonly agentInfo?: AgentInfo;
   readonly seq?: number;
@@ -104,7 +108,8 @@ export interface StoredMessage {
  */
 export function toStoredMessage(row: MessageRow): StoredMessage {
   return {
-    ...(row.clientMessageId === null ? {} : { id: row.clientMessageId }),
+    id: row.clientMessageId ?? row.id,
+    reactionRevision: row.reactionRevision ?? 0,
     role: row.role,
     content: row.content as MessageContent,
     ...(row.vote === null ? {} : { vote: row.vote as MessageVote }),
@@ -146,6 +151,10 @@ export interface NewMessage {
    * No route reads it from a request body.
    */
   readonly vote?: MessageVote;
+  readonly reactions?: string[];
+  readonly reactionRevision?: number;
+  /** A positional fallback is not a stable identity across a rewrite. */
+  readonly retainFeedback?: boolean;
   readonly seq?: number;
   /** A voice call's interrupted answer (`messages.interrupted_after_ms`); also carried over. */
   readonly interruptedAfterMs?: number;
@@ -167,6 +176,8 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
     agentInfoCharacter: message.agentInfo?.character ?? null,
     agentInfoHandle: message.agentInfo?.handle ?? null,
     vote: message.vote ?? null,
+    reactions: message.reactions?.length ? message.reactions : null,
+    reactionRevision: message.reactionRevision ?? 0,
     seq: message.seq ?? null,
     interruptedAfterMs: message.interruptedAfterMs ?? null,
     ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),
@@ -181,15 +192,16 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
  * among the legacy rows that have no `seq` at all.
  */
 export async function listMessages(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   conversationId: string,
 ): Promise<MessageRow[]> {
-  return db
+  const rows = await db
     .select()
     .from(messages)
     .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)))
     .orderBy(sql`${messages.seq} asc nulls first`, asc(messages.createdAt));
+  return hydrateReactionRows(db, oxyUserId, conversationId, rows);
 }
 
 /**
@@ -608,7 +620,43 @@ export async function messageExistsInConversation(
  */
 export async function insertMessages(db: Executor, rows: readonly NewMessage[]): Promise<void> {
   if (rows.length === 0) return;
-  await db.insert(messages).values(rows.map(toInsert));
+  await db.transaction(async (tx) => {
+    const keys = [
+      ...new Set(rows.map((row) => JSON.stringify([row.oxyUserId, row.conversationId]))),
+    ].sort();
+    const states = new Map<string, typeof messageReactionStates.$inferSelect>();
+    for (const key of keys) {
+      const [userId, conversationId] = JSON.parse(key) as [string, string];
+      await lockMessageThread(tx, userId, conversationId);
+      for (const state of await tx
+        .select()
+        .from(messageReactionStates)
+        .where(
+          and(
+            eq(messageReactionStates.oxyUserId, userId),
+            eq(messageReactionStates.conversationId, conversationId),
+          ),
+        )) {
+        states.set(JSON.stringify([userId, conversationId, state.messageId]), state);
+      }
+    }
+    await tx.insert(messages).values(
+      rows.map((row) => {
+        const state =
+          row.clientMessageId === undefined
+            ? undefined
+            : states.get(JSON.stringify([row.oxyUserId, row.conversationId, row.clientMessageId]));
+        return toInsert({
+          ...row,
+          ...(state &&
+          row.retainFeedback !== false &&
+          (!row.agentInfo || row.agentInfo.id === state.targetActorId)
+            ? { reactions: state.reactions, reactionRevision: state.revision }
+            : {}),
+        });
+      }),
+    );
+  });
 }
 
 /**
@@ -623,10 +671,36 @@ export async function deleteMessages(
   oxyUserId: string,
   conversationId: string,
 ): Promise<number> {
-  const result = await db
-    .delete(messages)
-    .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)));
-  return result.count;
+  return db.transaction(async (tx) => {
+    await lockMessageThread(tx, oxyUserId, conversationId);
+    await tx
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)))
+      .for('update');
+    await tx
+      .delete(messageReactionStates)
+      .where(
+        and(
+          eq(messageReactionStates.oxyUserId, oxyUserId),
+          eq(messageReactionStates.conversationId, conversationId),
+        ),
+      );
+    await tx
+      .update(reactionEvents)
+      .set({ status: 'cancelled', leaseToken: null, leaseExpiresAt: null })
+      .where(
+        and(
+          eq(reactionEvents.oxyUserId, oxyUserId),
+          eq(reactionEvents.conversationId, conversationId),
+          inArray(reactionEvents.status, ['pending', 'processing']),
+        ),
+      );
+    const result = await tx
+      .delete(messages)
+      .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)));
+    return result.count;
+  });
 }
 
 /**
@@ -654,14 +728,90 @@ export async function replaceMessages(
   conversationId: string,
   rows: readonly Omit<NewMessage, 'conversationId' | 'oxyUserId' | 'seq'>[],
 ): Promise<void> {
+  await rewriteMessages(db, oxyUserId, conversationId, () => rows);
+}
+
+/** Read/reconcile/write under the same scoped lock as reaction mutation. */
+export async function rewriteMessages(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+  build: (
+    stored: MessageRow[],
+  ) => readonly Omit<NewMessage, 'conversationId' | 'oxyUserId' | 'seq'>[],
+): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx
-      .delete(messages)
-      .where(and(eq(messages.oxyUserId, oxyUserId), eq(messages.conversationId, conversationId)));
-    if (rows.length === 0) return;
-    await tx
-      .insert(messages)
-      .values(rows.map((row, seq) => toInsert({ ...row, conversationId, oxyUserId, seq })));
+    await lockMessageThread(tx, oxyUserId, conversationId);
+    const where = and(
+      eq(messages.oxyUserId, oxyUserId),
+      eq(messages.conversationId, conversationId),
+    );
+    const rawStored = await tx
+      .select()
+      .from(messages)
+      .where(where)
+      .orderBy(sql`${messages.seq} asc nulls first`, asc(messages.createdAt))
+      .for('update');
+    const stored = await hydrateReactionRows(tx, oxyUserId, conversationId, rawStored);
+    const byId = new Map(stored.map((row) => [row.clientMessageId ?? row.id, row]));
+    const retained = new Set<string>();
+    const rows = build(stored).map((row, seq) => {
+      const previous =
+        row.clientMessageId === undefined ? undefined : byId.get(row.clientMessageId);
+      const sameActor = previous && previous.agentInfoId === (row.agentInfo?.id ?? null);
+      const preserve = previous && row.retainFeedback !== false && sameActor;
+      if (preserve && row.clientMessageId) retained.add(row.clientMessageId);
+      return toInsert({
+        ...row,
+        conversationId,
+        oxyUserId,
+        seq,
+        ...(preserve
+          ? {
+              ...(previous.vote === null ? {} : { vote: previous.vote as MessageVote }),
+              ...(previous.interruptedAfterMs === null
+                ? {}
+                : { interruptedAfterMs: previous.interruptedAfterMs }),
+              reactions: Array.isArray(previous.reactions) ? (previous.reactions as string[]) : [],
+              reactionRevision: previous.reactionRevision,
+            }
+          : { reactions: [], reactionRevision: 0 }),
+      });
+    });
+    const states = await tx
+      .select({ id: messageReactionStates.id, messageId: messageReactionStates.messageId })
+      .from(messageReactionStates)
+      .where(
+        and(
+          eq(messageReactionStates.oxyUserId, oxyUserId),
+          eq(messageReactionStates.conversationId, conversationId),
+        ),
+      );
+    const removed = states.filter((state) => !retained.has(state.messageId));
+    if (removed.length) {
+      await tx.delete(messageReactionStates).where(
+        inArray(
+          messageReactionStates.id,
+          removed.map((state) => state.id),
+        ),
+      );
+      await tx
+        .update(reactionEvents)
+        .set({ status: 'cancelled', leaseToken: null, leaseExpiresAt: null })
+        .where(
+          and(
+            eq(reactionEvents.oxyUserId, oxyUserId),
+            eq(reactionEvents.conversationId, conversationId),
+            inArray(
+              reactionEvents.messageId,
+              removed.map((state) => state.messageId),
+            ),
+            inArray(reactionEvents.status, ['pending', 'processing']),
+          ),
+        );
+    }
+    await tx.delete(messages).where(where);
+    if (rows.length) await tx.insert(messages).values(rows);
   });
 }
 
@@ -773,29 +923,8 @@ export async function reactToMessage(
   messageId: string,
   emoji: string,
 ): Promise<{ reactions: string[] } | undefined> {
-  return db.transaction(async (tx) => {
-    const [row] = await tx
-      .select({ id: messages.id, reactions: messages.reactions })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.oxyUserId, oxyUserId),
-          eq(messages.conversationId, conversationId),
-          or(eq(messages.clientMessageId, messageId), eq(messages.id, messageId)),
-        ),
-      )
-      .orderBy(sql`${messages.seq} asc nulls first`, asc(messages.createdAt))
-      .limit(1)
-      .for('update');
-    if (row === undefined) return undefined;
-    const held = Array.isArray(row.reactions) ? (row.reactions as string[]) : [];
-    const next = toggleReaction(held, emoji);
-    await tx
-      .update(messages)
-      .set({ reactions: next.length === 0 ? null : next })
-      .where(eq(messages.id, row.id));
-    return { reactions: next };
-  });
+  const result = await mutateMessageReaction(db, oxyUserId, conversationId, messageId, { emoji });
+  return result ? { reactions: result.reactions } : undefined;
 }
 
 /**
