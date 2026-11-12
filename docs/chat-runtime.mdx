@@ -224,9 +224,20 @@ A committed tool mutation does not prove that the whole turn finished successful
 reaction-only finish records `agent_reaction_turns`, after verifying matching scoped receipts,
 current membership and the latest person message. Its canonical turn key includes the admitted
 turn or room step and trigger identity/content, preventing reuse for different text under the
-same client message ID. Retries can recover that completion without a blank assistant message or
-another inference call. A later inference failure cannot be reported as success just because an
-earlier reaction committed. Conversation deletion cascades the completion records and receipts.
+same client message ID. Queued group retries recover that completion and replay the actual touched
+targets' current snapshots without another inference call or a blank assistant message. Direct
+chat retains its existing turn-control contract: a reused turn ID is rejected, reconnection reloads
+canonical state, and a newly admitted retry is a new turn. A later inference failure cannot be
+reported as success just because an earlier reaction committed. Conversation deletion cascades
+the completion records and receipts.
+
+For direct chat, `alia.agent_turn` carries `conversationStored: true` after the person's messages
+are admitted with stable IDs. It carries `reactionOnly: true` only after clean, durable completion;
+a tool result's intent to finish is insufficient. The SDK requires that authoritative completion
+and a clean stop before removing the empty lead bubble. Truncation, errors and outstanding
+non-reaction tool work remain visible failures or work. A clean reaction-only finish skips the
+redundant final history rewrite. Completed reaction-only contributions count toward the existing
+room rate limit; a turn that also produces text is counted once through its stored reply.
 
 `agentReactions.pgdb.test.ts` checks independent authors, same-emoji removal, receipt replay,
 membership, per-author limits, stale-target and newer-message fencing, legacy rewrites, bounded
