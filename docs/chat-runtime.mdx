@@ -144,7 +144,9 @@ stored replies reconcile on reload.
   60 replies per room per 10 minutes. General room selection uses the existing Oxy `auto` resolver,
   allowing Oxy to match the structured-output request and input to its capabilities. Binary reaction
   observations retain the utility resolver. General selection has a 30-second generation deadline
-  for contextual planning; the narrower binary reaction decision has 10 seconds. Both remain bounded
+  for contextual planning and an 8,192-token output ceiling, including reasoning; this requires
+  approval and deployment of Oxy's corresponding internal output policy. The narrower binary
+  reaction decision retains 10 seconds and 2,560 tokens. Both remain bounded
   by earlier caller cancellation, with at most one retry and usage accounting at the actual served
   price. Supersession is checked before and after selection. A returned generation is settled before roster validation;
   throwing inference calls release their reservations. No hardcoded model or fallback that wakes every member.

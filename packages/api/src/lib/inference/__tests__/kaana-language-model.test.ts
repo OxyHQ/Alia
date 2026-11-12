@@ -79,13 +79,13 @@ describe('Kaana AI SDK adapter through Oxy', () => {
       model,
       schema: z.object({ choice: z.enum(['idle', 'person-request:member']) }),
       prompt: 'Choose a synthetic next contribution.',
-      maxOutputTokens: 2560,
+      maxOutputTokens: 8192,
     });
     expect(result.object).toEqual({ choice: 'idle' });
     expect(mocks.requests).toHaveLength(1);
     expect(mocks.requests[0]).toMatchObject({
       routingProfile: 'auto',
-      maxOutputTokens: 2560,
+      maxOutputTokens: 8192,
       responseFormat: {
         type: 'json_schema',
         schema: {

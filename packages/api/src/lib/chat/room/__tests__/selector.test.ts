@@ -88,7 +88,7 @@ describe('room selection inference accounting', () => {
     expect(h.model).toHaveBeenCalledWith({ modelId: 'auto' }, 'agent_run');
     const call = h.generate.mock.calls[0]?.[0];
     expect(call.tools).toBeUndefined();
-    expect(call.maxOutputTokens).toBe(2560);
+    expect(call.maxOutputTokens).toBe(8192);
     expect(call.maxRetries).toBe(1);
     expect(call.abortSignal).toBeInstanceOf(AbortSignal);
     expect(call.system).toBe(ROOM_SELECTION_SYSTEM);
@@ -204,6 +204,7 @@ describe('reaction selection generation contract', () => {
     expect(h.model).toHaveBeenCalledWith({ modelId: 'instant' }, 'agent_run');
     const call = h.generate.mock.calls[0]?.[0];
     expect(call.system).toBe(REACTION_SELECTION_SYSTEM);
+    expect(call.maxOutputTokens).toBe(2560);
     expect(call.schema.parse({ action: expected.action })).toEqual({ action: expected.action });
     for (const action of ['clarify', 'unavailable', 'invalid'])
       expect(call.schema.safeParse({ action }).success).toBe(false);
