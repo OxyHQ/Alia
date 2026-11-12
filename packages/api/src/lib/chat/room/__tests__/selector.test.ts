@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   settle: vi.fn(),
   refund: vi.fn(),
   model: vi.fn(),
+  info: vi.fn(),
 }));
 vi.mock('ai', () => ({ generateObject: h.generate }));
 vi.mock('../../../chat-core.js', () => ({
@@ -24,7 +25,7 @@ vi.mock('../../../models/power-levels.js', () => ({
   servedModelId: () => 'served/model',
   servedReferenceOf: () => 'served/model',
 }));
-vi.mock('../../../logger.js', () => ({ log: { agents: { info: vi.fn() } } }));
+vi.mock('../../../logger.js', () => ({ log: { agents: { info: h.info } } }));
 const { selectRoomDecision } = await import('../selector.js');
 const { ROOM_SELECTION_SYSTEM, REACTION_SELECTION_SYSTEM } = await import('../decision.js');
 const input = {
@@ -50,7 +51,10 @@ beforeEach(() => {
   h.reserve.mockResolvedValue({ id: 'reservation' });
   h.settle.mockResolvedValue({ creditsCharged: 1 });
   h.generate.mockResolvedValue({
-    object: { choice: 'speak:directed:e' },
+    object: {
+      assessment: 'The original request asks Eusebio to explain his capabilities.',
+      choice: 'person-request:e',
+    },
     usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
   });
 });
@@ -64,15 +68,20 @@ describe('room selection inference accounting', () => {
     expect(call.maxRetries).toBe(1);
     expect(call.abortSignal).toBeInstanceOf(AbortSignal);
     expect(call.system).toBe(ROOM_SELECTION_SYSTEM);
-    expect(call.schema.parse({ choice: 'clarify:e' })).toEqual({ choice: 'clarify:e' });
-    expect(Object.keys(call.schema.shape)).toEqual(['choice']);
+    expect(
+      call.schema.parse({
+        assessment: 'The recipient is unclear.',
+        choice: 'clarify-person-request:e',
+      }),
+    ).toEqual({ assessment: 'The recipient is unclear.', choice: 'clarify-person-request:e' });
+    expect(Object.keys(call.schema.shape)).toEqual(['assessment', 'choice']);
     expect(JSON.parse(call.prompt).allowedChoices).toContainEqual({
-      id: 'speak:directed:e',
+      id: 'person-request:e',
       action: 'speak',
       agentId: 'e',
-      reason: 'directed',
+      source: { messageId: 'p', role: 'user', actorId: null },
     });
-    expect(JSON.parse(call.prompt).messages[0].content).toBe(input.rows[0]?.content);
+    expect(JSON.parse(call.prompt).personRequest.content).toBe(input.rows[0]?.content);
     expect(h.settle).toHaveBeenCalledWith(
       { id: 'reservation' },
       { promptTokens: 12, completionTokens: 4, totalTokens: 16 },
@@ -87,6 +96,15 @@ describe('room selection inference accounting', () => {
     expect(h.generate).not.toHaveBeenCalled();
   });
 
+  it('uses the authoritative source choice and never returns or logs the assessment', async () => {
+    const assessment = 'Transient description of pending work; never stored or logged.';
+    h.generate.mockResolvedValue({ object: { assessment, choice: 'person-request:e' }, usage: {} });
+    const decision = await selectRoomDecision(input);
+    expect(decision).toEqual({ action: 'speak', agentId: 'e', reason: 'directed' });
+    expect(JSON.stringify(h.info.mock.calls)).not.toContain(assessment);
+    expect(JSON.stringify(h.settle.mock.calls)).not.toContain(assessment);
+  });
+
   it('refunds failed inference and never guesses a speaker', async () => {
     h.generate.mockRejectedValue(new Error('timeout'));
     await expect(selectRoomDecision(input)).rejects.toThrow('timeout');
@@ -96,7 +114,7 @@ describe('room selection inference accounting', () => {
 
   it('settles a completed generation even if its selected ID is invalid', async () => {
     h.generate.mockResolvedValue({
-      object: { choice: 'speak:directed:outsider' },
+      object: { assessment: 'Invalid recipient.', choice: 'person-request:outsider' },
       usage: {},
     });
     await expect(selectRoomDecision(input)).rejects.toThrow();
