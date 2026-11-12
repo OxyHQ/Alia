@@ -27,6 +27,7 @@ import {
   ReactionMutationConflict,
   listAgentReactionTargets,
   listAgentReactionTurnSnapshots,
+  countAgentReactionTurnsSince,
 } from '../chat/reactionRepository';
 import { lockMessageThread } from '../chat/messageLock';
 import { TEST_CHARACTER } from './support/agent-character';
@@ -114,6 +115,44 @@ async function fixture(direct = false) {
 }
 
 describe('authored agent reactions', () => {
+  it('counts only scoped clean reaction-only completions within the reply-rate window', async () => {
+    const f = await fixture();
+    const since = new Date('2026-11-12T09:00:00Z');
+    await f.react('receipt');
+    expect(await countAgentReactionTurnsSince(db, f.userId, f.conversationId, new Date(0))).toBe(0);
+    for (let retry = 0; retry < 3; retry++) {
+      expect(
+        await markAgentReactionTurnComplete(
+          db,
+          f.userId,
+          f.conversationId,
+          f.first.id,
+          'admitted-turn',
+          { id: 'person', content: 'Gracias' },
+        ),
+      ).toBe(true);
+    }
+    await db
+      .update(agentReactionTurns)
+      .set({ completedAt: since })
+      .where(eq(agentReactionTurns.oxyUserId, f.userId));
+    // A successful mutation in a text-producing or unfinished turn is not a second contribution.
+    await f.react('mixed', true, '👍', 'person', f.first, 'text-turn');
+    expect(await countAgentReactionTurnsSince(db, f.userId, f.conversationId, since)).toBe(1);
+    expect(
+      await countAgentReactionTurnsSince(
+        db,
+        f.userId,
+        f.conversationId,
+        new Date(since.getTime() + 1),
+      ),
+    ).toBe(0);
+    expect(await countAgentReactionTurnsSince(db, 'stranger', f.conversationId, new Date(0))).toBe(
+      0,
+    );
+    expect(await countAgentReactionTurnsSince(db, f.userId, 'other-thread', new Date(0))).toBe(0);
+  });
+
   it('replays the completed turn receipt targets outside the recent window with current snapshots', async () => {
     const f = await fixture();
     await f.react('old-person');
