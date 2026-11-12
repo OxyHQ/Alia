@@ -73,7 +73,7 @@
     "nativewind": "5.0.0-rc.0",
     "react-native-css": "3.1.0-rc.0",
     "@oxy.so/core": "7.48.0",
-    "@oxy.so/contracts": "6.24.0",
+    "@oxy.so/contracts": "6.25.0",
     "@oxy.so/protocol": "1.11.0",
     "@oxy.so/services": "14.19.1",
     "@oxy.so/mcp": "1.4.2"
