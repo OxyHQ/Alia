@@ -263,6 +263,9 @@ interface MatrixRow {
  * are retired, and nothing is left to document about them. Thirty-two rows described them, 23 of
  * them annotated as removed; the rows go whole and are no longer cited as `dependsOn` by the rows
  * that stay.
+ *
+ * Codea's extension and CLI moved to OxyHQ/Codea, so the eleven rows that described their files
+ * leave the matrix the same way; none of them was annotated as removed.
  */
 const REMOVED_ROW_COUNT = 150;
 
@@ -386,9 +389,10 @@ describe('the ownership matrix still describes this repository', () => {
      * 190 by ADR 0012, which deleted the routing-profile catalogue outright — and to
      * 185 by Alia's memory moving to Nilo, which deleted the embeddings module — and to
      * 180 by the retired desktop client and gateway admin leaving the matrix, whose rows
-     * that still described live files went with them.
+     * that still described live files went with them — and to 165 by Codea moving to its own
+     * repository, whose eleven rows went with it.
      */
-    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(180);
+    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(165);
     expect(new Set(matrix.map((r) => r.currentPath)).size).toBeGreaterThanOrEqual(150);
   });
 

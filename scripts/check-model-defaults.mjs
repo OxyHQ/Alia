@@ -31,8 +31,8 @@ const ROOT = resolve(import.meta.dirname, '..');
  * {@link NOT_A_CLIENT} below — every workspace the repo declares must be either
  * covered here or classified there, so a new package fails this script until
  * somebody says which it is. The coverage is derived from the root
- * `package.json`'s `workspaces` array, which is why the nested
- * `packages/alia-codea/webview-ui` is visible to it at all.
+ * `package.json`'s `workspaces` array, so a workspace nested inside another
+ * package's directory is visible to it too.
  *
  * A deny-list of trees to SKIP was the obvious alternative and is worse here.
  * It would walk `packages/api/src`, where hundreds of `alia-*` literals are the
@@ -56,9 +56,6 @@ export const TREES = [
   'packages/app/src',
   'packages/alia-canvas/src',
   'packages/alia-chat/src',
-  'packages/alia-codea/src',
-  'packages/alia-codea/webview-ui/src',
-  'packages/alia-codea-cli/src',
   'packages/integrations/src',
 ];
 
@@ -83,7 +80,7 @@ export const NOT_A_CLIENT = {
 /**
  * A retired routing identifier: the product modes (`mode:*`) and routing
  * profiles (`route:*`, `profile:*`) Alia invented before it served real models.
- * Anchored, so a package name such as `alia-codea-cli` is not mistaken for one.
+ * Anchored, so a package name such as `alia-computer-host` is not mistaken for one.
  */
 const IDENTIFIER = /^(?:(?:mode|profile|route):[a-z0-9][a-z0-9-]*)$/;
 
@@ -143,9 +140,9 @@ export function identifiersIn(file, source) {
  * Every workspace the repo declares, read from the manifest rather than from
  * the directory listing.
  *
- * `packages/alia-codea/webview-ui` is a workspace nested inside another
- * package's directory, so a listing of `packages/` cannot see it — and it is
- * precisely the tree #244 found unguarded. The manifest can.
+ * A workspace nested inside another package's directory is invisible to a
+ * listing of `packages/` — #244 found exactly such a tree unguarded (the Codea
+ * webview, since moved to OxyHQ/Codea). The manifest can see it.
  */
 function declaredWorkspaces() {
   const root = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -196,8 +193,8 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    ['workspaces', workspaces.length, 10],
-    ['TREES', TREES.length, 8],
+    ['workspaces', workspaces.length, 7],
+    ['TREES', TREES.length, 5],
     ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
   ];
   const partition = [
@@ -225,14 +222,9 @@ function main() {
   // Vacuity floor. An empty walk satisfies every check below, and "I found less"
   // and "there is less" look identical without one.
   //
-  // 300 is not a round number: the walk is 392 files and the three trees #244
-  // added are 147 of them, so dropping all three lands on 245 — the exact size
-  // of the walk that reported "OK, 245 files walked" while canvas, the Codea
-  // webview and the bots all showed an alias. A floor left at the old 120 would
-  // have passed that. This one cannot.
-  //
-  // 300 -> 200 when `alia-console` (117 files) was deleted: the walk is 275,
-  // and dropping the three #244 trees from it lands near 128, still far below.
+  // #244 found a walk of 245 files reporting OK while canvas, the Codea webview
+  // (now in OxyHQ/Codea) and the bots all showed an alias. The walk is 611 files
+  // today; a floor of 200 still catches losing a whole tree of that size.
   if (files.length < 200) {
     console.error(`check-model-defaults: walked only ${files.length} files; expected 200+.`);
     process.exit(1);

@@ -7,7 +7,6 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@alia.onl/sdk"><img alt="@alia.onl/sdk" src="https://img.shields.io/npm/v/@alia.onl/sdk?style=flat-square&label=%40alia.onl%2Fsdk&labelColor=440151&color=D26AE7"></a>
-  <a href="https://www.npmjs.com/package/@alia-codea/cli"><img alt="@alia-codea/cli" src="https://img.shields.io/npm/v/@alia-codea/cli?style=flat-square&label=%40alia-codea%2Fcli&labelColor=440151&color=D26AE7"></a>
   <img alt="Bun" src="https://img.shields.io/badge/bun-1.4.3-440151?style=flat-square&logo=bun&logoColor=white">
   <img alt="Expo" src="https://img.shields.io/badge/Expo-57-440151?style=flat-square&logo=expo&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-440151?style=flat-square&logo=typescript&logoColor=white">
@@ -145,8 +144,8 @@ stored in and both processes have to keep agreeing on it.
 
 ## Packages
 
-Twelve workspaces across eleven directories — `packages/alia-codea/webview-ui` is its own
-workspace entry. Everything lives under `packages/`.
+Seven workspaces, all under `packages/`. Codea — the VS Code extension and the CLI — lives
+in its own repository, [OxyHQ/Codea](https://github.com/OxyHQ/Codea), and calls this API.
 
 <table>
 <tr>
@@ -164,8 +163,6 @@ workspace entry. Everything lives under `packages/`.
 | Path | Package | Stack |
 |---|---|---|
 | [`packages/app`](packages/app/) | `@alia/app` | Expo 58, web and iOS and Android |
-| [`packages/alia-codea`](packages/alia-codea/) | `alia-codea` | VS Code extension |
-| [`packages/alia-codea-cli`](packages/alia-codea-cli/) | `@alia-codea/cli` | Terminal |
 
 </td>
 <td valign="top" width="50%">
@@ -206,7 +203,6 @@ More usefully, run only what you are working on:
 ```bash
 bun run dev:api          bun run dev:app
 bun run dev:canvas       bun run dev:integrations
-bun run dev:codea
 ```
 
 The app has platform shortcuts at the root:

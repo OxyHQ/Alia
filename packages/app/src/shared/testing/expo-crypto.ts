@@ -5,6 +5,6 @@ import { webcrypto } from 'node:crypto';
  * which does not exist in this runner; the one function the app uses is the
  * Web Crypto one, so Node's own implementation stands in for it.
  */
-export function getRandomValues<T extends Uint8Array>(values: T): T {
+export function getRandomValues<T extends Uint8Array<ArrayBuffer>>(values: T): T {
   return webcrypto.getRandomValues(values);
 }
