@@ -597,6 +597,7 @@ router.post(
         messageId: result.messageId,
         reactions: result.reactions,
         revision: result.revision,
+        reactionEntries: result.reactionEntries,
         mutationId: result.mutationId,
       };
       // State is durable before this best-effort notification. HTTP retry/reload repairs missed events.

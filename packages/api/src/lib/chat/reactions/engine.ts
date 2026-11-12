@@ -196,6 +196,7 @@ export async function processReactionEvent(
               role: row.role,
               content: row.content,
               reactions: row.reactions,
+              reactionEntries: row.reactionEntries,
               agentInfo: row.agentId ? { id: row.agentId, name: row.agentName ?? '' } : null,
             })),
             agent._id,

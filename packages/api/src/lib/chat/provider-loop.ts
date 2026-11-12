@@ -58,6 +58,7 @@ import { runStream, type AgentMessage, type StreamRunnerState } from './stream-r
 import { runTextToolFallback } from './text-tool-fallback.js';
 import type { ToolRouting } from '../tool-budget.js';
 import { recordChatInferenceAttempt } from '../credit-reconciliation.js';
+import type { AgentReactionTurn } from './reactions/agent-tool.js';
 
 /** Terminal model-response errors that need no route-level substitution. */
 const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set([
@@ -88,6 +89,8 @@ export interface ChatLoopState {
 }
 
 export interface ProviderLoopParams {
+  conversationReaction?: AgentReactionTurn;
+  onReactionComplete?: () => void;
   req: Request;
   res: Response;
   sse: SSEWriter;
@@ -315,6 +318,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         clearFirstByteTimer,
         watchdog,
       } = buildBaseConfig({
+        conversationReaction: params.conversationReaction,
         ...(providerAbort === undefined ? {} : { providerAbort }),
         ...(params.stepBounds === undefined ? {} : { stepBounds: params.stepBounds }),
         resolved,
@@ -355,6 +359,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         // Handle non-streaming requests
         if (body.stream !== true) {
           await runNonStreaming({
+            conversationReaction: params.conversationReaction,
             settlement: state,
             req,
             res,
@@ -420,6 +425,9 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
         // Stream OpenAI-compatible chunks
         const streamResult = await runStream({
+          conversationReaction: params.conversationReaction,
+          beforeReactionFinish: beforeFinish,
+          onReactionComplete: params.onReactionComplete,
           result,
           res,
           sse,
@@ -492,16 +500,18 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         assertLive();
 
         // Build lifecycle context for post-stream operations
-        await beforeFinish?.();
+        if (!streamResult.reactionOnly) await beforeFinish?.();
         const lifecycleCtx = lifecycleContext();
+        if (streamResult.reactionOnly) lifecycleCtx.omitLeadReply = true;
 
         // Save conversation
-        await saveConversationResult(
-          lifecycleCtx,
-          assistantResponse,
-          toolInvocations,
-          agentMessages,
-        );
+        if (!streamResult.reactionOnly)
+          await saveConversationResult(
+            lifecycleCtx,
+            assistantResponse,
+            toolInvocations,
+            agentMessages,
+          );
 
         // Send AI-generated title via SSE (generated in parallel with streaming)
         if (titlePromise && conversationId && req.user) {

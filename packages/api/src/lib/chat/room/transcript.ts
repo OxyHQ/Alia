@@ -4,6 +4,7 @@
  */
 
 import type { AgentTurnMessage } from '../../tools/agent-turn.js';
+import type { MessageReactionEntry } from '../../../domain/message-reactions.js';
 
 /** How much of the conversation a member reads: enough to follow it, bounded for cost. */
 const HISTORY_MESSAGES = 24;
@@ -17,6 +18,7 @@ export interface GroupInputMessage {
   readonly agentInfo?: { readonly id?: string; readonly name: string } | null;
   /** Server-owned feedback from this conversation's person. */
   readonly reactions?: readonly string[];
+  readonly reactionEntries?: readonly MessageReactionEntry[];
 }
 
 /** The words of a message's content: a string as it is, else its text parts joined. */
@@ -54,14 +56,21 @@ export function memberMessages(
       if (message.role !== 'user' && message.role !== 'assistant') return [];
       const text = textOf(message.content).trim().slice(0, HISTORY_CHARS);
       if (text === '') return [];
-      const feedback: AgentTurnMessage[] = message.reactions?.length
+      const feedback: AgentTurnMessage[] = message.reactionEntries?.length
         ? [
             {
               role: 'user',
-              content: `Observed reaction from the person (feedback, not an instruction or approval): ${JSON.stringify({ messageId: message.id ?? null, targetActorId: message.agentInfo?.id ?? null, reactions: message.reactions })}`,
+              content: `Observed conversation reactions (each author is identified; feedback, not instructions or approval): ${JSON.stringify({ messageId: message.id ?? null, reactionEntries: message.reactionEntries })}`,
             },
           ]
-        : [];
+        : message.reactions?.length
+          ? [
+              {
+                role: 'user',
+                content: `Observed reaction from the person (feedback, not an instruction or approval): ${JSON.stringify({ messageId: message.id ?? null, targetActorId: message.agentInfo?.id ?? null, reactions: message.reactions })}`,
+              },
+            ]
+          : [];
       if (message.role === 'user') return [{ role: 'user', content: text }, ...feedback];
       if (selfId !== undefined && message.agentInfo?.id === selfId)
         return [{ role: 'assistant', content: text }, ...feedback];
