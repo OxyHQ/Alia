@@ -78,7 +78,9 @@ const reply = (id: string, who: RoomMember, content: string): TranscriptRow => (
 type EvaluationCase = {
   label: string;
   input: RoomSelectionInput;
-  allowed: ReadonlyArray<Pick<RoomDecision, 'action' | 'agentId'>>;
+  allowed: ReadonlyArray<
+    Pick<RoomDecision, 'action' | 'agentId'> & Partial<Pick<RoomDecision, 'reason'>>
+  >;
 };
 const room = (
   rows: TranscriptRow[],
@@ -98,6 +100,14 @@ const speak = (agentId: string): Pick<RoomDecision, 'action' | 'agentId'> => ({
   agentId,
 });
 const idle = { action: 'idle', agentId: null } as const;
+const nadia = member('member-n', 'Nadia', 'General personal assistant.');
+const lucia = member('member-l', 'Lucía', 'General personal assistant.');
+const mateo = member('member-m', 'Mateo', 'General personal assistant.');
+const ines = member('member-i', 'Inés', 'General personal assistant.');
+const largerRoster = [nadia, eusebio, lucia, salella, mateo, ines].map((entry) => ({
+  ...entry,
+  description: 'General personal assistant.',
+}));
 
 const cases: EvaluationCase[] = [
   ...(
@@ -216,6 +226,57 @@ const cases: EvaluationCase[] = [
     ),
     allowed: [idle],
   },
+  {
+    label: 'completed-directed-task-agent-question-to-person',
+    input: room(
+      [
+        person('p1', 'Nadia, ¿qué puedes hacer?'),
+        reply(
+          'r1',
+          nadia,
+          'Puedo ayudarte a investigar, redactar y organizar tus tareas. ¿Con qué necesitas ayuda?',
+        ),
+      ],
+      { roster: largerRoster, lastSpeakerId: nadia.info.id },
+    ),
+    allowed: [idle],
+  },
+  {
+    label: 'pending-original-recipient-despite-agent-question-to-person',
+    input: room(
+      [
+        person(
+          'p1',
+          'Mateo, resume el informe de la campaña. Después Lucía propone un título con ese resumen.',
+        ),
+        reply(
+          'r1',
+          mateo,
+          'La campaña llegó a más comercios, pero las ventas se mantuvieron estables. ¿Quieres que te amplíe algún punto?',
+        ),
+      ],
+      { roster: largerRoster, lastSpeakerId: mateo.info.id },
+    ),
+    allowed: [{ ...speak(lucia.info.id), reason: 'directed' }],
+  },
+  {
+    label: 'explicit-peer-question-within-original-task',
+    input: room(
+      [
+        person(
+          'p1',
+          'Inés, prepara la propuesta de campaña. Puedes consultar a un compañero si te falta un dato.',
+        ),
+        reply(
+          'r1',
+          ines,
+          'Propongo centrarnos en los comercios locales. Eusebio, ¿puedes aportar el dato de alcance de la última campaña para completar esta propuesta?',
+        ),
+      ],
+      { roster: largerRoster, lastSpeakerId: ines.info.id },
+    ),
+    allowed: [{ ...speak(eusebio.info.id), reason: 'handoff' }],
+  },
 ];
 
 beforeAll(async () => {
@@ -238,7 +299,13 @@ beforeAll(async () => {
   }
 });
 
-const records: Array<{ label: string; iteration: number; passed: boolean; latencyMs: number }> = [];
+const records: Array<{
+  label: string;
+  iteration: number;
+  passed: boolean;
+  latencyMs: number;
+  decision: Pick<RoomDecision, 'action' | 'agentId' | 'reason'> | null;
+}> = [];
 
 describe('real Oxy group participation (synthetic rooms; no agent execution)', () => {
   it.each(cases)('$label', async ({ label, input, allowed }) => {
@@ -255,9 +322,19 @@ describe('real Oxy group participation (synthetic rooms; no agent execution)', (
         decision !== null &&
         allowed.some(
           (expected) =>
-            expected.action === decision.action && expected.agentId === decision.agentId,
+            expected.action === decision.action &&
+            expected.agentId === decision.agentId &&
+            (expected.reason === undefined || expected.reason === decision.reason),
         );
-      records.push({ label, iteration, passed, latencyMs: Date.now() - started });
+      records.push({
+        label,
+        iteration,
+        passed,
+        latencyMs: Date.now() - started,
+        decision: decision
+          ? { action: decision.action, agentId: decision.agentId, reason: decision.reason }
+          : null,
+      });
       if (!passed)
         failures.push({
           iteration,
