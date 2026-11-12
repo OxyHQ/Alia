@@ -116,7 +116,9 @@ vi.mock('../../src/components/AmbientField', () => ({
     return React.createElement('AmbientField', props);
   },
 }));
-vi.mock('../../src/components/thread/AliaThread', () => ({ AliaThread: () => null }));
+vi.mock('../../src/components/thread/AliaThread', () => ({
+  AliaThread: (props: Record<string, unknown>) => React.createElement('Thread', props),
+}));
 vi.mock('../../src/components/thread/ThreadSearch', () => ({ ThreadSearch: () => null }));
 vi.mock('../../src/components/AliaWelcomeMessage', () => ({ AliaWelcomeMessage: () => null }));
 vi.mock('../../src/components/AliaComposer', () => ({
@@ -482,5 +484,18 @@ describe('the power level', () => {
     expect(composer().mode).toBe('pro');
     composer().onModeChange('ultra');
     expect(onModelChange).toHaveBeenCalledWith('ultra');
+  });
+});
+
+// Identity comes from the opened conversation even while the profile is unavailable.
+describe('conversation membership', () => {
+  it('keeps the direct agent in the thread before its profile loads, across navigation', () => {
+    mount({ agent: { id: 'eusebio' } });
+    const members = () => renderer?.root.findByType('Thread' as never).props.memberIds;
+    expect(members()).toEqual(new Set(['eusebio']));
+    update({ agent: { id: 'sindi' } });
+    expect(members()).toEqual(new Set(['sindi']));
+    update();
+    expect(members()).toEqual(new Set());
   });
 });

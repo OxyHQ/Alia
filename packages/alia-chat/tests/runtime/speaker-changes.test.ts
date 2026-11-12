@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { speakerChanges } from '../../src/runtime/thread/speaker-changes';
+import { consultedReplies, speakerChanges } from '../../src/runtime/thread/speaker-changes';
 
 const user = (id: string) => ({ id, role: 'user' });
 const lead = (id: string) => ({ id, role: 'assistant' });
@@ -57,4 +57,11 @@ describe('speakerChanges', () => {
     const rows = [user('u1'), agent('a1', 'x', 'Nadia'), agent('a2', 'z', 'Guest')];
     expect(ids(speakerChanges(rows, new Set(['x', 'y'])))).toEqual(['a2:Guest']);
   });
+});
+
+it('does not hide or announce attributed replies of the direct agent', () => {
+  const rows = [user('u1'), lead('a1'), agent('follow-up', 'x', 'Eusebio')];
+  const members = new Set(['x']);
+  expect(speakerChanges(rows, members).size).toBe(0);
+  expect(consultedReplies(rows, members).size).toBe(0);
 });

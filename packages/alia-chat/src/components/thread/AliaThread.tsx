@@ -62,7 +62,7 @@ export interface AliaThreadProps {
   isLoading: boolean;
   /** The conversation's messages are still on their way. */
   conversationLoading?: boolean;
-  /** The agents taking part in this conversation (a group's members): they speak as themselves, with no "chat with" line. */
+  /** The agents taking part in this conversation (the direct agent or a group's members): they speak as themselves, with no "chat with" line. */
   memberIds?: ReadonlySet<string>;
   history?: ThreadHistory;
   /**
@@ -325,7 +325,7 @@ export const AliaThread = memo(function AliaThread({
                 tone="neutral"
                 size="xs"
                 onPress={() => {
-                  const exchange = agentExchange(rows, message.id);
+                  const exchange = agentExchange(rows, message.id, memberIds);
                   if (exchange !== null) onOpenAgentChat(exchange);
                 }}
               >

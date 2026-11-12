@@ -293,3 +293,11 @@ computed rather than configured (ADR 0012). Oxy and Kaana own route selection
 and retry, so Alia does not loop over providers or repeat an identical request. An Oxy routing refusal is `503` with its safe request ID; an
 empty or schema-invalid model answer is `502`. Neither is presented as an
 internal Alia `500`.
+
+### Rendering requested replies
+
+An agent-authored delivery retains `agentInfo` in storage and on the socket. This is authorship,
+not evidence of delegation. The SDK passes the direct conversation's agent id (available before
+its profile loads), or the group roster, to the thread as `memberIds`. Those agents speak inline;
+only outside agents are shown as consultations. Shared conversations also pass their lead's id.
+A scheduled greeting must remain visible both on arrival and after reloading the conversation.
