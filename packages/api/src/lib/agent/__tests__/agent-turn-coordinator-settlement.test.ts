@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const events: string[] = [];
-const createAgentSession = vi.fn(async () => ({ _id: 'session-1' }));
+const createAgentSession = vi.fn(async () => ({ _id: 'session-1', id: 'session-1' }));
 const updateAgentSession = vi.fn(async (_db: unknown, _id: string, patch: { status?: string }) => {
   if (patch.status) events.push(`status:${patch.status}`);
 });
@@ -40,6 +40,8 @@ vi.mock('../event-stream.js', () => ({
 vi.mock('../../logger.js', () => ({ log: { agents: { warn: vi.fn() } } }));
 const startAgentSession = vi.fn(async () => ({ ok: true, sessionId: 'bg-1', queued: true }));
 vi.mock('../session-handoff.js', () => ({ startAgentSession }));
+const scheduleChatFollowUp = vi.fn(async () => 'Scheduled.');
+vi.mock('../chat-follow-ups.js', () => ({ scheduleChatFollowUp }));
 
 const { AgentTurnCoordinator } = await import('../agent-turn-coordinator.js');
 
@@ -47,6 +49,34 @@ describe('agent turn settlement', () => {
   beforeEach(() => {
     events.length = 0;
     vi.clearAllMocks();
+  });
+
+  it('exposes scheduling in an authenticated chat without exposing unsolicited messaging', async () => {
+    createAgentSession.mockResolvedValueOnce({ _id: 'session-1', id: 'session-1' });
+    const turn = await AgentTurnCoordinator.begin({
+      agent: { _id: 'agent-1', oxyAccountId: 'bot-1', maxConcurrentThreads: 3 } as never,
+      oxyUserId: 'user-1',
+      requesterToken: 'live-token',
+      conversationId: 'conversation-1',
+      task: 'Salúdame en 5 minutos',
+    });
+    const now = new Date();
+    const at = new Date(now.getTime() + 300_000);
+    expect(turn.runtime.outreach).toBeUndefined();
+    expect(await turn.runtime.scheduleFollowUp?.(at, 'Saluda al usuario', now, 'call-1')).toBe(
+      'Scheduled.',
+    );
+    expect(scheduleChatFollowUp).toHaveBeenCalledWith({
+      agentId: 'agent-1',
+      agentAccountId: 'bot-1',
+      ownerAccountId: 'user-1',
+      sourceSessionId: 'session-1',
+      requesterToken: 'live-token',
+      at,
+      note: 'Saluda al usuario',
+      now,
+      toolCallId: 'call-1',
+    });
   });
 
   it('releases admission as its last step, with nothing slow after the flush', async () => {

@@ -91,13 +91,13 @@ export interface AgentRuntimeContext {
   onHireAgent?: (handle: string, task: string) => Promise<string>;
   /**
    * Present only on a BACKGROUND run, where nobody is reading the agent's
-   * output as it streams: its way of writing to the person, and of scheduling
-   * its own next look. A chat turn already talks to the person directly.
+   * output as it streams: its way of writing to the person.
    */
   outreach?: {
     messageUser: (message: string) => Promise<string>;
-    scheduleFollowUp: (at: Date, note: string) => Promise<string>;
   };
+  /** A dated continuation, available in both a direct chat and a background run. */
+  scheduleFollowUp?: (at: Date, note: string, now: Date, toolCallId: string) => Promise<string>;
   /** Present only on a CHAT turn: hand long work to a durable background run. */
   continueInBackground?: (task: string) => Promise<string>;
   todoManager: TodoManager;
@@ -319,7 +319,7 @@ export function buildRuntimeTools(
   // `agent-outreach.ts`, which is what stops an agent from pestering.
 
   if (ctx.outreach) {
-    const { messageUser, scheduleFollowUp } = ctx.outreach;
+    const { messageUser } = ctx.outreach;
     actions.sendMessageToUser = tool({
       description:
         'Write a message to the person in your conversation with them; they get a notification. Use it only for something they would want to know now: a finding, a change, a question you need answered. Do not use it for progress chatter, nor to repeat your final result, which is delivered to them anyway. Limited to a few per day, and it stops if they have not answered your last messages.',
@@ -337,20 +337,36 @@ export function buildRuntimeTools(
         }
       },
     });
+  }
+  if (ctx.scheduleFollowUp) {
+    const scheduleFollowUp = ctx.scheduleFollowUp;
     actions.scheduleFollowUp = tool({
       description:
-        'Schedule yourself to come back to this later — to check something again, or to follow up at a time the person asked for. At that time you run again with your note; if you find something worth saying you tell them with sendMessageToUser. At most a few pending at once.',
-      inputSchema: z.object({
-        at: z
-          .string()
-          .describe(
-            'When, as an ISO 8601 date-time with timezone offset, e.g. 2026-09-25T09:00:00+02:00',
-          ),
-        note: z.string().min(1).describe('What to do then, written for your future self'),
-      }),
-      execute: async ({ at, note }) => {
+        'Schedule your own one-time continuation or a reply the person requested, in this conversation. For "in 5 minutes", use delaySeconds: 300; the server calculates the exact time. For an absolute date, use at with its timezone. Supply exactly one. Your requested final reply will be delivered automatically then. Do not create a cron automation or start background work now for a delayed reply. Confirm only after a successful scheduling receipt. At most five pending.',
+      inputSchema: z
+        .object({
+          at: z.iso
+            .datetime({ offset: true })
+            .optional()
+            .describe(
+              'When, as an ISO 8601 date-time with timezone offset, e.g. 2026-09-25T09:00:00+02:00',
+            ),
+          delaySeconds: z
+            .number()
+            .int()
+            .min(60)
+            .max(90 * 86400)
+            .optional(),
+          note: z.string().min(1).describe('What to do and say then, written for your future self'),
+        })
+        .refine(({ at, delaySeconds }) => (at !== undefined) !== (delaySeconds !== undefined), {
+          message: 'Supply exactly one of at or delaySeconds',
+        }),
+      execute: async ({ at, delaySeconds, note }, { toolCallId }) => {
         try {
-          return await scheduleFollowUp(new Date(at), note);
+          const now = new Date();
+          const due = at ? new Date(at) : new Date(now.getTime() + delaySeconds! * 1000);
+          return await scheduleFollowUp(due, note, now, toolCallId);
         } catch (err: unknown) {
           return `Error scheduling the follow-up: ${getErrorMessage(err)}`;
         }

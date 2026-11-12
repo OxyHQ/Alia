@@ -103,6 +103,7 @@ vi.mock('../../logger.js', () => {
 });
 
 import { applyRuntimePolicy, buildRuntimeTools, type AgentRuntimeContext } from '../actions.js';
+import type { z } from 'zod';
 import { buildMcpTools } from '../../tools/mcp.js';
 import { classifyActionRisk } from '../governance.js';
 import { declareOxyAppTool, declareReadOnly } from '../tool-effects.js';
@@ -272,6 +273,43 @@ async function policyApplied(ctx: AgentRuntimeContext, grants = GRANTS_EVERYTHIN
   const tools = { ...buildRuntimeTools(ctx, grants), ...mcpTools };
   return applyRuntimePolicy(tools, ctx, new Set(Object.keys(mcpTools)));
 }
+
+describe('dated replies from the chat runtime', () => {
+  it('uses the server clock for a relative delay without needing outreach or a capability grant', async () => {
+    const ctx = actionContext();
+    const schedule = vi.fn(async (_at: Date, _note: string, _now: Date) => 'Scheduled.');
+    ctx.scheduleFollowUp = schedule;
+    const tools = buildRuntimeTools(ctx, readCapabilityGrants([]));
+    const before = Date.now();
+    expect(tools.sendMessageToUser).toBeUndefined();
+    expect(
+      await run(tools, 'scheduleFollowUp', { delaySeconds: 300, note: 'Saluda al usuario' }),
+    ).toBe('Scheduled.');
+    const [at, note, now] = schedule.mock.calls[0];
+    expect(note).toBe('Saluda al usuario');
+    expect(now.getTime()).toBeGreaterThanOrEqual(before);
+    expect(at.getTime() - now.getTime()).toBe(300_000);
+  });
+
+  it('requires an unambiguous single time and validates the bounded delay', () => {
+    const ctx = actionContext();
+    ctx.scheduleFollowUp = async () => 'Scheduled.';
+    const schema = buildRuntimeTools(ctx, readCapabilityGrants([])).scheduleFollowUp
+      .inputSchema as z.ZodType;
+    for (const time of [
+      {},
+      { at: '2026-11-12T10:00:00' },
+      { delaySeconds: 0 },
+      { delaySeconds: 60.5 },
+      { delaySeconds: 91 * 86400 },
+      { at: '2026-11-12T10:00:00Z', delaySeconds: 300 },
+    ]) {
+      expect(schema.safeParse({ ...time, note: 'Hello' }).success).toBe(false);
+    }
+    expect(schema.safeParse({ at: '2026-11-12T10:00:00+02:00', note: 'Hello' }).success).toBe(true);
+    expect(schema.safeParse({ delaySeconds: 300, note: 'Hello' }).success).toBe(true);
+  });
+});
 
 // ===========================================================================
 // The wrapper: each level produces its own outcome

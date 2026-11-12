@@ -163,6 +163,19 @@ a run. A **heartbeat** wakes the agent once with the list, and only when somethi
 - **Follow-ups**: exact dates and the originating session preserve provenance,
   context and cumulative budgets. One chain has at most 50 steps and 100,000
   tokens, with existing execution limits. There is no new daily inference cap.
+- **Replies requested in chat**: `scheduleFollowUp` is available in the direct
+  agent turn, independently of proactive outreach. Relative delays use the
+  server clock; absolute times require an explicit timezone. The live requester
+  establishes a durable goal task only when scheduling. Binding that task and
+  saving the dated continuation commit together. The speaking agent and original
+  conversation are preserved; this is never a manual or annual cron task.
+- **Requested delivery**: a requested continuation's final reply is posted in
+  its originating conversation as a result, outside unsolicited check-in limits.
+  `delivery_mode` and `delivered_at` form a durable delivery outbox: a failed
+  message write retries without rerunning inference, and a stable message receipt
+  deduplicates concurrent delivery or a lost acknowledgement. Deleted conversations
+  are not recreated or replaced with another thread. Autonomous initiative remains
+  quiet unless the agent explicitly reports something useful.
 - **Communication**: useful results and blockers go through `sendMessageToUser`;
   autonomous completions stay quiet otherwise. Check-in limits do not stop work.
   Subscribed agent emails use the same batch instead of a second classifier.

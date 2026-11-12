@@ -141,7 +141,7 @@ export async function listConversations(
  * answers 404 to both.
  */
 export async function findConversation(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   conversationId: string,
 ): Promise<ConversationRow | undefined> {

@@ -113,4 +113,37 @@ describe('structured automation creation tool', () => {
       }),
     );
   });
+
+  it('binds an agent-created recurring task to the speaking agent', async () => {
+    const tool = createAutomationTool(
+      'owner-1',
+      'live-user-token',
+      'eusebio',
+    ) as unknown as ExecutableTool;
+    const { actorSelection: _, ...withoutActor } = definition;
+    await tool.execute(withoutActor);
+    expect(createStructuredAutomation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        definition: expect.objectContaining({
+          actorSelection: { mode: 'fixed', agentId: 'eusebio' },
+        }),
+      }),
+    );
+  });
+
+  it.each([{ mode: 'alia' }, { mode: 'fixed', agentId: 'someone-else' }])(
+    'refuses to silently hand an agent request to a different actor: %j',
+    async (actorSelection) => {
+      const tool = createAutomationTool(
+        'owner-1',
+        'live-user-token',
+        'eusebio',
+      ) as unknown as ExecutableTool;
+      expect(await tool.execute({ ...definition, actorSelection })).toEqual({
+        success: false,
+        error: 'invalid_automation_definition',
+      });
+      expect(createStructuredAutomation).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, or, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index';
 import { agents } from '../schema/agents';
 import { agentWorkAuthorities, agentWorkItems } from '../schema/agent-work';
@@ -107,6 +107,9 @@ export async function addAgentFollowUp(
     sourceSessionId: string;
     at: Date;
     note: string;
+    /** Created from the live requester's session, never inferred from an owner id. */
+    chatAuthorityTaskId?: string;
+    toolCallId?: string;
   },
 ) {
   return db.transaction(async (tx) => {
@@ -121,7 +124,11 @@ export async function addAgentFollowUp(
           eq(agentSessions.oxyUserId, input.ownerAccountId),
         ),
       );
-    if (!source?.oxyTaskId || source.oxyTaskRetiredAt) return null;
+    if (!source || source.oxyTaskRetiredAt) return null;
+    if (input.chatAuthorityTaskId && (source.status !== 'running' || !source.chatLeaseExpiresAt))
+      return null;
+    const taskId = source.oxyTaskId ?? input.chatAuthorityTaskId;
+    if (!taskId) return null;
     const [agent] = await tx.select().from(agents).where(eq(agents.id, input.agentId));
     if (!agent || agent.status !== 'active') return null;
     const [parent] = await tx
@@ -136,8 +143,10 @@ export async function addAgentFollowUp(
       .where(
         and(
           eq(agentWorkItems.sourceSessionId, source.id),
-          eq(agentWorkItems.dueAt, input.at),
-          eq(agentWorkItems.objective, input.note),
+          or(
+            input.toolCallId ? eq(agentWorkItems.sourceToolCallId, input.toolCallId) : undefined,
+            and(eq(agentWorkItems.dueAt, input.at), eq(agentWorkItems.objective, input.note)),
+          ),
         ),
       );
     if (existing) return existing;
@@ -152,6 +161,12 @@ export async function addAgentFollowUp(
         ),
       );
     if (pending.length >= 5) return null;
+    if (!source.oxyTaskId) {
+      await tx
+        .update(agentSessions)
+        .set({ oxyTaskId: taskId })
+        .where(eq(agentSessions.id, source.id));
+    }
     const id = randomUUID();
     const [created] = await tx
       .insert(agentWorkItems)
@@ -160,11 +175,15 @@ export async function addAgentFollowUp(
         rootId: parent?.rootId ?? source.id,
         agentId: input.agentId,
         ownerAccountId: input.ownerAccountId,
-        oxyTaskId: source.oxyTaskId,
+        oxyTaskId: taskId,
+        deliveryMode: input.chatAuthorityTaskId
+          ? 'requested'
+          : (parent?.deliveryMode ?? 'initiative'),
         kind: 'follow_up',
         dueAt: input.at,
         objective: input.note,
         sourceSessionId: source.id,
+        sourceToolCallId: input.toolCallId,
       })
       .returning();
     return created;
