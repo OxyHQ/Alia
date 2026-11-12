@@ -193,6 +193,45 @@ updates, lease recovery, activity exclusion, atomic reply guards and deletion. T
 checks prove persistence and execution rules; they do not establish the model's interpretation of
 an emoji or replace a signed-in end-to-end acceptance test.
 
+### Reactions authored by agents
+
+During an authorized turn, a hosted agent can choose to react to a person's message or another
+agent's message in the same conversation. The runtime binds the reacting actor and its display
+name; neither a public reaction request nor a client history echo can supply that identity.
+Current direct-chat or group membership is checked when the reaction commits. The agent cannot
+react to its own message. A bounded set of stored targets supplies stable IDs and attribution;
+the commit rechecks the target's content, role and actor, plus the latest person's message, under
+the thread lock. A newer message or a replaced target invalidates the pending operation.
+
+`reactions: string[]` continues to mean **the person's own selection**. The additive
+`reactionEntries` field carries `{ emoji, author }` entries, where `author` is either
+`{ kind: 'user', id }` or `{ kind: 'agent', id, name }`. A person and several agents can use the
+same emoji independently; removing one author's reaction leaves the others intact. Each author
+can hold up to six distinct emoji on a message. History, mutation responses and socket snapshots
+use the same entries and a shared monotonic `reactionRevision`/`revision`; an explicit empty
+array clears entries, while omission supports older clients. Human optimistic changes affect only
+the person's entries, preserving confirmed agent feedback when a request fails.
+
+Canonical state stores agent entries separately from the legacy human emoji projection, so old
+human writers cannot overwrite agent feedback. Rewrites retain both sets for the same target;
+replacement and deletion clear both. Agent mutations have actor- and turn-scoped idempotency
+receipts that are completed immediately and never schedule another observation. Thus an agent's
+reaction cannot start an autonomous reaction loop. The shared revision can conservatively
+supersede an older pending human-reaction observation; it never creates a new one.
+
+A committed tool mutation does not prove that the whole turn finished successfully. Only a clean
+reaction-only finish records `agent_reaction_turns`, after verifying matching scoped receipts,
+current membership and the latest person message. Its canonical turn key includes the admitted
+turn or room step and trigger identity/content, preventing reuse for different text under the
+same client message ID. Retries can recover that completion without a blank assistant message or
+another inference call. A later inference failure cannot be reported as success just because an
+earlier reaction committed. Conversation deletion cascades the completion records and receipts.
+
+`agentReactions.pgdb.test.ts` checks independent authors, same-emoji removal, receipt replay,
+membership, per-author limits, stale-target and newer-message fencing, legacy rewrites, bounded
+context and clean-turn completion. These are storage and execution guarantees; natural reaction
+choice requires a separate real-inference acceptance record.
+
 ## Product stream events
 
 Standard OpenAI-compatible chunks are emitted beside Alia product events. The
