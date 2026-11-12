@@ -108,7 +108,7 @@ function AppContent() {
           twice, and a second host renders every surface twice — two stacked
           panels over two backdrops, whose enter/exit animations then run
           independently and visibly desync. */}
-        <ConnectionStatusToasts />
+        {process.env.EXPO_PUBLIC_ALIA_FIXTURES !== '1' && <ConnectionStatusToasts />}
         {/* The bar's icons follow Alia's resolved theme, not the OS's: with a
           theme picked in the app they can differ, and Android draws the app
           edge to edge, so light icons would vanish on a light surface. */}

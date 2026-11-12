@@ -118,15 +118,19 @@ function paragraph(rand: () => number): string {
   return Array.from({ length: count }, () => sentence(rand)).join(' ');
 }
 
-/** A flat-colour picture with a label, as an inline SVG — nothing to fetch. */
+// Expo Image's Android data-URL loader requires Base64; percent-encoded SVG
+// crashes its image executor before the fixture route can render. Keep these
+// tiny deterministic PNGs embedded so native acceptance stays offline.
+const FIXTURE_IMAGES = [
+  'iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABL0lEQVR4nO3RwRECQQwDQWIkJpIkGkiB4rzrW6sf81epH+/n86O+Ht0D0gMAIDsAALIDACA7AACyAwAgOwAAsgMAYF+f1+vnADSc3oExGqDi/NUIIwEqj18NMQ5g5fkrEEYB7Di/GmEMwM7zKxEAADjz/CqE4wE6z69AAAAAQPuJJ59/FQEAAADtRwI4tO7TAdzgeAA3CQAAAAAAAIgCuAvClf0AAABoP/FkhKvbRwB0IVTsBgDgTISqzaMAdiFU7h0HsBqheutIgBUQqzaOBqhCWLlvPMC/GLs2RQHcMQAAsgMAIDsAALIDACA7AACyAwAgOwAAsgMAIDsAALIDACA7AACyAwAgOwAAsgMAIDsAALIDACA7AACyAwAgOwAAsgMAIDsAALIDACA7AM19AcH/kxhrUZcTAAAAAElFTkSuQmCC',
+  'iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABM0lEQVR4nO3RQXEDQRAEQVEyJgExJgMRJomCwje7czudj/p3dD5+Xz9v9fXoHpAeAADZAQCQHQAA2QEAkB0AANkBAJAdAAD7+ns/vw5Aw+kdGKMBKs5fjTASoPL41RDjAFaevwJhFMCO86sRxgDsPL8SAQCAM8+vQjgeoPP8CgQAAAC0n3jy+VcRAAAA0H4kgEPrPh3ADY4HcJMAAAAAAACAKIC7IFzZDwAAgPYTT0a4un0EQBdCxW4AAM5EqNo8CmAXQuXecQCrEaq3jgRYAbFq42iAKoSV+8YD/Bdj16YogDsGAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAeguQ/AY8I0M8Fn6wAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABMUlEQVR4nO3RwZECQRADQZzBJpzEJlwBFy5ue6Z3Wvmov0L5eL7fX/X16B6QHgAA2QEAkB0AANkBAJAdAADZAQCQHQAA+3p9Pn8OQMPpHRijASrOX40wEqDy+NUQ4wBWnr8CYRTAjvOrEcYA7Dy/EgEAgDPPr0I4HqDz/AoEAAAAtJ948vlXEQAAANB+JIBD6z4dwA2OB3CTAAAAAAAAgCiAuyBc2Q8AAID2E09GuLp9BEAXQsVuAADORKjaPApgF0Ll3nEAqxGqt44EWAGxauNogCqElfvGA/wXY9emKIA7BgBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAcAQHYAAGQHoLkfyqHCNNmKS4MAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABM0lEQVR4nO3RQXEDQRAEQVEyJgExJgMRJomCwje7czudj/p3dD5+f15v9fXoHpAeAADZAQCQHQAA2QEAkB0AANkBAJAdAAD7+nu+vw5Aw+kdGKMBKs5fjTASoPL41RDjAFaevwJhFMCO86sRxgDsPL8SAQCAM8+vQjgeoPP8CgQAAAC0n3jy+VcRAAAA0H4kgEPrPh3ADY4HcJMAAAAAAACAKIC7IFzZDwAAgPYTT0a4un0EQBdCxW4AAM5EqNo8CmAXQuXecQCrEaq3jgRYAbFq42iAKoSV+8YD/Bdj16YogDsGAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAcAQHYAAGQHAEB2AABkBwBAdgAAZAeguQ/PGcI0V9MUMwAAAABJRU5ErkJggg==',
+] as const;
+
+/** A flat-colour deterministic picture embedded as a native-safe PNG data URL. */
 export function fixtureImage(index: number): string {
-  const hue = (index * 47) % 360;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">` +
-    `<rect width="240" height="240" fill="hsl(${hue},55%,62%)"/>` +
-    `<circle cx="160" cy="80" r="42" fill="hsl(${(hue + 40) % 360},70%,80%)"/>` +
-    `<text x="20" y="220" font-family="sans-serif" font-size="28" fill="#fff">#${index}</text></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  return `data:image/png;base64,${FIXTURE_IMAGES[index % FIXTURE_IMAGES.length]}`;
 }
 
 function sources(rand: () => number, count: number) {

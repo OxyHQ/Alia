@@ -103,7 +103,9 @@ export function useAliaHost(): AliaRuntimeHost {
         return true;
       },
       openAutomation: (id) => router.push({ pathname: '/(app)/automations/[id]', params: { id } }),
-      faviconUrl: resolveFaviconUrl,
+      // The offline native fixture has no INTERNET permission. Its synthetic
+      // search/research rows use inert URLs, so omit Clarity's remote favicons.
+      faviconUrl: process.env.EXPO_PUBLIC_ALIA_FIXTURES === '1' ? undefined : resolveFaviconUrl,
       // An agent wrote into THIS conversation on its own (a result, a check-in).
       subscribeConversationMessages: (conversationId, listener) => {
         const { socket, release } = acquireNotificationsSocket();

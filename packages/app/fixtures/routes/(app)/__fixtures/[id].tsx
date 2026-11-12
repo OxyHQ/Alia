@@ -86,6 +86,10 @@ export default function FixtureChatPage() {
     ({ chunks = 60, intervalMs = 50, text = 'Tell me more.' }: StreamOptions = {}) =>
       new Promise<{ updates: number; elapsed: number }>((resolve) => {
         const turn = (turnRef.current += 1);
+        console.info(
+          'BloomAlia663FixtureStreamStarted',
+          JSON.stringify({ id, turn, platform: Platform.OS, chunks, intervalMs }),
+        );
         const reply = fixtureReply(`${id}:${turn}`);
         const now = new Date().toISOString();
         const replyId = `${id}-stream-${turn}`;
@@ -160,7 +164,10 @@ export default function FixtureChatPage() {
     }, [id, stream]),
   );
 
-  const onStop = useCallback(() => cancelStreamRef.current(), []);
+  const onStop = useCallback(() => {
+    console.info('BloomAlia663FixtureStop');
+    cancelStreamRef.current();
+  }, []);
   /**
    * The chat's own menu and a turn's edit, acting on the fixture's thread, so
    * the visual QA sweep (`scripts/visual/qa-sweep.mjs`) can open the header
@@ -195,7 +202,9 @@ export default function FixtureChatPage() {
     const store = useComposerDraftStore.getState();
     store.clear(store.address(id));
     if (edit.editing !== undefined) await edit.submit(text);
-    else if (Platform.OS !== 'web') void stream({ chunks: 240, intervalMs: 50, text });
+    // Keep the synthetic stream visible long enough for on-device acceptance
+    // to observe the real AliaComposer stop state before the fixture completes.
+    else if (Platform.OS !== 'web') void stream({ chunks: 240, intervalMs: 100, text });
   }, [draft.text, edit, id, stream]);
 
   return (
