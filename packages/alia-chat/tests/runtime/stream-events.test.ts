@@ -51,6 +51,25 @@ describe('parseConsultEvent', () => {
     ).toEqual({ type: 'end', consultId: 'k1', status: 'failed', errorCode: 'out_of_reach' });
   });
 
+  it('preserves the canonical stored message ID and rejects malformed IDs', () => {
+    expect(
+      parseConsultEvent(
+        'alia.agent_end',
+        v1({ status: 'completed', messageId: 'group-reply-p1-1' }),
+      ),
+    ).toEqual({
+      type: 'end',
+      consultId: 'k1',
+      status: 'completed',
+      messageId: 'group-reply-p1-1',
+    });
+    for (const messageId of ['', 3, null]) {
+      expect(
+        parseConsultEvent('alia.agent_end', v1({ status: 'completed', messageId })),
+      ).toBeNull();
+    }
+  });
+
   it('refuses another version, a frame without its consult, and missing or mistyped fields', () => {
     const start = { agent: { id: 'a', name: 'Sindi' } };
     expect(parseConsultEvent('alia.agent_start', { ...v1(start), eventVersion: 2 })).toBeNull();
