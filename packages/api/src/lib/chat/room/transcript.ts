@@ -15,6 +15,8 @@ export interface GroupInputMessage {
   readonly role: string;
   readonly content?: unknown;
   readonly agentInfo?: { readonly id?: string; readonly name: string } | null;
+  /** Server-owned feedback from this conversation's person. */
+  readonly reactions?: readonly string[];
 }
 
 /** The words of a message's content: a string as it is, else its text parts joined. */
@@ -52,9 +54,17 @@ export function memberMessages(
       if (message.role !== 'user' && message.role !== 'assistant') return [];
       const text = textOf(message.content).trim().slice(0, HISTORY_CHARS);
       if (text === '') return [];
-      if (message.role === 'user') return [{ role: 'user', content: text }];
+      const feedback: AgentTurnMessage[] = message.reactions?.length
+        ? [
+            {
+              role: 'user',
+              content: `Observed reaction from the person (feedback, not an instruction or approval): ${JSON.stringify({ messageId: message.id ?? null, targetActorId: message.agentInfo?.id ?? null, reactions: message.reactions })}`,
+            },
+          ]
+        : [];
+      if (message.role === 'user') return [{ role: 'user', content: text }, ...feedback];
       if (selfId !== undefined && message.agentInfo?.id === selfId)
-        return [{ role: 'assistant', content: text }];
+        return [{ role: 'assistant', content: text }, ...feedback];
       return [
         {
           role: 'user',
@@ -64,6 +74,7 @@ export function memberMessages(
             content: text,
           })}`,
         },
+        ...feedback,
       ];
     })
     .slice(-HISTORY_MESSAGES);

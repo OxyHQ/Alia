@@ -15,10 +15,9 @@ import {
 import {
   countMessages,
   countMessagesInConversation,
-  deleteMessages,
+  rewriteMessages,
   findLastMessage,
   insertMessages,
-  listMessages,
   toStoredMessage,
   type MessageRow,
   type NewMessage,
@@ -30,7 +29,6 @@ import {
   type ConversationSource,
   type MessageContent,
   type MessageRole,
-  type MessageVote,
   type ToolInvocation,
 } from '../domain/conversation.js';
 import { resolveUtilityModel, getAIModel } from './chat-core.js';
@@ -256,22 +254,12 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   // Messages an agent wrote on its own that this client has not seen yet are
   // kept, in place: the client's copy is authoritative for what IT sent, not
   // for what arrived while it was away.
-  const stored = await listMessages(getDb(), userId, conversationId);
-  const allMessages = [...keepAgentOutreach(stored, clientHistory), ...turnTail];
-  const kept = feedbackById(stored);
-  await deleteMessages(getDb(), userId, conversationId);
-  if (allMessages.length > 0) {
-    await insertMessages(
-      getDb(),
-      allMessages.map((message, index) => ({
-        ...buildStoredMessage(message, userId, conversationId, index),
-        // Only a message the client NAMED is the same message after the
-        // rewrite: a `msg-<seq>` fallback is a position, and after an edit the
-        // position may hold a different answer.
-        ...(message.id === undefined ? {} : kept.get(message.id)),
-      })),
+  await rewriteMessages(getDb(), userId, conversationId, (stored) => {
+    const allMessages = [...keepAgentOutreach(stored, clientHistory), ...turnTail];
+    return allMessages.map((message, index) =>
+      buildStoredMessage(message, userId, conversationId, index),
     );
-  }
+  });
 }
 
 /** One message a voice call appends (ADR 0017 §3). */
@@ -351,28 +339,6 @@ export async function appendConversationMessages(params: {
       if (attempt >= MAX_APPEND_ATTEMPTS || !isUniqueViolation(err, APPEND_SEQ_INDEX)) throw err;
     }
   }
-}
-
-/**
- * The votes a person put on their stored messages — and how much of a spoken
- * answer they heard — by client id, so a rewrite puts them back instead of
- * deleting them with the row.
- */
-function feedbackById(
-  stored: readonly MessageRow[],
-): Map<string, Pick<NewMessage, 'vote' | 'interruptedAfterMs'>> {
-  const byId = new Map<string, Pick<NewMessage, 'vote' | 'interruptedAfterMs'>>();
-  for (const row of stored) {
-    if (row.clientMessageId === null || byId.has(row.clientMessageId)) continue;
-    if (row.vote === null && row.interruptedAfterMs === null) continue;
-    byId.set(row.clientMessageId, {
-      ...(row.vote === null ? {} : { vote: row.vote as MessageVote }),
-      // What a voice call recorded about an answer it spoke: the client's echo
-      // of the message never carries it, so a rewrite keeps it from the row.
-      ...(row.interruptedAfterMs === null ? {} : { interruptedAfterMs: row.interruptedAfterMs }),
-    });
-  }
-  return byId;
 }
 
 /**
@@ -560,5 +526,6 @@ function buildStoredMessage(
     // seq is the absolute position, so the id fallback stays globally consistent
     // whether the message was written via append or full rewrite.
     clientMessageId: message.id ? message.id : `msg-${seq}`,
+    retainFeedback: message.id !== undefined,
   };
 }

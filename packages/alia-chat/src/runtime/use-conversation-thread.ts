@@ -23,6 +23,7 @@ import {
 import { aliaQueryKeys } from './query-keys';
 import { reportDroppedAttachments, useStartConversation } from './use-start-conversation';
 import { createRoomLedger } from './room-events';
+import { applyMessageReaction, type MessageReactionSnapshot } from './message-reactions';
 import { useConversationStream } from './use-conversation-stream';
 import { useRoomEvents } from './use-room-events';
 import type { Message, SendOptions } from './types';
@@ -163,6 +164,14 @@ export function useConversationThread({
     // selector failures have no agent bubble or matching client message ID.
     if (!isLoading && failedTurn === null) toast.error(labels.sendFailed);
   });
+  const applyReaction = useCallback(
+    (update: MessageReactionSnapshot) => {
+      if (update.conversationId === conversationId) {
+        setMessages((previous) => applyMessageReaction(previous, update));
+      }
+    },
+    [conversationId, setMessages],
+  );
   const upload = useDocumentUpload();
 
   // The turn's lifecycle, published for every "Ask Alia" button (`useAliaActivity`).
@@ -568,6 +577,7 @@ export function useConversationThread({
     clearConversation,
     clearError,
     setMessages,
+    applyReaction,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
     agentRun,

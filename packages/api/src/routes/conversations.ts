@@ -1,4 +1,8 @@
 import { parseReaction } from '../domain/message-reactions.js';
+import { ReactionMutationConflict } from '../db/chat/reactionRepository.js';
+import { applyConversationReaction } from '../lib/chat/reactions/mutation.js';
+import { publishConversationReaction } from '../lib/chat/reactions/bus.js';
+import { checkWindowLimit } from '../lib/sliding-window-limiter.js';
 import { channelAccountOf } from '../middleware/channel-auth.js';
 import { parseAvatarCharacter } from '@oxy.so/contracts';
 import { Router } from 'express';
@@ -28,7 +32,6 @@ import {
   listMessages,
   replaceMessages,
   toStoredMessage,
-  reactToMessage,
   voteMessage,
   type MessageRow,
   type NewMessage,
@@ -564,21 +567,44 @@ router.post(
         return res.status(401).json({ error: 'Unauthorized' });
       }
       const emoji = parseReaction(req.body?.emoji);
+      if (req.serviceApp || req.machineCredential) {
+        return res.status(403).json({ error: 'A person session is required to react' });
+      }
       if (emoji === null) {
         return res.status(400).json({ error: 'emoji must be a single emoji' });
       }
-      const result = await reactToMessage(
-        getDb(),
-        req.user.id,
-        String(req.params.id),
-        String(req.params.messageId),
-        emoji,
-      );
+      const mutation = z
+        .object({ active: z.boolean().optional(), mutationId: z.string().uuid().optional() })
+        .safeParse(req.body);
+      if (!mutation.success) return res.status(400).json({ error: 'Invalid reaction mutation' });
+      const limit = await checkWindowLimit(`rl:reactions:${req.user.id}`, 60, {
+        onUnavailable: 'local',
+      });
+      if (!limit.allowed) return res.status(429).json({ error: 'Too many reaction changes' });
+      const conversationId = String(req.params.id);
+      const result = await applyConversationReaction({
+        userId: req.user.id,
+        conversationId,
+        messageId: String(req.params.messageId),
+        accessToken: req.accessToken,
+        surfaceApplicationId: await appSurfaceOf(req),
+        mutation: { emoji, ...mutation.data },
+      });
       if (!result) {
         return res.status(404).json({ error: 'Message not found' });
       }
-      res.json({ reactions: result.reactions });
+      const payload = {
+        messageId: result.messageId,
+        reactions: result.reactions,
+        revision: result.revision,
+        mutationId: result.mutationId,
+      };
+      // State is durable before this best-effort notification. HTTP retry/reload repairs missed events.
+      await publishConversationReaction(req.user.id, { conversationId, ...payload });
+      res.json(payload);
     } catch (error: unknown) {
+      if (error instanceof ReactionMutationConflict)
+        return res.status(409).json({ error: 'Reaction mutation id conflict' });
       log.chat.error({ err: error }, 'Error reacting to a message');
       res.status(500).json({ error: 'Failed to react to message' });
     }

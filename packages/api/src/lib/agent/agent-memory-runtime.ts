@@ -41,17 +41,19 @@ const MEMORY_UPKEEP =
 export async function agentMemoryPromptSection(
   oxyUserId: string,
   agentId: string,
+  options?: { readonly readOnly?: boolean },
 ): Promise<string> {
   const index = await readAgentMemory(getDb(), oxyUserId, agentId, AGENT_MEMORY_INDEX).catch(
     () => undefined,
   );
   const content = index?.content.trim();
   if (!content) {
+    if (options?.readOnly) return '';
     return '\n\n## Your memory of this person\nYour MEMORY.md for this person is empty. When you learn something worth remembering across conversations (who they are, what they want from you, decisions, preferences), save it with the `memory` tool.';
   }
   const slice = agentMemoryPromptSlice(content);
   const body = `${slice.content}${slice.truncated ? '\n[…truncated; read the rest with the memory tool]' : ''}`;
-  return `${memoryDataBlock('Your memory of this person (MEMORY.md)', body)}\n\n${MEMORY_UPKEEP}`;
+  return `${memoryDataBlock('Your memory of this person (MEMORY.md)', body)}${options?.readOnly ? '' : `\n\n${MEMORY_UPKEEP}`}`;
 }
 
 /** The `memory` tool: read, list and write this agent's files about this person. */

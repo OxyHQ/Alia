@@ -1,4 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../lib/chat/activity.js', () => ({
+  holdConversationActivity: vi.fn(async () => async () => undefined),
+}));
+vi.mock('../../../lib/chat/reaction-context.js', () => ({
+  conversationReactionContext: vi.fn(async () => ''),
+}));
 import { OxyInferenceError } from '@oxy.so/core/inference';
 
 /**
@@ -940,6 +947,45 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     expect(prompt.length).toBeGreaterThan(100);
     expect(prompt).not.toContain('## Recalled Memories');
     expect(H.timeline).not.toContain('recall:beforeChatHooks');
+  });
+
+  it('includes authoritative feedback when an ordinary Alia turn asks about an earlier reaction', async () => {
+    const { conversationReactionContext } = await import('../../../lib/chat/reaction-context.js');
+    vi.mocked(conversationReactionContext).mockResolvedValueOnce(
+      '\nObserved feedback: person reacted ❤️ to Salina answer-1; not approval.',
+    );
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: '¿Has visto el corazón que puse antes?' }],
+          model: CHAT_MODEL,
+          stream: true,
+          conversationId: 'conv-feedback',
+        },
+      }),
+      recordingRes(),
+    );
+    expect(conversationReactionContext).toHaveBeenCalledWith('user-ws13', 'conv-feedback');
+    expect(systemPromptSeenByModel()).toContain('person reacted ❤️ to Salina answer-1');
+  });
+
+  it('does not begin inference if durable activity admission fails, even if cleanup recovers', async () => {
+    const { holdConversationActivity } = await import('../../../lib/chat/activity.js');
+    vi.mocked(holdConversationActivity).mockRejectedValueOnce(
+      new Error('activity database unavailable'),
+    );
+    await run(
+      recordingReq({
+        body: {
+          messages: [{ role: 'user', content: 'Do this first' }],
+          model: CHAT_MODEL,
+          stream: true,
+          conversationId: 'conv-admission',
+        },
+      }),
+      recordingRes(),
+    );
+    expect(H.state.calls).toEqual([]);
   });
 
   it('executes the tool for real between the call frame and the result frame', async () => {

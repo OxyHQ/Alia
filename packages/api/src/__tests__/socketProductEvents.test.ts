@@ -107,6 +107,7 @@ import {
   initSocket,
 } from '../socket.js';
 import { publishRoomEvent } from '../lib/chat/room/bus.js';
+import { publishConversationReaction } from '../lib/chat/reactions/bus.js';
 import type { Server } from 'socket.io';
 import { sendNotification } from '../lib/notification-service.js';
 
@@ -149,6 +150,23 @@ beforeEach(() => {
 // ===========================================================================
 
 describe('each product event is emitted under its own name, to its own room', () => {
+  it('publishes the canonical reaction revision to its owner through the real socket adapter', async () => {
+    const update = {
+      conversationId: 'conversation-ws13',
+      messageId: 'answer-ws13',
+      reactions: ['❤️'],
+      revision: 2,
+      mutationId: 'mutation-ws13',
+    };
+    await publishConversationReaction('user-ws13', update);
+    expect(broadcasts).toEqual([
+      {
+        event: 'conversation:reaction',
+        rooms: ['user:user-ws13'],
+        payload: update,
+      },
+    ]);
+  });
   it('agent activity, to the agent room AND the session room', () => {
     emitAgentActivity('agent-ws13', {
       type: 'tool_call',
@@ -326,6 +344,13 @@ describe('every socket event the app listens for is one the API emits', () => {
       chainId: 'p',
       event: 'group.idle',
       data: { reason: 'done' },
+    });
+    await publishConversationReaction('u', {
+      conversationId: 'c',
+      messageId: 'answer',
+      reactions: ['❤️'],
+      revision: 1,
+      mutationId: 'mutation',
     });
     const emitted = new Set(broadcasts.map((entry) => entry.event));
     // `notification` and `show:progress` are emitted by their own services

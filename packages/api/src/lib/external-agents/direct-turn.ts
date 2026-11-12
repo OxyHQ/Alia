@@ -26,6 +26,8 @@ export async function serveExternalDirectTurn(input: {
   signal: AbortSignal;
   /** Called once, just before the stream ends, to settle the coordinated agent turn. */
   beforeFinish?: () => Promise<void>;
+  /** Server-loaded observations, encoded in the existing external task interface. */
+  reactionContext?: string;
 }): Promise<boolean> {
   const { res, sse, requestId, modelId } = input;
   const { task, history } = externalHistoryOf(input.messages);
@@ -40,7 +42,7 @@ export async function serveExternalDirectTurn(input: {
 
   const result = await runExternalAgentTurn({
     agentId: input.agentId,
-    task,
+    task: input.reactionContext ? `${task}\n\n${input.reactionContext}` : task,
     history,
     ...(input.lifecycle.conversationId ? { threadKey: input.lifecycle.conversationId } : {}),
     signal: input.signal,
