@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 
 const mocks = vi.hoisted(() => ({
   requests: [] as Array<Record<string, unknown>>,
   options: [] as Array<Record<string, unknown>>,
   events: [] as Array<Record<string, unknown>>,
   streamFailure: null as Error | null,
+  responseText: 'hola',
 }));
 
 vi.mock('../oxy-inference.js', () => ({
@@ -16,7 +19,7 @@ vi.mock('../oxy-inference.js', () => ({
         requestId: 'req-1',
         model: 'openai/gpt-5-mini@2026-08-18',
         servingProvider: 'operator-that-must-not-leak',
-        output: [{ role: 'assistant', content: [{ type: 'text', text: 'hola' }] }],
+        output: [{ role: 'assistant', content: [{ type: 'text', text: mocks.responseText }] }],
         finishReason: 'stop',
         usage: [
           { unit: 'input_tokens', quantity: 2 },
@@ -62,6 +65,38 @@ describe('Kaana AI SDK adapter through Oxy', () => {
     mocks.options.length = 0;
     mocks.events.length = 0;
     mocks.streamFailure = null;
+    mocks.responseText = 'hola';
+  });
+
+  it('preserves structured selection output on the auto route so Oxy can apply its capability floor', async () => {
+    mocks.responseText = '{"choice":"idle"}';
+    const model = kaanaLanguageModel({
+      target: { kind: 'routingProfile', routingProfile: 'auto' },
+      modelId: 'auto',
+      surface: 'agent_run',
+    });
+    const result = await generateObject({
+      model,
+      schema: z.object({ choice: z.enum(['idle', 'person-request:member']) }),
+      prompt: 'Choose a synthetic next contribution.',
+      maxOutputTokens: 2560,
+    });
+    expect(result.object).toEqual({ choice: 'idle' });
+    expect(mocks.requests).toHaveLength(1);
+    expect(mocks.requests[0]).toMatchObject({
+      routingProfile: 'auto',
+      maxOutputTokens: 2560,
+      responseFormat: {
+        type: 'json_schema',
+        schema: {
+          type: 'object',
+          properties: { choice: { type: 'string', enum: ['idle', 'person-request:member'] } },
+          required: ['choice'],
+        },
+      },
+    });
+    expect(mocks.requests[0]).not.toHaveProperty('model');
+    expect(mocks.requests[0]).not.toHaveProperty('reasoning');
   });
 
   it('does not accept a request id from an arbitrary thrown object', async () => {
