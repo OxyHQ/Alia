@@ -83,8 +83,10 @@ claim that Alia reproduces Grok Bot's internal implementation.
    (70 seconds). A still-running member ends on that HTTP connection with `room_continues`, and
    continues through sockets and storage. The internal result distinguishes successful silence,
    replies, continuation and failure. Inference failures use `failTurn`, including a failure after an earlier member has already
-   answered; keep that partial reply without reporting the chain as successful. Only deliberate
-   silence can finish successfully with no answer. The SDK recognizes `alia.group_turn`, preserves the
+   answered; keep that partial reply without reporting the chain as successful. A settled chain that
+   was not superseded succeeds without an answer only after an explicit idle decision. Supersession
+   and background continuation close the HTTP subscription without claiming an answer.
+   The SDK recognizes `alia.group_turn`, preserves the
    person's message and removes an empty lead placeholder on successful group completion. Ordinary
    empty one-to-one responses and interrupted streams remain failures.
 10. **A stored reply is the execution record.** Keep
@@ -99,7 +101,7 @@ claim that Alia reproduces Grok Bot's internal implementation.
 | Replies per person message | 12 | Bound the cost of one request and its collaboration. |
 | Operations per person message | 24 | Both a selection phase and an actor execution increment the turn counter; failed attempts also consume work. |
 | Handoffs per chain | 3 | Bound agent-to-agent exchanges. |
-| Consecutive speaker | Different member | Prevent an actor from answering itself. |
+| Consecutive substantive replies | Different member | Prevent an actor from answering itself; a one-off clarification may use the last interlocutor. |
 | Selector generation deadline | 10 seconds | Bound the inference call including its retry; credential/credit setup is separate. |
 | Selector retries | 1 | One bounded recovery, never a fallback to all members. |
 | Selector output | `utilityOutputTokens(512)` | Reserve enough for the decision and Oxy-selected model reasoning. |
