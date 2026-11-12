@@ -240,6 +240,12 @@ async function mutateReaction(
       return undefined;
     if (agentInput && (!['user', 'assistant'].includes(row.role) || actor === agentInput.actor.id))
       return undefined;
+    if (
+      agentInput &&
+      row.role === 'assistant' &&
+      (!actor || !(await memberExists(tx, userId, conversationId, actor)))
+    )
+      return undefined;
     const targetId = stableId(row);
     if (row.clientMessageId === null)
       await tx.update(messages).set({ clientMessageId: targetId }).where(eq(messages.id, row.id));

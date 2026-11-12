@@ -260,6 +260,23 @@ describe('authored agent reactions', () => {
     expect(await direct.react('outsider', true, '❤️', 'person', direct.second)).toBeUndefined();
   });
 
+  it('rejects an old peer target after its author leaves the room', async () => {
+    const f = await fixture();
+    await db
+      .delete(conversationMembers)
+      .where(
+        and(
+          eq(conversationMembers.conversationId, f.conversationId),
+          eq(conversationMembers.agentId, f.second.id),
+        ),
+      );
+    expect(await f.react('removed-peer', true, '👍', 'peer')).toBeUndefined();
+    expect(
+      await db.select().from(reactionEvents).where(eq(reactionEvents.oxyUserId, f.userId)),
+    ).toEqual([]);
+    expect((await f.react('still-user'))?.changed).toBe(true);
+  });
+
   it('preserves author state through concurrent client rewrites and legacy human updates, clearing explicit replacement', async () => {
     const f = await fixture();
     await Promise.all([
