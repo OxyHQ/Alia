@@ -2,7 +2,7 @@
  * The client half of Alia's voice-call protocol, `GET /v1/voice/session`
  * (ADR 0017 §3–§4).
  *
- * The server's copy is `packages/api/src/lib/voice/protocol.ts`; the SDK does
+ * The server's copy is `packages/api/src/lib/voice/protocol.ts` in OxyHQ/Gemies; the SDK does
  * not depend on the API package, so the shapes are restated here and
  * `VOICE_PROTOCOL_VERSION` is what turns a mismatch into a refusal instead of a
  * misunderstanding.

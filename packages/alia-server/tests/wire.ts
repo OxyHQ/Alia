@@ -1,58 +1,44 @@
 /**
- * Fixtures written by the API's OWN SSE writers.
+ * The `POST /v1/chat/completions` wire, frame by frame, as the API writes it.
  *
- * Nothing here spells out a chunk by hand. `packages/api/src/lib/streaming-helpers.ts`,
- * `.../chat/sse-writer.ts` and `.../sse-emitter.ts` are the three modules that
- * put bytes on the wire for `POST /v1/chat/completions`, and they are imported
- * here and pointed at a recording `res`. A change to the wire that this client
- * cannot read therefore fails this package's tests, in the same repository, in
- * the same commit — which is the only arrangement under which "the client
- * matches the server" stays true.
+ * Each helper below emits exactly the bytes of the API's own SSE writer of the
+ * same name (`lib/streaming-helpers.ts`, `lib/chat/sse-writer.ts` and
+ * `lib/sse-emitter.ts`, in OxyHQ/Gemies). Those writers lived in this
+ * repository until the backend moved to OxyHQ/Gemies on 2026-11-12, and these
+ * tests imported them directly; that import cannot cross repositories, so the
+ * frames are spelled here once, in one place, and nowhere else in the suite.
  *
- * The import reaches across workspaces deliberately: a copied fixture is a
- * fixture that drifts, and drift is the entire failure mode being defended
- * against.
+ * What keeps them honest from the other side: Gemies runs the same client
+ * suite against its live writers (its `packages/alia-server/tests/wire.ts`
+ * imports them), so a change to the wire that this client cannot read fails
+ * there, in the commit that makes it.
  */
-import { createResponseSSEEmitter } from '../../api/src/lib/sse-emitter.js';
-import { SSEWriter } from '../../api/src/lib/chat/sse-writer.js';
-import {
-  makeChunk,
-  writeContentChunk,
-  writeStopChunk,
-  writeTextChunk,
-} from '../../api/src/lib/streaming-helpers.js';
-
-/** The structural slice of Express's `Response` the writers actually touch. */
-type WriterResponse = Parameters<typeof writeContentChunk>[0];
-
-export interface Recorder {
-  /** Pass to the API's writers. */
-  readonly res: WriterResponse;
-  /** Everything written so far, as the client would receive it. */
-  wire(): string;
-}
-
-export function recorder(): Recorder {
-  const writes: string[] = [];
-  const res = {
-    headersSent: false,
-    writableEnded: false,
-    socket: { setNoDelay: () => undefined },
-    write(chunk: string): boolean {
-      writes.push(chunk);
-      return true;
-    },
-    setHeader: () => undefined,
-    flushHeaders: () => undefined,
-    end: () => undefined,
-  };
-  return { res: res as unknown as WriterResponse, wire: () => writes.join('') };
-}
 
 export const REQUEST_ID = 'chatcmpl-0199bb4e-0341-725e-a905-11001c3659b4';
 export const MODEL = 'acme/chat-1';
 
-/** A recorder plus the API helpers already bound to it. */
+/** An OpenAI-compatible `chat.completion.chunk`, as `makeChunk` builds it. */
+function chunk(
+  choices: readonly {
+    index: number;
+    delta: Record<string, unknown>;
+    finish_reason: string | null;
+  }[],
+): Record<string, unknown> {
+  return {
+    id: REQUEST_ID,
+    object: 'chat.completion.chunk',
+    created: Math.floor(Date.now() / 1000),
+    model: MODEL,
+    system_fingerprint: 'fp_alia',
+    service_tier: 'default',
+    choices: choices.map((c) => ({ ...c, logprobs: null })),
+  };
+}
+
+const data = (payload: unknown): string => `data: ${JSON.stringify(payload)}\n\n`;
+
+/** A stream under construction, one API writer per method. */
 export function aliaStream(): {
   wire(): string;
   /** `writeTextChunk` — the ordinary assistant delta. */
@@ -72,24 +58,41 @@ export function aliaStream(): {
   /** A usage-only frame, as `include_usage` produces. */
   usage(usage: Record<string, unknown>): void;
 } {
-  const { res, wire } = recorder();
-  const sse = new SSEWriter(res);
-  const emitter = createResponseSSEEmitter(res, () => undefined);
+  const writes: string[] = [];
+  const write = (frame: string): void => void writes.push(frame);
 
   return {
-    wire,
-    text: (content) => void writeTextChunk(res, REQUEST_ID, MODEL, content),
-    synthetic: (content, meta) => writeContentChunk(res, REQUEST_ID, MODEL, content, meta),
-    stop: (reason) => writeStopChunk(res, REQUEST_ID, MODEL, reason),
-    event: (name, data) => emitter.emit(name, data),
-    // The route writes this one itself rather than through the emitter
-    // (`routes/v1/chat-completions.ts`), so the fixture writes it the same way.
-    agentTurn: (data) =>
-      void res.write(`event: alia.agent_turn\ndata: ${JSON.stringify(data)}\n\n`),
-    error: (payload) => sse.writeError(payload),
-    done: () => sse.done(),
-    usage: (usage) =>
-      void res.write(`data: ${JSON.stringify({ ...makeChunk(REQUEST_ID, MODEL, []), usage })}\n\n`),
+    wire: () => writes.join(''),
+    text: (content) => write(data(chunk([{ index: 0, delta: { content }, finish_reason: null }]))),
+    synthetic: (content, meta) =>
+      write(
+        data({
+          ...chunk([{ index: 0, delta: { content }, finish_reason: null }]),
+          alia_meta: meta,
+        }),
+      ),
+    stop: (reason = 'stop') => write(data(chunk([{ index: 0, delta: {}, finish_reason: reason }]))),
+    event: (name, payload) => write(`event: ${name}\n${data(payload)}`),
+    // The route writes this one itself rather than through the emitter.
+    agentTurn: (payload) => write(`event: alia.agent_turn\n${data(payload)}`),
+    error: (payload) => {
+      write(
+        data({
+          error: {
+            message: payload.message || 'An error occurred.',
+            type: payload.type || 'server_error',
+            param: payload.param || null,
+            code: payload.code || null,
+            ...(typeof payload.retryable === 'boolean' ? { retryable: payload.retryable } : {}),
+            ...(typeof payload.retryAfter === 'number' ? { retryAfter: payload.retryAfter } : {}),
+            ...(typeof payload.reference === 'string' ? { reference: payload.reference } : {}),
+          },
+        }),
+      );
+      write('data: [DONE]\n\n');
+    },
+    done: () => write('data: [DONE]\n\n'),
+    usage: (usage) => write(data({ ...chunk([]), usage })),
   };
 }
 

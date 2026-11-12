@@ -11,12 +11,12 @@
  *
  * ## This list is not the source of truth, and a test says so
  *
- * The vocabulary is `packages/api/src/domain/capability-grants.ts`; the
- * assembler reads it and the database stores it. What lives here is the part a
- * person sees — a label, a sentence and an icon — keyed by the same ids.
- * `packages/api/src/routes/__tests__/agent-editor-autosave.test.ts` reads THIS
- * file and asserts the ids match the API's, so the two cannot drift the way the
- * lists this replaced did.
+ * The vocabulary is `packages/api/src/domain/capability-grants.ts` in
+ * OxyHQ/Gemies; the assembler reads it and the database stores it. What lives
+ * here is the part a person sees — a label, a sentence and an icon — keyed by
+ * the same ids. Gemies' `packages/api/src/routes/__tests__/agent-editor-autosave.test.ts`
+ * reads its copy of this file and asserts the ids match the API's, so a change
+ * to the vocabulary there names the ids this list must follow.
  *
  * ## Instanced families are not toggles
  *
@@ -29,7 +29,7 @@
  *
  * `agent` is the one family that ALSO offers a row for the whole family ("all
  * your active agents"), and that row is a grant string like any other, built on
- * the same server. `packages/api/src/domain/capability-grants.ts` argues why
+ * the same server. `packages/api/src/domain/capability-grants.ts` in OxyHQ/Gemies argues why
  * that one may and the other three may not.
  *
  * ## Bloom's icon contract
@@ -178,7 +178,7 @@ const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
  * `RUNTIME_TOOL_FAMILIES['constructor']` answers a FUNCTION inherited from
  * `Object.prototype`. An `if (icon)` guard passes on it and React is handed
  * something that is not a component — the shape
- * `packages/api/src/__tests__/prototype-keyed-lookups.test.ts` exists for.
+ * `packages/api/src/__tests__/prototype-keyed-lookups.test.ts` in OxyHQ/Gemies exists for.
  */
 export function capabilityIconForTool(toolName: string): BloomIconComponent | undefined {
   if (!Object.hasOwn(RUNTIME_TOOL_FAMILIES, toolName)) return undefined;

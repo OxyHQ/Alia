@@ -7,7 +7,7 @@ import type { AutomationTrigger, ToolInvocation } from '../types';
  * in, and what Bloom's `LineChartCard`, `Card` and `Item` are handed comes
  * out. A thread reopened next month shows the numbers it was answered with,
  * because nothing is fetched — every range the card offers is already in the
- * snapshot. The producers are `packages/api/src/lib/tools/{weather,market,
+ * snapshot. The producers, in OxyHQ/Gemies, are `packages/api/src/lib/tools/{weather,market,
  * faircoin}.ts` and the scheduling tool.
  */
 

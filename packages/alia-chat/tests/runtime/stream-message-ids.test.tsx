@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * One identity per message, from the send to the server and back.
  *
  * The server stores a turn under the ids the client drew it with
- * (`packages/api/src/lib/conversation-saver.ts`): the question and the history
+ * (`packages/api/src/lib/conversation-saver.ts` in OxyHQ/Gemies): the question and the history
  * by their `id`, the reply by the request's `assistantMessageId`, and a
  * delegated agent's answers by a name derived from the reply's. A vote or a
  * read-aloud addresses a message by `Message.id`, so these have to be the ids

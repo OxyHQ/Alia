@@ -4,7 +4,7 @@ import type { Message, ToolInvocation } from './types';
 export interface OutboundMessage {
   /**
    * The id this screen draws the message under. The server stores the turn
-   * with the ids it was sent (`packages/api/src/lib/conversation-saver.ts`), so
+   * with the ids it was sent (`packages/api/src/lib/conversation-saver.ts` in OxyHQ/Gemies), so
    * a vote or a read-aloud addressed by `Message.id` finds the row without a
    * reload in between.
    */

@@ -423,7 +423,7 @@ describe('the empty slot, where the call button stands', () => {
 
 describe('the model menu keys by id, never by the name it draws', () => {
   it('reports the opaque id of the row that was pressed', () => {
-    // `docs/chat-runtime.mdx` requires exact-id equality: a routing profile is
+    // `docs/chat-runtime.mdx` (OxyHQ/Gemies) requires exact-id equality: a routing profile is
     // chosen by its identifier and by nothing else. The menu draws `name` and
     // reports `id`, and this is the difference being pinned — a lineup keyed
     // on display names would report the label instead.

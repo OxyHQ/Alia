@@ -153,7 +153,7 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
           {/* AI Image Node */}
           {/*
            * An image node has no mode control, because it has no choice to
-           * offer: `packages/api/src/routes/canvas/execute.ts` runs the
+           * offer: `packages/api/src/routes/canvas/execute.ts` in OxyHQ/Gemies runs the
            * `aiImage` case through `getModelMappingsForTier('v1-image')` and
            * never reads `node.data.model`. The control that used to sit here
            * showed an alias name and changed nothing — a picker whose value the

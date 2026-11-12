@@ -5,9 +5,9 @@
  *
  * `ci.yml` used one concurrency group per REF with `cancel-in-progress: true`,
  * so each merge to `main` killed the run of the merge before it. Measured on
- * 2026-08-17: `API (Postgres)`, `Build API` and `Integrations (Postgres)` came
- * back `cancelled` on consecutive `main` commits, and the real-database suite
- * did not complete a single run on `main` for hours.
+ * 2026-08-17: the backend's real-database jobs (since moved to OxyHQ/Gemies)
+ * came back `cancelled` on consecutive `main` commits, and did not complete a
+ * single run on `main` for hours.
  *
  * That is the worst shape a gate can fail in. A cancelled check appears in the
  * check list, it is not red, and it never ran — "presence is not execution",
@@ -52,16 +52,9 @@ const MAIN_REF = "'refs/heads/main'";
  */
 const EXPECTED = {
   'ci.yml': 'per-commit',
-  'production-chat-canary.yml': 'serialised',
   // One OTA publish at a time: a newer pending push replaces an older one, and a
   // publish is never cancelled half-uploaded.
   'publish-update.yml': 'serialised',
-  // One live Kaana transcription session at a time, billed to the QA account.
-  'production-dictation-canary.yml': 'serialised',
-  // One instance restarted over SSM: two overlapping restarts could leave the
-  // unit on the older digest pair.
-  'deploy-computer-host.yml': 'serialised',
-  'refresh-build-cache.yml': 'serialised',
   // One npm release at a time: two dispatches of the same version would both
   // pass the registry preflight and race to publish.
   'release-packages.yml': 'serialised',
@@ -79,13 +72,6 @@ const EXPECTED = {
  * block (EXPECTED's exact set enforces that).
  */
 const EXPECTED_JOBS = {
-  'deploy-aws.yml#deploy': 'serialised',
-  // Its own group, not the API's: the two deploy different services and migrate
-  // different databases, so sharing one would make each block the other for no
-  // gain. Serialised for the same reason as the API's — and here the group is
-  // additionally the ONLY interlock on the migrator, which takes no lock of its
-  // own and reads the ledger's high-water mark outside its transaction.
-  'deploy-integrations.yml#deploy': 'serialised',
   // One Worker upload at a time per frontend.
   'deploy-frontends.yml#deploy-app': 'serialised',
   'deploy-frontends.yml#deploy-canvas': 'serialised',

@@ -14,7 +14,7 @@
 
 ## Checklist
 
-- [ ] TypeScript compiles (`tsc --noEmit`)
-- [ ] Tests pass (`npm test -w @alia/api`)
+- [ ] Not a backend change (those go to OxyHQ/Gemies)
+- [ ] Typecheck and tests pass for the package touched (`bun run --filter <pkg> typecheck` / `test`)
 - [ ] No provider names exposed in UI, errors, or API responses
 - [ ] Lint passes

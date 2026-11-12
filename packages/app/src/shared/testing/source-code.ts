@@ -24,9 +24,9 @@ import ts from 'typescript';
  * holds however the file is wrapped, and a regex is written against the compact
  * form: `/router\.post\('\/',[^)]*apiKeyRateLimit/`.
  *
- * The same module as `packages/api/src/__tests__/support/source-code.ts`; the
- * packages share no test code, so each carries its copy and its own agreement
- * test (`./__tests__/source-code.test.ts` here).
+ * The API carries the same module (`packages/api/src/__tests__/support/source-code.ts`
+ * in OxyHQ/Gemies); the two share no test code, so each carries its copy and its
+ * own agreement test (`./__tests__/source-code.test.ts` here).
  *
  * A FILE is read with the parser, which knows a regex literal from a division
  * and JSX text from code. A SNIPPET is usually a fragment the parser would

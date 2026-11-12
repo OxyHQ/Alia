@@ -2,7 +2,7 @@
  * The client half of Alia's streaming dictation protocol,
  * `GET /v1/audio/transcriptions/stream` (ADR 0024).
  *
- * The server's copy is `packages/api/src/lib/dictation/protocol.ts`; the SDK
+ * The server's copy is `packages/api/src/lib/dictation/protocol.ts` in OxyHQ/Gemies; the SDK
  * does not depend on the API package, so the shapes are restated here and
  * `DICTATION_PROTOCOL_VERSION` is what turns a mismatch into a refusal instead
  * of a misunderstanding. The API's tests hold the two copies equal.

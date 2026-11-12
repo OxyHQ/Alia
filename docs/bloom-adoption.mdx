@@ -23,7 +23,7 @@ tarball does not ship `templates/`): `AiChatShell` with a `Sidebar` and a right
 panel, `AiChatContainer`, `AiChatThread`, the turns, the composer under them.
 The router owns URLs and conversation identity; streaming, pagination,
 authentication, voice, tools and inference stay in Alia
-([chat runtime](./chat-runtime.mdx), [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)).
+([chat runtime](https://github.com/OxyHQ/Gemies/blob/main/docs/chat-runtime.mdx), [ADR 0001](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0001-alia-oxy-kaana-responsibility-boundary.md), in OxyHQ/Gemies).
 
 ## 1. Adoption matrix
 
@@ -154,7 +154,7 @@ mounts the real panels and fails on any control without a handler.
 | Composer additions | `ComposerDropZone.tsx`, `useAttachmentIntake.ts` in `packages/alia-chat`; `composer-suggestions.ts`, `add-menu.tsx`, `power-level-options.ts` in the app's `src/features/chat/ui/composer/` | Suggestions driven through `onKeyPress`; web drag-and-drop (react-native-web forwards no drag events); the reads behind the tiles; the add menu's rows and the power levels. |
 | Canvas renderers | `packages/alia-chat/src/components/canvas/` | Chart, table, code, form and Markdown artifacts, each drawn with the Bloom family that fits. |
 | Agent terminal | `src/features/chat/ui/workspace/agent-terminal.tsx` | xterm.js (a WebView on native), in the code panel's second tab; loaded only when shown. |
-| Call controls | `VoiceControls` from `@alia.onl/sdk`; `src/features/voice/ui/voice-mode-icon.tsx` | See `call-ui` in §2. The call runs on the device ([Voice](./voice.mdx)). |
+| Call controls | `VoiceControls` from `@alia.onl/sdk`; `src/features/voice/ui/voice-mode-icon.tsx` | See `call-ui` in §2. The call runs on the device ([Voice](https://github.com/OxyHQ/Gemies/blob/main/docs/voice.mdx), in OxyHQ/Gemies). |
 | Timeline window and scroll restore | `useTimelineWindow.ts`, `timeline.ts` | [Gap 3](#gap-3). |
 
 ## 5. Still different from the template, or from the app before #608
@@ -243,5 +243,5 @@ this rewrite.
 What was verified, and how: [visual baseline](./visual-baseline.mdx),
 [runtime baseline](./runtime-baseline.mdx), [bundle baseline](./bundle-baseline.mdx),
 [native validation](./native-validation.mdx). Voice runs on the device; the
-decision that retired LiveKit, cohost and voice minutes is [ADR 0013](./adr/0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md) in the
-[ADR index](./adr/README.md), linked from [Voice](./voice.mdx).
+decision that retired LiveKit, cohost and voice minutes is [ADR 0013](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0013-voice-runs-on-the-device-livekit-and-cohost-are-retired.md) in the
+[ADR index](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/README.md), linked from [Voice](https://github.com/OxyHQ/Gemies/blob/main/docs/voice.mdx), all in OxyHQ/Gemies.

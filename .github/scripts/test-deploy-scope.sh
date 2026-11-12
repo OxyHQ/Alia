@@ -45,9 +45,11 @@ chmod +x "$work/bin/gh"
 sha=1111111111111111111111111111111111111111
 older=2222222222222222222222222222222222222222
 newer=3333333333333333333333333333333333333333
-prefix=alia-release-api-
+prefix=alia-release-app-
+# `exclude` (the `paths-ignore` shape) is driven with a docs-only scope; the
+# `include` cases use the app's scope exactly as deploy-frontends.yml passes it.
 docs='(\.md$|^docs/)'
-integrations='^(packages/integrations/|packages/[^/]+/package\.json$|bun\.lock$)'
+app='^(packages/app/|packages/alia-chat/|package\.json$|\.github/workflows/deploy-frontends\.yml$|bun\.lock$)'
 
 failures=0
 # run <expected exit> <expected output line or ''> <env...> -- <args...>
@@ -94,39 +96,39 @@ run 0 current=true GITHUB_EVENT_NAME=workflow_dispatch FAKE_CI_COUNT=1 FAKE_HEAD
 run 1 '' RELEASE_SHA=main FAKE_HEAD=$sha -- gate
 
 # target: holds, each with its evidence
-run 0 api=false FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nREADME.md\ndocs/a.mdx')" \
-  -- target api exclude "$docs" $prefix
-run 0 api=false FAKE_MARKER=$prefix$sha "FAKE_COMPARE=$(printf 'identical\n0')" \
-  -- target api exclude "$docs" $prefix
-run 0 api=false FAKE_MARKER=$prefix$newer "FAKE_COMPARE=$(printf 'behind\n0')" \
-  -- target api exclude "$docs" $prefix
-run 0 integrations=false FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\npackages/app/x.ts')" \
-  -- target integrations include "$integrations" $prefix
+run 0 site=false FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nREADME.md\ndocs/a.mdx')" \
+  -- target site exclude "$docs" $prefix
+run 0 site=false FAKE_MARKER=$prefix$sha "FAKE_COMPARE=$(printf 'identical\n0')" \
+  -- target site exclude "$docs" $prefix
+run 0 site=false FAKE_MARKER=$prefix$newer "FAKE_COMPARE=$(printf 'behind\n0')" \
+  -- target site exclude "$docs" $prefix
+run 0 app=false FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\npackages/alia-canvas/x.ts')" \
+  -- target app include "$app" $prefix
 
 # target: releases
-run 0 api=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nREADME.md\npackages/api/src/x.ts')" \
-  -- target api exclude "$docs" $prefix
-run 0 integrations=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\npackages/app/x.ts\npackages/alia-chat/package.json')" \
-  -- target integrations include "$integrations" $prefix
+run 0 site=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nREADME.md\npackages/app/src/x.ts')" \
+  -- target site exclude "$docs" $prefix
+run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\npackages/alia-canvas/x.ts\npackages/alia-chat/package.json')" \
+  -- target app include "$app" $prefix
 # A rename out of scope still counts the path it left.
-run 0 integrations=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\nlegacy/x.ts\npackages/integrations/x.ts')" \
-  -- target integrations include "$integrations" $prefix
+run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\nlegacy/x.ts\npackages/app/x.ts')" \
+  -- target app include "$app" $prefix
 
 # target: unsure, so release
-run 0 api=true FAKE_MARKER= -- target api exclude "$docs" $prefix
-run 0 api=true FAKE_MARKER=${prefix}garbage -- target api exclude "$docs" $prefix
-run 0 api=true FAKE_FAIL_MARKER=1 -- target api exclude "$docs" $prefix
-run 0 api=true FAKE_MARKER=$prefix$older FAKE_FAIL_COMPARE=1 -- target api exclude "$docs" $prefix
-run 0 api=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'diverged\n1\nREADME.md')" \
-  -- target api exclude "$docs" $prefix
-run 0 api=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n300\nREADME.md')" \
-  -- target api exclude "$docs" $prefix
-run 0 api=true GITHUB_EVENT_NAME=workflow_dispatch FAKE_FAIL_MARKER=1 \
-  -- target api exclude "$docs" $prefix
+run 0 site=true FAKE_MARKER= -- target site exclude "$docs" $prefix
+run 0 site=true FAKE_MARKER=${prefix}garbage -- target site exclude "$docs" $prefix
+run 0 site=true FAKE_FAIL_MARKER=1 -- target site exclude "$docs" $prefix
+run 0 site=true FAKE_MARKER=$prefix$older FAKE_FAIL_COMPARE=1 -- target site exclude "$docs" $prefix
+run 0 site=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'diverged\n1\nREADME.md')" \
+  -- target site exclude "$docs" $prefix
+run 0 site=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n300\nREADME.md')" \
+  -- target site exclude "$docs" $prefix
+run 0 site=true GITHUB_EVENT_NAME=workflow_dispatch FAKE_FAIL_MARKER=1 \
+  -- target site exclude "$docs" $prefix
 
 # usage errors
-run 1 '' -- target api sideways "$docs" $prefix
-run 1 '' -- target api exclude "$docs"
+run 1 '' -- target site sideways "$docs" $prefix
+run 1 '' -- target site exclude "$docs"
 run 1 '' -- nonsense
 
 if ((failures > 0)); then

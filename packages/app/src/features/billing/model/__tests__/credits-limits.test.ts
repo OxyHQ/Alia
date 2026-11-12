@@ -10,7 +10,7 @@ const t = (key: string, params?: Record<string, unknown>) =>
 
 const NOW = Date.parse('2026-09-23T12:00:00Z');
 
-/** `/credits` as `packages/api/src/routes/credits.ts` answers it. */
+/** `/credits` as `packages/api/src/routes/credits.ts` in OxyHQ/Gemies answers it. */
 const credits = (over: Partial<CreditsInfo> = {}): CreditsInfo => ({
   credits: 1_120,
   freeCredits: 120,

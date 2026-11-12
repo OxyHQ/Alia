@@ -5,7 +5,7 @@
  *
  * The obvious job — `bun run --filter @alia/app typecheck` and one more line per
  * package — is a gate that only ever covers what somebody remembered to add. Six
- * of this repo's twelve workspaces had no typecheck at all when this was written,
+ * of this repo's twelve workspaces (as it then was) had no typecheck at all when this was written,
  * and nothing anywhere would have reported that; the omission is invisible
  * precisely because a missing line looks exactly like a package that does not
  * need one.
@@ -22,8 +22,8 @@
  *    be failing: an exclusion that has quietly started passing is an exclusion
  *    that should be deleted, and this is what makes that a build failure rather
  *    than a thing nobody notices.
- *  - {@link NO_TYPECHECK} — no `typecheck` script, with the reason. Two of them
- *    are `tsc -b` solution-style projects whose `tsconfig.json` has `"files": []`
+ *  - {@link NO_TYPECHECK} — no `typecheck` script, with the reason. The one left
+ *    is a `tsc -b` solution-style project whose `tsconfig.json` has `"files": []`
  *    and only `references`, so `tsc --noEmit` there compiles NOTHING and exits 0
  *    — a script that would have reported a clean pass while measuring nothing.
  *  - everything else — checked here, discovered rather than listed, so a package
@@ -65,20 +65,10 @@ function readWorkspaces(): Workspace[] {
   });
 }
 
-/**
- * Typechecked by another job, which is named so a reader can go and look.
- *
- * `@alia/integrations` spells its script `type-check`, which is why it does not
- * appear to have one below. It is checked; the name is just different, and
- * renaming someone else's script from this PR would be a change to a package
- * this gate is only supposed to observe.
- */
+/** Typechecked by another job, which is named so a reader can go and look. */
 const CHECKED_ELSEWHERE: Readonly<Record<string, string>> = {
-  '@alia/api': 'Lint & Test — "Typecheck API"',
   '@alia.onl/sdk': 'Lint & Test — "Typecheck SDK"',
   '@alia.onl/server': 'Lint & Test — "Typecheck server SDK"',
-  '@alia/integrations':
-    'Integrations (Postgres) — "Typecheck integrations" (script is `type-check`)',
 };
 
 /**
@@ -157,8 +147,10 @@ function main(): void {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts: readonly [string, number, number][] = [
-    ['workspaces', workspaces.length, 7],
-    ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 4],
+    // Four since 2026-11-12, when `@alia/api`, `@alia/integrations` and
+    // `@alia/computer-host` moved to OxyHQ/Gemies with the backend.
+    ['workspaces', workspaces.length, 4],
+    ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 2],
     ['EXCLUDED', Object.keys(EXCLUDED).length, 0],
     ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 1],
   ];
@@ -179,9 +171,10 @@ function main(): void {
 
   // The vacuity floor. An empty checked set satisfies "no package failed", and a
   // filter bug, a renamed workspace or an over-grown exclusion list all produce
-  // exactly that. Two today (`@alia/computer-host`, `@alia/integrations`);
-  // it was four before two packages moved to their own repository.
-  if (checked.length < 2) {
+  // exactly that. One today (`@alia/app`): it was two until the computer host
+  // and integrations moved to OxyHQ/Gemies with the backend on 2026-11-12, and
+  // four before two packages moved to their own repository.
+  if (checked.length < 1) {
     console.error(`Only ${checked.length} workspace(s) would be checked; the gate has eroded.`);
     process.exit(1);
   }

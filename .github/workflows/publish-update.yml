@@ -55,23 +55,10 @@ jobs:
           node-version: '24'
           package-manager-cache: false
 
-      # A warm cache keeps `bun install` from fetching the `libsignal` git
-      # dependency from GitHub unauthenticated (see the top of ci.yml).
-      - name: Restore bun git-dependency cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache/@GH@*
-          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
-
-      # --ignore-scripts, as deploy-frontends.yml: the app needs no install
-      # script, and the other workspaces' (electron, playwright) only slow this down.
+      # --ignore-scripts, as deploy-frontends.yml: the JS bundle needs no
+      # install script.
       - name: Install dependencies
         run: bun install --frozen-lockfile --minimum-release-age=0 --ignore-scripts
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
       # The update must be built with the binary's environment, so it comes from
       # the same place oxy's android-release.yml reads it: the eas.json

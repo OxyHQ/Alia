@@ -1,11 +1,11 @@
 [install]
 logLevel = "warn"
 saveTextLockfile = true
-# Hoist dependencies into the root node_modules instead of bun 1.3's default
-# "isolated" linker (which keeps real packages in node_modules/.bun and exposes
-# them only via per-workspace symlinks). The production Docker image copies the
-# root node_modules into the runtime stage and resolves the externalized API
-# bundle against it; the isolated layout leaves runtime deps (pino, express, …)
-# unresolvable there. Hoisting keeps a single flat tree that resolves the same
-# in local dev, CI, and the container.
+# Hoist dependencies into the root node_modules instead of bun's "isolated"
+# linker (which keeps real packages in node_modules/.bun and exposes them only
+# via per-workspace symlinks). It was chosen for the backend's Docker image,
+# which resolved its bundle against the root node_modules and moved to
+# OxyHQ/Gemies on 2026-11-12. The app's Metro, Canvas's Vite and the SDK's
+# checks have only ever been built and tested on this flat tree, so it stays
+# until a switch to "isolated" is measured on all of them.
 linker = "hoisted"

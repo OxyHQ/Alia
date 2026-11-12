@@ -1,212 +1,70 @@
 ---
 title: "Alia"
-description: "Alia, the Oxy assistant: what it is, who acts in it, and where each topic is documented."
+description: "Alia, the Oxy assistant app: what lives in this repository, what lives in OxyHQ/Gemies, and where each topic is documented."
 order: 0
 ---
 
 # Alia
 
-Alia is Oxy's assistant. One runtime serves the Expo app (web, iOS, Android), the
-Oxy apps and third parties through the SDK. Alia acts for the person in their Oxy apps, runs
-tasks in the background, writes first when something needs them, and lets people
-create **agents** — personas with their own Oxy account, memory and computer.
+Alia is Oxy's assistant. This repository holds the **Alia app** (Expo: web, iOS and
+Android) and, for as long as their consumers need them, the two packages published from
+it — `@alia.onl/sdk` and `@alia.onl/server` — plus the Canvas editor.
 
-## Read in this order
+**The backend lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** since
+2026-11-12: the API (`api.alia.onl`), the integrations service, the agents' computer host,
+their deploys, canaries, runbooks and architecture decision records. The split and its
+phases are Gemies'
+[ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md):
+Alia becomes a single-gemie app that talks to the Alia gemie, and `@gemies/sdk` and
+`@gemies/server` replace the two packages published from here.
 
-1. **What Alia is** — this page: the three roles, the inference boundary, the packages.
-2. **[Actors: Alia and agents](./actors.mdx)** — who acts, for whom or as itself, with
-   what permission. Start here for anything about agents, tasks, memory or the computer.
-3. **[Chat runtime](./chat-runtime.mdx)** — one turn end to end: request, tools, the
-   SSE contract, typed failures.
-4. **[Background work and proactive outreach](./proactive-intelligence.md)** — tasks,
-   Alia's standing authority, watches, writing first.
-5. **[Integrations and Oxy apps](./integrations.mdx)** — the tool families, Oxy apps
-   (first party), MCP, channels.
-6. **[The agents' computer](./agents.md#the-agents-computer-computer)** — the sandboxed
-   machine and browser, and its live view.
-7. **[Requester authority](./requester-authority.md)** — how an own tool or service call is authorized, and how external MCP differs.
-8. **[Deployment](./deployment.md)** and the [runbooks](#operations) — operating it.
-9. **[Architecture decision records](./adr/README.md)** — what was decided, and why.
-10. **[Instant loading](./instant-loading.md)** — skeletons instead of spinners, the persisted
-   account cache and prefetch.
+A change to the server, its routes, its stream events, its database or its deploys goes to
+OxyHQ/Gemies, not here.
 
-## What it is
+## What lives here
 
-A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn is taken by an actor — Alia, or one of the person's agents ([actors](./actors.mdx)) — runs the autonomy loop `classify → recall → retrieve → act → learn` ([memory and the context graph](./memory-system.md)), and is governed by the risk policy `R0`–`R3` ([governance](./agents.md#governance)).
+| Package | Published as | Stack | Purpose |
+| --- | --- | --- | --- |
+| `packages/app` | — | Expo + React Native | The Alia app (web at `alia.onl`, iOS, Android) |
+| `packages/alia-chat` | `@alia.onl/sdk` | React | The client SDK: the conversation screen, hooks, voice |
+| `packages/alia-server` | `@alia.onl/server` | TypeScript | The server client a consumer backend calls Alia's API with |
+| `packages/alia-canvas` | — | Vite + React | The Canvas workflow editor (`canvas.alia.onl`) |
 
-Alia is one of three things, and the three are not nested
-([ADR 0010](./adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)):
-
-- **Kaana** — the inference API. Models only; provider credentials live there.
-- **Oxy** — the platform and Oxy Console. Accounts, applications, **all** API keys for
-  Alia, Kaana and Mention, billing.
-- **Alia** — the assistant, with its own **permanent product API** (`api.alia.onl/v1/*`
-  and `/alia/chat`, plus the product routes beside them). Three groups call it, all
-  authorized by Oxy: Alia's own surfaces — the app (extension and CLI),
-  on `/alia/chat` with the user's Oxy session; other applications in the Oxy ecosystem;
-  and third parties through `@alia.onl/sdk`. It accepts an OpenAI-compatible request
-  shape and streams `alia.*` product events; it does not sunset.
-
-For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
-Alia's API. Own frontends use the shared Oxy session and own backends use attested
-workloads. External API keys come from Oxy Console; Alia issues none.
-
-Hosted inference follows `Alia -> Oxy -> Kaana`. Alia has no models of its own:
-a person picks a power level (`auto` … `ultra`) and Oxy picks the model of that
-level ([ADR 0014](./adr/0014-people-choose-power-levels-not-models.md)); API
-callers may still name a real `<publisher>/<model>` from Oxy's catalogue
-([ADR 0012](./adr/0012-alia-uses-real-models.md)). Oxy authenticates the caller
-and signs the exact ordered deployments; Kaana owns provider credentials,
-deployment execution, health and failover within that order. [Model
-abstraction](./model-abstraction.mdx) describes the boundary, and [ADR
-0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) records
-the vocabulary behind it.
-
-## Architecture
-
-```
-                            +-------------------+
-                            |   Expo App (Web,  |
-     User  ────────────────>|   iOS, Android)   |
-                            +---------+---------+
-                                      |
-                            POST /alia/chat (SSE)
-                                      |
-                            +---------v---------+
-                            |  Express API      |
-                            |  (packages/api)   |
-                            +--+----------+-----+
-                               |          |
-              +----------------+          +-----------------+
-              |                                             |
-     +--------v---------+                       +-----------v-----------+
-     |   PostgreSQL     |                       |  Oxy inference edge   |
-     |   (drizzle)      |                       +-----------+-----------+
-     +--------+---------+                                   |
-                                                  +---------v---------+
-                                                  | Kaana data plane  |
-                                                  +-------------------+
-     +--------v---------+
-     |  Redis (Valkey)  |     Socket.IO (real-time events,
-     |  rate limits,    |     notifications, streaming)
-     |  caching         |
-     +------------------+
-```
-
-Beside these, the API reaches the person's Oxy apps through Oxy's capability tickets
-([integrations](./integrations.mdx#oxy-apps)), and the agents' computer host
-(`packages/alia-computer-host`, its own EC2 Spot instance) over the internal network
-([actors](./actors.mdx#the-agents-computer)).
-
-Organization identity and membership belong to Oxy; [Alia workspaces](./central-organizations.md) retain product settings, sharing and historical references.
-
-PostgreSQL is Alia's only product store: conversations, messages, agents, organizations, skills and the rest. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md), every hosted inference call crosses the published Oxy inference client and Oxy calls Kaana; only a user's explicitly connected local runtime stays outside that hop.
-
-| App | Stack | Purpose |
-| --- | --- | --- |
-| `packages/app` | Expo + React Native | Main app (web + iOS + Android) |
-| `packages/api` | Express + TypeScript | Core API runtime |
-| `packages/alia-canvas` | Vite + React | Canvas / diagram editor |
-| `packages/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges, and the MCP client |
-| `packages/alia-chat` | React | Published as `@alia.onl/sdk` — the CLIENT SDK (components, hooks, voice) |
-| `packages/alia-server` | TypeScript | Published as `@alia.onl/server` — the SERVER client a consumer backend calls Alia with |
-| `packages/alia-computer-host` | Node + Docker (gVisor) | The agents' computer: sandboxed machines and browser, on its own Spot host ([actors](./actors.mdx#the-agents-computer)) |
-
-## Install
-
-The monorepo uses Bun workspaces — no Turborepo or Nx; root scripts fan out with `bun run --filter`. Bun is the only supported package manager.
-
-```sh
-bun install
-```
-
-Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only database variable and the API refuses to boot without it. Hosted provider credentials are not Alia environment variables or database rows; Kaana stores and uses them in its own PostgreSQL database. Alia authenticates to Oxy with its Oxy application service credential, and Oxy is the only hop that calls Kaana.
-
-## Quick start
-
-Boot the full stack:
-
-```sh
-bun run dev
-```
-
-Or run individual workspaces:
-
-```sh
-bun run dev:api          # Express API only
-bun run dev:app          # Expo app (web + tunnel)
-bun run dev:canvas       # Canvas app
-```
-
-Hit the unified chat endpoint:
-
-```ts
-const res = await fetch('https://api.alia.onl/v1/chat/completions', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: 'Bearer <oxy-session-token>',
-  },
-  body: JSON.stringify({
-    model: 'auto', // a power level (ADR 0014), or a real <publisher>/<model>
-    messages: [{ role: 'user', content: 'Prepare my meeting with Sarah' }],
-    stream: true,
-  }),
-});
-// SSE stream — see "Chat runtime" for the event contract.
-```
-
-The bearer is an Oxy credential: a user session or service token today (`packages/api/src/middleware/auth.ts`), an application key from Oxy Console once that path is built. The `alia_sk_*` keys are retired and refused — see [developer access](./developers-portal.md).
+The app and Canvas ship from `deploy-frontends.yml` (Cloudflare Workers) after CI is green
+on `main`; the native binary's JS bundle ships as an OTA update from `publish-update.yml`;
+the two packages publish to npm from `release-packages.yml`.
 
 ## Where each topic lives
 
 One canonical page per topic; other pages link to it rather than repeat it.
 
-### Product and runtime
+### The app
 
-- [Actors: Alia and agents](./actors.mdx) — the map: identities, permissions, background work, outreach, memory, computer
-- [Agents](./agents.md) — the bot account, threads, capabilities, Oxy apps per level, the computer and browser, outreach, governance
-- [Chat runtime and SSE events](./chat-runtime.mdx) — request path, tool budget, typed failures
-- [Background work and proactive outreach](./proactive-intelligence.md) — `/automations`, Alia's tasks, watches, important email
-- [Memory and the context graph](./memory-system.md)
-- [Integrations and Oxy apps](./integrations.mdx) — tool families, Oxy apps, MCP, channels
-- [Oxy application authority and retained boundaries](./oxy-capability-boundaries.md)
-- [Models in Alia](./model-abstraction.mdx) — power levels, the catalogue, the Kaana boundary
-- [Skills: the Agent Skills format, and what an install authorises](./skills.mdx)
-- [Shows: generated podcast series on Syra](./shows.mdx)
-- [Alia on Oxy Files](./oxy-files.md) — who owns each stored file, references, file events, moving off the bucket
-- [Voice: calls as a realtime session through Kaana, dictation as Kaana transcription](./voice.mdx)
-- [Ecosystem activity reporting](./platform-activity.md)
-
-### API and access
-
-- [API reference](./api-reference.md)
-- [Embedding an agent: the wire contract](./agent-embedding.md) — opening any agent from any app, host tools, consultations, feature gates, documents, sharing
-- [Developer access to Alia](./developers-portal.md) and the [Console machine chat contract](./machine-chat-contract.md)
-- [Oxy authentication and packages](./oxyhq-auth.md)
-- [`@alia.onl/sdk`](../packages/alia-chat/README.md) and [`@alia.onl/server`](../packages/alia-server/README.md)
-
-### Building the app and the repo
-
-- [Developer onboarding](./onboarding.md)
 - [App architecture: the feature tree and its import rules](./app-architecture.mdx)
+- [Instant loading](./instant-loading.md) — skeletons instead of spinners, the persisted
+  account cache and prefetch
 - [Bloom adoption](./bloom-adoption.mdx) and the [UI layer retirement](./ui-layer-retirement.mdx)
-- Baselines: [visual](./visual-baseline.mdx), [runtime](./runtime-baseline.mdx), [bundle](./bundle-baseline.mdx), [native validation](./native-validation.mdx)
+- Baselines: [visual](./visual-baseline.mdx), [runtime](./runtime-baseline.mdx),
+  [bundle](./bundle-baseline.mdx), [native validation](./native-validation.mdx)
+- [Oxy authentication and packages](./oxyhq-auth.md)
+
+### The SDK and the server client
+
+- [Embedding an agent: the wire contract](./agent-embedding.md) — opening any agent from any
+  app, host tools, consultations, feature gates, documents, sharing
+- [`@alia.onl/sdk`](../packages/alia-chat/README.md) and
+  [`@alia.onl/server`](../packages/alia-server/README.md)
+
+### The repository
+
+- [Repository rules for agents](./agent-rules.md)
 - [Dependency updates](./dependencies.md)
 
-### Operations
+### The backend, in OxyHQ/Gemies
 
-- [Deployment](./deployment.md)
-- [Rolling Alia back](./runbooks/rollback.md)
-- [Rotating and revoking Alia credentials](./runbooks/credential-rotation.md)
-- [Upstream provider credential exposure](./runbooks/provider-credential-exposure.md)
-- [Integrations service rollout](./runbooks/integrations-service-rollout.md)
-- [Kaana cutover](./runbooks/kaana-cutover.md)
-- The agents' computer host: `OxyHQ/oxy-infra` `docs/runbooks/47-alia-computer-host.md`
-- Incident records: [provider unavailability 2026-09-12](./runbooks/provider-unavailable-2026-09-12.md), [Clarity search 2026-09-13](./runbooks/clarity-search-2026-09-13.md), [long-context refusal 2026-09-13](./runbooks/groq-token-capacity-2026-09-13.md), [speech recovery 2026-09-13](./runbooks/speech-recovery-2026-09-13.md)
-
-### Decisions and history
-
-- [Architecture decision records](./adr/README.md) — ADR 0015 is the actor model
-- [Compatibility window and sunset criteria](./migration/compatibility-window.md), and the rest of the epic #139 record under [`docs/migration/`](./migration/ownership.md)
-- `docs/audits/` and `docs/superpowers/` are dated evidence and working notes, not reference: when one disagrees with a page above, the page above is current.
+- [Gemies documentation index](https://github.com/OxyHQ/Gemies/blob/main/docs/index.mdx) —
+  actors, the chat runtime and its SSE contract, models and power levels, voice, memory,
+  background work, integrations, skills, shows, the API reference, deployment and runbooks
+- [Architecture decision records](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/README.md) —
+  the series this repository's code comments cite as "ADR 00xx" (ADR 0018: the conversation
+  screen is the SDK's; ADR 0014: people choose power levels, not models)

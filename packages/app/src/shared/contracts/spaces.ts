@@ -1,6 +1,6 @@
 /**
  * Spaces (ADR 0028): a folder that groups a person's own agents. The shapes `GET /spaces` serves and
- * `POST`/`PATCH /spaces` accept (`packages/api/src/routes/spaces.ts`, strict bodies).
+ * `POST`/`PATCH /spaces` accept (`packages/api/src/routes/spaces.ts` in OxyHQ/Gemies, strict bodies).
  */
 
 /** The most agents one space holds (the API's own limit, the room's bound). */
