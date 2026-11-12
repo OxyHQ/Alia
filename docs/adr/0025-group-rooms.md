@@ -136,10 +136,12 @@ defines the fields and recovery behavior.
 ### Agents can author feedback
 
 An agent may react during its authorized turn to a person or peer message in that conversation.
-Bind the reactor to the executing actor on the server, check current membership and recheck the
+Bind the reactor to the executing actor on the server, check the reactor's current membership and recheck the
 stored target and latest person message atomically. Do not accept author identity from the client
 or a model tool argument. This capability does not extend the tool authority of reaction-observation
 turns, and a reaction never constitutes consent or approval to act.
+An identifiable historical peer message remains a valid target after its author leaves the room;
+the reaction does not execute that author or grant it new access.
 
 Preserve the old `reactions` field as the owning person's emoji selection and add attributed
 `reactionEntries` for all authors. Store agent entries separately from that legacy projection,
