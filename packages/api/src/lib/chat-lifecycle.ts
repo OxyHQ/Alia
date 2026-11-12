@@ -19,6 +19,8 @@ import { conversationExists } from '../db/chat/conversationRepository.js';
 import { messageExistsInConversation } from '../db/chat/messageRepository.js';
 
 export interface LifecycleContext {
+  /** An explicitly completed native reaction has no assistant text row. */
+  omitLeadReply?: boolean;
   userId?: string;
   conversationId?: string;
   /** The client's id for this turn's reply, which the reply is stored under. */
@@ -137,6 +139,7 @@ export async function saveConversationResult(
       assistantResponse,
       assistantMessageId,
       toolInvocations,
+      ...(ctx.omitLeadReply ? { omitLeadReply: true } : {}),
       agentMessages: agentMessages && agentMessages.length > 0 ? agentMessages : undefined,
       ...(originApp === undefined ? {} : { originApp }),
     });

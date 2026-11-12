@@ -111,6 +111,8 @@ function classifyPrimitive(
   attended = false,
 ): ActionRisk | null {
   switch (toolName) {
+    case 'react_to_message':
+      return R1("Adds or removes the agent's own reaction in its admitted conversation", false);
     case 'plan':
       return R0('Planning is internal to the session');
     case 'browser':

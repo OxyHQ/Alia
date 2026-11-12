@@ -1,8 +1,18 @@
 import crypto from 'crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { Router, type Request, type Response } from 'express';
 import { safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
+import { prepareAgentReactionTurn } from '../../lib/chat/reactions/agent-runtime.js';
+import {
+  agentReactionTurnId,
+  type AgentReactionTurn,
+} from '../../lib/chat/reactions/agent-tool.js';
+import { admitAgentReactionMessages } from '../../lib/chat/reactions/agent-admission.js';
+import { findConversation } from '../../db/chat/conversationRepository.js';
+import { findLatestUserMessage } from '../../db/chat/messageRepository.js';
+import { findReactionTarget } from '../../db/chat/reactionRepository.js';
 import { isAttachmentFeature } from '../../domain/agent-features.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
 import { SystemPromptBuilder } from '../../lib/system-prompt-builder.js';
@@ -415,6 +425,67 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
     // The turn's attachments: a consulted agent's gates apply to them (`lib/tools/agent-turn.ts`).
     const consultAttachments = ctx.featureUses.filter((use) => isAttachmentFeature(use.feature));
+    let conversationReaction: AgentReactionTurn | undefined;
+    let reactionTurnEvent: Record<string, unknown> | undefined;
+    if (
+      linkedAgent &&
+      req.user?.id &&
+      isDirectUserSession &&
+      conversationId &&
+      ctx.toolsEnabled &&
+      coordinatedTurn
+    ) {
+      const existing = await findConversation(getDb(), req.user.id, conversationId);
+      // A requested actor cannot rebind somebody else's existing conversation membership.
+      if (!existing || existing.agentId === linkedAgent._id) {
+        await admitAgentReactionMessages({
+          userId: req.user.id,
+          conversationId,
+          messages,
+          agentId: linkedAgent._id,
+          ...(host ? { originApp: host.app } : {}),
+        });
+        reactionTurnEvent = {
+          eventVersion: 1,
+          turnId: coordinatedTurn.id,
+          agentId: linkedAgent._id,
+          conversationId,
+          conversationStored: true,
+        };
+        if (body.stream) sseEmitter.emit('alia.agent_turn', reactionTurnEvent);
+        const trigger = await findLatestUserMessage(getDb(), req.user.id, conversationId);
+        const target = trigger
+          ? await findReactionTarget(
+              getDb(),
+              req.user.id,
+              conversationId,
+              trigger.clientMessageId ?? trigger.id,
+            )
+          : undefined;
+        const lastInput = [...messages].reverse().find((message) => message.role === 'user');
+        if (
+          target &&
+          lastInput &&
+          target.messageId === lastInput.id &&
+          isDeepStrictEqual(target.content, lastInput.content)
+        ) {
+          const snapshot = { id: target.messageId, content: target.content };
+          conversationReaction = await prepareAgentReactionTurn({
+            userId: req.user.id,
+            conversationId,
+            agent: linkedAgent,
+            turnId: agentReactionTurnId(
+              `direct:${controlIdentity?.id ?? coordinatedTurn.id}`,
+              snapshot,
+            ),
+            expectedLatestUserMessage: snapshot,
+            surfaceApplicationId: ctx.surfaceApplicationId,
+            allowedActorIds: [linkedAgent._id],
+            signal: providerAbort.signal,
+          });
+        }
+      }
+    }
     let assembled: Awaited<ReturnType<typeof ToolPipeline.forUser>>;
     try {
       assembled = req.machineCredential
@@ -446,6 +517,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
             isLocalRuntime,
             toolsEnabled: ctx.toolsEnabled,
             agent: linkedAgent,
+            conversationReaction,
             skills,
             runtime: coordinatedTurn?.runtime,
           });
@@ -590,6 +662,10 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Provider fallback retry loop — re-resolve, build config, stream/non-stream, classify + retry
     const loopResult = await runProviderLoop({
+      conversationReaction,
+      onReactionComplete: reactionTurnEvent
+        ? () => sseEmitter.emit('alia.agent_turn', { ...reactionTurnEvent, reactionOnly: true })
+        : undefined,
       skills,
       req,
       res,

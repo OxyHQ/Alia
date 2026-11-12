@@ -43,6 +43,7 @@ import type { SSEWriter } from './sse-writer.js';
 import { isInvalidToolCall, type ToolInvocation } from './tool-calls.js';
 import { ASK_USER_QUESTION_TOOL } from '../tools/ask-user-question.js';
 import { emptyResponseError, toOpenAIFinishReason } from './finish-reason.js';
+import { AGENT_REACTION_TOOL, type AgentReactionTurn } from './reactions/agent-tool.js';
 import { CHAT_TURN_STEP_BOUNDS, type StreamWatchdog, type TurnStepBounds } from './model-config.js';
 import { withoutHostImageData } from './host-image-result.js';
 import { createToolMarkupGuard } from './tool-markup.js';
@@ -113,6 +114,9 @@ export interface StreamRunnerState {
 }
 
 export interface RunStreamParams<TOOLS extends ToolSet> {
+  conversationReaction?: AgentReactionTurn;
+  beforeReactionFinish?: () => Promise<void>;
+  onReactionComplete?: () => void;
   /** The active streaming provider attempt (`streamText(baseConfig)`). */
   result: { fullStream: AsyncIterable<TextStreamPart<TOOLS>> };
   res: Response;
@@ -151,6 +155,7 @@ interface StepUsage {
 }
 
 export interface RunStreamResult {
+  reactionOnly?: boolean;
   assistantResponse: string;
   /**
    * Tool-call markup the model wrote as text, from its first marker on (`tool-markup.ts`). Never
@@ -230,6 +235,8 @@ export async function runStream<TOOLS extends ToolSet>(
   let nextToolIndex = 0;
   let toolLimitHit = false;
   let finished = false;
+  let reactionOnly = false;
+  let reactionFinishPending = false;
   const invalidToolCallIds = new Set<string>();
 
   const relay = createReasoningRelay(res);
@@ -239,7 +246,7 @@ export async function runStream<TOOLS extends ToolSet>(
 
   /** Runs the tools-disabled pass (`tool-synthesis.ts`); true when an answer was written. */
   const synthesizeCompletedToolResults = async (): Promise<boolean> => {
-    if (endedAtQuestion()) return false;
+    if (endedAtQuestion() || params.conversationReaction?.canFinish(toolInvocations)) return false;
     const completed = toolInvocations.filter((t) => t.state === 'result');
     if (completed.length === 0 || res.writableEnded) return false;
 
@@ -540,6 +547,10 @@ export async function runStream<TOOLS extends ToolSet>(
         throw new Error('The inference stream finished with an error');
       }
       let finishReason: string = chunk.finishReason || 'stop';
+      const reactionFinished =
+        !assistantResponse.trim() &&
+        (finishReason === 'stop' || finishReason === 'tool-calls') &&
+        !!params.conversationReaction?.canFinish(toolInvocations);
 
       // A normal, bounded agent loop can finish immediately after its last
       // tool result. Unless another agent already supplied the answer as its
@@ -547,6 +558,7 @@ export async function runStream<TOOLS extends ToolSet>(
       // final tools-disabled synthesis pass.
       if (
         answerOwed &&
+        !reactionFinished &&
         !endedAtQuestion() &&
         agentMessages.length === 0 &&
         toolInvocations.some((t) => t.state === 'result')
@@ -600,8 +612,20 @@ export async function runStream<TOOLS extends ToolSet>(
       ) {
         throw emptyResponseError(finishReason);
       }
+      if (
+        !assistantResponse.trim() &&
+        toolInvocations.length > 0 &&
+        toolInvocations.every((call) => call.toolName === AGENT_REACTION_TOOL) &&
+        !reactionFinished
+      )
+        throw emptyResponseError(finishReason);
 
-      writeStopChunk(res, requestId, modelId, toOpenAIFinishReason(finishReason));
+      if (reactionFinished && params.conversationReaction) {
+        // Wait for the whole iterator: a later error/unresolved call must not become success.
+        reactionFinishPending = true;
+      } else {
+        writeStopChunk(res, requestId, modelId, toOpenAIFinishReason(finishReason));
+      }
       finished = true;
     } else {
       // The type, never the chunk: an unrecognised frame is the one case where
@@ -611,13 +635,24 @@ export async function runStream<TOOLS extends ToolSet>(
     }
   }
 
+  if (reactionFinishPending && params.conversationReaction) {
+    await params.beforeReactionFinish?.();
+    reactionOnly = await params.conversationReaction.complete(assistantResponse, toolInvocations);
+    if (!reactionOnly) throw emptyResponseError('error');
+    params.onReactionComplete?.();
+    writeStopChunk(res, requestId, modelId, 'stop');
+  }
+
   // The limit cut the stream before the adapter's `finish`: close the turn here,
   // as truncated, so a client that waits for a finish_reason is not left waiting.
   if (toolLimitHit && !finished) {
     writeStopChunk(res, requestId, modelId, 'length');
   }
+  if (!finished && params.conversationReaction?.canFinish(toolInvocations))
+    throw emptyResponseError('error');
 
   return {
+    ...(reactionOnly ? { reactionOnly: true } : {}),
     assistantResponse,
     withheldToolMarkup: withheldEarlier + markup.withheld,
     toolInvocations,
