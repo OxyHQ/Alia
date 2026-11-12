@@ -58,8 +58,9 @@ export interface Message {
    */
   unsaved?: true;
   /**
-   * The consulted agent that wrote this message (`consultAgent`, ADR 0020 §5): one message per
-   * consultation, drawn under the agent's own identity.
+   * The agent that wrote this message: a consultation (`consultAgent`, ADR 0020 §5), a group
+   * member, or the direct agent's proactive/scheduled reply. Identity alone does not mean
+   * delegation: the conversation's members speak directly to the person.
    *
    * `character` is the agent's look as the server stores it (JSON), parsed
    * where it is drawn; absent, the default look.

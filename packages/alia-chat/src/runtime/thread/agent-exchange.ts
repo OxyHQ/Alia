@@ -51,10 +51,12 @@ interface Consultation {
 export function agentExchange(
   rows: readonly ExchangeRow[],
   anchorId: string,
+  /** The direct agent or group members speak to the person, not in an internal exchange. */
+  members?: ReadonlySet<string>,
 ): AgentExchange | null {
   const anchorIndex = rows.findIndex((row) => row.id === anchorId);
   const agent = rows[anchorIndex]?.agentInfo;
-  if (anchorIndex < 0 || !agent) return null;
+  if (anchorIndex < 0 || !agent || members?.has(agent.id)) return null;
 
   let start = anchorIndex;
   while (start > 0 && rows[start - 1]?.role !== 'user') start -= 1;

@@ -1,5 +1,13 @@
 # @alia.onl/sdk
 
+## 25.0.1
+
+- Scheduled and proactive replies from the conversation's own agent stay in the main thread,
+  including on live delivery, reload, and shared conversations. Membership uses the opened agent
+  id even before its profile loads; attributed replies no longer become self-consultations.
+- Internal exchanges continue to show consultations with outside agents, while group members
+  keep speaking inline.
+
 ## 25.0.0
 
 - **Breaking dependency minimum:** requires `@oxy.so/services >=14.19.1` for shared-session and account-cache readiness.

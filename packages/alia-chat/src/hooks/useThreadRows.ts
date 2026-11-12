@@ -31,7 +31,7 @@ export interface UseThreadRowsOptions {
   conversationId: string | undefined;
   /** The conversation's messages are still on their way. */
   conversationLoading: boolean;
-  /** The agents that are part of this conversation (a group's members): not announced as newcomers. */
+  /** The agents that are part of this conversation (the direct agent or a group's members): not announced as newcomers. */
   memberIds?: ReadonlySet<string>;
 }
 

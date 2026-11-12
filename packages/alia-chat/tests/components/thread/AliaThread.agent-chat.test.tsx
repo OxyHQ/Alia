@@ -268,3 +268,70 @@ it('draws nothing of what the consulted agent said under its line: the line open
 it('still draws what the agent said where there is nowhere to open the exchange', () => {
   expect(drawn(mount({}))).toContain('Three options.');
 });
+
+const EUSEBIO = { id: 'eusebio', name: 'Eusebio', handle: 'eusebiobot' };
+const requestedGreeting: Message[] = [
+  { id: 'request', role: 'user', content: 'Salúdame en tres minutos' },
+  {
+    id: 'scheduled',
+    role: 'assistant',
+    content: 'Listo, te saludaré en tres minutos.',
+    toolInvocations: [
+      {
+        toolCallId: 'schedule',
+        toolName: 'scheduleFollowUp',
+        state: 'result',
+        args: { delaySeconds: 180 },
+        result: 'Scheduled.',
+      },
+    ],
+  },
+  {
+    id: 'agent-push-result-greeting',
+    role: 'assistant',
+    content: '¡Hola! Ya pasaron tres minutos.',
+    agentInfo: EUSEBIO,
+  },
+];
+
+it('draws a scheduled reply in the direct conversation on arrival and after reloading', () => {
+  const props: Props = {
+    messages: requestedGreeting.slice(0, 2),
+    memberIds: new Set([EUSEBIO.id]),
+    isLoading: false,
+    threadRef: { current: null },
+    onOpenAgentChat: vi.fn(),
+  };
+  const r = mount(props);
+  act(() => r.update(<AliaThread {...props} messages={requestedGreeting} />));
+  expect(buttons(r)).toHaveLength(0);
+  expect(drawn(r)).toContain('¡Hola! Ya pasaron tres minutos.');
+  expect(drawn(r)).not.toContain('chat.chattedWith');
+  act(() => r.unmount());
+  renderer = null;
+  const reloaded = mount({ ...props, messages: structuredClone(requestedGreeting) });
+  expect(buttons(reloaded)).toHaveLength(0);
+  expect(drawn(reloaded)).toContain('¡Hola! Ya pasaron tres minutos.');
+});
+
+it('keeps a direct follow-up visible beside a real consultation with another agent', () => {
+  const r = mount({
+    messages: [...conversation, requestedGreeting[2] as Message],
+    memberIds: new Set([EUSEBIO.id]),
+    onOpenAgentChat: () => undefined,
+  });
+  expect(buttons(r)).toHaveLength(1);
+  expect(drawn(r)).not.toContain('Three options.');
+  expect(drawn(r)).toContain('¡Hola! Ya pasaron tres minutos.');
+});
+
+it('keeps group members inline and only opens exchanges with outside agents', () => {
+  const r = mount({
+    messages: [...requestedGreeting, ...conversation],
+    memberIds: new Set([EUSEBIO.id, 'another-member']),
+    onOpenAgentChat: () => undefined,
+  });
+  expect(buttons(r)).toHaveLength(1);
+  expect(drawn(r)).toContain('¡Hola! Ya pasaron tres minutos.');
+  expect(drawn(r)).not.toContain('Three options.');
+});

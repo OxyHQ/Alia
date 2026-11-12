@@ -92,3 +92,9 @@ describe('agentExchange', () => {
     expect(agentExchange([user('u1')], 'missing')).toBeNull();
   });
 });
+
+it('never constructs a self-exchange or an internal exchange for group members', () => {
+  const rows = [user('u1'), reply('a1', { content: 'Hello again.', agentInfo: SINDI })];
+  expect(agentExchange(rows, 'a1', new Set(['sindi']))).toBeNull();
+  expect(agentExchange(rows, 'a1', new Set(['sindi', 'nadia']))).toBeNull();
+});

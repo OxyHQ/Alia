@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "sdkVersion": "25.0.0",
+  "sdkVersion": "25.0.1",
   "adapter": {
     "path": "src/metro/granular-charts.js",
     "sha256": "252add5b6642f8637f9b044a76fd05aff52fc9751bcff3e3587a95444f9ec1c1"

@@ -403,10 +403,12 @@ function AliaConversationView({
     retryFailedTurn,
   } = thread;
   const consulted = useParticipants({ lead, messages, flights });
-  // A group's members are in the conversation: the thread does not announce them as newcomers.
+  // The direct agent is a member too. Use the requested id before its profile loads: an
+  // attributed follow-up is still its own reply, never a consultation with itself.
   const memberIds = useMemo(
-    () => (group === undefined ? undefined : new Set(group.map((member) => member.id))),
-    [group],
+    () =>
+      new Set(group === undefined ? (agentId ? [agentId] : []) : group.map((member) => member.id)),
+    [agentId, group],
   );
   const participants = useMemo(
     () => (group === undefined ? consulted : groupParticipants(group)),
