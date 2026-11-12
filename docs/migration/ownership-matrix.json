@@ -365,7 +365,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": ["alia-chat-post"],
-      "removalGate": "NOT dead, and not deletable. 60f800fe (#240) made this constant the path every chat caller in packages/app names. Measured 2026-08-19: /alia/chat has SIX live in-repo call sites — use-chat-conversation.ts:76 and use-personality-sample-phrase.ts:70 through API_ROUTES.chat.alia, alia-codea/src/chatParticipant.ts:192 and inlineCompletionProvider.ts:96, and integrations/src/shared/api-client.ts:223 and :290 — against ZERO at 60f800fe^, where a git grep for the literal across packages, excluding packages/api and tests, returned only this constant and a doc-comment example in generate-api-url.ts. The superseded claim was 'ZERO live in-repo callers, so any who-uses-it answer must come from access logs'; that is now true only of EXTERNAL callers. Gate 8 of packages/api/src/__tests__/architectureGates.test.ts asserts the caller set by exact equality, so deleting the constant fails that gate rather than passing silently.",
+      "removalGate": "NOT dead, and not deletable. 60f800fe (#240) made this constant the path every chat caller in packages/app names. The superseded claim was 'ZERO live in-repo callers, so any who-uses-it answer must come from access logs'; that is now true only of EXTERNAL callers. Gate 8 of packages/api/src/__tests__/architectureGates.test.ts asserts the caller set by exact equality, so deleting the constant fails that gate rather than passing silently.",
       "provenance": "measured",
       "evidence": "packages/app/src/shared/api/routes.ts:53-62 (the constant, and the comment forbidding a /v1 sibling beside it); readers at packages/app/src/features/chat/runtime/use-chat-conversation.ts:76 and packages/app/src/features/settings/runtime/use-personality-sample-phrase.ts:70; frozen by packages/api/src/__tests__/architectureGates.test.ts:3066 (PRODUCT_RUNTIME_CALLERS) and :3154"
     },
@@ -790,51 +790,6 @@
       "removalGate": "Kaana must express 'thinking mode' and 'reasoning traces' as provider-agnostic options, otherwise thinking mode silently stops working when routing moves off anthropic/google.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/chat/model-config.ts:63 (maxRetries 0), :87-90 (anthropic), :95-99 (google), :116-124 (FIRST_BYTE_TIMEOUT_MS 20s)"
-    },
-    {
-      "id": "codea-report-usage-410",
-      "workstream": "6",
-      "domain": "product-api",
-      "kind": "route",
-      "currentPath": "packages/api/src/routes/codea.ts",
-      "reachable": "live",
-      "owner": "delete",
-      "targetPath": "delete",
-      "dependsOn": ["v1-report-usage-410"],
-      "removalGate": "Same as codea-resolve-model-410.",
-      "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:246",
-      "removedIn": "corte-db-alia-keys"
-    },
-    {
-      "id": "codea-resolve-model-410",
-      "workstream": "6",
-      "domain": "product-api",
-      "kind": "route",
-      "currentPath": "packages/api/src/routes/codea.ts",
-      "reachable": "live",
-      "owner": "delete",
-      "targetPath": "delete",
-      "dependsOn": ["v1-resolve-model-410"],
-      "removalGate": "packages/alia-codea/README.md:17 already states clients no longer call it. Gate on access logs; a stale published VS Code extension version may still.",
-      "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:235",
-      "removedIn": "corte-db-alia-keys"
-    },
-    {
-      "id": "codea-surface",
-      "workstream": "6",
-      "domain": "product-api",
-      "kind": "route",
-      "currentPath": "packages/api/src/routes/codea.ts",
-      "reachable": "live",
-      "owner": "alia",
-      "targetPath": "keep-alia-product",
-      "dependsOn": [],
-      "removalGate": "Published VS Code extension versions in the wild may call /codea/user and /codea/token. Gate on marketplace version telemetry, not on the repo.",
-      "provenance": "re-derived",
-      "evidence": "packages/api/src/routes/codea.ts:38,129,166,188,199; packages/alia-codea-cli/src/commands/auth.ts:162",
-      "removedIn": "corte-db-alia-keys"
     },
     {
       "id": "concept-credit-anomaly",
@@ -1983,7 +1938,7 @@
       "dependsOn": ["doc-api-reference"],
       "removalGate": "Five READMEs independently restate the same event list. They are the most likely to be forgotten in a rename - sweep them by name, not by directory.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/api/README.md:36-40,70-78; packages/app/README.md:16-24; packages/alia-codea/README.md:14,17; README.md:56"
+      "evidence": "packages/api/README.md:36-40,70-78; packages/app/README.md:16-24; README.md:56"
     },
     {
       "id": "doc-seed-and-test-model-ids",
@@ -2816,7 +2771,7 @@
       "dependsOn": ["sdk-integrations-ai-sdk", "v1-report-usage-410", "v1-resolve-model-410"],
       "removalGate": "NONE. Scoped symbol census over packages/integrations/**/*.ts: resolveModel / createAIModel / reportUsage appear only in this file; positive control — createOpenAI also appears only here, and browser/tools.ts + terminal/tools.ts prove the scan sees other integrations files. Deleting it also removes the last need for the 3 @ai-sdk/* deps in that package.  || product-api inventory adds: Delete outright. It is the last in-repo artefact of the provider-key-handout model and it names OpenAI/Anthropic/Google/Groq/Together/Cerebras/Mistral/DeepSeek/OpenRouter in shipped source, which is exactly what the model-abstraction rule forbids. No caller to migrate.",
       "provenance": "inventory-provider-runtime",
-      "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108; endpoint now 410 at packages/api/src/routes/v1.ts:109-115 and packages/api/src/routes/codea.ts:235-241; packages/integrations/src/shared/model-resolver.ts:25,71,86-107; removed in #184 after an AST census over all 1310 tracked JS/TS files found zero importers (static, type-only, import(), require() and vi.mock), with shared/api-client.ts (8 importers) and shared/chat-handler.ts (3) as positive controls proving the scan sees importers inside that package"
+      "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108; packages/integrations/src/shared/model-resolver.ts:25,71,86-107; removed in #184 after an AST census over all 1310 tracked JS/TS files found zero importers (static, type-only, import(), require() and vi.mock), with shared/api-client.ts (8 importers) and shared/chat-handler.ts (3) as positive controls proving the scan sees importers inside that package"
     },
     {
       "id": "internal-readme-gateway-diagram",
@@ -3323,9 +3278,9 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": ["response-ext-alia-usage"],
-      "removalGate": "Server side: none left to remove beyond the unused aliaMeta option. Clients (Codea's aliaChat.ts/chatParticipant.ts/inlineCompletionProvider.ts, @alia.onl/server) still read alia_meta.synthetic defensively so an older server cannot slip a stand-in in as an answer; drop those branches once no older server can answer them.",
+      "removalGate": "Server side: none left to remove beyond the unused aliaMeta option. drop those branches once no older server can answer them.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/chat/response-shapes.ts:38,70 (optional, no caller); packages/alia-codea/src/chatParticipant.ts:176-244; packages/alia-codea/src/inlineCompletionProvider.ts:164"
+      "evidence": "packages/api/src/lib/chat/response-shapes.ts:38,70 (optional, no caller);"
     },
     {
       "id": "response-ext-alia-usage",

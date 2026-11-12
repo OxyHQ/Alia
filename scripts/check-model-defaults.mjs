@@ -43,13 +43,12 @@ const ROOT = resolve(import.meta.dirname, '..');
  * with "say which" instead of with noise, and a census that fires on the wrong
  * thing gets deleted by the next person who reads it.
  *
- * The three trees added by #244 — canvas, the Codea webview and integrations —
- * were each a live defect rather than a latent one, because `GET /v1/models`
- * has served an empty list since #178: canvas rendered a hardcoded
- * `Instant`, the webview a hardcoded `route:code`, and the Telegram and
- * Discord bots printed `Model: route:instant` to every user. This script was green
- * throughout, reporting `245 files walked`, because none of the three was in
- * this list.
+ * The trees added by #244 — canvas, a webview and integrations — were each a
+ * live defect rather than a latent one, because `GET /v1/models` has served an
+ * empty list since #178: canvas rendered a hardcoded `Instant` and the Telegram
+ * and Discord bots printed `Model: route:instant` to every user. This script
+ * was green throughout, reporting `245 files walked`, because none of them was
+ * in this list.
  */
 export const TREES = [
   'packages/app/app',
@@ -141,8 +140,7 @@ export function identifiersIn(file, source) {
  * the directory listing.
  *
  * A workspace nested inside another package's directory is invisible to a
- * listing of `packages/` — #244 found exactly such a tree unguarded (the Codea
- * webview, since moved to OxyHQ/Codea). The manifest can see it.
+ * listing of `packages/` — #244 found exactly such a tree unguarded. The manifest can see it.
  */
 function declaredWorkspaces() {
   const root = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
@@ -222,8 +220,8 @@ function main() {
   // Vacuity floor. An empty walk satisfies every check below, and "I found less"
   // and "there is less" look identical without one.
   //
-  // #244 found a walk of 245 files reporting OK while canvas, the Codea webview
-  // (now in OxyHQ/Codea) and the bots all showed an alias. The walk is 611 files
+  // #244 found a walk of 245 files reporting OK while canvas and the bots all
+  // showed an alias. The walk is 611 files
   // today; a floor of 200 still catches losing a whole tree of that size.
   if (files.length < 200) {
     console.error(`check-model-defaults: walked only ${files.length} files; expected 200+.`);

@@ -13,7 +13,7 @@ Two things in ADR 0030 failed in use:
   another reports the agent offline. Production runs more than one, so an agent answered only when the
   request landed on the instance holding its socket.
 - It ran the CLI read-only unless the person started the daemon with `--write`. Measured with the
-  installed `claude` 2.x and `codex` 0.167 (`codea connect` adapters, prompt "create a file and run
+  installed `claude` 2.x and `codex` 0.167 (`connect` adapters, prompt "create a file and run
   `ls`"): read-only, Claude Code answered "write permission wasn't granted" and Codex "the filesystem is
   read-only"; with editing allowed, both did it. The person never sees the flag, because an agent
   pasted the command, so every action request read as "no permissions".
@@ -29,7 +29,7 @@ Two things in ADR 0030 failed in use:
    changes. `GET /agents/external` reports presence from any instance.
 2. **The daemon may edit its working directory by default.** Claude Code runs with
    `--permission-mode acceptEdits` and Codex with `--sandbox workspace-write`; both stay confined to
-   the directory `codea connect` was started in. `--read-only` restores the old behaviour, and a
+   the directory `connect` was started in. `--read-only` restores the old behaviour, and a
    read-only agent is told to say how to lift it rather than that it lacks permission. The pasted text
    asks the agent to run the command from the folder the person wants worked on and says it can edit
    files there.

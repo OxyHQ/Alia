@@ -8,7 +8,7 @@ Date: 2026-11-10.
 ## Context
 
 Alia has no inbound surface for other agents: no MCP server, no A2A or ACP endpoint, no pairing.
-`/ws/mcp` (`packages/api/src/lib/mcp-relay.ts`) runs the other way: Codea lend Alia
+`/ws/mcp` (`packages/api/src/lib/mcp-relay.ts`) runs the other way: a client lends Alia
 *tools*. An MCP server would not help either, because MCP is pull: the agent calls tools, and nobody
 can wake it with a message.
 
@@ -26,8 +26,8 @@ Three constraints shaped the answer:
 
 ## Decision
 
-1. **A daemon on the person's computer dials Alia; Alia never dials in.** `codea connect` (the
-   Codea CLI) holds one outbound WebSocket per agent to `/ws/external-agent`
+1. **A daemon on the person's computer dials Alia; Alia never dials in.** The `connect` daemon (the Codea CLI,
+   now in OxyHQ/Codea) holds one outbound WebSocket per agent to `/ws/external-agent`
    (`lib/external-agents/relay.ts`, a `WebSocketRoute` beside `mcpRelayRoute`). A turn is a `turn`
    frame down and `delta`* + `end` (or `error`) frames back. Nothing listens on the machine.
 2. **The daemon runs the person's own CLI, signed in as them.** Claude Code (`claude -p`), Codex
@@ -46,7 +46,7 @@ Three constraints shaped the answer:
    redeems it with the person's own Oxy session (`POST /agents/external/redeem`); the redeeming
    account must be the one that minted it, the code lives 10 minutes, and consuming it is one
    conditional `UPDATE` so two daemons cannot both win. The daemon signs in to Oxy by the existing
-   device flow (`codea login`); the pasted text contains no long-lived token. Rows are swept at
+   device flow (`login`); the pasted text contains no long-lived token. Rows are swept at
    `expires_at` (`db/expiryTargets.ts`).
 5. **The socket authenticates the session and the link.** The first frame carries the Oxy bearer
    and the agent id; the relay accepts it only if the session's account owns a live link to that
@@ -63,7 +63,7 @@ Three constraints shaped the answer:
   turn running on another instance reports the agent offline. Cross-instance routing (Redis
   pub/sub) is not built; until it is, this holds at one replica or with sticky routing for
   `/ws/external-agent`.
-- **The daemon's bearer is the person's Oxy session**, the same scope `codea login` holds today. A
+- **The daemon's bearer is the person's Oxy session**, the same scope `login` holds today. A
   narrower Oxy scope for external agents does not exist yet.
 - **Claude Code's terms** are the grey one: the daemon spawns the unmodified binary on the
   person's computer, which Anthropic's text permits, but a high-volume automated loop may exceed

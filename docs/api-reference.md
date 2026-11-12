@@ -10,7 +10,7 @@ Kaana through Oxy (`api.oxy.so/v1`); for the assistant — conversations, memory
 tools, research and the `alia.*` stream events — use this one. Keys for either come from
 Oxy Console. The page is organised by mount, because one handler sits behind two:
 
-- **[The Alia product runtime](#the-alia-product-runtime)** — everything the app, Codea,
+- **[The Alia product runtime](#the-alia-product-runtime)** — everything the app,
   the CLI call. Alia owns it and keeps owning it. `@alia.onl/sdk` is written
   against it too, but its transport still enters through `/v1/chat/completions`, for the
   CORS reason under [Chat](#chat).
@@ -58,7 +58,7 @@ one session model. `GET /alia/chat` is a status banner and stays public.
 
 Alia owns conversations, memory and the context graph, agents, tools and
 tool execution and the R0–R3 risk policy, deep research, background tasks,
-notifications, Codea behaviour, and product entitlements. None of it moves to
+notifications behaviour, and product entitlements. None of it moves to
 Kaana.
 
 ### Chat
@@ -87,7 +87,7 @@ spellings — is refused `400` with `code: "model_not_found"` and `param: "model
 Product extras: `conversationId`, `reasoningEffort` (`low` | `medium` | `high`, accepted
 with any power level, and with a model only when the model lists that level in `reasoningEfforts`, else `400`
 `invalid_reasoning_effort`; forwarded to Oxy as `reasoning: { effort }`), `surface`
-(`chat` | `codea`, default `chat` — selects the system prompt, never the
+(`chat`, default `chat` — selects the system prompt, never the
 model), `responseMode: "voice"`, `deepResearch`, `tools`, `host` (the embedding app's UI
 effects, [Embedding an agent](./agent-embedding.md) §2, including tools that `awaitsResult`),
 `turnId` ([explicit Stop](./explicit-chat-stop.md)), `personalization: false` (no memory read,
@@ -398,8 +398,8 @@ compatibility shim.
 | `POST /v1/report-usage` | `routes/v1.ts:120` | "Usage is tracked automatically by Alia runtime." |
 
 **Deleted outright (`404`)** by the owner's clean cut, with no `410` stub: every
-`/developer/*` route, every `/codea/*` route (including the two former `410`s), the
-`/auth/authorize/codea` and `/auth/token` refusals, every
+`/developer/*` route, the
+`/auth/token` refusal, every
 `/triggers/*` route, `GET /agents/:id/reports`, `GET /agents/:id/routing-logs`,
 `GET /agents/:id/routing-stats`, `GET /external-models*` and
 `GET`/`DELETE /api/sessions/:conversationId`.

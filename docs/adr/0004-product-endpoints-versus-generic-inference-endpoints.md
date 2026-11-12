@@ -21,7 +21,7 @@
 
 Alia serves two different audiences from one code path.
 
-`POST /alia/chat` is the product runtime used by the app, Codea and the CLI. `POST /v1/chat/completions` is presented as a generic OpenAI-compatible inference endpoint for external developers. They are the same handler: `packages/api/src/routes/chat.ts:8` dispatches `/alia/chat` straight to `handleChatCompletions`, and both routers are mounted side by side at `packages/api/src/index.ts:227` and `:228`.
+`POST /alia/chat` is the product runtime used by the app and the CLI. `POST /v1/chat/completions` is presented as a generic OpenAI-compatible inference endpoint for external developers. They are the same handler: `packages/api/src/routes/chat.ts:8` dispatches `/alia/chat` straight to `handleChatCompletions`, and both routers are mounted side by side at `packages/api/src/index.ts:227` and `:228`.
 
 That identity was a deliberate simplification — one runtime, nothing to keep in sync — and it has two consequences that are no longer acceptable.
 

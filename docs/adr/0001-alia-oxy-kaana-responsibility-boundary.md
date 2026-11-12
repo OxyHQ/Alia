@@ -61,7 +61,7 @@ Responsibility is split three ways, and the split is final for the duration of t
 - Deep research and its progress reporting.
 - Triggers, the single scheduling primitive.
 - Notifications and product-specific stream events.
-- Codea, the CLI and app behaviour.
+- the CLI and app behaviour.
 - Product entitlements: plan names, included capabilities, allowances and feature flags, as described in ADR 0005.
 
 **Oxy owns the customer and the platform edge.**
@@ -88,7 +88,7 @@ Responsibility is split three ways, and the split is final for the duration of t
 Every model invocation follows one path:
 
 ```text
-Alia client (app, Codea, CLI, SDK)
+Alia client (app, CLI, SDK)
         │
         ▼
 Alia product runtime
@@ -110,7 +110,7 @@ selected model / deployment
 
 ### Two hard rules
 
-1. **The Alia client never calls a provider directly.** No surface — app, Codea, CLI or SDK — holds a provider credential or opens a connection to a provider host. A client talks to the Alia product runtime, and to nothing else for inference.
+1. **The Alia client never calls a provider directly.** No surface — app, CLI or SDK — holds a provider credential or opens a connection to a provider host. A client talks to the Alia product runtime, and to nothing else for inference.
 2. **The Alia backend never bypasses Kaana after cutover.** There is no development bypass, no emergency direct mode and no per-provider exception. When Kaana is unavailable, the product degrades visibly; it does not silently reach around it.
 
 The second rule is what makes the first one durable. A single sanctioned bypass reintroduces the credential, the egress path and the billing ambiguity that the whole migration exists to remove.

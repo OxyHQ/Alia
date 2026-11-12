@@ -335,14 +335,13 @@ deleted service and today fetches the literal string `undefined/gateway/v1/keys`
 
 **What stays.** All of `/v1`. It is the public product contract: the OpenAI-compatible
 shape, the `alia_usage` / `alia_meta` extensions, `system_fingerprint: 'fp_alia'`, and the
-named SSE events. Seven packages call it, three of them (`@alia.onl/sdk`, the Codea VS
-Code extension, the Codea CLI) published outside this repo where no Alia deploy can fix
-them.
+named SSE events. Several packages call it, one of them (`@alia.onl/sdk`) published outside this repo where no Alia deploy can fix
+it.
 
 > **RESOLVED, 2026-09-10 — this paragraph was right; ADR 0004 §3 is amended.**
 > [ADR 0010](../adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)
 > records the owner's decision: `api.alia.onl/v1/*` is Alia's permanent product API —
-> called by Alia's own surfaces (app, Codea, CLI), by other applications in the
+> called by Alia's own surfaces (app, CLI), by other applications in the
 > Oxy ecosystem and by third parties through `@alia.onl/sdk`, all authorized by Oxy —
 > and it does not sunset. Generic model access is
 > Kaana through Oxy (`api.oxy.so/v1`); Alia's API is a product API that accepts an
@@ -459,7 +458,7 @@ catalogue, playground and documentation pages stay as Alia product surfaces.
 with health metrics and no provider column, driven entirely by `GET /models/stats`. Its
 DTO having no `provider` field is a load-bearing invariant that nothing currently enforces.
 
-**The app, SDK, Codea and Canvas all stay** — and they are where alias retirement
+**The app, SDK and Canvas all stay** — and they are where alias retirement
 actually hurts. `route:auto` and `route:voice` are compiled into a published npm package
 that ships as raw source; `route:code` is the default of a VS Code SETTING that
 persists in users' `settings.json` after an update; `route:instant` is pinned in saved Canvas workflow node data; and
@@ -527,8 +526,6 @@ need someone outside this repo to answer them before the gate can be met:
   tombstones?** Only ALB/CloudWatch access logs can say. A grep says "no consumer" for all
   of them and would be wrong about at least `/v1/responses`, which exists solely for
   external clients.
-- **Do published Codea extension versions in the wild still call `/codea/user` and
-  `/codea/token`?** Marketplace telemetry, not the repo.
 
 ---
 
@@ -550,7 +547,7 @@ Inherited from the four inventories, and stated per row where it bites:
 Added by this matrix:
 
 - **Domains were enumerated, not sampled**, with one exception: `packages/alia-canvas`
-  and `packages/alia-codea/webview-ui` were covered only where
+  was covered only where
   another inventory reached into them. Canvas has six alias sites and its own `/v1/models`
   client, both recorded.
 - **The coverage gate binds only `packages/api/src/internal/providers/**`.** Nothing

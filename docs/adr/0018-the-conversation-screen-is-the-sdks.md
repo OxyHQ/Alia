@@ -54,7 +54,7 @@ read a turn's steps, the app could not show an agent's avatar thinking.
 - The SDK gains peers (`expo-web-browser`, `react-native-css`; `expo-clipboard` is no longer optional)
   and the agent routes (`/agents/thread/…`, `/agents/sessions/…`), which answer Alia's own clients only.
   An embedding Oxy app has no agents of its own and passes no `threadHandle`.
-- A new surface (Codea) gets the app's conversation by mounting the SDK's, not by copying it.
+- A new surface gets the app's conversation by mounting the SDK's, not by copying it.
 - The cost is a larger public surface on `AliaChatContent`; it is organised in groups (conversation,
   level, words, frame, composer, sheet) and every member is typed, optional, and absent in the
   simplest host.

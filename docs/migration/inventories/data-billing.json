@@ -3,13 +3,13 @@
   "generatedFrom": "b909147d489828dccd7a791cbe4e230980f8eb05",
   "method": {
     "controls": [
-      "POSITIVE CONTROL on the model census: enumerated model files under packages/**/*.ts (28 files), then read each. Result: ZERO legacy models remain in the data/billing scope \u2014 every one was retired by the Postgres port. So 'absent' here is MEASURED, not 'not measured'.",
+      "POSITIVE CONTROL on the model census: enumerated model files under packages/**/*.ts (28 files), then read each. Result: ZERO legacy models remain in the data/billing scope — every one was retired by the Postgres port. So 'absent' here is MEASURED, not 'not measured'.",
       "POSITIVE CONTROL on the table census: read all 21 files under packages/api/src/db/schema/ and extracted every `pgTable(` declaration in providers.ts, billing.ts, usage.ts, developers.ts, telemetry.ts. Known-positive: `plans` found in billing.ts:67. 19 in-scope tables found; the schema files themselves name each other in prose, so tables were taken from the `pgTable(` declaration, not from prose.",
-      "POSITIVE CONTROL on the chokepoint hazard: a naive census (files importing `db/billing/*`) returns 21 files. The chokepoint-aware census adds 12 more files that call `getOrCreateUserCredits` (lib/user-credits-helpers.ts), 11 that call `reserveCredits`/`finalizeCredits` (lib/credits-manager.ts), 7 that call `recordKeySuccess|recordKeyFailure|recordKeySpend|markKeyCreditExhausted` (internal/providers/lib/key-manager.ts re-exports under the SAME NAMES), and 8 that call `getPlans|getFeatures|getCreditPackages|getPlanFeatures|updatePlan` (lib/gateway-client.ts). The Model-STATIC-equivalent census therefore under-reports by roughly 2x, exactly as predicted \u2014 so the helper layer, not the repository layer, is the real edit surface.",
-      "POSITIVE CONTROL on the 'no raw SQL bypass' claim: grepped `db.execute|sql\\`` across packages/api/src outside db/ and outside tests. Exactly one hit \u2014 packages/api/src/routes/health.ts:61 `select 1`. The grep found a real hit, so a zero elsewhere means absence rather than a broken pattern.",
+      "POSITIVE CONTROL on the chokepoint hazard: a naive census (files importing `db/billing/*`) returns 21 files. The chokepoint-aware census adds 12 more files that call `getOrCreateUserCredits` (lib/user-credits-helpers.ts), 11 that call `reserveCredits`/`finalizeCredits` (lib/credits-manager.ts), 7 that call `recordKeySuccess|recordKeyFailure|recordKeySpend|markKeyCreditExhausted` (internal/providers/lib/key-manager.ts re-exports under the SAME NAMES), and 8 that call `getPlans|getFeatures|getCreditPackages|getPlanFeatures|updatePlan` (lib/gateway-client.ts). The Model-STATIC-equivalent census therefore under-reports by roughly 2x, exactly as predicted — so the helper layer, not the repository layer, is the real edit surface.",
+      "POSITIVE CONTROL on the 'no raw SQL bypass' claim: grepped `db.execute|sql\\`` across packages/api/src outside db/ and outside tests. Exactly one hit — packages/api/src/routes/health.ts:61 `select 1`. The grep found a real hit, so a zero elsewhere means absence rather than a broken pattern.",
       "Call-site patterns dropped the `(` requirement where generics are possible, and were run against `packages/**/*.ts` (a directory pathspec, not `dir/**/*.ts`), so top-level files are included.",
       "Every 'X has no caller' claim below was re-run case-insensitively and against dynamic `await import(...)` forms, because seed-model-configs.ts, gateway-client.ts and voice-session-manager.ts all use dynamic imports.",
-      "NEGATIVE CONTROL with its own vacuity floor on provider secrets in env: grepped `process.env.<PROVIDER>*` across packages/api/src \u2014 the grep DID return hits (routes/accounts.ts GOOGLE_OAUTH_*, providers/grok-voice.ts GROK_API_KEY), proving the scan could see env reads, and no upstream inference credential is read from env. Provider credentials exist ONLY in the provider_keys table."
+      "NEGATIVE CONTROL with its own vacuity floor on provider secrets in env: grepped `process.env.<PROVIDER>*` across packages/api/src — the grep DID return hits (routes/accounts.ts GOOGLE_OAUTH_*, providers/grok-voice.ts GROK_API_KEY), proving the scan could see env reads, and no upstream inference credential is read from env. Provider credentials exist ONLY in the provider_keys table."
     ],
     "limitations": [
       "READ-ONLY inventory: nothing was executed. No Postgres was queried, so NO production row count for any table below is known. Every removalGate therefore names the row count as an unmet precondition.",
@@ -19,11 +19,11 @@
       "`double precision` money caveats and the postgres.js bigint-as-string trap are documented in the schema comments; this inventory did not re-verify them against a live driver."
     ],
     "residual": [
-      "RESIDUAL 1 \u2014 six `packages/api/src/domain/*.ts` files each carry the sentence 'The model imports them from here like any other consumer.' Every one of those models is deleted. The prose is now false in a file that renders live CHECK constraints; a reader following it looks for a model that does not exist.",
-      "RESIDUAL 2 \u2014 packages/api/AGENTS.md-adjacent docs and packages/api/src/internal/providers/lib/seed-model-configs.ts:1-6 still describe the store as the legacy ModelConfig collection. Log strings and comments are where a wrong statement survives forever.",
-      "RESIDUAL 3 \u2014 I did not enumerate readers of the `packages/shared-types` billing DTOs; a type-only importer of a removed shape breaks at build time, not run time, and would not appear in any grep above.",
-      "RESIDUAL 5 \u2014 `spendCreditsPaidFirst` (db/billing/userCreditsRepository.ts:111), `getUserCredits` (lib/credits-manager.ts:232) and `calculateCreditsFromTokens` as a public export have TEST-ONLY call sites. They are covered code that production cannot reach; a test proving them says nothing about the system.",
-      "RESIDUAL 6 \u2014 no count was taken of how many of the 19 tables have a live WRITER at all. Measured for the catalogue (none) and for the ledgers (all); not measured for external_models beyond its one script."
+      "RESIDUAL 1 — six `packages/api/src/domain/*.ts` files each carry the sentence 'The model imports them from here like any other consumer.' Every one of those models is deleted. The prose is now false in a file that renders live CHECK constraints; a reader following it looks for a model that does not exist.",
+      "RESIDUAL 2 — packages/api/AGENTS.md-adjacent docs and packages/api/src/internal/providers/lib/seed-model-configs.ts:1-6 still describe the store as the legacy ModelConfig collection. Log strings and comments are where a wrong statement survives forever.",
+      "RESIDUAL 3 — I did not enumerate readers of the `packages/shared-types` billing DTOs; a type-only importer of a removed shape breaks at build time, not run time, and would not appear in any grep above.",
+      "RESIDUAL 5 — `spendCreditsPaidFirst` (db/billing/userCreditsRepository.ts:111), `getUserCredits` (lib/credits-manager.ts:232) and `calculateCreditsFromTokens` as a public export have TEST-ONLY call sites. They are covered code that production cannot reach; a test proving them says nothing about the system.",
+      "RESIDUAL 6 — no count was taken of how many of the 19 tables have a live WRITER at all. Measured for the catalogue (none) and for the ledgers (all); not measured for external_models beyond its one script."
     ]
   },
   "items": [
@@ -73,7 +73,7 @@
         "packages/api/src/internal/providers/lib/seed-model-configs.ts"
       ],
       "dependsOn": ["tuple-alia-tiers", "code-catalogue-alia-models"],
-      "removalGate": "production row count audited AND getAvailableModels() (internal/providers/lib/alia-models.ts:304) re-pointed, since it is the one LIVE reader \u2014 it merges DB rows with the code catalogue to compute availability. Removing the table without that makes every model read as unavailable, which looks like an outage rather than a bug.",
+      "removalGate": "production row count audited AND getAvailableModels() (internal/providers/lib/alia-models.ts:304) re-pointed, since it is the one LIVE reader — it merges DB rows with the code catalogue to compute availability. Removing the table without that makes every model read as unavailable, which looks like an outage rather than a bug.",
       "evidence": "packages/api/src/db/schema/providers.ts:154"
     },
     {
@@ -93,7 +93,7 @@
         "packages/api/src/db/providers/aliaModelRepository.ts (replaceProviderMappings, called by createAliaModel/updateAliaModel/upsertAliaModel)"
       ],
       "dependsOn": ["table-alia-models", "table-model-configs"],
-      "removalGate": "production row count audited. Note the FK is ON DELETE CASCADE on BOTH sides, so dropping either parent silently empties this table \u2014 a removal here cannot be observed by a functional test.",
+      "removalGate": "production row count audited. Note the FK is ON DELETE CASCADE on BOTH sides, so dropping either parent silently empties this table — a removal here cannot be observed by a functional test.",
       "evidence": "packages/api/src/db/schema/providers.ts:228"
     },
     {
@@ -128,7 +128,7 @@
         "tuple-provider-names",
         "table-api-usage"
       ],
-      "removalGate": "production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted \u2014 a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) is unreachable because internal/providers/index.ts is unmounted, so keys are currently inserted by hand.",
+      "removalGate": "production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted — a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) is unreachable because internal/providers/index.ts is unmounted, so keys are currently inserted by hand.",
       "evidence": "packages/api/src/db/schema/providers.ts:300"
     },
     {
@@ -141,7 +141,7 @@
       "proposedOwner": "kaana",
       "targetPath": "kaana secret store (SSM/secrets manager), never an application table",
       "readers": [
-        "packages/api/src/db/providers/providerKeyRepository.ts (loadActiveProviderKeys, findProviderKeyById \u2014 both `select()` the whole row)",
+        "packages/api/src/db/providers/providerKeyRepository.ts (loadActiveProviderKeys, findProviderKeyById — both `select()` the whole row)",
         "packages/api/src/internal/providers/lib/key-manager.ts:149 (copies it into KeyConfig.key)",
         "packages/api/src/internal/providers/lib/provider-api.ts:137,169,223",
         "packages/api/src/internal/providers/lib/providers/anthropic.ts:74",
@@ -152,7 +152,7 @@
         "packages/api/src/db/providers/providerKeyRepository.ts:263 (createProviderKey), rotateProviderKey"
       ],
       "dependsOn": ["table-provider-keys"],
-      "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the kaana. The schema comment states there is NO protected-column mechanism in this service \u2014 the comment and CONVENTIONS.md are the whole of the protection.",
+      "removalGate": "production row count audited AND every value rotated upstream AND the six read sites above re-pointed at the kaana. The schema comment states there is NO protected-column mechanism in this service — the comment and CONVENTIONS.md are the whole of the protection.",
       "evidence": "packages/api/src/db/schema/providers.ts:315"
     },
     {
@@ -163,11 +163,11 @@
       "summary": "Sets a response header containing the first 8 characters of the PLAINTEXT provider key on a proxied completion, alongside X-Provider-Used which names the provider outright.",
       "billingClass": "kaana-upstream-cost",
       "proposedOwner": "delete",
-      "targetPath": "delete \u2014 nothing should echo credential material or a provider name to a caller",
+      "targetPath": "delete — nothing should echo credential material or a provider name to a caller",
       "readers": [],
       "writers": ["packages/api/src/internal/providers/routes/providers.ts:145"],
       "dependsOn": ["field-provider-keys-key", "dead-internal-providers-router"],
-      "removalGate": "Unreachable today ONLY because internal/providers/index.ts has no mount point. That is a reachability accident, not a control \u2014 mounting the router at any point re-arms it. Delete the two setHeader lines regardless of the epic's outcome; the X-Provider-Used line also violates the model-abstraction rule.",
+      "removalGate": "Unreachable today ONLY because internal/providers/index.ts has no mount point. That is a reachability accident, not a control — mounting the router at any point re-arms it. Delete the two setHeader lines regardless of the epic's outcome; the X-Provider-Used line also violates the model-abstraction rule.",
       "evidence": "packages/api/src/internal/providers/routes/providers.ts:144"
     },
     {
@@ -175,12 +175,12 @@
       "kind": "field",
       "name": "provider_keys.key_hash",
       "currentPath": "packages/api/src/db/schema/providers.ts",
-      "summary": "sha256 of a live upstream credential. An exact-match oracle \u2014 equally protected, not a safer alias for the key.",
+      "summary": "sha256 of a live upstream credential. An exact-match oracle — equally protected, not a safer alias for the key.",
       "billingClass": "kaana-upstream-cost",
       "proposedOwner": "kaana",
       "targetPath": "kaana",
       "readers": [
-        "packages/api/src/db/providers/providerKeyRepository.ts (providerKeyHashExists \u2014 the duplicate check)"
+        "packages/api/src/db/providers/providerKeyRepository.ts (providerKeyHashExists — the duplicate check)"
       ],
       "writers": [
         "packages/api/src/db/providers/providerKeyRepository.ts (createProviderKey, rotateProviderKey)"
@@ -197,7 +197,7 @@
       "summary": "Read-only mirror of a third party's public model leaderboard (18 benchmark columns). Nothing in the completion path consults it.",
       "billingClass": "disposable-telemetry",
       "proposedOwner": "delete",
-      "targetPath": "delete, or move to a marketing/content surface \u2014 it is not routing data and must never be joined to model_configs",
+      "targetPath": "delete, or move to a marketing/content surface — it is not routing data and must never be joined to model_configs",
       "readers": [
         "packages/api/src/routes/external-models.ts",
         "packages/api/src/db/providers/externalModelRepository.ts"
@@ -226,12 +226,12 @@
         "packages/api/src/db/billing/planRepository.ts"
       ],
       "writers": [
-        "packages/api/src/lib/stripe-prices.ts:30,75 (via gateway-client.updatePlan \u2014 the ONLY live writer)",
+        "packages/api/src/lib/stripe-prices.ts:30,75 (via gateway-client.updatePlan — the ONLY live writer)",
         "packages/api/src/internal/providers/routes/plans.ts (unreachable: unmounted router)",
         "packages/api/src/internal/providers/lib/seed-plans.ts:168 (unreachable: runStartupSeed has no caller)"
       ],
       "dependsOn": ["tuple-plan-products", "tuple-billing-periods", "table-alia-models"],
-      "removalGate": "production row count audited AND the entitlement path (lib/plan-access.ts) re-sourced first \u2014 it defaults planIds to ['free'] when a user has no subscription, so an empty plans table degrades every paying user to the FREE_MODEL_IDS list silently, with no error.",
+      "removalGate": "production row count audited AND the entitlement path (lib/plan-access.ts) re-sourced first — it defaults planIds to ['free'] when a user has no subscription, so an empty plans table degrades every paying user to the FREE_MODEL_IDS list silently, with no error.",
       "evidence": "packages/api/src/db/schema/billing.ts:67"
     },
     {
@@ -279,7 +279,7 @@
         "packages/api/src/internal/providers/lib/seed-features.ts:279 seedPlanFeatures (unreachable: runStartupSeed has no caller)"
       ],
       "dependsOn": ["table-plans", "table-features"],
-      "removalGate": "production row count audited AND lib/plan-access.ts re-sourced. Its two FKs both CASCADE from business keys (plans.plan_id, features.feature_id), which are `unique()` NOT `uniqueIndex()` \u2014 deliberately, because drizzle-kit emits FKs before unique indexes; do not 'tidy' that.",
+      "removalGate": "production row count audited AND lib/plan-access.ts re-sourced. Its two FKs both CASCADE from business keys (plans.plan_id, features.feature_id), which are `unique()` NOT `uniqueIndex()` — deliberately, because drizzle-kit emits FKs before unique indexes; do not 'tidy' that.",
       "evidence": "packages/api/src/db/schema/billing.ts:174"
     },
     {
@@ -302,7 +302,7 @@
         "packages/api/src/internal/providers/lib/seed-credit-packages.ts:37 (unreachable: runStartupSeed has no caller)"
       ],
       "dependsOn": [],
-      "removalGate": "production row count audited AND GET /billing/packages + POST /billing/checkout/credits re-pointed \u2014 those are LIVE, publicly mounted routes that 404 or sell nothing if this empties.",
+      "removalGate": "production row count audited AND GET /billing/packages + POST /billing/checkout/credits re-pointed — those are LIVE, publicly mounted routes that 404 or sell nothing if this empties.",
       "evidence": "packages/api/src/db/schema/billing.ts:207"
     },
     {
@@ -321,7 +321,6 @@
         "packages/api/src/middleware/api-key-rate-limit.ts:92",
         "packages/api/src/routes/billing.ts:349,400,412,446",
         "packages/api/src/routes/memory.ts:208,639,747",
-        "packages/api/src/routes/codea.ts:47",
         "packages/api/src/internal/providers/routes/billing-admin.ts",
         "packages/api/src/db/billing/subscriptionRepository.ts"
       ],
@@ -329,7 +328,7 @@
         "packages/api/src/routes/billing.ts:422,521,739,801,829 (Stripe webhook + cancel/change-plan)"
       ],
       "dependsOn": ["tuple-plan-products", "tuple-billing-periods", "table-plans"],
-      "removalGate": "production row count audited AND a retention decision recorded \u2014 this is a customer money record and MUST NOT be deleted on a code migration. Move by copy-and-verify, never drop. Note `plan_id` carries NO foreign key deliberately, so a plan can be withdrawn without taking a receipt with it.",
+      "removalGate": "production row count audited AND a retention decision recorded — this is a customer money record and MUST NOT be deleted on a code migration. Move by copy-and-verify, never drop. Note `plan_id` carries NO foreign key deliberately, so a plan can be withdrawn without taking a receipt with it.",
       "evidence": "packages/api/src/db/schema/billing.ts:261"
     },
     {
@@ -337,7 +336,7 @@
       "kind": "table",
       "name": "transactions",
       "currentPath": "packages/api/src/db/schema/billing.ts",
-      "summary": "A payment, refund or credit grant. amount is bigint cents; credits is a count. dedup_key is a STORED GENERATED column over metadata->>'dedup' with a unique index \u2014 the double-credit guard.",
+      "summary": "A payment, refund or credit grant. amount is bigint cents; credits is a count. dedup_key is a STORED GENERATED column over metadata->>'dedup' with a unique index — the double-credit guard.",
       "billingClass": "oxy-financial-record",
       "proposedOwner": "oxy",
       "targetPath": "oxy: the ledger of money moved",
@@ -350,7 +349,7 @@
         "packages/api/src/routes/billing.ts:672,775 (insertTransaction, inside the Stripe webhook)"
       ],
       "dependsOn": ["tuple-transaction-types", "tuple-transaction-statuses", "table-user-credits"],
-      "removalGate": "production row count audited AND the dedup guard ported FIRST. Any migration that drops or recomputes `dedup_key` re-arms double-crediting on a webhook redelivery, with no error anywhere \u2014 the symptom is a customer credited twice. Financial records: copy and verify, never drop.",
+      "removalGate": "production row count audited AND the dedup guard ported FIRST. Any migration that drops or recomputes `dedup_key` re-arms double-crediting on a webhook redelivery, with no error anywhere — the symptom is a customer credited twice. Financial records: copy and verify, never drop.",
       "evidence": "packages/api/src/db/schema/billing.ts:346"
     },
     {
@@ -363,13 +362,12 @@
       "proposedOwner": "alia",
       "targetPath": "alia: a credit balance is an entitlement Alia grants and consumes; the PURCHASE that produced it is the oxy record",
       "readers": [
-        "packages/api/src/lib/user-credits-helpers.ts (chokepoint \u2014 12 further caller files)",
+        "packages/api/src/lib/user-credits-helpers.ts (chokepoint — 12 further caller files)",
         "packages/api/src/lib/credits-manager.ts:162,234",
         "packages/api/src/lib/credit-anomaly.ts:81",
         "packages/api/src/internal/providers/routes/billing-admin.ts:110",
         "packages/api/src/routes/billing.ts:123,186,359,570,710",
         "packages/api/src/routes/credits.ts:15",
-        "packages/api/src/routes/codea.ts:51,138,208",
         "packages/api/src/routes/v1.ts:87",
         "packages/api/src/services/chat.service.ts:163",
         "packages/api/src/db/billing/userCreditsRepository.ts"
@@ -381,7 +379,7 @@
         "packages/api/src/routes/referrals.ts:91,95 (addCredits)"
       ],
       "dependsOn": ["concept-credit-reservation", "table-transactions"],
-      "removalGate": "production row count audited AND the negative-balance question answered: the schema deliberately has NO non-negativity CHECK because addCredits accepts a negative amount, so production may hold negative balances today. A destination that constrains them will reject rows at copy time, in the deduction path. Also: `id` has no default on purpose \u2014 a generated uuid would mint a row no lookup can find.",
+      "removalGate": "production row count audited AND the negative-balance question answered: the schema deliberately has NO non-negativity CHECK because addCredits accepts a negative amount, so production may hold negative balances today. A destination that constrains them will reject rows at copy time, in the deduction path. Also: `id` has no default on purpose — a generated uuid would mint a row no lookup can find.",
       "evidence": "packages/api/src/db/schema/billing.ts:409"
     },
     {
@@ -389,7 +387,7 @@
       "kind": "table",
       "name": "cost_entries",
       "currentPath": "packages/api/src/db/schema/usage.ts",
-      "summary": "Per-request upstream spend ledger in USD (double precision), carrying actual_provider and actual_model_id \u2014 the INTERNAL identity behind the Alia alias.",
+      "summary": "Per-request upstream spend ledger in USD (double precision), carrying actual_provider and actual_model_id — the INTERNAL identity behind the Alia alias.",
       "billingClass": "kaana-upstream-cost",
       "proposedOwner": "kaana",
       "targetPath": "kaana: what Alia paid upstream is the kaana's ledger, and its columns are the exact thing the model-abstraction rule forbids Alia from exposing",
@@ -400,7 +398,7 @@
       ],
       "writers": [],
       "dependsOn": [],
-      "removalGate": "production row count audited \u2014 and expect ZERO. `recordCost` has NO caller anywhere in the repository (measured; lib/cost-tracker.ts:17-26 states it and the real-database suite seeds through recordCost itself precisely because a correct read of an empty table and a broken switch look identical). This is the cheapest table in the inventory to remove and the one whose emptiness most needs stating out loud.",
+      "removalGate": "production row count audited — and expect ZERO. `recordCost` has NO caller anywhere in the repository (measured; lib/cost-tracker.ts:17-26 states it and the real-database suite seeds through recordCost itself precisely because a correct read of an empty table and a broken switch look identical). This is the cheapest table in the inventory to remove and the one whose emptiness most needs stating out loud.",
       "evidence": "packages/api/src/db/schema/usage.ts:44"
     },
     {
@@ -411,7 +409,7 @@
       "summary": "Per-completion usage record written by the analytics hook: token counts, latency, platform, and TWO model ids (`model` = provider's id, `alia_model_id` = the Alia alias).",
       "billingClass": "disposable-telemetry",
       "proposedOwner": "alia",
-      "targetPath": "alia analytics, with the `provider` and `model` columns dropped or moved to kaana \u2014 they are internal identity in a user-facing analytics table",
+      "targetPath": "alia analytics, with the `provider` and `model` columns dropped or moved to kaana — they are internal identity in a user-facing analytics table",
       "readers": [
         "packages/api/src/routes/analytics.ts (GET /analytics/usage, /models, /credits)",
         "packages/api/src/db/usage/chatAnalyticsRepository.ts"
@@ -420,7 +418,7 @@
         "packages/api/src/lib/hooks/built-in/analytics-hook.ts:18 (registered via lib/hooks/index.ts:5, runs afterChat on every completion)"
       ],
       "dependsOn": ["table-alia-models"],
-      "removalGate": "production row count audited AND `alia_model_id` preserved. GET /analytics/models groups on coalesce(alia_model_id, model) and resolves each group through getAliaModel(), which is keyed by the ALIAS and returns null for a provider id \u2014 per the model-abstraction rule an unresolvable entry is SKIPPED, so losing that column empties the route for every user, silently, looking exactly like 'no usage yet'.",
+      "removalGate": "production row count audited AND `alia_model_id` preserved. GET /analytics/models groups on coalesce(alia_model_id, model) and resolves each group through getAliaModel(), which is keyed by the ALIAS and returns null for a provider id — per the model-abstraction rule an unresolvable entry is SKIPPED, so losing that column empties the route for every user, silently, looking exactly like 'no usage yet'.",
       "evidence": "packages/api/src/db/schema/usage.ts:104"
     },
     {
@@ -428,12 +426,12 @@
       "kind": "table",
       "name": "voice_call_usage",
       "currentPath": "packages/api/src/db/schema/usage.ts",
-      "summary": "One realtime voice session: fractional duration_minutes (double precision \u2014 an integer would truncate the BILLING quantity), credits_charged, cost_per_minute, plus a cohost pair of each. session_id is UNIQUE and load-bearing for the final-record upsert.",
+      "summary": "One realtime voice session: fractional duration_minutes (double precision — an integer would truncate the BILLING quantity), credits_charged, cost_per_minute, plus a cohost pair of each. session_id is UNIQUE and load-bearing for the final-record upsert.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
       "targetPath": "alia: it is both the usage record and the entitlement meter (voice minutes per plan). cost_per_minute alone is kaana-upstream-cost",
       "readers": [
-        "packages/api/src/lib/voice-usage.ts:37 (sumVoiceMinutesUsed \u2014 enforces the plan's voice-minute entitlement)",
+        "packages/api/src/lib/voice-usage.ts:37 (sumVoiceMinutesUsed — enforces the plan's voice-minute entitlement)",
         "packages/api/src/routes/billing.ts:609 (GET /billing/voice-usage)",
         "packages/api/src/routes/v1/voice.ts:59",
         "packages/api/src/db/usage/voiceCallUsageRepository.ts"
@@ -442,7 +440,7 @@
         "packages/api/src/internal/providers/lib/voice-session-manager.ts:1267 (upsert, final) and :1269 (insert, non-final)"
       ],
       "dependsOn": ["table-subscriptions", "concept-credit-reservation"],
-      "removalGate": "production row count audited AND the entitlement reader migrated in the SAME change \u2014 lib/voice-usage.ts is the only thing stopping a user exceeding their plan's voice minutes, and an empty table reads as 'zero minutes used', which is the permissive direction. Two columns (average_latency_ms, client_type) are declared and never written package-wide: confirm they are entirely absent before anybody reads one as meaningful.",
+      "removalGate": "production row count audited AND the entitlement reader migrated in the SAME change — lib/voice-usage.ts is the only thing stopping a user exceeding their plan's voice minutes, and an empty table reads as 'zero minutes used', which is the permissive direction. Two columns (average_latency_ms, client_type) are declared and never written package-wide: confirm they are entirely absent before anybody reads one as meaningful.",
       "evidence": "packages/api/src/db/schema/usage.ts:181"
     },
     {
@@ -456,7 +454,6 @@
       "targetPath": "alia developer platform",
       "readers": [
         "packages/api/src/routes/developer.ts",
-        "packages/api/src/routes/codea.ts:57,214",
         "packages/api/src/middleware/auth.ts:14 (findAppById)",
         "packages/api/src/db/developers/developerRepository.ts",
         "packages/alia-console/src/routes/_layout/apps/$appId/index.tsx (frontend, endpoint-grep)"
@@ -465,7 +462,7 @@
         "packages/api/src/routes/developer.ts:85,116,140 (POST/PATCH/DELETE /developer/apps)"
       ],
       "dependsOn": ["table-developer-api-keys"],
-      "removalGate": "production row count audited. developer_api_keys.app_id FKs this with ON DELETE CASCADE, so deleting an app silently revokes every key under it \u2014 which is correct behaviour but means a row count of apps understates the blast radius; count keys too.",
+      "removalGate": "production row count audited. developer_api_keys.app_id FKs this with ON DELETE CASCADE, so deleting an app silently revokes every key under it — which is correct behaviour but means a row count of apps understates the blast radius; count keys too.",
       "evidence": "packages/api/src/db/schema/developers.ts:36"
     },
     {
@@ -476,12 +473,11 @@
       "summary": "An `alia_sk_*` API key belonging to an app: sha256 key_hash (the lookup key), display key_prefix, scopes (CHECKed by containment), and four nullable rate limits where NULL means unlimited.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
-      "targetPath": "alia developer platform. If Alia stops owning identity, this belongs behind Oxy auth \u2014 but the SCOPES are Alia's own vocabulary",
+      "targetPath": "alia developer platform. If Alia stops owning identity, this belongs behind Oxy auth — but the SCOPES are Alia's own vocabulary",
       "readers": [
-        "packages/api/src/middleware/auth.ts:14,152 (findKeyByHash, touchKeyLastUsed \u2014 the authentication path)",
+        "packages/api/src/middleware/auth.ts:14,152 (findKeyByHash, touchKeyLastUsed — the authentication path)",
         "packages/api/src/lib/mcp-relay.ts:249 (findActiveKeyByHash)",
         "packages/api/src/routes/developer.ts",
-        "packages/api/src/routes/codea.ts:57,214 (findKeyWithApp)",
         "packages/api/src/middleware/api-key-rate-limit.ts",
         "packages/api/src/db/developers/developerRepository.ts",
         "packages/alia-console/src/routes/_layout/apps/$appId/keys/$keyId.tsx (frontend, endpoint-grep)"
@@ -491,7 +487,7 @@
         "packages/api/src/middleware/auth.ts:152 (touchKeyLastUsed)"
       ],
       "dependsOn": ["helper-api-key-crypto", "table-developer-apps", "table-api-key-usage"],
-      "removalGate": "production row count audited AND every live key rotated or the digest scheme preserved EXACTLY. hashDeveloperApiKey is deterministic sha256 on purpose because it is a LOOKUP key \u2014 swapping it for a randomized-IV scheme makes authentication match nothing and the symptom is a silent 401 on every request, not an error. key_hash is an exact-match oracle and is as protected as the key.",
+      "removalGate": "production row count audited AND every live key rotated or the digest scheme preserved EXACTLY. hashDeveloperApiKey is deterministic sha256 on purpose because it is a LOOKUP key — swapping it for a randomized-IV scheme makes authentication match nothing and the symptom is a silent 401 on every request, not an error. key_hash is an exact-match oracle and is as protected as the key.",
       "evidence": "packages/api/src/db/schema/developers.ts:79"
     },
     {
@@ -504,7 +500,7 @@
       "proposedOwner": "alia",
       "targetPath": "alia: it is the developer-facing usage/rate-limit record, not an upstream cost",
       "readers": [
-        "packages/api/src/middleware/api-key-rate-limit.ts (usageWindow \u2014 the live rate limiter)",
+        "packages/api/src/middleware/api-key-rate-limit.ts (usageWindow — the live rate limiter)",
         "packages/api/src/routes/credits.ts:4 (creditSpendByDay)",
         "packages/api/src/lib/credit-anomaly.ts:1 (creditSpendByDay, creditSpendTotal)",
         "packages/api/src/routes/developer.ts (usageSummary, usageByDay, usageByEndpoint)",
@@ -513,10 +509,10 @@
       ],
       "writers": [
         "packages/api/src/middleware/auth.ts:168 (recordApiKeyUsage)",
-        "packages/api/src/middleware/api-key-rate-limit.ts:414 (recordApiKeyUsage, via recordUsage \u2014 called from lib/chat-lifecycle.ts:124 and routes/internal.ts:230)"
+        "packages/api/src/middleware/api-key-rate-limit.ts:414 (recordApiKeyUsage, via recordUsage — called from lib/chat-lifecycle.ts:124 and routes/internal.ts:230)"
       ],
       "dependsOn": ["tuple-api-key-usage-auth-types", "table-developer-api-keys"],
-      "removalGate": "production row count audited AND the rate limiter re-sourced FIRST \u2014 an empty api_key_usage means every window reads zero, so every key becomes unlimited. That is the permissive direction and produces no error. Its api_key_id/app_id deliberately carry NO foreign key: NULL already means 'session or internal call', so ON DELETE SET NULL would forge session traffic.",
+      "removalGate": "production row count audited AND the rate limiter re-sourced FIRST — an empty api_key_usage means every window reads zero, so every key becomes unlimited. That is the permissive direction and produces no error. Its api_key_id/app_id deliberately carry NO foreign key: NULL already means 'session or internal call', so ON DELETE SET NULL would forge session traffic.",
       "evidence": "packages/api/src/db/schema/telemetry.ts:257"
     },
     {
@@ -529,11 +525,11 @@
       "proposedOwner": "kaana",
       "targetPath": "kaana: it accounts for what an upstream credential spent",
       "readers": [
-        "packages/api/src/internal/providers/lib/key-manager.ts:26 (keyUsageWindows \u2014 the provider-key rate limiter)",
+        "packages/api/src/internal/providers/lib/key-manager.ts:26 (keyUsageWindows — the provider-key rate limiter)",
         "packages/api/src/db/telemetry/apiUsageRepository.ts"
       ],
       "writers": [
-        "packages/api/src/internal/providers/lib/key-manager.ts:178 (recordApiUsage, via recordKeyUsage \u2014 called from provider-api.ts:145,210,271 and internal/providers/routes/providers.ts:198)"
+        "packages/api/src/internal/providers/lib/key-manager.ts:178 (recordApiUsage, via recordKeyUsage — called from provider-api.ts:145,210,271 and internal/providers/routes/providers.ts:198)"
       ],
       "dependsOn": ["table-provider-keys"],
       "removalGate": "production row count audited AND the provider-key rate limiter re-sourced in the same change. Same permissive failure as api_key_usage: empty windows mean no upstream key is ever considered rate-limited. key_id is a deliberately DANGLING reference (no FK) bounded by the 48-hour sweep.",
@@ -547,7 +543,7 @@
       "summary": "The spend chokepoint: reserveCredits takes credits up front, finalizeCredits trues up against actual tokens, refundReservation/safeRefund return them on failure. CREDITS_CONFIG holds the rates.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
-      "targetPath": "alia \u2014 the credit is the product unit; kaana bills Alia in dollars, Alia bills the user in credits",
+      "targetPath": "alia — the credit is the product unit; kaana bills Alia in dollars, Alia bills the user in credits",
       "readers": [
         "packages/api/src/lib/chat/request-context.ts:147",
         "packages/api/src/lib/show/show-pipeline.ts:98,111,209,234",
@@ -567,7 +563,7 @@
         "packages/api/src/lib/credits-manager.ts (spendCreditsFreeFirst, zeroCredits via db/billing/userCreditsRepository.ts)"
       ],
       "dependsOn": ["table-user-credits", "table-alia-models"],
-      "removalGate": "production row count audited on user_credits AND all 14 caller files re-pointed together \u2014 a reserve without a matching finalize/refund leaks a user's credits permanently, and the callers are spread across chat, voice, images, audio, agents, shows and webhooks. This is the widest single edit surface in the category.",
+      "removalGate": "production row count audited on user_credits AND all 14 caller files re-pointed together — a reserve without a matching finalize/refund leaks a user's credits permanently, and the callers are spread across chat, voice, images, audio, agents, shows and webhooks. This is the widest single edit surface in the category.",
       "evidence": "packages/api/src/lib/credits-manager.ts:88"
     },
     {
@@ -595,14 +591,11 @@
       "kind": "billing-concept",
       "name": "TIER_RATE_LIMITS / getUserTier",
       "currentPath": "packages/api/src/middleware/api-key-rate-limit.ts",
-      "summary": "Hardcoded per-tier request/token budgets, selected by reading the user's active subscription. Applied to every /v1 route and every codea route.",
+      "summary": "Hardcoded per-tier request/token budgets, selected by reading the user's active subscription.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
-      "targetPath": "alia \u2014 but the values should come from plan_features rather than a code constant",
-      "readers": [
-        "packages/api/src/routes/v1.ts:62",
-        "packages/api/src/routes/codea.ts:38,129,166,199,235,246"
-      ],
+      "targetPath": "alia — but the values should come from plan_features rather than a code constant",
+      "readers": ["packages/api/src/routes/v1.ts:62"],
       "writers": [
         "packages/api/src/middleware/api-key-rate-limit.ts:414 (records into api_key_usage)"
       ],
@@ -622,8 +615,7 @@
       "readers": [
         "packages/app/src/features/billing/runtime/use-billing.ts (frontend, endpoint-grep)",
         "packages/app/src/features/settings/ui/billing-section.tsx",
-        "packages/app/app/(biglayout)/subscribe.tsx",
-        "packages/app/app/(biglayout)/codea-subscribe.tsx"
+        "packages/app/app/(biglayout)/subscribe.tsx"
       ],
       "writers": ["packages/api/src/routes/billing.ts:617 (POST /billing/webhook)"],
       "dependsOn": [
@@ -633,7 +625,7 @@
         "table-plans",
         "table-credit-packages"
       ],
-      "removalGate": "production row counts audited on transactions and subscriptions AND the dedup guard verified end-to-end at the destination. The webhook credits a renewal by writing a transaction FIRST as a lock and treating the duplicate-key error as 'already credited' \u2014 a destination without that unique index double-credits on redelivery, silently.",
+      "removalGate": "production row counts audited on transactions and subscriptions AND the dedup guard verified end-to-end at the destination. The webhook credits a renewal by writing a transaction FIRST as a lock and treating the duplicate-key error as 'already credited' — a destination without that unique index double-credits on redelivery, silently.",
       "evidence": "packages/api/src/routes/billing.ts:617"
     },
     {
@@ -647,10 +639,10 @@
       "targetPath": "oxy billing; the plan row it writes back to stays in alia",
       "readers": ["packages/api/src/routes/billing.ts (checkout paths)"],
       "writers": [
-        "packages/api/src/lib/stripe-prices.ts:30,75 (via lib/gateway-client.ts:663 updatePlan \u2192 db/billing/planRepository.ts)"
+        "packages/api/src/lib/stripe-prices.ts:30,75 (via lib/gateway-client.ts:663 updatePlan → db/billing/planRepository.ts)"
       ],
       "dependsOn": ["table-plans"],
-      "removalGate": "production row count audited on plans AND the write-back path preserved or the Stripe ids seeded \u2014 this is the one live mutation of the plans table, so 'plans has no writer' is false and a removal plan built on that belief strands the checkout flow.",
+      "removalGate": "production row count audited on plans AND the write-back path preserved or the Stripe ids seeded — this is the one live mutation of the plans table, so 'plans has no writer' is false and a removal plan built on that belief strands the checkout flow.",
       "evidence": "packages/api/src/lib/stripe-prices.ts:30"
     },
     {
@@ -667,7 +659,7 @@
       ],
       "writers": ["packages/api/src/routes/referrals.ts:91,95"],
       "dependsOn": ["table-user-credits"],
-      "removalGate": "production row count audited on user_credits. Note this grant writes `credits_paid` WITHOUT a transactions row, so the transaction ledger does not reconcile against the credit balance \u2014 say so out loud before anybody treats transactions as the source of truth for credits granted.",
+      "removalGate": "production row count audited on user_credits. Note this grant writes `credits_paid` WITHOUT a transactions row, so the transaction ledger does not reconcile against the credit balance — say so out loud before anybody treats transactions as the source of truth for credits granted.",
       "evidence": "packages/api/src/routes/referrals.ts:91"
     },
     {
@@ -711,7 +703,7 @@
         "packages/api/src/lib/gateway-client.ts:682"
       ],
       "dependsOn": ["table-provider-keys"],
-      "removalGate": "production row count audited. Note the seven writer files reach this through THREE same-named re-export layers (key-manager, gateway-client, chat.service) \u2014 a census of the repository's own function name finds one call site and misses six.",
+      "removalGate": "production row count audited. Note the seven writer files reach this through THREE same-named re-export layers (key-manager, gateway-client, chat.service) — a census of the repository's own function name finds one call site and misses six.",
       "evidence": "packages/api/src/db/schema/providers.ts:342"
     },
     {
@@ -722,7 +714,7 @@
       "summary": "alia_models.credit_multiplier (CHECKed to 0.1..10) scales the credits charged per request; the code catalogue in internal/providers/lib/alia-models.ts declares the same field per model.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
-      "targetPath": "alia \u2014 this is the price list of the product",
+      "targetPath": "alia — this is the price list of the product",
       "readers": ["packages/api/src/lib/credits-manager.ts:49,79,270"],
       "writers": [
         "packages/api/src/internal/providers/routes/alia-models.ts (unreachable)",
@@ -750,7 +742,7 @@
       ],
       "writers": [],
       "dependsOn": ["table-alia-models", "table-model-configs"],
-      "removalGate": "n/a for deletion \u2014 this is the thing the epic should be splitting. Its value is that the routing catalogue is already code, so the kaana boundary can be drawn here without a data migration.",
+      "removalGate": "n/a for deletion — this is the thing the epic should be splitting. Its value is that the routing catalogue is already code, so the kaana boundary can be drawn here without a data migration.",
       "evidence": "packages/api/src/internal/providers/lib/alia-models.ts:248"
     },
     {
@@ -769,13 +761,13 @@
       ],
       "writers": ["packages/api/src/routes/developer.ts:208"],
       "dependsOn": ["table-developer-api-keys"],
-      "removalGate": "n/a for deletion. If it moves: the digest must stay byte-identical or every existing key silently 401s. The logger already redacts `alia_sk_*` (packages/api/src/lib/logger.ts:86) \u2014 keep that redaction wherever the minting goes.",
+      "removalGate": "n/a for deletion. If it moves: the digest must stay byte-identical or every existing key silently 401s. The logger already redacts `alia_sk_*` (packages/api/src/lib/logger.ts:86) — keep that redaction wherever the minting goes.",
       "evidence": "packages/api/src/lib/api-key-crypto.ts:36"
     },
     {
       "id": "dead-internal-providers-router",
       "kind": "reader",
-      "name": "internal/providers admin router (12 route files) \u2014 UNMOUNTED",
+      "name": "internal/providers admin router (12 route files) — UNMOUNTED",
       "currentPath": "packages/api/src/internal/providers/index.ts",
       "summary": "Mounts /v1/keys, /v1/models, /v1/alia-models, /v1/plans, /v1/credit-packages, /v1/features, /v1/plan-features, /v1/billing, /v1/usage, /v1/providers, /v1/auth-health, /v1/fallback-stats behind authenticateService. NOTHING IMPORTS IT.",
       "billingClass": "n/a",
@@ -800,12 +792,12 @@
     {
       "id": "dead-run-startup-seed",
       "kind": "writer",
-      "name": "runStartupSeed() \u2014 NO CALLER",
+      "name": "runStartupSeed() — NO CALLER",
       "currentPath": "packages/api/src/internal/providers/lib/seed-model-configs.ts",
       "summary": "Seeds model_configs, alia_models, plans, credit_packages, features and plan_features, then resets circuit breakers and key cooldowns. Green and inert: it has zero callers.",
       "billingClass": "n/a",
       "proposedOwner": "delete",
-      "targetPath": "delete, or wire it \u2014 but not both silently",
+      "targetPath": "delete, or wire it — but not both silently",
       "readers": [],
       "writers": [
         "packages/api/src/internal/providers/lib/seed-model-configs.ts:76,192",
@@ -821,7 +813,7 @@
         "table-plan-features",
         "table-credit-packages"
       ],
-      "removalGate": "Verified case-insensitively and against dynamic `await import(...)`: `runStartupSeed` appears exactly once in the repository, at its own definition. packages/api/src/index.ts:346-348 calls seedSkills/seedSuggestions/seedBots and NOT this. packages/api/package.json declares no seed script. So the catalogue is populated by nothing at boot \u2014 combined with the unmounted admin router, the catalogue tables have NO writer at all.",
+      "removalGate": "Verified case-insensitively and against dynamic `await import(...)`: `runStartupSeed` appears exactly once in the repository, at its own definition. packages/api/src/index.ts:346-348 calls seedSkills/seedSuggestions/seedBots and NOT this. packages/api/package.json declares no seed script. So the catalogue is populated by nothing at boot — combined with the unmounted admin router, the catalogue tables have NO writer at all.",
       "evidence": "packages/api/src/internal/providers/lib/seed-model-configs.ts:258"
     },
     {
@@ -859,7 +851,7 @@
       "kind": "migration",
       "name": "drizzle/0003_closed_black_queen.sql",
       "currentPath": "packages/api/drizzle/0003_closed_black_queen.sql",
-      "summary": "THE big one: thirteen tables for the providers and billing domains \u2014 model_configs, alia_models, alia_model_provider_mappings, provider_keys, external_models, plans, features, plan_features, credit_packages, subscriptions, transactions, user_credits, api_key_usage. Carries the transactions.dedup_key generated column and the plan_features FK-before-unique-index ordering.",
+      "summary": "THE big one: thirteen tables for the providers and billing domains — model_configs, alia_models, alia_model_provider_mappings, provider_keys, external_models, plans, features, plan_features, credit_packages, subscriptions, transactions, user_credits, api_key_usage. Carries the transactions.dedup_key generated column and the plan_features FK-before-unique-index ordering.",
       "billingClass": "n/a",
       "proposedOwner": "alia",
       "targetPath": "n/a",
@@ -873,7 +865,7 @@
         "table-transactions",
         "table-user-credits"
       ],
-      "removalGate": "As above, plus: this file's own header warns that two things in it are easy to 'tidy' into breakage \u2014 the inline CONSTRAINT UNIQUE targets of plan_features' FKs, and the transactions.dedup_key generated column. Any epic migration that regenerates these tables must preserve both.",
+      "removalGate": "As above, plus: this file's own header warns that two things in it are easy to 'tidy' into breakage — the inline CONSTRAINT UNIQUE targets of plan_features' FKs, and the transactions.dedup_key generated column. Any epic migration that regenerates these tables must preserve both.",
       "evidence": "packages/api/drizzle/0003_closed_black_queen.sql:1"
     },
     {
@@ -911,7 +903,7 @@
       "kind": "migration",
       "name": "drizzle/0019_funny_vampiro.sql",
       "currentPath": "packages/api/drizzle/0019_funny_vampiro.sql",
-      "summary": "Adds conversation_id, alia_model_id and skill_id to chat_analytics \u2014 the columns without which GET /analytics/models returns an empty list for every user.",
+      "summary": "Adds conversation_id, alia_model_id and skill_id to chat_analytics — the columns without which GET /analytics/models returns an empty list for every user.",
       "billingClass": "n/a",
       "proposedOwner": "alia",
       "targetPath": "n/a",
@@ -933,7 +925,7 @@
       "readers": [],
       "writers": [],
       "dependsOn": [],
-      "removalGate": "n/a. Named here because every removal in this inventory lands through it, and because @oxy.so/db's migrator takes NO lock \u2014 the interlock is the deploy workflow's concurrency group.",
+      "removalGate": "n/a. Named here because every removal in this inventory lands through it, and because @oxy.so/db's migrator takes NO lock — the interlock is the deploy workflow's concurrency group.",
       "evidence": "packages/api/src/db/migrate.ts:1"
     },
     {
@@ -954,7 +946,7 @@
     {
       "id": "migration-purge-ip-fields-unrunnable",
       "kind": "migration",
-      "name": "scripts/purge-ip-fields.ts \u2014 UNRUNNABLE",
+      "name": "scripts/purge-ip-fields.ts — UNRUNNABLE",
       "currentPath": "packages/api/src/scripts/purge-ip-fields.ts",
       "summary": "One-shot privacy purge stripping ipAddress from the `apikeyusages` collection and ip from `adminaudits` in the legacy `alia-<env>` database.",
       "billingClass": "disposable-telemetry",
@@ -969,7 +961,7 @@
     {
       "id": "migration-backfill-runner-deleted",
       "kind": "migration",
-      "name": "src/db/backfill-audit/ + docs/backfill-audit.md \u2014 DELETED, NOT REPLACED",
+      "name": "src/db/backfill-audit/ + docs/backfill-audit.md — DELETED, NOT REPLACED",
       "currentPath": "packages/api/src/db/schema/CONVENTIONS.md",
       "summary": "The backfill audit runner and its doc are deleted because the source database is gone.",
       "billingClass": "n/a",
@@ -991,7 +983,7 @@
       "kind": "field",
       "name": "PROVIDER_NAMES",
       "currentPath": "packages/api/src/internal/providers/lib/provider-names.ts",
-      "summary": "19 provider names. Renders live CHECK constraints on model_configs.provider, provider_keys.provider and alia_model_provider_mappings.provider \u2014 so appending to it is a MIGRATION, in the same PR.",
+      "summary": "19 provider names. Renders live CHECK constraints on model_configs.provider, provider_keys.provider and alia_model_provider_mappings.provider — so appending to it is a MIGRATION, in the same PR.",
       "billingClass": "n/a",
       "proposedOwner": "kaana",
       "targetPath": "kaana",
@@ -1007,7 +999,7 @@
         "table-provider-keys",
         "table-alia-model-provider-mappings"
       ],
-      "removalGate": "Do NOT move without the CHECKs. lib/errors/sanitize.ts imports it to scrub provider names out of user-facing errors \u2014 deleting or narrowing this tuple weakens the model-abstraction guarantee at the same time as the schema.",
+      "removalGate": "Do NOT move without the CHECKs. lib/errors/sanitize.ts imports it to scrub provider names out of user-facing errors — deleting or narrowing this tuple weakens the model-abstraction guarantee at the same time as the schema.",
       "evidence": "packages/api/src/internal/providers/lib/provider-names.ts:6"
     },
     {
@@ -1030,14 +1022,14 @@
       "kind": "field",
       "name": "PLAN_PRODUCTS / BILLING_PERIODS",
       "currentPath": "packages/api/src/domain/plan.ts",
-      "summary": "['alia','codea'] and ['monthly','annual']. Render CHECKs on plans.product, subscriptions.billing_period and subscriptions.plan_snapshot_*.",
+      "summary": "Render CHECKs on plans.product, subscriptions.billing_period and subscriptions.plan_snapshot_*.",
       "billingClass": "alia-product-entitlement",
       "proposedOwner": "alia",
       "targetPath": "alia",
       "readers": ["packages/api/src/db/schema/billing.ts:54"],
       "writers": [],
       "dependsOn": ["table-plans", "table-subscriptions"],
-      "removalGate": "The tuple is a live constraint. Its file comment claims 'The model imports them from here' \u2014 that model is deleted (RESIDUAL 1); fix the prose in whatever change touches this.",
+      "removalGate": "The tuple is a live constraint. Its file comment claims 'The model imports them from here' — that model is deleted (RESIDUAL 1); fix the prose in whatever change touches this.",
       "evidence": "packages/api/src/domain/plan.ts:11"
     },
     {
@@ -1060,7 +1052,7 @@
       "kind": "field",
       "name": "TRANSACTION_TYPES / TRANSACTION_STATUSES",
       "currentPath": "packages/api/src/domain/transaction.ts",
-      "summary": "['credit_purchase','subscription_payment','refund'] and ['pending','completed','failed','refunded'] \u2014 Alia's own vocabulary, not Stripe's. Render CHECKs on transactions.type and .status.",
+      "summary": "['credit_purchase','subscription_payment','refund'] and ['pending','completed','failed','refunded'] — Alia's own vocabulary, not Stripe's. Render CHECKs on transactions.type and .status.",
       "billingClass": "oxy-financial-record",
       "proposedOwner": "oxy",
       "targetPath": "oxy",
@@ -1097,7 +1089,7 @@
       "readers": ["packages/api/src/db/schema/providers.ts:53"],
       "writers": [],
       "dependsOn": ["table-model-configs"],
-      "removalGate": "As above. Do not unify with PROVIDER_KEY_TIERS to make anything pass \u2014 that silently widens one of the two.",
+      "removalGate": "As above. Do not unify with PROVIDER_KEY_TIERS to make anything pass — that silently widens one of the two.",
       "evidence": "packages/api/src/domain/model-config.ts:11"
     },
     {
@@ -1150,13 +1142,13 @@
       ],
       "writers": [],
       "dependsOn": [],
-      "removalGate": "Already removed. The ledger must be APPENDED to, never reordered, and counted with `.length` \u2014 a grep of this file has already reported both 20 and 28 against an actual 26, because prettier wraps long entries and the file's own warning prose matched the pattern it warned about.",
+      "removalGate": "Already removed. The ledger must be APPENDED to, never reordered, and counted with `.length` — a grep of this file has already reported both 20 and 28 against an actual 26, because prettier wraps long entries and the file's own warning prose matched the pattern it warned about.",
       "evidence": "packages/api/src/models/__tests__/retiredModelFiles.ts:93"
     },
     {
       "id": "dead-spend-credits-paid-first",
       "kind": "writer",
-      "name": "spendCreditsPaidFirst \u2014 TEST-ONLY",
+      "name": "spendCreditsPaidFirst — TEST-ONLY",
       "currentPath": "packages/api/src/db/billing/userCreditsRepository.ts",
       "summary": "A credit-deduction statement with no production caller. Only db/__tests__/billingRepository.pgdb.test.ts:332 invokes it.",
       "billingClass": "alia-product-entitlement",
@@ -1171,7 +1163,7 @@
     {
       "id": "dead-get-user-credits",
       "kind": "reader",
-      "name": "credits-manager.getUserCredits \u2014 TEST-ONLY",
+      "name": "credits-manager.getUserCredits — TEST-ONLY",
       "currentPath": "packages/api/src/lib/credits-manager.ts",
       "summary": "Returns {free, paid, total} for a user. No production caller; only credits-manager.pgdb.test.ts. Live balance reads go through lib/user-credits-helpers.ts getRefreshedUserCredits instead.",
       "billingClass": "alia-product-entitlement",
@@ -1193,7 +1185,7 @@
     "_countNotes": {
       "models": "Legacy models remaining in the data/billing scope. MEASURED zero: all ten were retired by slice S3.",
       "billingModels": "Postgres tables in scope, counted from `pgTable(` declarations: 5 providers/catalogue + 7 billing + 3 usage + 2 developers + 2 telemetry = 19.",
-      "providerSecretFields": "Columns holding credential material: provider_keys.key (PLAINTEXT), provider_keys.key_hash (exact-match oracle), developer_api_keys.key_hash (exact-match oracle). The two *_key_prefix columns are display-safe BY DESIGN and are excluded deliberately \u2014 but internal/providers/routes/providers.ts:145 derives its own prefix from the plaintext, which is a fourth exposure and is itemised as leak-x-key-used-header.",
+      "providerSecretFields": "Columns holding credential material: provider_keys.key (PLAINTEXT), provider_keys.key_hash (exact-match oracle), developer_api_keys.key_hash (exact-match oracle). The two *_key_prefix columns are display-safe BY DESIGN and are excluded deliberately — but internal/providers/routes/providers.ts:145 derives its own prefix from the plaintext, which is a fourth exposure and is itemised as leak-x-key-used-header.",
       "readers": "87 distinct file paths appearing in any item's `readers`, deduplicated after stripping parenthetical/line annotations. Includes the 17 db/ repository files (the statement layer) and 9 frontend files found by endpoint-grep; the backend application-layer reader count is therefore lower, and the frontend portion is the weakest-evidence part of the census.",
       "writers": "31 distinct file paths across all items' `writers`. 24 of the 87 readers are also writers. Of these 31, the following are UNREACHABLE in the running service and are counted anyway because they are live source: the 12 internal/providers/routes/* files (unmounted router) and the 4 seed-*.ts files (runStartupSeed has no caller).",
       "items": "57 items: 19 tables, 11 fields/tuples, 10 migrations, 9 billing concepts, 4 readers, 3 writers, 1 model-ledger entry.",

@@ -61,7 +61,7 @@ rather than an investigation.
 ## The chat runtime
 
 `/alia/chat` and `/v1/chat/completions` are served by the **same handler**
-(`handleChatCompletions`), so the app and Codea cannot drift apart in behaviour.
+(`handleChatCompletions`), so the app cannot drift apart in behaviour.
 Both are registered in [`packages/api/src/index.ts`](packages/api/src/index.ts) with the
 same auth (`authenticateTokenOrApiKey` plus a per-key rate limit); they differ in CORS —
 `/v1` answers any origin, `/alia/chat` only Alia's own.
@@ -75,7 +75,7 @@ Three roles, none a subset of another
 - **Alia** is the assistant, with its own **permanent product API**: `api.alia.onl/v1/*`
   and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`)
   plus `/conversations`, `/shows`, `/skills`, `/agents` and `/catalogue`. Three groups
-  call it, all authorized by Oxy: Alia's own surfaces (the app, Codea — extension and CLI —
+  call it, all authorized by Oxy: Alia's own surfaces (the app — extension and CLI —
   on `/alia/chat` with the user's Oxy session), other applications in the Oxy
   ecosystem, and third parties through `@alia.onl/sdk`. It accepts an OpenAI-compatible
   request shape and streams `alia.*` product events. It does not sunset.

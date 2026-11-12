@@ -69,27 +69,6 @@
       "after": "11.1.0"
     },
     {
-      "path": "packages/alia-codea-cli/package.json",
-      "section": "dependencies",
-      "name": "@oxy.so/core",
-      "before": "^4.0.0",
-      "after": "4.2.0"
-    },
-    {
-      "path": "packages/alia-codea/package.json",
-      "section": "dependencies",
-      "name": "@oxy.so/core",
-      "before": "^4.0.0",
-      "after": "4.2.0"
-    },
-    {
-      "path": "packages/alia-codea/webview-ui/package.json",
-      "section": "dependencies",
-      "name": "@oxy.so/bloom",
-      "before": "^6.3.0",
-      "after": "6.2.1"
-    },
-    {
       "path": "packages/alia-computer-host/package.json",
       "section": "devDependencies",
       "name": "@oxy.so/core",
@@ -158,18 +137,6 @@
     {
       "path": "packages/alia-canvas/package.json",
       "sha256": "b27e80722b874028a3e8d07fe3dff5941aee4d579bb61ae300168e6008d59dea"
-    },
-    {
-      "path": "packages/alia-codea-cli/package.json",
-      "sha256": "c14eda165ae110355af8daeb66bf46b120ce5772e2a69fdc855e37e24b8f7ed6"
-    },
-    {
-      "path": "packages/alia-codea/package.json",
-      "sha256": "c658d135d3571e3b6724435d8d147ff5d65ebee4d6c046197ee82ba1e8502110"
-    },
-    {
-      "path": "packages/alia-codea/webview-ui/package.json",
-      "sha256": "ad0587394d49fa2308ea29f098c3de8519a429caff40aa85d410ba747e9a924c"
     },
     {
       "path": "packages/alia-computer-host/package.json",

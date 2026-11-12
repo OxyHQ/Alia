@@ -113,107 +113,6 @@
         "nativewind",
       ],
     },
-    "packages/alia-codea": {
-      "name": "alia-codea",
-      "version": "1.0.7",
-      "dependencies": {
-        "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
-        "jwt-decode": "^4.0.0",
-        "openai": "^6.46.0",
-      },
-      "devDependencies": {
-        "@types/node": "^20.19.43",
-        "@types/vscode": "^1.125.0",
-        "@vscode/vsce": "^2.32.0",
-        "esbuild": "^0.28.1",
-        "typescript": "^5.9.3",
-        "vitest": "^4.1.10",
-      },
-    },
-    "packages/alia-codea-cli": {
-      "name": "@alia-codea/cli",
-      "version": "2.0.2",
-      "bin": {
-        "codea": "./dist/index.js",
-      },
-      "dependencies": {
-        "@oxy.so/core": "file:/home/nate/Oxy/.agent-evidence/i04-consumer-frozen-1b-packs/oxy.so-core-4.2.0.tgz",
-        "chalk": "^5.6.2",
-        "commander": "^15.0.0",
-        "conf": "^15.1.0",
-        "ink": "^7.1.0",
-        "ink-spinner": "^5.0.0",
-        "ink-text-input": "^6.0.0",
-        "marked": "^18.0.6",
-        "marked-terminal": "^7.3.0",
-        "openai": "^6.46.0",
-        "qrcode": "^1.5.4",
-        "react": "19.2.0",
-      },
-      "devDependencies": {
-        "@eslint/js": "^10.0.1",
-        "@types/node": "^22.20.1",
-        "@types/react": "^19.2.17",
-        "eslint": "^10.7.0",
-        "eslint-plugin-react-hooks": "^7.1.1",
-        "globals": "^17.7.0",
-        "tsup": "^8.5.1",
-        "typescript": "^5.9.3",
-        "typescript-eslint": "^8.64.0",
-      },
-    },
-    "packages/alia-codea/webview-ui": {
-      "name": "webview-ui",
-      "version": "0.0.0",
-      "dependencies": {
-        "@base-ui/react": "^1.6.0",
-        "@hugeicons/core-free-icons": "^4.2.2",
-        "@hugeicons/react": "^1.1.9",
-        "@oxy.so/bloom": "^6.3.0",
-        "@radix-ui/react-alert-dialog": "^1.1.19",
-        "@radix-ui/react-avatar": "^1.2.2",
-        "@radix-ui/react-dialog": "^1.1.19",
-        "@radix-ui/react-dropdown-menu": "^2.1.20",
-        "@radix-ui/react-popover": "^1.1.19",
-        "@radix-ui/react-scroll-area": "^1.2.14",
-        "@radix-ui/react-separator": "^1.1.11",
-        "@radix-ui/react-slot": "^1.3.0",
-        "@radix-ui/react-toast": "^1.2.19",
-        "@radix-ui/react-tooltip": "^1.2.12",
-        "@tailwindcss/typography": "^0.5.20",
-        "@tailwindcss/vite": "^4.3.2",
-        "class-variance-authority": "^0.7.1",
-        "clsx": "^2.1.1",
-        "cmdk": "^1.1.1",
-        "lucide-react": "^1.24.0",
-        "radix-ui": "^1.6.2",
-        "react": "^19.2.3",
-        "react-dom": "^19.2.3",
-        "react-markdown": "^10.1.0",
-        "react-native-web": "^0.21.2",
-        "shadcn": "^4.13.0",
-        "sonner": "^2.0.7",
-        "tailwind-merge": "^3.6.0",
-        "tailwindcss": "^4.3.2",
-        "tw-animate-css": "^1.4.0",
-        "vaul": "^1.1.2",
-      },
-      "devDependencies": {
-        "@eslint/js": "^10.0.1",
-        "@types/node": "^24.13.3",
-        "@types/react": "^19.2.17",
-        "@types/react-dom": "^19.2.3",
-        "@vitejs/plugin-react": "^5.2.0",
-        "eslint": "^10.7.0",
-        "eslint-plugin-react-hooks": "^7.1.1",
-        "eslint-plugin-react-refresh": "^0.5.3",
-        "globals": "^17.7.0",
-        "typescript": "~5.9.3",
-        "typescript-eslint": "^8.64.0",
-        "vite": "npm:rolldown-vite@^7.3.1",
-        "vite-plugin-react-native-web": "^3.2.0",
-      },
-    },
     "packages/alia-computer-host": {
       "name": "@alia/computer-host",
       "version": "0.1.0",
@@ -500,7 +399,6 @@
 
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.0", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-p+CMKJ93HFmLkjXKlXiVGlMQEuRb6H0MokBSwUsX+S6BRX8eV5naFZpQJFfJHjRZY0Hmnqy1/r6UWl3x+19zYA=="],
 
-    "@alia-codea/cli": ["@alia-codea/cli@workspace:packages/alia-codea-cli"],
 
     "@alia.onl/sdk": ["@alia.onl/sdk@workspace:packages/alia-chat"],
 
@@ -1878,7 +1776,6 @@
 
     "alia-canvas": ["alia-canvas@workspace:packages/alia-canvas"],
 
-    "alia-codea": ["alia-codea@workspace:packages/alia-codea"],
 
 
     "anser": ["anser@1.4.10", "", {}, "sha512-hCv9AqTQ8ycjpSd3upOJd7vFwW1JaoYQ7tpham03GJ1ca8/65rqn0RpaWpItOAd6ylW9wAw6luXYPJIyPFVOww=="],
@@ -4411,7 +4308,6 @@
 
     "websocket": ["websocket@1.0.35", "", { "dependencies": { "bufferutil": "^4.0.1", "debug": "^2.2.0", "es5-ext": "^0.10.63", "typedarray-to-buffer": "^3.1.5", "utf-8-validate": "^5.0.2", "yaeti": "^0.0.6" } }, "sha512-/REy6amwPZl44DDzvRCkaI1q1bIiQB0mEFQLUrhz3z2EK91cp3n72rAjUlrTP0zV22HJIUOVHQGPxhFRjxjt+Q=="],
 
-    "webview-ui": ["webview-ui@workspace:packages/alia-codea/webview-ui"],
 
     "whatwg-encoding": ["whatwg-encoding@3.1.1", "", { "dependencies": { "iconv-lite": "0.6.3" } }, "sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ=="],
 
@@ -5095,7 +4991,6 @@
 
     "alia-canvas/tailwindcss": ["tailwindcss@4.3.2", "", {}, "sha512-WtctNNSH8A9jlMIqxzuYumOHU5uGZyRv0Q5svQl+oEPy5w84YpBxdb7MdqyiSPQge5jTJ6zFQLq0PFygdccSBA=="],
 
-    "alia-codea/@types/node": ["@types/node@20.19.43", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA=="],
 
 
 
