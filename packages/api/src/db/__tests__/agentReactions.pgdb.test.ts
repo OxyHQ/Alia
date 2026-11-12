@@ -26,6 +26,7 @@ import {
   mutateMessageReaction,
   ReactionMutationConflict,
   listAgentReactionTargets,
+  listAgentReactionTurnSnapshots,
 } from '../chat/reactionRepository';
 import { lockMessageThread } from '../chat/messageLock';
 import { TEST_CHARACTER } from './support/agent-character';
@@ -113,6 +114,104 @@ async function fixture(direct = false) {
 }
 
 describe('authored agent reactions', () => {
+  it('replays the completed turn receipt targets outside the recent window with current snapshots', async () => {
+    const f = await fixture();
+    await f.react('old-person');
+    await f.react('old-peer', true, '👍', 'peer');
+    expect(
+      await markAgentReactionTurnComplete(
+        db,
+        f.userId,
+        f.conversationId,
+        f.first.id,
+        'admitted-turn',
+        { id: 'person', content: 'Gracias' },
+      ),
+    ).toBe(true);
+    await insertMessages(
+      db,
+      Array.from({ length: 30 }, (_, index) => ({
+        oxyUserId: f.userId,
+        conversationId: f.conversationId,
+        clientMessageId: `later-${index}`,
+        role: 'assistant' as const,
+        content: 'Later reply',
+        seq: index + 2,
+        agentInfo: { ...f.second, handle: '', color: null, character: null },
+      })),
+    );
+    expect(
+      (await listAgentReactionTargets(db, f.userId, f.conversationId)).some(
+        (row) => row.id === 'person',
+      ),
+    ).toBe(false);
+    await f.react('remove-old', false, '❤️', 'person', f.first, 'later-turn');
+    const replay = await listAgentReactionTurnSnapshots(
+      db,
+      f.userId,
+      f.conversationId,
+      f.first.id,
+      'admitted-turn',
+    );
+    expect(replay).toHaveLength(2);
+    expect(replay.find((row) => row.messageId === 'person')).toMatchObject({
+      reactions: [],
+      reactionEntries: [],
+      revision: 2,
+      mutationId: 'admitted-turn',
+    });
+    expect(replay.find((row) => row.messageId === 'peer')?.reactionEntries).toEqual([
+      { emoji: '👍', author: { kind: 'agent', ...f.first } },
+    ]);
+    expect(
+      await listAgentReactionTurnSnapshots(
+        db,
+        'stranger',
+        f.conversationId,
+        f.first.id,
+        'admitted-turn',
+      ),
+    ).toEqual([]);
+    expect(
+      await listAgentReactionTurnSnapshots(
+        db,
+        f.userId,
+        f.conversationId,
+        f.second.id,
+        'admitted-turn',
+      ),
+    ).toEqual([]);
+    const stored = await listMessages(db, f.userId, f.conversationId);
+    await replaceMessages(
+      db,
+      f.userId,
+      f.conversationId,
+      stored
+        .filter((row) => row.clientMessageId !== 'person')
+        .map((row) => ({
+          clientMessageId: row.clientMessageId ?? row.id,
+          role: row.role as 'assistant',
+          content: row.content as string,
+          agentInfo: {
+            id: row.clientMessageId === 'peer' ? f.first.id : f.second.id,
+            name: 'Replacement',
+            handle: '',
+            color: null,
+            character: null,
+          },
+        })),
+    );
+    expect(
+      await listAgentReactionTurnSnapshots(
+        db,
+        f.userId,
+        f.conversationId,
+        f.first.id,
+        'admitted-turn',
+      ),
+    ).toEqual([]);
+  });
+
   it('rejects mutations queued behind a newer user write and reused target authorship', async () => {
     const f = await fixture();
     let admit: () => void = () => {};
