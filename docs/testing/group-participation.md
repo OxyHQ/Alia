@@ -21,14 +21,16 @@ Do not borrow the app's `DATABASE_URL` to make an evaluation run.
 
 ## Run the real-inference selector evaluation
 
-With `AWS_PROFILE` already set to the approved Alia development workload:
+Use the approved Alia workload credential chain. Locally, `AWS_PROFILE` may select its development
+role; an approved runtime can instead use its temporary task-role credentials. Start with a smoke run:
 
 ```bash
-OXY_API_URL=https://api.oxy.so bun run --filter @alia/api test --config vitest.room-eval.config.ts
+RUN_ROOM_SELECTION_EVAL=1 OXY_API_URL=https://api.oxy.so bun run --filter @alia/api test --config vitest.room-eval.config.ts
 ```
 
-The default is ten repetitions per case. `ROOM_EVAL_REPETITIONS=1` is a smoke run, not acceptance.
-The runner fails early if workload authentication fails, never prints token values or raw SDK
+The default is **one repetition per case**, a smoke run rather than release acceptance. Add
+`ROOM_EVAL_REPETITIONS=10` for the repeated acceptance run; it makes 260 real selector calls and
+can take tens of minutes. The runner fails early if workload authentication fails, never prints token values or raw SDK
 errors, and reports case outcomes, latencies, resolved model references and token counts. It calls
 `selectRoomDecision`; it does not mock inference, duplicate the selection prompt or execute an
 agent. Local credit mutations are disabled; token counts describe real inference usage, not a
