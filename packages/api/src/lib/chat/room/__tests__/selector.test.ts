@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RoomSelectionInput } from '../decision.js';
 
 const h = vi.hoisted(() => ({
   generate: vi.fn(),
@@ -60,10 +61,28 @@ beforeEach(() => {
     usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
   });
 });
+afterEach(() => vi.restoreAllMocks());
+
+async function assertParentCancels(selection: RoomSelectionInput) {
+  const parent = new AbortController();
+  const reason = new DOMException('Parent turn cancelled', 'AbortError');
+  h.generate.mockImplementationOnce(
+    ({ abortSignal }: { abortSignal: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        abortSignal.addEventListener('abort', () => reject(abortSignal.reason), { once: true });
+        parent.abort(reason);
+      }),
+  );
+  await expect(selectRoomDecision({ ...selection, signal: parent.signal })).rejects.toBe(reason);
+  expect(h.refund).toHaveBeenCalledOnce();
+  expect(h.settle).not.toHaveBeenCalled();
+}
 
 describe('room selection inference accounting', () => {
   it('uses bounded structured inference with no tools and settles actual served-model usage', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     expect((await selectRoomDecision(input)).agentId).toBe('e');
+    expect(timeout).toHaveBeenCalledWith(30_000);
     expect(h.defaultModel).toHaveBeenCalledOnce();
     expect(h.utilityModel).not.toHaveBeenCalled();
     expect(h.model).toHaveBeenCalledWith({ modelId: 'auto' }, 'agent_run');
@@ -92,6 +111,10 @@ describe('room selection inference accounting', () => {
       'served/model',
     );
     expect(h.refund).not.toHaveBeenCalled();
+  });
+
+  it('lets parent cancellation preempt the general planning deadline', async () => {
+    await assertParentCancels(input);
   });
 
   it('does not infer without credits', async () => {
@@ -173,7 +196,9 @@ describe('reaction selection generation contract', () => {
   ])('maps the sole inference choice $action to its exact validated outcome', async (expected) => {
     // This tests the generation contract and authority boundary, not model semantics.
     h.generate.mockResolvedValue({ object: { action: expected.action }, usage: {} });
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     expect(await selectRoomDecision(reaction)).toEqual(expected);
+    expect(timeout).toHaveBeenCalledWith(10_000);
     expect(h.utilityModel).toHaveBeenCalledOnce();
     expect(h.defaultModel).not.toHaveBeenCalled();
     expect(h.model).toHaveBeenCalledWith({ modelId: 'instant' }, 'agent_run');
@@ -191,6 +216,10 @@ describe('reaction selection generation contract', () => {
     expect(data).not.toHaveProperty('remainingHandoffs');
     expect(h.settle).toHaveBeenCalledOnce();
     expect(h.refund).not.toHaveBeenCalled();
+  });
+
+  it('lets parent cancellation preempt the short feedback deadline too', async () => {
+    await assertParentCancels(reaction);
   });
 
   it('never lets model-supplied identity or reason widen the reaction recipient', async () => {
