@@ -4,6 +4,7 @@ Status: Accepted (2026-11-09, the owner's decision: the agents of a group chat l
 real-time room where they talk to each other "como un chat de grupo de una app de chat").
 Date: 2026-11-09.
 Revised: 2026-11-12 — natural participation and deliberate silence, approved by the owner.
+Extended: 2026-11-12 — durable reaction feedback and selective observation, approved by the owner.
 
 ## Context
 
@@ -92,7 +93,44 @@ claim that Alia reproduces Grok Bot's internal implementation.
 10. **A stored reply is the execution record.** Keep
     `group-reply-<person message id>-<turn>` IDs. A retried speaking job finds its existing reply
     before running the actor, and the saver preserves replies the client has not seen yet.
-    Selection and execution require no database schema migration or new public request fields.
+    The original message-driven selection and execution change required no database schema
+    migration or new public request fields. Reaction observations below add their own durable state.
+
+### Reaction observations
+
+A heart that exists only in the UI is not conversation feedback: the actor cannot perceive it,
+and replacing the message rows can erase it. Persist reactions independently of replaceable row
+UUIDs, keyed by owner, conversation and stable message ID. Store the attributed recipient,
+current emoji set and monotonic revision; use the stored actor identity rather than client-supplied
+display metadata. Ordinary turns receive this authoritative context, including an empty set after
+removal. A reaction is data, never a user-authored instruction, task or tool approval.
+
+An added reaction to a reachable hosted agent may produce **at most one useful response by that
+recipient**, in direct chats as well as groups. Reuse the room selector and actor runner with an
+explicit reaction trigger. Simple appreciation can end silently, without forced thanks or visible
+agent activity. Do not hand off or run other members. Alia, external agents and unavailable
+recipients retain feedback without immediate observation execution. A selected observation runs
+without tools, delegation or memory writes; no requester bearer or new tool authority is retained.
+The mutation edge checks reach, and workers recheck membership and application boundaries.
+
+The existing reaction endpoint accepts explicit `active` plus a UUID `mutationId`, while retaining
+legacy toggle input. A transaction commits canonical feedback, revision and an idempotency receipt,
+including no-ops, together with any eligible observation. A Postgres outbox dispatcher uses
+renewable leases and persists its decision before execution; it does not put a new payload on
+queues consumed by older room workers. Coalesce rapid taps before selecting. Share the room lock,
+defer while durable activity markers indicate a substantive turn, and cancel superseded work.
+The final reply transaction fences the live lease, current revision and activity against the same
+thread lock used by writes and turn admission. Recover a deterministic stored reply instead of
+regenerating it after a delivery retry. Silence and inference failure remain different outcomes.
+
+All message writers preserve canonical feedback across rewrites of the same target. Explicit
+target replacement or deletion clears it and cancels pending work; conversation deletion cascades
+the feedback and receipts. Minimal rolling-compatibility triggers mirror old reaction updates and
+restore old writers' inserted caches without creating response authority. The response and existing
+`conversation:reaction` socket event carry stable message ID, emoji set, revision and mutation ID;
+history carries `reactionRevision`. This is an event on the existing connection, not a new
+WebSocket route. [The runtime contract](../chat-runtime.mdx#reactions-are-conversation-feedback)
+defines the fields and recovery behavior.
 
 ### Bounds
 
@@ -156,3 +194,8 @@ claim that Alia reproduces Grok Bot's internal implementation.
   continued work and SSE/socket reconciliation without empty or duplicate messages.
 - Postgres checks exercise the existing stored actor IDs and reply identities. Real inference and
   multi-instance Redis acceptance follow the [group participation evaluation](../testing/group-participation.md).
+- Reaction persistence checks passed against real Postgres: idempotent no-op receipts, rapid
+  add/remove, stable legacy IDs, concurrent rewrites, actual legacy updates, lease recovery,
+  activity exclusion, guarded reply commit and deletion. Selector mocks establish control flow,
+  not natural emoji understanding; reaction inference and signed-in UI acceptance require their
+  own recorded results rather than inheriting the earlier message-participation acceptance.
