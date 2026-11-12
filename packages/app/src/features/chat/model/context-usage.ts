@@ -4,7 +4,7 @@ type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 /**
  * What one turn put in the model's context window, by category, as the API's
- * `alia.context` event reports it (`packages/api/src/lib/chat/context-breakdown.ts`).
+ * `alia.context` event reports it (`packages/api/src/lib/chat/context-breakdown.ts` in OxyHQ/Gemies).
  * Estimates of the turn as sent; the card shows proportions.
  */
 export interface ContextUsage {

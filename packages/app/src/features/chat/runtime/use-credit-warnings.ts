@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 
 /**
  * The spending warning the server attaches to a turn's usage frame
- * (`alia_usage.credit_warning`, `packages/api/src/lib/credit-anomaly.ts`):
+ * (`alia_usage.credit_warning`, `packages/api/src/lib/credit-anomaly.ts` in OxyHQ/Gemies):
  * today's spend is at least twice the week's daily average.
  */
 export interface UsageWarning {

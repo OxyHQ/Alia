@@ -7,7 +7,7 @@
  * bug happened. `buffer` was correctly declared outside the loop, so a line
  * split across two `reader.read()` calls survived — but `currentEventType` was
  * declared INSIDE it and reset to `''` on every chunk. A frame is
- * `event: X\ndata: {…}\n\n` (`packages/api/src/lib/sse-emitter.ts:24`), and a
+ * `event: X\ndata: {…}\n\n` (`packages/api/src/lib/sse-emitter.ts` in OxyHQ/Gemies), and a
  * chunk boundary falls wherever the network puts it, so any frame split between
  * its `event:` and `data:` lines arrived with its type forgotten. It then fell
  * through to the OpenAI-shaped branch, found no `choices[0]`, and was dropped

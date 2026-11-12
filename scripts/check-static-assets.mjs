@@ -4,9 +4,8 @@
  * `require('@/assets/images/agent-avatar-reference.png')` is typed `any` by
  * TypeScript, which never resolves the path — so a source file naming an image
  * that has been deleted passes `Frontend Typecheck`, passes every test suite,
- * and fails in Metro at runtime. It is the same defect
- * `check-dockerfile-workspaces.mjs` exists for, one layer up: a reference and
- * the file it references are one fact, and splitting them across two changes
+ * and fails in Metro at runtime. A reference and the file it references are
+ * one fact, and splitting them across two changes
  * leaves a window in which the repository is green and the app is broken.
  *
  * That window opened here for real. The agent avatar's PNGs were deleted in one
@@ -15,9 +14,8 @@
  *
  * ## Discovered by walking, and by a pattern that is checked
  *
- * The files are walked rather than listed, for the reason the Dockerfile gate
- * records: a check that names its subject cannot see the subject nobody thought
- * to name.
+ * The files are walked rather than listed: a check that names its subject
+ * cannot see the subject nobody thought to name.
  *
  * The pattern gets the same suspicion. The first version of this scan was
  * written with `grep -E` and a backreference to match the quote — which `-E`

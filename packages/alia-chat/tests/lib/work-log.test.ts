@@ -34,7 +34,7 @@ const t = (key: string, params?: Record<string, unknown>) =>
 const faviconUrl = (url: string) => `https://api.clarity.surf/favicons/${new URL(url).hostname}`;
 const options = { t, faviconUrl };
 
-/** A `webSearch` result exactly as `packages/api/src/lib/tools/web-search.ts` returns it. */
+/** A `webSearch` result exactly as `packages/api/src/lib/tools/web-search.ts` in OxyHQ/Gemies returns it. */
 const search: ToolInvocation = {
   toolCallId: 's1',
   toolName: 'webSearch',

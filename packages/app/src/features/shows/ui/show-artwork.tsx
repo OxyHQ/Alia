@@ -9,7 +9,7 @@
  * ## Where the cover comes from
  *
  * Alia draws the cover and stores it as ALIA's own public file in Oxy Files
- * (`packages/api/src/lib/files/oxy-files.ts`); Syra is handed the same file id
+ * (`packages/api/src/lib/files/oxy-files.ts` in OxyHQ/Gemies); Syra is handed the same file id
  * as the podcast's artwork. So `coverFileId` is an Oxy file id, and it is
  * resolved through the app's ONE image chokepoint — Bloom's image resolver,
  * which `app/_layout.tsx` binds to `oxyServices.assets.publicUrl` — never by
@@ -20,7 +20,7 @@
  * Series made before covers moved hold `coverImageAssetId`: SYRA's image id,
  * served from Syra's PUBLIC `GET /api/images/:id`, which needs no credential.
  * It is read only when there is no `coverFileId` (the dual read of
- * `docs/oxy-files.md`), and it goes away once every series has moved.
+ * `docs/oxy-files.md` in OxyHQ/Gemies), and it goes away once every series has moved.
  *
  * A series whose cover could not be drawn has neither — an account out of
  * credits still gets its show, without art — so the placeholder is a real state

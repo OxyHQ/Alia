@@ -116,10 +116,12 @@ function for a header whose value changes on every request.
 
 ## Tests
 
-The test fixtures are not hand-written chunks. They are produced by the API's
-own SSE writers — `packages/api/src/lib/streaming-helpers.ts`,
-`.../chat/sse-writer.ts`, `.../sse-emitter.ts` — imported directly, so a change
-to what Alia puts on the wire fails this package's tests in the same commit.
+The test fixtures (`tests/wire.ts`) write the chat-completions wire byte for
+byte as the API's own SSE writers do. Those writers live in
+[OxyHQ/Gemies](https://github.com/OxyHQ/Gemies) with the backend
+(`packages/api/src/lib/streaming-helpers.ts`, `.../chat/sse-writer.ts`,
+`.../sse-emitter.ts`), where this client's suite runs against them directly, so
+a change to what the API puts on the wire fails there in the same commit.
 
 ```sh
 bun run typecheck
@@ -157,4 +159,4 @@ without undoing work that already ran.
 Deploy the API receiver before adopting this producer. Delegated service/channel
 callers without a verifiable original actor must omit `turnId`; their existing
 chat remains supported, but they cannot use this cancellation lane. Details and
-settlement/retry limits: [explicit Stop](../../docs/explicit-chat-stop.md).
+settlement/retry limits: [explicit Stop](https://github.com/OxyHQ/Gemies/blob/main/docs/explicit-chat-stop.md) (OxyHQ/Gemies).

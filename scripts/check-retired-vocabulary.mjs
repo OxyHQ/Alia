@@ -11,8 +11,7 @@
  *     application binding on an agent (ADR 0021 keeps it deleted: where an
  *     agent opens is Oxy's fact, read live, never an Alia column).
  *
- * Records of the past keep their words: ADRs, audits, migration inventories,
- * changelogs and applied migrations are history, not code. Every pattern is
+ * Records of the past keep their words: changelogs are history, not code. Every pattern is
  * spelled in pieces so this file does not match itself.
  */
 import { execFileSync } from 'node:child_process';
@@ -28,20 +27,16 @@ const tracked = execFileSync('git', ['ls-files', '--cached', '--others', '--excl
 
 const SELF = 'scripts/check-retired-vocabulary.mjs';
 
-const immutableMigration = /^packages\/api\/drizzle\/(?:meta\/)?00(?:[0-5][0-9]|6[01])_/;
 const retiredProductRoutes = new RegExp(
   `(?:${'kaana'}|${'alia'})-(?:lite|v1(?:-[a-z0-9-]+)?)`,
   'g',
 );
 
-/** History that names the lane on purpose. */
-const laneHistory = [
-  /^docs\/adr\//,
-  /^docs\/audits\//,
-  /^docs\/migration\//,
-  /(?:^|\/)CHANGELOG\.md$/,
-  /^packages\/api\/drizzle\//,
-];
+/**
+ * History that names the lane on purpose. The ADRs, audits and migration
+ * inventories that also did moved to OxyHQ/Gemies with the backend.
+ */
+const laneHistory = [/(?:^|\/)CHANGELOG\.md$/];
 const retiredLane = new RegExp(
   [
     `native-${'product-agent'}`,
@@ -55,28 +50,19 @@ const retiredLane = new RegExp(
   'g',
 );
 
-/** What an agent is, on the server and on the wire: no application binding. */
-const agentSchemas = [
-  'packages/api/src/db/schema/agents.ts',
-  'packages/api/src/db/agents/agentRepository.ts',
-  'packages/app/src/shared/contracts/agents.ts',
-];
+/**
+ * What an agent is on the wire, as the app reads it: no application binding.
+ * The server's schema and repository moved to OxyHQ/Gemies with the backend on
+ * 2026-11-12, and carry the same check there.
+ */
+const agentSchemas = ['packages/app/src/shared/contracts/agents.ts'];
 const applicationBinding = new RegExp(`application${'Id'}|application${'_id'}`, 'g');
 
 const failures = [];
 
-/**
- * A deploy's removal list names what it strips from the live task definition,
- * because the deploy copies live configuration forward: the retired variable
- * must be spelled there for it to leave production at all.
- */
-const removalList = /TASK_CONFIGURATION_REMOVALS_JSON/;
-
 function report(file, source, pattern, why) {
-  const lines = source.split('\n');
   for (const match of source.matchAll(pattern)) {
     const line = source.slice(0, match.index).split('\n').length;
-    if (removalList.test(lines[line - 1] ?? '')) continue;
     failures.push(`${file}:${line}: ${match[0]} (${why})`);
   }
 }
@@ -88,9 +74,7 @@ for (const file of tracked) {
   // change. A deletion cannot introduce retired vocabulary.
   if (!existsSync(url)) continue;
   const source = readFileSync(url, 'utf8');
-  if (!immutableMigration.test(file)) {
-    report(file, source, retiredProductRoutes, 'retired product route');
-  }
+  report(file, source, retiredProductRoutes, 'retired product route');
   if (!laneHistory.some((history) => history.test(file))) {
     report(file, source, retiredLane, 'retired native-product-agent lane, ADR 0020 §8');
   }

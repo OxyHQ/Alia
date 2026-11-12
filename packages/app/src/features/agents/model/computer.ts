@@ -1,6 +1,6 @@
 /**
  * The agent's computer as the app receives it from `GET /agents/:id/computer`
- * and its siblings (`packages/api/src/routes/agents/computer.ts`). Always the
+ * and its siblings (`packages/api/src/routes/agents/computer.ts` in OxyHQ/Gemies). Always the
  * caller's OWN computer with that agent: the API composes it from the signed-in
  * person, so nothing here names a person.
  */

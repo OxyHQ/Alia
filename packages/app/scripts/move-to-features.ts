@@ -28,7 +28,7 @@
  *     they are written as file paths: inside `packages/app` as
  *     `components/x.tsx` or `packages/app/components/x.tsx`; elsewhere in the
  *     repo only in the prefixed form, since an unprefixed `lib/config.ts` in
- *     `packages/api` is the API's own. `--scope` limits this: `app` (the
+ *     `packages/api` (now in OxyHQ/Gemies) was the API's own. `--scope` limits this: `app` (the
  *     package), `repo` (every tracked file outside the package and `docs/`),
  *     `docs` (`docs/`, less the dated `docs/superpowers/` plans). Default: all
  *     three. On a tree already moved, `--from=<rev>` (a commit before the move)

@@ -22,7 +22,7 @@ import { acquireNotificationsSocket } from '@/features/notifications/runtime/not
 import { queryKeys } from '@/shared/api/query-keys';
 import { collectDeviceInfo } from '@/shared/platform/device-info';
 
-/** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
+/** Server tools that mutate the user's memory document (see `packages/api/src/lib/tools/user-memory.ts` in OxyHQ/Gemies). */
 const MEMORY_WRITING_TOOLS = new Set([
   'saveUserMemory',
   'updateUserMemory',

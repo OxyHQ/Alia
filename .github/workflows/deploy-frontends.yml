@@ -1,13 +1,13 @@
 name: Deploy Frontends
 
 on:
-  # After CI passes on a push to main, never alongside it — the same trigger and
-  # guards as deploy-aws.yml, owned by the `scope` job below. Until 2026-10 this
-  # ran on `push`, so a commit whose CI went red still shipped its frontends.
+  # After CI passes on a push to main, never alongside it, with the guards owned
+  # by the `scope` job below. Until 2026-10 this ran on `push`, so a commit
+  # whose CI went red still shipped its frontends.
   #
-  # Neither half waits for the other: the frontends are gated on CI, not on the
-  # API's rollout, exactly as unordered as they were on `push`. Ship both halves
-  # through the pipeline or both by hand (~/Oxy/docs/infra-and-deploys.md).
+  # The API ships from OxyHQ/Gemies since 2026-11-12, and nothing orders the two:
+  # a frontend that needs a new API must wait for that API to be live
+  # (~/Oxy/docs/infra-and-deploys.md).
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -15,15 +15,16 @@ on:
   # Releases both frontends from main's head, and only once CI succeeded for it.
   workflow_dispatch:
 
-# Checkout and the bun cache need nothing more: wrangler authenticates with the
-# Cloudflare credentials below, never with the job token, and the cache is
-# authorised by the Actions runtime rather than by this scope. `scope` adds
+# Checkout and the release-marker cache need nothing more: wrangler
+# authenticates with the Cloudflare credentials below, never with the job token,
+# and the cache is authorised by the Actions runtime rather than by this scope. `scope` adds
 # `actions: read` for itself.
 permissions:
   contents: read
 
 env:
-  # The commit under release; see the same variable in deploy-aws.yml.
+  # The commit under release: CI's head commit on `workflow_run`, the
+  # dispatched commit otherwise.
   RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
@@ -46,33 +47,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           # The one pin is `packageManager` in package.json; scripts/check-bun-pin.mjs
-          # holds every setup-bun step and Docker image to it.
+          # holds every setup-bun step to it.
           bun-version-file: package.json
-      # The git dependency `libsignal` is fetched from GitHub unauthenticated and
-      # cannot be authenticated; a warm cache is what stops that request being
-      # made. See the comment at the top of ci.yml for the measurement, and
-      # .github/scripts/check-bun-cache-wiring.mjs, which fails if this is removed.
-      - name: Cache bun install cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-cache-${{ runner.os }}-
-
       # --frozen-lockfile: bun.lock is installed verbatim or the step fails.
-      # --ignore-scripts skips the electron/playwright/node-pty postinstalls
-      # of the other workspaces, which hang deploys.
+      # --ignore-scripts: the web builds need no install script.
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       - name: Build app
         run: bun run build:app
         env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
           NODE_OPTIONS: '--max-old-space-size=4096'
           NODE_ENV: production
       # A WORKER, not a Pages project — same reason as canvas below. A Pages
@@ -97,8 +80,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      # The scope job's base for the next release; see the same step in
-      # deploy-aws.yml.
+      # The scope job's base for the next release (deploy-scope.sh `target`).
       - name: Write the release marker
         run: printf '%s\n' "$RELEASE_SHA" >"$RUNNER_TEMP/release-marker"
       - name: Record this release for the next scope decision
@@ -126,33 +108,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           # The one pin is `packageManager` in package.json; scripts/check-bun-pin.mjs
-          # holds every setup-bun step and Docker image to it.
+          # holds every setup-bun step to it.
           bun-version-file: package.json
-      # The git dependency `libsignal` is fetched from GitHub unauthenticated and
-      # cannot be authenticated; a warm cache is what stops that request being
-      # made. See the comment at the top of ci.yml for the measurement, and
-      # .github/scripts/check-bun-cache-wiring.mjs, which fails if this is removed.
-      - name: Cache bun install cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-cache-${{ runner.os }}-
-
       # --frozen-lockfile: bun.lock is installed verbatim or the step fails.
-      # --ignore-scripts skips the electron/playwright/node-pty postinstalls
-      # of the other workspaces, which hang deploys.
+      # --ignore-scripts: the web builds need no install script.
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       - name: Build canvas
         run: bun run build:canvas
         env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
           NODE_ENV: production
           VITE_API_URL: https://api.alia.onl
       # A WORKER, not a Pages project. A Pages project always serves
@@ -202,8 +166,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      # The scope job's base for the next release; see the same step in
-      # deploy-aws.yml.
+      # The scope job's base for the next release (deploy-scope.sh `target`).
       - name: Write the release marker
         run: printf '%s\n' "$RELEASE_SHA" >"$RUNNER_TEMP/release-marker"
       - name: Record this release for the next scope decision

@@ -12,7 +12,7 @@ import {
  * What a `[n]` in a research answer turns into on screen.
  *
  * `normalizeCitationMarkers` is the SDK's copy of the API's
- * (`packages/api/src/lib/research/citations.ts`), kept for messages saved
+ * (`packages/api/src/lib/research/citations.ts` in OxyHQ/Gemies), kept for messages saved
  * before the API normalised its output; the marker cases here are the same
  * ones the API pins, so a drift between the two fails on both sides. The
  * rest is which sources a marker can resolve to (only the

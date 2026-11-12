@@ -2,207 +2,60 @@
 
 <p align="center">
   <b>Oxy's assistant: it acts for you in your Oxy apps, works in the background, and lets you create agents of your own.</b><br>
-  One chat runtime behind an app, a VS Code extension, a desktop client, a CLI and an HTTP API.
+  The Alia app (web, iOS, Android), the Canvas editor, and the SDK and server client published from them.
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@alia.onl/sdk"><img alt="@alia.onl/sdk" src="https://img.shields.io/npm/v/@alia.onl/sdk?style=flat-square&label=%40alia.onl%2Fsdk&labelColor=440151&color=D26AE7"></a>
   <img alt="Bun" src="https://img.shields.io/badge/bun-1.4.3-440151?style=flat-square&logo=bun&logoColor=white">
-  <img alt="Expo" src="https://img.shields.io/badge/Expo-57-440151?style=flat-square&logo=expo&logoColor=white">
+  <img alt="Expo" src="https://img.shields.io/badge/Expo-58-440151?style=flat-square&logo=expo&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-440151?style=flat-square&logo=typescript&logoColor=white">
 </p>
 
 ---
 
-<table>
-<tr>
-<td valign="top" width="50%">
-
-### 🧠 It remembers, and it learns
-
-Context is a persistent graph, not a chat log. `context_nodes`, `context_edges`,
-`context_sources` and `retrieval_strategies` are real PostgreSQL tables
-([`packages/api/src/db/schema/context-graph.ts`](packages/api/src/db/schema/context-graph.ts)),
-read through `db/autonomy/contextGraphRepository.ts`. Learned rules are `learning_rules`
-([`packages/api/src/db/schema/agents-support.ts`](packages/api/src/db/schema/agents-support.ts)),
-read through `db/autonomy/learningRuleRepository.ts`.
-
-The autonomy runtime classifies the intent, recalls context for it, and feeds the result
-of the run back in: `classifyIntent`, `recallContextForIntent` and `learnFromRun` in
-`packages/api/src/lib/autonomy/`.
-
-</td>
-<td valign="top" width="50%">
-
-### 🛡 Risk before action
-
-Every action an agent can take carries a risk level, `R0` through `R3`, decided in
-`packages/api/src/lib/agent/governance.ts`.
-
-Reversible writes leave a rollback record, so undoing an autonomous change is a lookup
-rather than an investigation.
-
-</td>
-</tr>
-</table>
-
 > [!IMPORTANT]
-> **Alia has no models of its own.** A person picks a power level (`auto` … `ultra`) and
-> Oxy picks the model ([ADR 0014](docs/adr/0014-people-choose-power-levels-not-models.md));
-> an API caller may name a real `<publisher>/<model>` from Oxy's catalogue (`GET /catalogue`,
-> filtered to text models with tools). The default,
-> featured, utility and speech models are computed from that catalogue and Alia's usage,
-> never hardcoded. Model and publisher names are shown. The operator serving a deployment
-> and deployment IDs stay off the **product surface** — product API responses, errors, the
-> UI, customer-facing analytics — and user-facing errors go through a sanitiser first. See
-> [ADR 0012](docs/adr/0012-alia-uses-real-models.md) and
-> [models in Alia](docs/model-abstraction.mdx).
-
-## The chat runtime
-
-`/alia/chat` and `/v1/chat/completions` are served by the **same handler**
-(`handleChatCompletions`), so the app and Codea cannot drift apart in behaviour.
-Both are registered in [`packages/api/src/index.ts`](packages/api/src/index.ts) with the
-same auth (`authenticateTokenOrApiKey` plus a per-key rate limit); they differ in CORS —
-`/v1` answers any origin, `/alia/chat` only Alia's own.
-
-Three roles, none a subset of another
-([ADR 0010](docs/adr/0010-alia-keeps-a-product-api-credentials-come-from-oxy-console.md)):
-
-- **Kaana** is the inference API — models only. Provider credentials live there.
-- **Oxy** is the platform and Oxy Console — accounts, applications, **all** API keys for
-  Alia, Kaana and Mention, billing.
-- **Alia** is the assistant, with its own **permanent product API**: `api.alia.onl/v1/*`
-  and `/alia/chat` (`chat/completions`, `models`, `responses`, `images`, `audio`)
-  plus `/conversations`, `/shows`, `/skills`, `/agents` and `/catalogue`. Three groups
-  call it, all authorized by Oxy: Alia's own surfaces (the app, Codea — extension and CLI —
-  on `/alia/chat` with the user's Oxy session), other applications in the Oxy
-  ecosystem, and third parties through `@alia.onl/sdk`. It accepts an OpenAI-compatible
-  request shape and streams `alia.*` product events. It does not sunset.
-
-For raw model access use Kaana through Oxy (`api.oxy.so/v1`); for the assistant use
-Alia's API. In both cases the key comes from Oxy Console — Alia issues none. Today Alia's
-API authenticates an Oxy user session or service token; the retired `alia_sk_*` keys are
-refused, and the Oxy Console application-key path is not built yet (ADR 0010 § 2).
-
-Hosted inference follows `Alia -> Oxy -> Kaana` through the published
-`OxyInferenceClient`. Alia stores no upstream provider credential, constructs no
-provider client, signs no Kaana envelope and has no direct-provider fallback.
-Kaana owns provider credentials and execution state in its PostgreSQL database.
-Oxy resolves identity, policy and the exact ordered deployments; Kaana executes
-only that signed order and performs failover only within it.
-
-Alia is present only when the feature is an assistant or agent with conversation
-state, memory, tools or its own bot identity. A bounded product-owned
-operation such as translate, classify, summarize, rewrite or smart reply uses
-`app -> Oxy -> Kaana` and does not detour through Alia. Sindi and Clarity are the
-other case: they are ordinary Alia agents that their apps open through the SDK, so
-their path is `app -> Alia agent -> Oxy -> Kaana`, paid by the person using them
-([ADR 0020](docs/adr/0020-every-agent-is-the-same-agent.md)).
-
-Alia’s Oxy-only inference boundary was deployed and read back on 2026-09-10 with
-Alia task definition `oxy-alia:311`: pre-phase migrations and the authenticated
-reviewed-profile readiness task completed, ECS reached a healthy two-of-two
-steady state, and post-deploy reconciliation succeeded. Public readback returned
-ready with the Oxy path configured, the intentionally empty `/v1/models`, and
-only reviewed profiles from `/catalogue` (since replaced by real models under
-[ADR 0012](docs/adr/0012-alia-uses-real-models.md)). The exclusive canonical Kaana origin
-is `https://kaana.ai`; Alia never configures that origin directly.
-
-Readiness alone does not prove that a provider can answer a chat. The
-[2026-09-12 incident record](docs/runbooks/provider-unavailable-2026-09-12.md)
-tracks generation checks, recovery changes, and the remaining service-token
-and Kaana credential-runtime rollout gates. The
-[2026-09-13 follow-up](docs/runbooks/groq-token-capacity-2026-09-13.md) records
-the separate long-context refusal and its verified serving backport.
-
-`/automations` is the normalized scheduling and control API for explicit actors,
-resources, actions, data flow and autonomy, run by one elected scheduler. Every task has
-an actor — Alia by default, or one of the person's agents ([actors](docs/actors.mdx)). The legacy
-`/triggers` model is gone. There is no backward-compatible model resolution endpoint —
-`POST /v1/resolve-model` and `POST /v1/report-usage` return `410 Gone`.
-
-## Storage
-
-PostgreSQL through drizzle is the primary store: 80 tables under
-[`packages/api/src/db/schema/`](packages/api/src/db/schema/), and the API exits at boot if
-it cannot connect. Readiness (`GET /health/ready`) issues a real statement against it.
-
-It is the only store: conversations and messages, agents and their sessions, teams and
-reviews, organizations, containers, skills, learning rules, rollback records, canvas
-sessions and event-stream entries all live in PostgreSQL.
-`packages/api/src/db/__tests__/bootWiring.test.ts` pins the boot wiring: the boot guards run
-before the socket opens, and the expiry sweeper and background services start unconditionally.
-
-`@alia/integrations` is on PostgreSQL too, under its own schema and its own migration
-ledger: the WhatsApp, Telegram and Signal gateways plus the MCP connector OAuth records.
-[`packages/integrations/src/db/__tests__/protectedReads.test.ts`](packages/integrations/src/db/__tests__/protectedReads.test.ts)
-pins how its protected columns are read. Its OAuth secrets are encrypted by the provider rather than by the
-column — plain `text` holding `iv:authTag:ciphertext` under the same
-`TOKEN_ENCRYPTION_KEY` the API uses — because that is the format they were already
-stored in and both processes have to keep agreeing on it.
+> **The backend lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** since 2026-11-12:
+> the API behind `api.alia.onl`, the integrations service, the agents' computer host, their
+> deploys, canaries, runbooks and architecture decision records
+> ([ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md)).
+> Backend changes go there, not here.
 
 ## Packages
 
-Seven workspaces, all under `packages/`. Codea — the VS Code extension and the CLI — lives
-in its own repository, [OxyHQ/Codea](https://github.com/OxyHQ/Codea), and calls this API.
+Four workspaces, all under `packages/`. Codea — the VS Code extension and the CLI — lives in
+its own repository, [OxyHQ/Codea](https://github.com/OxyHQ/Codea).
 
-<table>
-<tr>
-<td valign="top" width="50%">
+| Path | Package | Stack | Purpose |
+|---|---|---|---|
+| [`packages/app`](packages/app/) | `@alia/app` | Expo 58 | The Alia app: `alia.onl`, iOS and Android |
+| [`packages/alia-chat`](packages/alia-chat/) | `@alia.onl/sdk` | React | The client SDK: conversation screen, streaming, voice |
+| [`packages/alia-server`](packages/alia-server/) | `@alia.onl/server` | TypeScript | The server client a consumer backend calls Alia's API with |
+| [`packages/alia-canvas`](packages/alia-canvas/) | `alia-canvas` | Vite, React | The Canvas workflow editor (`canvas.alia.onl`) |
 
-**Runtime**
-
-| Path | Package | Stack |
-|---|---|---|
-| [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL |
-| [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, MCP client |
-
-**Surfaces**
-
-| Path | Package | Stack |
-|---|---|---|
-| [`packages/app`](packages/app/) | `@alia/app` | Expo 58, web and iOS and Android |
-
-</td>
-<td valign="top" width="50%">
-
-**Web**
-
-| Path | Package | Stack |
-|---|---|---|
-| [`packages/alia-canvas`](packages/alia-canvas/) | `alia-canvas` | Vite, React |
-
-**Shared**
-
-| Path | Package | Stack |
-|---|---|---|
-| [`packages/alia-chat`](packages/alia-chat/) | `@alia.onl/sdk` | React chat UI, voice, streaming |
+The two published packages stay here until `@gemies/sdk` and `@gemies/server` replace them
+(Gemies ADR 0034 §6).
 
 Identity comes from the Oxy platform rather than from a login system here:
 [`@oxy.so/services`](https://github.com/OxyHQ/oxy) and `@oxy.so/core`, with `@oxy.so/bloom`
 for shared UI. See [`docs/oxyhq-auth.md`](docs/oxyhq-auth.md).
 
-</td>
-</tr>
-</table>
+> [!IMPORTANT]
+> **Alia has no models of its own.** A person picks a power level (`auto` … `ultra`) and
+> Oxy picks the model. No client names a model: with nothing chosen a request carries no
+> `model` and the server's default answers (`scripts/check-model-defaults.mjs`). Model and
+> publisher names are shown; the operator serving a deployment and deployment IDs stay off
+> the product surface.
 
 ## Quick start
 
-The bun version is pinned in `packageManager` and CI installs that exact version. You also
-need a PostgreSQL instance — the API exits at boot without one. Nothing else is required:
-Redis is optional.
+The bun version is pinned in `packageManager` and CI installs that exact version.
 
 ```bash
 bun install
-bun run dev          # every workspace at once
-```
-
-More usefully, run only what you are working on:
-
-```bash
-bun run dev:api          bun run dev:app
-bun run dev:canvas       bun run dev:integrations
+cp packages/app/.env.example packages/app/.env   # EXPO_PUBLIC_API_URL points at the API
+bun run dev:app                                  # Expo (web + tunnel)
+bun run dev:canvas                               # Canvas
 ```
 
 The app has platform shortcuts at the root:
@@ -211,21 +64,11 @@ The app has platform shortcuts at the root:
 bun run web    # or ios, or android
 ```
 
-<details>
-<summary><b>Build and start scripts</b></summary>
-
-<br>
-
-`build` and `start` follow the same pattern as `dev`.
-
 | Group | Scripts |
 |---|---|
-| Build all | `bun run build` |
-| Build one | `build:app`, `build:api`, `build:canvas`, `build:integrations` |
-| Start one | `start:app`, `start:api`, `start:canvas`, `start:integrations` |
+| Build | `bun run build:app`, `bun run build:canvas` |
+| Start | `bun run start:app`, `bun run start:canvas` |
 | Lint / format (Biome) | `bun run lint` (check), `bun run lint:fix`, `bun run format` |
-
-</details>
 
 > [!WARNING]
 > **Bumping an Expo SDK version touches three files, not one.** The root `package.json`
@@ -236,38 +79,17 @@ bun run web    # or ios, or android
 
 ## Documentation
 
-<table>
-<tr>
-<td valign="top" width="50%">
-
 | Doc | Subject |
 |---|---|
-| [Onboarding](docs/onboarding.md) | **Start here if you are new** |
-| [Overview](docs/index.mdx) | What Alia is, and the reading order |
-| [Actors: Alia and agents](docs/actors.mdx) | Who acts, for whom or as itself, with what permission |
-| [Chat runtime](docs/chat-runtime.mdx) | The handler, the SSE events, the Kaana boundary |
-| [Models in Alia](docs/model-abstraction.mdx) | Real models from Oxy's catalogue, chosen automatically |
-| [API reference](docs/api-reference.md) | The HTTP surface, by boundary |
-| [Architecture decisions](docs/adr/README.md) | The recorded decisions |
-| [Compatibility window](docs/migration/compatibility-window.md) | What sunsets, and on what gate |
-
-</td>
-<td valign="top" width="50%">
-
-| Doc | Subject |
-|---|---|
-| [Agents](docs/agents.md) | Bot accounts, capabilities, Oxy apps, the computer |
-| [Memory and context graph](docs/memory-system.md) | Recall and retrieval |
-| [Background work](docs/proactive-intelligence.md) | Tasks, watches, writing first |
-| [Integrations](docs/integrations.mdx) | Tools, Oxy apps, MCP, channels |
+| [Overview](docs/index.mdx) | What lives here, what lives in Gemies, and the reading order |
+| [App architecture](docs/app-architecture.mdx) | The feature tree and its import rules |
+| [Embedding an agent](docs/agent-embedding.md) | The SDK's wire contract |
+| [Instant loading](docs/instant-loading.md) | Skeletons instead of spinners |
+| [Bloom adoption](docs/bloom-adoption.mdx) | The Alia → Bloom map |
+| [Native validation](docs/native-validation.mdx) | Checking the app on a device |
 | [Oxy auth](docs/oxyhq-auth.md) | Identity and sessions |
-| [Developer access](docs/developers-portal.md) | Credentials for Alia's API; `alia_sk_*` is retired |
 | [Dependency updates](docs/dependencies.md) | Reviewable Oxy updates and Doctor |
-| [Deployment](docs/deployment.md) | Shipping it |
-
-</td>
-</tr>
-</table>
+| [Gemies docs](https://github.com/OxyHQ/Gemies/blob/main/docs/index.mdx) | The backend: chat runtime, models, voice, agents, API reference, deployment |
 
 ## Contributing
 
@@ -275,13 +97,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Three rules are worth repeating, 
 each is easy to break by accident and none is caught by types:
 
 1. Never expose the operator serving a model (Groq, Cerebras, OpenRouter…) or a deployment ID
-   on the **product surface** — product API responses, errors, the UI, customer-facing
-   analytics. Model and publisher names are fine; it is a product and privacy boundary, not
-   a global ban on the words.
-2. `trigger-engine.ts` is the only scheduler. Structured automation schedules register
-   through it; do not add a second scheduling loop.
-3. No model id in code or environment, and no curated model list. Alia names real
-   `<publisher>/<model>` ids from Oxy's catalogue and computes every default
-   ([ADR 0012](docs/adr/0012-alia-uses-real-models.md)); product modes and `route:*` profiles
-   are retired. Nothing may be published under the reserved `alia/*` namespace without the
-   four conditions [ADR 0002](docs/adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md) lists.
+   on the **product surface** — the UI, errors, customer-facing analytics. Model and
+   publisher names are fine.
+2. The conversation screen is the SDK's (`AliaChatContent` in `packages/alia-chat`); the app
+   supplies only its own chrome through props and slots.
+3. No model id in code or environment, and no curated model list.

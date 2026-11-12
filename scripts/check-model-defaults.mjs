@@ -35,10 +35,11 @@ const ROOT = resolve(import.meta.dirname, '..');
  * package's directory is visible to it too.
  *
  * A deny-list of trees to SKIP was the obvious alternative and is worse here.
- * It would walk `packages/api/src`, where hundreds of `alia-*` literals are the
- * server's own routing table and entirely correct, so the exemption list would
- * have to carry every backend package anyway — and a NEW backend package would
- * then produce a wall of false offences rather than a question. This shape
+ * It walked the API's source when the backend still lived here (it moved to
+ * OxyHQ/Gemies on 2026-11-12), where hundreds of `alia-*` literals were the
+ * server's own routing table and entirely correct, so the exemption list had to
+ * carry every backend package anyway — and a NEW non-client package would then
+ * produce a wall of false offences rather than a question. This shape
  * fails on an unclassified package either way; the difference is that it fails
  * with "say which" instead of with noise, and a census that fires on the wrong
  * thing gets deleted by the next person who reads it.
@@ -49,14 +50,14 @@ const ROOT = resolve(import.meta.dirname, '..');
  * `Instant`, the webview a hardcoded `route:code`, and the Telegram and
  * Discord bots printed `Model: route:instant` to every user. This script was green
  * throughout, reporting `245 files walked`, because none of the three was in
- * this list.
+ * this list. The webview and the bots have since moved to OxyHQ/Codea and
+ * OxyHQ/Gemies.
  */
 export const TREES = [
   'packages/app/app',
   'packages/app/src',
   'packages/alia-canvas/src',
   'packages/alia-chat/src',
-  'packages/integrations/src',
 ];
 
 /**
@@ -69,18 +70,14 @@ export const TREES = [
  * neither list.
  */
 export const NOT_A_CLIENT = {
-  'packages/api':
-    'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/routing-profile-catalogue.ts` is the frozen set every other package resolves against.',
   'packages/alia-server':
     'a transport. It streams whatever turn a backend hands it and never chooses, defaults or names a routing profile — `model` is an optional pass-through field on its request type.',
-  'packages/alia-computer-host':
-    "the agents' sandbox host. It runs containers and files for an actor and never calls inference, so it has no model to choose, default or name.",
 };
 
 /**
  * A retired routing identifier: the product modes (`mode:*`) and routing
  * profiles (`route:*`, `profile:*`) Alia invented before it served real models.
- * Anchored, so a package name such as `alia-computer-host` is not mistaken for one.
+ * Anchored, so a package name such as `alia-canvas` is not mistaken for one.
  */
 const IDENTIFIER = /^(?:(?:mode|profile|route):[a-z0-9][a-z0-9-]*)$/;
 
@@ -193,9 +190,11 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    ['workspaces', workspaces.length, 7],
-    ['TREES', TREES.length, 5],
-    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
+    // Four workspaces since the backend (`api`, `integrations`, the computer
+    // host) moved to OxyHQ/Gemies on 2026-11-12: three walked, one transport.
+    ['workspaces', workspaces.length, 4],
+    ['TREES', TREES.length, 4],
+    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 1],
   ];
   const partition = [
     ...counts
@@ -223,8 +222,9 @@ function main() {
   // and "there is less" look identical without one.
   //
   // #244 found a walk of 245 files reporting OK while canvas, the Codea webview
-  // (now in OxyHQ/Codea) and the bots all showed an alias. The walk is 611 files
-  // today; a floor of 200 still catches losing a whole tree of that size.
+  // (now in OxyHQ/Codea) and the bots all showed an alias. The walk is 551 files
+  // today (611 before the integrations tree moved to OxyHQ/Gemies with the
+  // backend); a floor of 200 still catches losing a whole tree of that size.
   if (files.length < 200) {
     console.error(`check-model-defaults: walked only ${files.length} files; expected 200+.`);
     process.exit(1);

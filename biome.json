@@ -16,10 +16,7 @@
       "!**/coverage",
       "!**/.expo",
       "!**/.next",
-      "!**/drizzle/meta",
       "!**/*.generated.*",
-      "!docs/audits",
-      "!docs/runbooks/evidence",
       "!packages/app/tsconfig.json",
       "!packages/app/scripts/perf/baseline",
       "!packages/app/scripts/visual/baseline",
@@ -182,11 +179,7 @@
       ]
     },
     {
-      "includes": [
-        "packages/api/src/**",
-        "packages/alia-computer-host/src/**",
-        "packages/alia-canvas/**"
-      ],
+      "includes": ["packages/alia-canvas/**"],
       "linter": {
         "rules": {
           "correctness": {
@@ -200,36 +193,6 @@
           },
           "suspicious": {
             "noTsIgnore": "error"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/api/src/**", "packages/alia-computer-host/src/**"],
-      "linter": {
-        "rules": {
-          "nursery": {
-            "noFloatingPromises": "error"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/api/src/**"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noNamespace": "error"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/alia-computer-host/src/**"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "error"
           }
         }
       }

@@ -13,10 +13,10 @@ on:
 #
 # This was `group: <workflow>-<ref>` with `cancel-in-progress: true` for every
 # ref, so every merge to `main` killed the run of the merge before it. On
-# 2026-08-17, with merges landing minutes apart, `API (Postgres)`, `Build API`
-# and `Integrations (Postgres)` were CANCELLED on consecutive `main` commits —
-# the real-database suite did not complete a single run on `main` for hours.
-# `Lint & Test` survived only because it finishes fastest.
+# 2026-08-17, with merges landing minutes apart, the backend's real-database
+# jobs (since moved to OxyHQ/Gemies with the backend) were CANCELLED on
+# consecutive `main` commits and did not complete a single run on `main` for
+# hours. `Lint & Test` survived only because it finishes fastest.
 #
 # A cancelled check is the worst possible failure of a gate: it is in the check
 # list, it is not red, and it never ran. Two merges are not two attempts at one
@@ -63,82 +63,34 @@ on:
 #    is unique per RUN rather than per COMMIT, which would also break the PR
 #    branch behaviour this keeps.
 #
-# `deploy-aws.yml` is deliberately untouched: it serialises production rollouts
-# on one group with `cancel-in-progress: false`, which is a different and
-# correct requirement. `.github/scripts/check-workflow-concurrency.mjs` asserts
-# both this and that, so neither can drift into the other.
+# The release lanes of `deploy-frontends.yml` are deliberately different: each
+# serialises its Worker upload on one group with `cancel-in-progress: false`,
+# which is a different and correct requirement.
+# `.github/scripts/check-workflow-concurrency.mjs` asserts both this and that, so
+# neither can drift into the other.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Least privilege for the token Actions injects into every runner.
 #
-# Nothing here sets `GITHUB_TOKEN` deliberately — the git-dependency fetch
-# described below cannot be authenticated, which is why the fix is the cache —
-# but Actions provides one to every job regardless, and `actions/checkout`
+# Nothing here sets `GITHUB_TOKEN` deliberately, but Actions provides one to
+# every job regardless, and `actions/checkout`
 # persists it into `.git/config` by default. `bun install` then runs lifecycle
-# scripts for ~2,861 packages in that same environment, so the DEFAULT
+# scripts for the whole dependency tree in that same environment, so the DEFAULT
 # repository scope is a repo-scoped write credential reachable by every
 # postinstall in the tree.
 #
 # `contents: read` is sufficient, and that was verified rather than assumed:
-# every job in this workflow uses only `actions/checkout`, `actions/cache`,
-# `actions/setup-node` and `oven-sh/setup-bun`. Nothing pushes, comments, opens
-# a release or calls `gh`. `actions/cache` is authorised by the cache service
-# rather than by this scope, so restore and save are unaffected.
+# every job in this workflow uses only `actions/checkout`, `actions/setup-node`,
+# `oven-sh/setup-bun` and `dorny/paths-filter` (which `Changes` grants
+# `pull-requests: read` for itself). Nothing pushes, comments, opens a release
+# or calls `gh`.
 #
 # `deploy-frontends.yml` has its own `contents: read` since 2026-10: wrangler
 # authenticates with the Cloudflare credentials, never with this token.
 permissions:
   contents: read
-
-# `bun install` fetches a GIT dependency, and that fetch CANNOT be authenticated.
-#
-# `@whiskeysockets/baileys` (packages/integrations) declares `libsignal` as
-# `git+https://github.com/whiskeysockets/libsignal-node.git`. It is not on npm,
-# so bun downloads a tarball from GitHub. Measured 2026-08-17: every job in a
-# run failed at "Install dependencies" with
-# `api.github.com/.../tarball/bcea72d - 504`, then
-# `codeload.github.com/.../legacy.tar.gz/bcea72d - 429`, before any repository
-# code ran. Anonymous GitHub requests are limited per IP and shared with every
-# other runner on that address.
-#
-# THREE LEVERS LOOK LIKE THE FIX AND ALL THREE ARE INERT. Do not reach for them:
-#
-#   * `GITHUB_TOKEN` in the environment. `bun install --verbose` prints request
-#     headers, and the `codeload.github.com` request carries only Connection,
-#     User-Agent, Accept, Host and Accept-Encoding — no Authorization — with the
-#     variable set. The positive control is in the same output: every
-#     `registry.npmjs.org` request DOES print `Authorization: Bearer …`, so the
-#     printer prints the header when it exists.
-#   * The `bun --help` line "Supply a token to download code from GitHub with a
-#     higher rate limit" is real, and it is inside the `bun create` block.
-#     `bun install --help` does not mention `GITHUB_TOKEN` at all.
-#   * `GITHUB_API_DOMAIN`, same block, same story. `git config
-#     url."…".insteadOf` likewise: bun fetches with its own HTTP client rather
-#     than shelling out to git, which is why the failures are `GET` lines
-#     naming codeload rather than a git error.
-#
-# So the request cannot be made to survive rate limiting. It can only be made
-# not to happen — which is what the git-dependency cache below does. With `bun.lock` present
-# the git ref is already pinned, so a warm cache satisfies the dependency with
-# ZERO GitHub requests.
-#
-# LIMIT, stated because a cache reads like a fix: a cache MISS still fetches,
-# unauthenticated, and can still be rate-limited. The first run after any
-# `bun.lock` change is a miss. Eliminating the fetch entirely means vendoring
-# the dependency or hosting our own tarball, which is a lockfile change.
-#
-# ONLY the git dependency is cached (`~/.bun/install/cache/@GH@*`, ~350 KB),
-# not the whole install cache. The whole cache was ~1.4 GB and cost more than
-# it saved: restore 38-61s + a save of 26-31s per job on a lockfile change,
-# with the install still taking 14-17s afterwards (runs 36489130108,
-# 36467705787, 36277127283), against a plain `bun install` from the npm
-# registry of ~10-11s measured locally from an empty cache. Measured
-# 2026-09-30 with `bun install --verbose`: an install cache holding only
-# `@GH@WhiskeySockets-libsignal-node-bcea72d@@@1` made ZERO requests to
-# api.github.com/codeload; an empty one (the control) made 5. So this entry
-# keeps the property above and drops the cost.
 
 jobs:
   # Which second-wave jobs a PULL REQUEST needs. Push to main (and any other
@@ -146,17 +98,12 @@ jobs:
   # `pull_request`.
   #
   # Deliberately narrow. `Lint & Test` and `Frontend Typecheck` are NOT
-  # filtered: the API's unit suite scans the whole tree (credential scan over
-  # git history, documentation samples, the ownership matrix, deploy workflow
-  # assertions) and `Frontend Typecheck` carries repo-wide checks (every
-  # workspace's typecheck, model defaults across every client, the colour
-  # vocabulary that crosses the API and the app). Only the three jobs whose
-  # inputs are one package are filtered: `Build API` and `API (Postgres)` read
-  # `packages/api` alone (no workspace dependency, no test reaching outside it)
-  # and `Integrations (Postgres)` reads `packages/integrations` alone. Shared
-  # inputs — the lockfile, the root manifest, bunfig and this workflow — mark
-  # both affected. `Deploy Script Tests` reads only `.github/`, the Dockerfiles
-  # and their .dockerignore files, the Canvas manifest and the bun-pin script.
+  # filtered: they carry repo-wide checks (every workspace's typecheck, model
+  # defaults across every client, retired vocabulary across the tree). Only
+  # `Deploy Script Tests` is filtered: it reads only `.github/`, the Canvas
+  # manifest and the bun-pin script, plus the shared inputs — the lockfile, the
+  # root manifest and bunfig. The backend's filtered jobs moved to OxyHQ/Gemies
+  # with the backend on 2026-11-12.
   changes:
     name: Changes
     if: github.event_name == 'pull_request'
@@ -166,60 +113,37 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      api: ${{ steps.filter.outputs.api }}
-      integrations: ${{ steps.filter.outputs.integrations }}
-      computer_host: ${{ steps.filter.outputs.computer_host }}
       deploy_scripts: ${{ steps.filter.outputs.deploy_scripts }}
     steps:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
-            shared: &shared
+            deploy_scripts:
               - 'bun.lock'
               - 'package.json'
               - 'bunfig.toml'
-              - '.github/workflows/ci.yml'
-            api:
-              - *shared
-              - 'packages/api/**'
-              - '.github/scripts/smoke-api-image.sh'
-            integrations:
-              - *shared
-              - 'packages/integrations/**'
-            computer_host:
-              - *shared
-              - 'packages/alia-computer-host/**'
-              - '.github/scripts/smoke-computer-host-image.sh'
-            deploy_scripts:
-              - *shared
               - '.github/**'
-              - '**/Dockerfile'
-              - '**/Dockerfile.*'
-              - '**/.dockerignore'
               - 'packages/alia-canvas/package.json'
               - 'scripts/check-bun-pin.mjs'
 
-  # Gates the rollout logic deploy-aws.yml runs against production. The script
-  # and this harness are byte-identical copies of Mention's, so they share its
-  # test rather than growing a second, drifting one.
+  # Gates the release logic deploy-frontends.yml runs against production, and
+  # the repository-wide wiring checks that read files and install nothing.
   deploy-script-test:
     name: Deploy Script Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: changes
-    # `changes` is skipped outside pull requests; see `Build API`.
+    # `changes` is skipped outside pull requests, so `!cancelled()` replaces the
+    # implicit success() that would otherwise skip this job on every push.
     if: >-
       !cancelled() &&
       (github.event_name != 'pull_request' || needs.changes.outputs.deploy_scripts == 'true')
     steps:
       - uses: actions/checkout@v7
 
-      - name: Verify deployment transaction safeguards
-        run: |
-          bash -n .github/scripts/*.sh
-          bash .github/scripts/test-deploy-ecs-image.sh
-          bash .github/scripts/test-resolve-ecr-platform-digest.sh
+      - name: Verify the deploy scripts parse
+        run: bash -n .github/scripts/*.sh
 
       # The deploys run on `workflow_run` of CI and decide what to release in
       # deploy-scope.sh: main's head only, and only what changed since the last
@@ -238,17 +162,10 @@ jobs:
       - name: Verify the static-asset gate can still fail
         run: node .github/scripts/test-check-static-assets.mjs
 
-      # Runs in the one job that installs nothing, so it reports before the jobs
-      # it protects would fail. See the header comment: the cache is the only
-      # thing stopping an unauthenticatable GitHub fetch on every install.
-      - name: Verify bun cache wiring
-        run: node .github/scripts/check-bun-cache-wiring.mjs
-
-      # Same job, same reason. `packageManager` is the one bun pin; the Docker
-      # images name bun as a literal (or, in integrations, named none at all and
-      # ran the newest), and only this compares them. A drift here is found by
-      # the post-merge image build otherwise, never by a pull request.
-      - name: Verify every image and workflow runs the pinned bun
+      # Runs in the one job that installs nothing. `packageManager` is the one
+      # bun pin; a workflow that names its own bun, or none, is a second pin
+      # waiting to drift, and only this compares them.
+      - name: Verify every workflow runs the pinned bun
         run: node scripts/check-bun-pin.mjs
 
       - name: Verify that gate can still fail
@@ -268,56 +185,24 @@ jobs:
       - name: Verify the Canvas deploy is wired to a declared wrangler
         run: node .github/scripts/check-canvas-deploy-wiring.mjs
 
-      # The production images' build inputs (Dockerfile, context, target and
-      # both .dockerignore files) must match the one reviewed pin in
-      # .github/scripts/reviewed-images.json. deploy-aws.yml and
-      # deploy-integrations.yml refuse to build on a mismatch, so catching it
-      # here is what stops a merge from stranding main undeployable. Here
-      # because it reads files and installs nothing. The fixture tests run
-      # first so a green check means the gate can fail, not that it stopped
-      # looking.
-      - name: Verify voice peer deployment network discovery
-        run: python3 -B -m unittest discover -s .github/scripts -p test_voice_peer_vpc.py
-      - name: Verify the production image's build inputs are reviewed
-        uses: OxyHQ/oxy/.github/actions/reviewed-image@main
-        with:
-          phase: check
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
-      # Full history, because `lib/security/__tests__/credential-scan.test.ts`
-      # scans every blob reachable from HEAD for provider credentials. The
-      # default depth is 1, and a one-commit scan of this repository finds none
-      # of the four disclosures the full one does — a clean result for the wrong
-      # reason. `scanGitHistory` REFUSES a shallow clone rather than returning an
-      # empty list, so removing this line turns the job red instead of turning
-      # the check off.
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
           # Not a literal: `packageManager` in package.json is the one pin, and
-          # scripts/check-bun-pin.mjs fails when any setup-bun step or Docker
-          # image runs a bun other than it.
+          # scripts/check-bun-pin.mjs fails when any setup-bun step runs a bun
+          # other than it.
           bun-version-file: package.json
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Restore bun git-dependency cache
-        id: bun-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache/@GH@*
-          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
 
       # Frozen: bun.lock is installed verbatim or the step fails. Under bun
       # 1.3.14 the frozen check falsely reported drift on this monorepo, so CI
@@ -326,17 +211,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The ONE writer of the git-dependency cache every job restores: a push
-      # to main, on an exact-key miss (a `bun.lock` change). A pull request's
-      # save would be scoped to its own ref, readable by nothing else, and two
-      # jobs saving the same key race for the reserve.
-      - name: Save bun git-dependency cache
-        if: github.event_name == 'push' && steps.bun-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache/@GH@*
-          key: ${{ steps.bun-cache.outputs.cache-primary-key }}
-
       - name: Verify Oxy dependency health
         run: bun run doctor:oxy
 
@@ -344,13 +218,6 @@ jobs:
       # namespace, and no key in a translation that English lacks.
       - name: Translation key convention
         run: bun run i18n:check
-
-      # Every Oxy app shares one Postgres: a new migration may not hold a lock
-      # that stalls a hot table (NOT VALID foreign keys, hot-table DDL alone in
-      # its migration). The rules are @oxy.so/db's; baselines and hot tables are
-      # in each package's db:check-locks script.
-      - name: Migration lock gate
-        run: bun run --filter @alia/api db:check-locks && bun run --filter @alia/integrations db:check-locks
 
       # One Biome pass over the whole repository: formatting, the recommended
       # lint preset, and the guards ported from the per-package ESLint configs
@@ -370,23 +237,12 @@ jobs:
       - name: Verify that gate can still fail
         run: node .github/scripts/test-check-ts-directives.mjs
 
-      # API and integrations consume the published server entry points.
-      # The package publishes compiled ESM + CJS + types, unlike @alia.onl/sdk.
-      # A build that only runs at `npm publish` time is a build nobody has run.
+      # The server SDK publishes compiled ESM + CJS + types, unlike
+      # @alia.onl/sdk, and `check:entrypoints` below compiles a consumer against
+      # that build. A build that only runs at `npm publish` time is a build
+      # nobody has run.
       - name: Build server SDK
         run: bun run --filter @alia.onl/server build
-
-      - name: Typecheck API
-        run: bun run --filter @alia/api typecheck
-
-      - name: Run API tests
-        run: bun run --filter @alia/api test
-
-      # The suite runs on Node (vitest); the API runs on Bun. What only breaks
-      # on the runtime (an upgraded socket's `bytesWritten`, which let socket.io
-      # end every voice and MCP socket after 1 s) runs here on Bun as well.
-      - name: Run API runtime tests on Bun
-        run: bun run --filter @alia/api test:bun-runtime
 
       - name: Typecheck SDK
         run: bun run --filter @alia.onl/sdk typecheck
@@ -412,11 +268,10 @@ jobs:
       - name: Typecheck server SDK
         run: bun run --filter @alia.onl/server typecheck
 
-      # These fixtures are written by the API's OWN SSE writers, imported across
-      # the workspace boundary — so a change to what `/v1/chat/completions` puts
-      # on the wire fails here, in the same commit, rather than in a consumer's
-      # production logs a week later.
-      - name: Test server SDK against the API's own stream writers
+      # The fixtures write the `/v1/chat/completions` wire byte for byte as the
+      # API's SSE writers do (`tests/wire.ts`); the writers themselves, and the
+      # suite that runs this client against them, live in OxyHQ/Gemies.
+      - name: Test server SDK against the chat-completions wire
         run: bun run --filter @alia.onl/server test
 
       # Typecheck, tests and build all passed on 1.0.0 while the published
@@ -432,8 +287,8 @@ jobs:
   #
   # Deliberately NOT `needs: lint-and-test`. A dependent job that never runs
   # reports no conclusion, which reads as "not failing"; keeping this independent
-  # means a red API cannot mask a red frontend, and a frontend PR gets its answer
-  # without waiting on a suite it does not touch.
+  # means a red SDK cannot mask a red app, and each gets its answer without
+  # waiting on the other.
   frontend-typecheck:
     name: Frontend Typecheck
     runs-on: ubuntu-latest
@@ -450,24 +305,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Restore bun git-dependency cache
-        id: bun-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache/@GH@*
-          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       # Enumerates the workspaces and requires each to be checked here, checked by
       # a named job elsewhere, explicitly excluded, or explicitly scriptless — so
       # a new package cannot join the repo unnoticed. See the script's header.
-      - name: Build shared server SDK for desktop consumers
-        run: bun run --filter @alia.onl/server build
-
       - name: Typecheck workspaces
         run: bun .github/scripts/typecheck-workspaces.ts
 
@@ -479,13 +322,6 @@ jobs:
       # is asserted not to have.
       - name: Assert the Expo generator did not rewrite tsconfig
         run: git diff --exit-code packages/app/tsconfig.json
-
-      # The agents' computer host runs model-authored commands. Its isolation
-      # check, path gates (TypeScript and files.py), receipts and leases have a
-      # suite; Docker is faked, files.py runs under the runner's python3. The
-      # typecheck is picked up by `typecheck-workspaces.ts`.
-      - name: Test computer host
-        run: bun run --filter @alia/computer-host test
 
       # `alia-canvas` had a `tsc -b` and a wrangler dry-run between them and
       # nothing else. Its first subject is `lib/product-modes.ts`, which decides
@@ -523,8 +359,7 @@ jobs:
       # source file naming a deleted asset passes every gate here and fails in
       # Metro at runtime. It happened — the agent avatar's PNGs were deleted in
       # one PR and the last `require` of them removed in another, and the safe
-      # order was luck. Same defect as `check-dockerfile-workspaces.mjs`, one
-      # layer up.
+      # order was luck.
       - name: Verify every static asset a source file names exists
         run: node scripts/check-static-assets.mjs
 
@@ -570,327 +405,6 @@ jobs:
       - name: Check no client hardcodes a model default
         run: node scripts/check-model-defaults.mjs
 
-      - name: Check production chat canary contract
-        run: |
-          node scripts/check-production-chat-canary.mjs
-          node scripts/test-check-production-chat-canary.mjs
-
       # Retired product routes and the retired app-agent lane (ADR 0020 §8).
       - name: Check retired vocabulary cannot return
         run: node scripts/check-retired-vocabulary.mjs
-
-      # The image build is the only thing that reads the Dockerfile, and CI does
-      # not build the image — `Build API` runs `bun build`. So a COPY naming a
-      # deleted workspace leaves every gate green and kills the deploy, which is
-      # exactly what happened when `packages/shared-types` was removed.
-      - name: Check the Dockerfile copies only workspaces that exist
-        run: node scripts/check-dockerfile-workspaces.mjs
-
-  build-api:
-    name: Build API
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [lint-and-test, changes]
-    # `changes` is skipped outside pull requests, so `!cancelled()` plus an
-    # explicit success check on `lint-and-test` replaces the implicit success().
-    if: >-
-      !cancelled() && needs.lint-and-test.result == 'success' &&
-      (github.event_name != 'pull_request' || needs.changes.outputs.api == 'true')
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Restore bun git-dependency cache
-        id: bun-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache/@GH@*
-          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build API
-        run: bun run build:api
-
-  # The API image as ECS runs it, on the production architecture (arm64,
-  # Graviton): Bun as PID 1, a refused boot exiting non-zero, every migrator
-  # phase and the seeder with the deploy's own commands, /health/ready 200, the
-  # socket.io handshake and the `/ws/mcp` upgrade on one server, and a graceful
-  # exit 0 on SIGTERM. `Build API` above proves the bundle builds; only running
-  # the image proves the RUNTIME the Dockerfile ships can serve it — the image
-  # moved from Node to Bun in 2026-10, and this is the gate that holds it there.
-  api-image:
-    name: API image (Bun runtime)
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 25
-    needs: [lint-and-test, changes]
-    if: >-
-      !cancelled() && needs.lint-and-test.result == 'success' &&
-      (github.event_name != 'pull_request' || needs.changes.outputs.api == 'true')
-    # A throwaway database for the smoke; nothing else uses it.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: alia
-          POSTGRES_PASSWORD: alia
-          POSTGRES_DB: alia
-        ports:
-          - 5441:5432
-        options: >-
-          --health-cmd "pg_isready -U alia -d alia"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-      # Production runs with Redis and the API refuses to boot without it (`lib/boot-guards.ts`).
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6382:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - uses: actions/checkout@v7
-
-      # Warm from the layers deploy-aws.yml (and refresh-build-cache.yml) write
-      # to the `alia` scope on main: same Dockerfile, same linux/arm64. READ
-      # ONLY — there is no `--cache-to` here, so a pull request never writes a
-      # scope a production build reads. A miss is just the cold build this was.
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      # buildx's gha cache needs the Actions runtime token and cache URL, which
-      # GitHub gives to JavaScript actions and NOT to `run:` steps.
-      - name: Expose the Actions cache to buildx
-        uses: crazy-max/ghaction-github-runtime@v4
-
-      - name: Build the API image
-        run: |
-          docker buildx build \
-            --cache-from type=gha,scope=alia \
-            --load \
-            -f packages/api/Dockerfile -t alia-api:ci .
-
-      - name: Smoke the API image under its Bun runtime
-        env:
-          IMAGE: alia-api:ci
-          DATABASE_URL: postgres://alia:alia@127.0.0.1:5441/alia
-          REDIS_URL: redis://127.0.0.1:6382
-        run: bash .github/scripts/smoke-api-image.sh
-
-  # The computer host's control API image, under the hardening its systemd unit
-  # applies (read-only root, no capabilities, 512 MB), on arm64 like the host:
-  # Bun as PID 1, a refused boot exiting non-zero, /health and the ops drain,
-  # and exit 0 on the unit's SIGTERM. The workspace image is not built here: it
-  # stays on Node and nothing in this change touches it.
-  computer-host-image:
-    name: Computer host image (Bun runtime)
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 20
-    needs: [lint-and-test, changes]
-    if: >-
-      !cancelled() && needs.lint-and-test.result == 'success' &&
-      (github.event_name != 'pull_request' || needs.changes.outputs.computer_host == 'true')
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: alia
-          POSTGRES_PASSWORD: alia
-          POSTGRES_DB: alia_computer
-        ports:
-          - 5442:5432
-        options: >-
-          --health-cmd "pg_isready -U alia -d alia_computer"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - uses: actions/checkout@v7
-
-      # Read-only, as in `api-image` above. No deploy writes a scope for this
-      # image, so it reads `alia`, built on the same pinned oven/bun base from
-      # the same repository root; whatever does not match is the cold build
-      # this was before.
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Expose the Actions cache to buildx
-        uses: crazy-max/ghaction-github-runtime@v4
-
-      - name: Build the computer-host image
-        run: |
-          docker buildx build \
-            --cache-from type=gha,scope=alia \
-            --load \
-            -f packages/alia-computer-host/Dockerfile -t alia-computer-host:ci .
-
-      - name: Smoke the computer-host image under its Bun runtime
-        env:
-          IMAGE: alia-computer-host:ci
-          DATABASE_URL: postgres://alia:alia@127.0.0.1:5442/alia_computer
-        run: bash .github/scripts/smoke-computer-host-image.sh
-
-  integrations-postgres:
-    name: Integrations (Postgres)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [lint-and-test, changes]
-    # `changes` is skipped outside pull requests, so `!cancelled()` plus an
-    # explicit success check on `lint-and-test` replaces the implicit success().
-    if: >-
-      !cancelled() && needs.lint-and-test.result == 'success' &&
-      (github.event_name != 'pull_request' || needs.changes.outputs.integrations == 'true')
-
-    # A REAL Postgres, because the properties this suite asserts — CHECK
-    # constraints, unique indexes, ON DELETE CASCADE, ON CONFLICT — are enforced
-    # by the server and have no mocked counterpart. A mocked `insert` accepts any
-    # statement, including one Postgres rejects outright, which is exactly the
-    # class of defect only a real server catches.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: alia
-          POSTGRES_PASSWORD: alia
-          POSTGRES_DB: postgres
-        ports:
-          - 5437:5432
-        options: >-
-          --health-cmd "pg_isready -U alia -d postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Restore bun git-dependency cache
-        id: bun-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache/@GH@*
-          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build server SDK dependency
-        run: bun run --filter @alia.onl/server build
-
-      - name: Typecheck integrations
-        run: bun run --filter @alia/integrations type-check
-
-      # The suite creates its own throwaway, fully-migrated database per run via
-      # the REAL src/db/migrate.ts entrypoint, so this also exercises the phase
-      # and --target-database guards.
-      - name: Test integrations against Postgres
-        env:
-          TEST_DATABASE_URL: postgres://alia:alia@127.0.0.1:5437/postgres
-        run: bun run --filter @alia/integrations test
-
-  api-postgres:
-    name: API (Postgres)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [lint-and-test, changes]
-    # `changes` is skipped outside pull requests, so `!cancelled()` plus an
-    # explicit success check on `lint-and-test` replaces the implicit success().
-    if: >-
-      !cancelled() && needs.lint-and-test.result == 'success' &&
-      (github.event_name != 'pull_request' || needs.changes.outputs.api == 'true')
-
-    # A REAL Postgres, for the same reason the integrations job uses one: CHECK
-    # constraints, unique indexes and ON CONFLICT are enforced by the server and
-    # have no mocked counterpart. The leader-election CAS in particular is a
-    # single conditional statement whose whole behaviour is the server's.
-    #
-    # Separate from `lint-and-test` rather than folded into it: that job runs the
-    # default suite, which needs no database at all, and merging them would make
-    # every local `bun run test` require Docker.
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6381:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: alia
-          POSTGRES_PASSWORD: alia
-          POSTGRES_DB: postgres
-        ports:
-          - 5440:5432
-        options: >-
-          --health-cmd "pg_isready -U alia -d postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Restore bun git-dependency cache
-        id: bun-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.bun/install/cache/@GH@*
-          key: bun-git-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-git-deps-${{ runner.os }}-${{ runner.arch }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      # The suite creates its own throwaway, fully-migrated database per run via
-      # the REAL src/db/migrate.ts entrypoint, so this also exercises the phase
-      # and --target-database guards an operator depends on.
-      - name: Build server SDK dependency
-        run: bun run --filter @alia.onl/server build
-
-      - name: Test API against Postgres
-        env:
-          TEST_DATABASE_URL: postgres://alia:alia@127.0.0.1:5440/postgres
-        run: bun run --filter @alia/api test:pg
-
-      - name: Test voice ownership leases against Redis
-        env:
-          TEST_REDIS_URL: redis://127.0.0.1:6381
-        run: bun run --filter @alia/api test:voice-routing
