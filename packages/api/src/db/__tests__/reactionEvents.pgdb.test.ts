@@ -134,6 +134,7 @@ describe('durable message reaction events', () => {
         reactions: [],
         revision: 2,
         targetActorId: actor.id,
+        targetContent: 'Hola',
       },
     ]);
   });
@@ -151,6 +152,38 @@ describe('durable message reaction events', () => {
       await mutateMessageReaction(db, 'stranger', f.conversationId, 'answer', { emoji: '❤️' }),
     ).toBeUndefined();
     expect(await isReactionEventCurrent(db, contextOnly!.event!)).toBe(false);
+  });
+
+  it('returns content only for the bounded, owned reaction targets', async () => {
+    const f = await fixture();
+    await f.mutate('older', true);
+    await insertMessages(db, [
+      {
+        oxyUserId: f.userId,
+        conversationId: f.conversationId,
+        clientMessageId: 'newer-answer',
+        role: 'assistant',
+        content: 'A newer explanation',
+        seq: 2,
+        agentInfo: actor,
+      },
+    ]);
+    await mutateMessageReaction(db, f.userId, f.conversationId, 'newer-answer', {
+      emoji: '❓',
+      active: true,
+      mutationId: 'newer',
+    });
+    expect(await listReactionContext(db, f.userId, f.conversationId, 1)).toEqual([
+      {
+        messageId: 'newer-answer',
+        senderId: f.userId,
+        targetActorId: actor.id,
+        reactions: ['❓'],
+        revision: 1,
+        targetContent: 'A newer explanation',
+      },
+    ]);
+    expect(await listReactionContext(db, 'stranger', f.conversationId, 1)).toEqual([]);
   });
 
   it('coalesces add/remove and supersedes a reaction when a newer user message arrives', async () => {
