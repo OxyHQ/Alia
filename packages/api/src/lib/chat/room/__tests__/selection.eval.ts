@@ -4,7 +4,8 @@
  * Oxy workload authentication and Oxy-selected model are real. No agent runs.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { RoomSelectionInput, RoomDecision } from '../decision.js';
+import { roomDecisionChoices, type RoomSelectionInput, type RoomDecision } from '../decision.js';
+import { structuredFailureDiagnostics } from './selection-diagnostics.js';
 import type { TranscriptRow } from '../engine.js';
 import type { RoomMember } from '../policy.js';
 
@@ -333,6 +334,7 @@ const records: Array<{
   latencyMs: number;
   decision: Pick<RoomDecision, 'action' | 'agentId' | 'reason'> | null;
   errorCategory?: string;
+  structuredFailure?: ReturnType<typeof structuredFailureDiagnostics>;
 }> = [];
 
 describe('real Oxy group participation (synthetic rooms; no agent execution)', () => {
@@ -342,10 +344,15 @@ describe('real Oxy group participation (synthetic rooms; no agent execution)', (
       const started = Date.now();
       let decision: RoomDecision | null = null;
       let errorCategory: string | undefined;
+      let structuredFailure: ReturnType<typeof structuredFailureDiagnostics>;
       try {
         decision = await selectRoomDecision(input);
       } catch (error) {
         errorCategory = safeError(error);
+        structuredFailure = structuredFailureDiagnostics(
+          error,
+          roomDecisionChoices(input).map((choice) => choice.id),
+        );
         // A failed inference is an acceptance failure, never a passing quiet result.
       }
       const passed =
@@ -362,6 +369,7 @@ describe('real Oxy group participation (synthetic rooms; no agent execution)', (
         passed,
         latencyMs: Date.now() - started,
         ...(errorCategory ? { errorCategory } : {}),
+        ...(structuredFailure ? { structuredFailure } : {}),
         decision: decision
           ? { action: decision.action, agentId: decision.agentId, reason: decision.reason }
           : null,
