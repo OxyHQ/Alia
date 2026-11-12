@@ -1,6 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  getTableColumns,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index';
 import { conversationMembers, conversations, messages } from '../schema/chat';
 import {
@@ -717,6 +730,26 @@ export async function findAgentReactionTurnComplete(
     )
     .limit(1);
   return row ?? null;
+}
+
+/** Only clean reaction-only completions count; tool receipts accompanying text are not extra replies. */
+export async function countAgentReactionTurnsSince(
+  db: Executor,
+  userId: string,
+  conversationId: string,
+  since: Date,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: count() })
+    .from(agentReactionTurns)
+    .where(
+      and(
+        eq(agentReactionTurns.oxyUserId, userId),
+        eq(agentReactionTurns.conversationId, conversationId),
+        gte(agentReactionTurns.completedAt, since),
+      ),
+    );
+  return row?.count ?? 0;
 }
 
 /** Runtime only: call after clean completion, not after a tool call or failed inference. */
