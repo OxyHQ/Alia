@@ -26,6 +26,7 @@ vi.mock('../../../models/power-levels.js', () => ({
 }));
 vi.mock('../../../logger.js', () => ({ log: { agents: { info: vi.fn() } } }));
 const { selectRoomDecision } = await import('../selector.js');
+const { ROOM_SELECTION_SYSTEM, REACTION_SELECTION_SYSTEM } = await import('../decision.js');
 const input = {
   userId: 'u',
   conversationId: 'room',
@@ -62,6 +63,12 @@ describe('room selection inference accounting', () => {
     expect(call.maxOutputTokens).toBe(2560);
     expect(call.maxRetries).toBe(1);
     expect(call.abortSignal).toBeInstanceOf(AbortSignal);
+    expect(call.system).toBe(ROOM_SELECTION_SYSTEM);
+    expect(call.schema.parse({ action: 'clarify', agentId: 'e', reason: 'ambiguous' })).toEqual({
+      action: 'clarify',
+      agentId: 'e',
+      reason: 'ambiguous',
+    });
     expect(JSON.parse(call.prompt).messages[0].content).toBe(input.rows[0]?.content);
     expect(h.settle).toHaveBeenCalledWith(
       { id: 'reservation' },
@@ -90,6 +97,81 @@ describe('room selection inference accounting', () => {
       usage: {},
     });
     await expect(selectRoomDecision(input)).rejects.toThrow('non-member');
+    expect(h.settle).toHaveBeenCalledOnce();
+    expect(h.refund).not.toHaveBeenCalled();
+  });
+});
+
+describe('reaction selection generation contract', () => {
+  const reaction = {
+    ...input,
+    triggerId: 'reaction-event',
+    trigger: {
+      kind: 'reaction' as const,
+      eventId: 'reaction-event',
+      messageId: 'answer',
+      actorId: 'e',
+      senderId: 'u',
+      emoji: '❓',
+      reactions: ['❓'],
+    },
+    rows: [
+      ...input.rows,
+      {
+        id: 'db-answer',
+        clientMessageId: 'answer',
+        role: 'assistant',
+        content: 'An explanation that can be clarified.',
+        agentName: 'Eusebio',
+        agentId: 'e',
+      },
+    ],
+  };
+
+  it.each([
+    { action: 'speak', agentId: 'e', reason: 'contribution' },
+    { action: 'idle', agentId: null, reason: 'complete' },
+  ])('maps the sole inference choice $action to its exact validated outcome', async (expected) => {
+    // This tests the generation contract and authority boundary, not model semantics.
+    h.generate.mockResolvedValue({ object: { action: expected.action }, usage: {} });
+    expect(await selectRoomDecision(reaction)).toEqual(expected);
+    const call = h.generate.mock.calls[0]?.[0];
+    expect(call.system).toBe(REACTION_SELECTION_SYSTEM);
+    expect(call.schema.parse({ action: expected.action })).toEqual({ action: expected.action });
+    for (const action of ['clarify', 'unavailable', 'invalid'])
+      expect(call.schema.safeParse({ action }).success).toBe(false);
+    expect(Object.keys(call.schema.shape)).toEqual(['action']);
+    const data = JSON.parse(call.prompt);
+    expect(
+      data.messages.find((row: { id: string }) => row.id === data.trigger.messageId).content,
+    ).toBe(reaction.rows[1]?.content);
+    expect(data).not.toHaveProperty('clarificationSpeakerId');
+    expect(data).not.toHaveProperty('remainingHandoffs');
+    expect(h.settle).toHaveBeenCalledOnce();
+    expect(h.refund).not.toHaveBeenCalled();
+  });
+
+  it('never lets model-supplied identity or reason widen the reaction recipient', async () => {
+    h.generate.mockResolvedValue({
+      object: { action: 'speak', agentId: 'outsider', reason: 'handoff' },
+      usage: {},
+    });
+    expect(await selectRoomDecision(reaction)).toEqual({
+      action: 'speak',
+      agentId: 'e',
+      reason: 'contribution',
+    });
+    await expect(selectRoomDecision({ ...reaction, roster: [] })).rejects.toThrow('non-member');
+  });
+
+  it('retains semantic validation when the fixed recipient is unavailable', async () => {
+    h.generate.mockResolvedValue({ object: { action: 'speak' }, usage: {} });
+    await expect(
+      selectRoomDecision({
+        ...reaction,
+        roster: reaction.roster.map((member) => ({ ...member, available: false })),
+      }),
+    ).rejects.toThrow('unavailable');
     expect(h.settle).toHaveBeenCalledOnce();
     expect(h.refund).not.toHaveBeenCalled();
   });

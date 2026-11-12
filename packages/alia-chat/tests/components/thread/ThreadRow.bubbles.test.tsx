@@ -33,7 +33,7 @@ describe('the bubbles of an agent thread', () => {
       /const moreActions = hasFeedback\s*\?\s*\[readAloudAction, copyAction, regenerateAction, likeAction, dislikeAction\]\.filter\(isPresent\)/,
     );
     expect(row).toMatch(
-      /const reactions = actions\.reactionsOf\(message\.id, message\.reactions\)/,
+      /const reactions = actions\.reactionsOf\(\s*message\.id,\s*message\.reactions,\s*storedIn,\s*message\.reactionRevision,?\s*\)/,
     );
   });
 

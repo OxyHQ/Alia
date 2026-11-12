@@ -788,6 +788,7 @@ function AliaConversationView({
               threadRef={threadRef}
               onScroll={onScroll}
               onReply={quoteIntoComposer}
+              onReactionChange={thread.applyReaction}
               onOpenAgentChat={setExchange}
             />
           </BubblesProvider>

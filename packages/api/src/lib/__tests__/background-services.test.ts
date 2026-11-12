@@ -32,6 +32,7 @@ import type { getDb as getDbSignature } from '../../db/index.js';
 const STOPPER_FOR: Readonly<Record<string, string>> = {
   startTriggerEngine: 'stopTriggerEngine',
   'dispatcher.start': 'dispatcher.stop',
+  'reactions.start': 'reactions.stop',
   initTaskQueue: 'shutdownTaskQueue',
   initAliaTaskQueue: 'shutdownAliaTaskQueue',
   initRoomQueue: 'shutdownRoomQueue',
@@ -65,6 +66,8 @@ const startTriggerEngine = tracedSync('startTriggerEngine');
 const stopTriggerEngine = traced('stopTriggerEngine');
 const dispatcherStart = tracedSync('dispatcher.start');
 const dispatcherStop = traced('dispatcher.stop');
+const reactionsStart = tracedSync('reactions.start');
+const reactionsStop = traced('reactions.stop');
 const initTaskQueue = traced('initTaskQueue');
 const startWorker = traced('startWorker');
 const shutdownTaskQueue = traced('shutdownTaskQueue');
@@ -90,6 +93,9 @@ const stopAgentRunReaper = tracedSync('stopAgentRunReaper');
 const DB_HANDLE = Symbol('db') as unknown as ReturnType<typeof getDbSignature>;
 const getDb = vi.fn((): ReturnType<typeof getDbSignature> => DB_HANDLE);
 
+vi.mock('../chat/reactions/dispatcher.js', () => ({
+  reactionDispatcher: { start: reactionsStart, stop: reactionsStop },
+}));
 vi.mock('../trigger-engine.js', () => ({ startTriggerEngine, stopTriggerEngine }));
 vi.mock('../crowdsource/dispatcher.js', () => ({
   moderationOutboxDispatcher: { start: dispatcherStart, stop: dispatcherStop },
@@ -137,6 +143,7 @@ describe('startBackgroundServices', () => {
      */
     expect(startTriggerEngine).toHaveBeenCalledTimes(1);
     expect(dispatcherStart).toHaveBeenCalledTimes(1);
+    expect(reactionsStart).toHaveBeenCalledTimes(1);
     expect(initTaskQueue).toHaveBeenCalledTimes(1);
     expect(startWorker).toHaveBeenCalledTimes(1);
     expect(initAliaTaskQueue).toHaveBeenCalledTimes(1);
@@ -190,6 +197,7 @@ describe('startBackgroundServices', () => {
     expect(order).toEqual([
       'startTriggerEngine',
       'dispatcher.start',
+      'reactions.start',
       'initTaskQueue',
       'initAliaTaskQueue',
       'initRoomQueue',
@@ -231,6 +239,7 @@ describe('startBackgroundServices', () => {
 
     expect(startTriggerEngine).toHaveBeenCalledTimes(1);
     expect(dispatcherStart).toHaveBeenCalledTimes(1);
+    expect(reactionsStart).toHaveBeenCalledTimes(1);
     expect(startWorker).toHaveBeenCalledTimes(1);
     expect(startShowWorker).toHaveBeenCalledTimes(1);
   });
@@ -242,6 +251,7 @@ describe('stopBackgroundServices', () => {
 
     expect(stopTriggerEngine).toHaveBeenCalledTimes(1);
     expect(dispatcherStop).toHaveBeenCalledTimes(1);
+    expect(reactionsStop).toHaveBeenCalledTimes(1);
     expect(shutdownTaskQueue).toHaveBeenCalledTimes(1);
     expect(shutdownAliaTaskQueue).toHaveBeenCalledTimes(1);
     expect(shutdownRoomQueue).toHaveBeenCalledTimes(1);
@@ -269,7 +279,7 @@ describe('stopBackgroundServices', () => {
     await settle();
     const started = [...order];
     // Vacuity floor: an empty `started` would make the loop below assert nothing.
-    expect(started.length).toBe(13);
+    expect(started.length).toBe(14);
 
     order.length = 0;
     await stopBackgroundServices();
@@ -341,6 +351,7 @@ describe('stopBackgroundServices', () => {
       'stopTriggerEngine',
       'stopSkillRegistrySync',
       'dispatcher.stop',
+      'reactions.stop',
       // Stop re-enqueueing lapsed runs before the queue it enqueues into closes.
       'stopAgentRunReaper',
       'shutdownTaskQueue',

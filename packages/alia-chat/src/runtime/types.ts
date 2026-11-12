@@ -25,6 +25,8 @@ export interface Message {
   content: MessageContent;
   /** The emoji the person left on this message, as the server holds them. */
   reactions?: string[];
+  /** Server revision of the reaction snapshot; omitted by older servers. */
+  reactionRevision?: number;
   /** Extended thinking content (when thinking mode is enabled). */
   thinking?: string;
   toolInvocations?: ToolInvocation[];

@@ -29,6 +29,7 @@ import type { AgentActivityState } from '../../runtime/thread/agent-activity';
 import type { FailedTurn } from '../../runtime/turn-failure';
 import { type AgentExchange, agentExchange } from '../../runtime/thread/agent-exchange';
 import type { Message } from '../../runtime/types';
+import type { MessageReactionSnapshot } from '../../runtime/message-reactions';
 import type { ThreadHistory } from '../../runtime/thread/thread-history';
 import type { AgentState } from '../../types';
 import { AgentResultCard } from './AgentResultCard';
@@ -101,6 +102,8 @@ export interface AliaThreadProps {
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   /** Quote a turn's words into the composer (a bubble's reply button). Omitted, the button is not drawn. */
   onReply?: (text: string) => void;
+  /** A saved reaction updates the live message as well as the query cache. */
+  onReactionChange?: (update: MessageReactionSnapshot) => void;
   /**
    * Open the internal conversation of an agent that came into this one (the "Chatted with" line).
    * Omitted, the line is plain text.
@@ -149,6 +152,7 @@ export const AliaThread = memo(function AliaThread({
   threadRef,
   onScroll,
   onReply,
+  onReactionChange,
   onOpenAgentChat,
   readOnly = false,
 }: AliaThreadProps) {
@@ -198,7 +202,14 @@ export const AliaThread = memo(function AliaThread({
 
   // ── What a row can do ──
   const vote = useMessageVote();
-  const reactions = useMessageReactions();
+  const reactions = useMessageReactions({
+    conversationIds: [
+      ...(conversationId ? [conversationId] : []),
+      ...history.map((message) => message.conversationId),
+    ],
+    onChange: onReactionChange,
+    enabled: !readOnly,
+  });
   const readAloud = useReadAloud(callActive);
   const copy = useCallback((text: string) => copyText(text, t), [t]);
   const actions = useMemo<ThreadActions>(

@@ -82,6 +82,8 @@ export interface TranscriptRow {
   readonly agentId?: string | null;
   readonly seq?: number | null;
   readonly createdAt?: Date;
+  readonly reactions?: readonly string[];
+  readonly agentInfo?: AgentInfo;
 }
 
 interface StoredReply {
@@ -393,6 +395,8 @@ async function speak(input: {
         ? null
         : (infoOf(data.roster, data.handedByAgentId)?.info.name ?? null);
     const asRow = (row: TranscriptRow): GroupInputMessage => ({
+      id: row.clientMessageId ?? row.id,
+      reactions: row.reactions,
       role: row.role,
       content: row.content,
       agentInfo:

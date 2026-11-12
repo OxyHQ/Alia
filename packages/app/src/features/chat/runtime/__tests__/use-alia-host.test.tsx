@@ -87,6 +87,33 @@ describe('a group chat’s room', () => {
   });
 });
 
+describe('saved message reactions', () => {
+  it('subscribes only to the requested conversation and releases the socket', () => {
+    const handlers = new Map<string, (event: unknown) => void>();
+    const release = vi.fn();
+    const socket = {
+      on: vi.fn((name: string, fn: (event: unknown) => void) => handlers.set(name, fn)),
+      off: vi.fn((name: string) => handlers.delete(name)),
+    };
+    vi.mocked(acquireNotificationsSocket).mockReturnValueOnce({ socket, release } as never);
+    const listener = vi.fn();
+    const unsubscribe = host().subscribeConversationReactions?.('c1', listener);
+    const update = {
+      conversationId: 'c1',
+      messageId: 'm1',
+      reactions: ['❤️'],
+      revision: 1,
+      mutationId: 'mutation-1',
+    };
+    handlers.get('conversation:reaction')?.(update);
+    handlers.get('conversation:reaction')?.({ ...update, conversationId: 'other' });
+    expect(listener).toHaveBeenCalledExactlyOnceWith(update);
+    unsubscribe?.();
+    expect(socket.off).toHaveBeenCalledWith('conversation:reaction', expect.any(Function));
+    expect(release).toHaveBeenCalledOnce();
+  });
+});
+
 describe('a server tool finishing', () => {
   it('refreshes the sidebar’s agents when Alia creates or changes one', () => {
     for (const name of ['createAgent', 'updateAgent']) {

@@ -48,6 +48,7 @@ import {
   startAliaTaskWorker,
 } from './alia-task-queue.js';
 import { initRoomQueue, shutdownRoomQueue, startRoomWorker } from './chat/room/queue.js';
+import { reactionDispatcher } from './chat/reactions/dispatcher.js';
 import { startSkillRegistrySync, stopSkillRegistrySync } from './skills/scheduler.js';
 import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
 
@@ -68,6 +69,7 @@ export function startBackgroundServices(): void {
   // dead task's lease is reclaimed rather than stranding a report. No-ops when
   // the integration is disabled — the loop is gated, never the durable record.
   moderationOutboxDispatcher.start();
+  reactionDispatcher.start();
   // Initialize task queue for async agent sessions (non-blocking)
   initTaskQueue()
     .then(() => startWorker())
@@ -126,6 +128,7 @@ export async function stopBackgroundServices(): Promise<void> {
   // Stop claiming moderation work, but let the event already in flight reach a
   // durable state — an abandoned claim is reclaimable, a half-applied one is not.
   await moderationOutboxDispatcher.stop();
+  await reactionDispatcher.stop();
   log.general.info('Moderation outbox dispatcher stopped');
 
   stopAgentRunReaper();
