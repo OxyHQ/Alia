@@ -143,16 +143,21 @@ async function acceptVerifiedEvent(
     if (!claimed) return response.status(202).json({ accepted: true, duplicate: true });
     // Independent of any automation, and of their failure notification: an
     // important email is told by Alia or by the agent whose mailbox it is.
+    const dispatched = dispatchEventReportingFailure(event);
     if (isNewEmail(event)) {
-      void handleInboxEmailEvent({
-        accountId: event.accountId,
-        occurredAt: event.occurredAt,
-        data: input.data,
-      }).catch((error: unknown) => {
-        log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
-      });
+      void dispatched
+        .then(() =>
+          handleInboxEmailEvent({
+            eventId: event.eventId,
+            accountId: event.accountId,
+            occurredAt: event.occurredAt,
+            data: input.data,
+          }),
+        )
+        .catch((error: unknown) => {
+          log.triggers.warn({ err: error, eventId: event.eventId }, 'Email outreach did not run');
+        });
     }
-    void dispatchEventReportingFailure(event);
     return response.status(202).json({ accepted: true, duplicate: false });
   } catch (error: unknown) {
     log.triggers.error(

@@ -256,7 +256,7 @@ export interface ConversationUpsert {
  * up the list, with correct data in every row.
  */
 export async function upsertConversation(
-  db: ApiDatabase,
+  db: Executor,
   input: ConversationUpsert,
 ): Promise<ConversationRow> {
   const changed = {
@@ -397,7 +397,7 @@ export async function deleteConversation(
  * planner.
  */
 export async function findActiveThreadConversation(
-  db: ApiDatabase,
+  db: Executor,
   oxyUserId: string,
   agentId: string,
 ): Promise<ConversationRow | undefined> {

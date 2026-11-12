@@ -148,20 +148,28 @@ a run. A **heartbeat** wakes the agent once with the list, and only when somethi
   `*` wildcards, at most 25 per agent. The account is the owner's (only the owner can share it) or the
   agent's own mailbox; there is no way to name another account. `routeEventToAgentInboxes` runs for
   every stored event, whether or not an automation also matches it.
-- **Heartbeat**: opt-in through `schedule_interval` (5 to 1440 minutes, `null` turns it off). Every
-  minute `runAgentHeartbeats` (`lib/agent/heartbeat.ts`) finds active agents whose interval has elapsed
-  and whose inbox has pending items. An empty inbox costs one query: no model call, no hold, no run.
-- **The wake-up** is a one-off follow-up-shaped automation (`inputs.origin = 'agent_heartbeat'`, one
-  pending per agent) with the inbox rendered as one task. Its items are data from other people and are
-  fenced in `<events>` with the instruction outside; at most 20 go in one wake-up, the rest wait. Its
-  result is not posted: the agent speaks through the budgeted `sendMessageToUser`.
-- **A woken agent has the follow-up run's authority and no more**: no computer, no MCP, Oxy apps only
-  through exact authorization. Widening it is a decision about authority (ADR 0022), not plumbing.
-- **Pausing**: an agent whose `status` is `idle` or `offline` is not woken, and an automation can be
-  disabled. There is no switch for everything at once (it was removed, ADR 0026 §8).
-- **Bounds**: at most 100 enabled automations per person (`MAX_ENABLED_AUTOMATIONS_PER_OWNER`); items
-  older than three days are dismissed; deleting an agent removes its inbox, subscriptions and memory
-  and disables the automations that name it.
+- **Heartbeat**: `schedule_interval` is 5–1440 minutes; `null` pauses autonomous
+  work. New agents default to 60 minutes. Existing pauses are preserved. Each
+  minute the sweeper selects due agents with pending items. Empty inboxes require
+  no model call, credit hold or execution.
+- **Durable work**: inbox acknowledgement, heartbeat time and `agent_work_items`
+  insertion commit together. At most 20 events enter a batch. Admission then
+  reserves credits and creates one session in another transaction; a queue
+  outage leaves that session available for redelivery without another debit.
+- **Authority**: a real owner-present session establishes an Oxy goal task. The
+  background runner uses that task and the agent's existing tools, live grants,
+  resource checks and own memory. Events supply observations, never permission.
+  This supersedes the old observation-only decision in ADR 0027.
+- **Follow-ups**: exact dates and the originating session preserve provenance,
+  context and cumulative budgets. One chain has at most 50 steps and 100,000
+  tokens, with existing execution limits. There is no new daily inference cap.
+- **Communication**: useful results and blockers go through `sendMessageToUser`;
+  autonomous completions stay quiet otherwise. Check-in limits do not stop work.
+  Subscribed agent emails use the same batch instead of a second classifier.
+- **Pausing and recovery**: cancel work locally and persist Oxy revocation before
+  calling Oxy. Revocation survives process failure and agent deletion. Event and
+  work admission retries back off and exhaust after 12 attempts. Inbox items
+  older than three days are dismissed. See [ADR 0033](./adr/0033-durable-autonomous-work.md).
 
 ## Abandoned Alia runs
 

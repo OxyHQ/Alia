@@ -1,5 +1,10 @@
 # @alia.onl/sdk
 
+## 25.0.0
+
+- **Breaking dependency minimum:** requires `@oxy.so/services >=14.19.1` for shared-session and account-cache readiness.
+- Conversation lists wait for both readiness signals. Authentication failures stay errors, with an account-local offline display fallback, instead of becoming fresh empty lists. Requests consume query cancellation signals.
+
 ## 24.2.0
 
 - **Composer loader lifecycle.** `useConversationThread` exposes `composerPhase` separately from

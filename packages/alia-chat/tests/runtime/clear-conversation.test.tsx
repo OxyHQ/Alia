@@ -45,7 +45,9 @@ vi.mock('../../src/runtime/api', () => {
   };
   return { useAliaApi: () => stub };
 });
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  useOxy: () => ({ isAuthenticated: true, canUsePrivateApi: true, isAccountCacheReady: true }),
+}));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { useClearConversation } from '../../src/runtime/conversations';

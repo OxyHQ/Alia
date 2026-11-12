@@ -1,3 +1,4 @@
+import { establishAgentWork, stopAgentWork } from '../../lib/agent/work.js';
 import { listExternalLinks } from '../../db/agents/externalAgentRepository.js';
 import { externalAgentPresence } from '../../lib/external-agents/presence.js';
 import { avatarCharacterFor, parseAvatarCharacter, type AvatarCharacter } from '@oxy.so/contracts';
@@ -551,6 +552,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       category: data.category,
       tags: data.tags ?? [],
       price: data.price ?? null,
+      scheduleInterval: 60,
       capabilityGrants: data.capabilityGrants ?? [...DEFAULT_NEW_AGENT_GRANTS],
       skillIds: data.skills ?? [],
       libraryFileIds: data.knowledge ?? [],
@@ -568,6 +570,14 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       ...(data.archetypeConfig !== undefined && { archetypeConfig: data.archetypeConfig }),
     });
 
+    if (req.accessToken && agent.ownerOxyAccountId === req.user.id) {
+      await establishAgentWork(agent._id, req.user.id, req.accessToken).catch((err) =>
+        log.agents.warn(
+          { err, agentId: agent._id },
+          'Work setup will retry from the owner session',
+        ),
+      );
+    }
     res.status(201).json({ agent: await attachAgentIdentity(withoutInternalAgentBindings(agent)) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
@@ -710,6 +720,12 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     });
     if (!outcome.ok) return res.status(outcome.status).json({ error: outcome.error });
 
+    if (data.status === 'idle' || data.status === 'offline' || data.scheduleInterval === null) {
+      await stopAgentWork(id, true);
+    } else if (req.accessToken && outcome.agent.ownerOxyAccountId === req.user.id) {
+      await establishAgentWork(id, req.user.id, req.accessToken);
+    }
+
     // The SAME shape `GET /agents/:id` answers with, child lists attached (`agentAnswer`).
     res.json({ agent: await agentAnswer(outcome.agent) });
   } catch (error: unknown) {
@@ -745,6 +761,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
      * service does not have, and the account may hold posts, a follower graph
      * and a credit balance of its own. The owner archives it from Oxy.
      */
+    await stopAgentWork(id);
     const deleted = await deleteAgent(getDb(), id);
     if (deleted === 0) {
       return res.status(404).json({ error: 'Agent not found' });

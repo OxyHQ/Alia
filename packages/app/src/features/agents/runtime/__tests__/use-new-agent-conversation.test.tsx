@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   startConversation: vi.fn(async () => true),
   signIn: vi.fn(async () => undefined),
-  auth: { isAuthenticated: true },
+  auth: { isAuthenticated: true, canUsePrivateApi: true, isAccountCacheReady: true },
 }));
 
 vi.mock('@alia.onl/sdk/runtime', () => ({ useStartConversation: () => mocks.startConversation }));

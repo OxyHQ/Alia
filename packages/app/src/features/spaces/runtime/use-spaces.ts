@@ -14,14 +14,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 /** The person's spaces, with their members and rooms (`GET /spaces`). */
 export function useSpaces() {
-  const { isAuthenticated } = useOxy();
+  const { canUsePrivateApi, isAccountCacheReady } = useOxy();
   return useQuery({
     queryKey: queryKeys.spaces.all,
-    queryFn: async (): Promise<Space[]> => {
-      const response = await apiClient.get<{ spaces: Space[] }>(API_ROUTES.spaces.list);
+    queryFn: async ({ signal }): Promise<Space[]> => {
+      const response = await apiClient.get<{ spaces: Space[] }>(API_ROUTES.spaces.list, { signal });
       return response.data.spaces ?? [];
     },
-    enabled: isAuthenticated,
+    enabled: canUsePrivateApi && isAccountCacheReady,
     staleTime: 1000 * 60 * 5,
   });
 }

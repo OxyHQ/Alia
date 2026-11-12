@@ -40,7 +40,7 @@ export function useSidebarSpaces({
 }) {
   const { t } = useTranslation();
   const router = useRouter();
-  const { data, isLoading } = useSpaces();
+  const { data, isPending, isError, refetch } = useSpaces();
   const { createSpace, updateSpace, deleteSpace, moveAgent, removeAgent } = useSpaceMutations();
   const closedIds = useSpacesOpenStore((state) => state.closedIds);
   const setSpaceOpen = useSpacesOpenStore((state) => state.setSpaceOpen);
@@ -178,7 +178,9 @@ export function useSidebarSpaces({
   return {
     spaces,
     /** The first read of the spaces is on its way and nothing is cached. */
-    isLoading: enabled && isLoading,
+    isLoading: enabled && isPending,
+    isError,
+    retry: refetch,
     openCreate,
     agentMenu,
     buildSections,

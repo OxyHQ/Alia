@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLabels } from '../lib/labels';
 import { type AliaApi, useAliaApi } from './api';
 import { type OfflineConversationStore, useAliaRuntime } from './config';
@@ -123,48 +123,31 @@ async function fetchConversationsPage(
   client: ConversationsClient,
   pageParam: string | undefined,
   { agentId, app }: ConversationsFilter,
+  signal?: AbortSignal,
 ): Promise<ConversationsPage> {
-  try {
-    const { data } = await client.api.get<{
-      conversations: ApiConversation[];
-      nextCursor: string | null;
-      hasMore: boolean;
-    }>(API_ROUTES.conversations.list, {
-      params: {
-        limit: PAGE_SIZE,
-        ...(pageParam ? { cursor: pageParam } : {}),
-        ...(agentId === undefined ? {} : { agentId }),
-        ...(app === undefined ? {} : { app }),
-      },
-    });
-    return {
-      conversations: data.conversations.map((conv) => ({
-        ...conv,
-        createdAt: new Date(conv.createdAt),
-        updatedAt: new Date(conv.updatedAt),
-        messages: [], // Don't include messages in list view
-      })),
-      nextCursor: data.nextCursor,
-      hasMore: data.hasMore,
-    };
-  } catch (error: unknown) {
-    // If unauthorized, fall back to the offline copy (Alia's own conversations: an agent's and an
-    // app's are never kept offline).
-    if (errorStatus(error) === 401 && agentId === undefined && app === undefined) {
-      const conversations = (await client.offline.read()).map((c) => ({
-        ...c,
-        messages: [] as Message[],
-      }));
-      const offset = pageParam ? Number.parseInt(pageParam, 10) : 0;
-      const page = conversations.slice(offset, offset + PAGE_SIZE);
-      return {
-        conversations: page,
-        nextCursor: offset + PAGE_SIZE < conversations.length ? String(offset + PAGE_SIZE) : null,
-        hasMore: offset + PAGE_SIZE < conversations.length,
-      };
-    }
-    throw error;
-  }
+  const { data } = await client.api.get<{
+    conversations: ApiConversation[];
+    nextCursor: string | null;
+    hasMore: boolean;
+  }>(API_ROUTES.conversations.list, {
+    signal,
+    params: {
+      limit: PAGE_SIZE,
+      ...(pageParam ? { cursor: pageParam } : {}),
+      ...(agentId === undefined ? {} : { agentId }),
+      ...(app === undefined ? {} : { app }),
+    },
+  });
+  return {
+    conversations: data.conversations.map((conv) => ({
+      ...conv,
+      createdAt: new Date(conv.createdAt),
+      updatedAt: new Date(conv.updatedAt),
+      messages: [], // Don't include messages in list view
+    })),
+    nextCursor: data.nextCursor,
+    hasMore: data.hasMore,
+  };
 }
 
 /**
@@ -174,23 +157,71 @@ async function fetchConversationsPage(
  * implied by the chat's `app`: the app that wants only its own says so here.
  */
 export function useConversations({ agentId, app }: ConversationsFilter = {}) {
-  const { isAuthenticated } = useOxy();
+  const { user, isAuthenticated, canUsePrivateApi, isAccountCacheReady } = useOxy();
   const client = useConversationsClient();
+  const accountId = user?.id;
+  const { offline: offlineStore } = useAliaRuntime();
+  const [offline, setOffline] = useState<{
+    accountId: string | undefined;
+    store: OfflineConversationStore | null | undefined;
+    data: ConversationsInfiniteData;
+  } | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated || !isAccountCacheReady || agentId !== undefined || app !== undefined)
+      return;
+    let current = true;
+    void new OfflineConversations(offlineStore ?? null)
+      .read()
+      .then((rows) => {
+        if (current && rows.length)
+          setOffline({
+            accountId,
+            store: offlineStore,
+            data: {
+              pages: [
+                {
+                  conversations: rows.map((row) => ({ ...row, messages: [] })),
+                  nextCursor: null,
+                  hasMore: false,
+                },
+              ],
+              pageParams: [undefined],
+            },
+          });
+      })
+      .catch(() => {
+        /* A damaged offline copy must not mask the server result. */
+      });
+    return () => {
+      current = false;
+    };
+  }, [accountId, offlineStore, isAuthenticated, isAccountCacheReady, agentId, app]);
 
-  return useInfiniteQuery({
+  const query = useInfiniteQuery({
     queryKey:
       agentId === undefined && app === undefined
         ? aliaQueryKeys.conversations.all
         : aliaQueryKeys.conversations.filtered({ agentId, app }),
-    queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
-      fetchConversationsPage(client, pageParam, { agentId, app }),
+    queryFn: ({ pageParam, signal }) =>
+      fetchConversationsPage(client, pageParam, { agentId, app }, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
     select: reviveConversationDates,
     staleTime: FIVE_MINUTES,
-    retry: 2,
-    enabled: isAuthenticated,
+    retry: (count, error) => errorStatus(error) !== 401 && count < 2,
+    enabled: canUsePrivateApi && isAccountCacheReady,
   });
+  // Offline content is a display fallback, never a fresh successful server answer.
+  const fallback =
+    isAuthenticated &&
+    isAccountCacheReady &&
+    agentId === undefined &&
+    app === undefined &&
+    offline?.accountId === accountId &&
+    offline?.store === offlineStore
+      ? offline.data
+      : undefined;
+  return { ...query, data: query.data ?? fallback };
 }
 
 async function fetchConversation(client: ConversationsClient, id: string): Promise<Conversation> {

@@ -4,6 +4,8 @@ Status: Accepted (2026-11-09, the owner's goal: agents that stay attentive and a
 the always-on agents of other products do).
 Date: 2026-11-09.
 
+The handoff and autonomous-work policy are updated by [ADR 0033](./0033-durable-autonomous-work.md), accepted 2026-11-12.
+
 ## Context
 
 Until now an agent did nothing until something woke it: a message, a goal, an automation the person

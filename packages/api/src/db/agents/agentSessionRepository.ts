@@ -107,6 +107,7 @@ export interface AgentSessionRecord {
   threadId: string | null;
   conversationId: string | null;
   goalId: string | null;
+  workItemId?: string | null;
   generation: number;
   parentSessionId: string | null;
   oxyTaskId?: string | null;
@@ -210,6 +211,7 @@ function toAgentSessionRecord(row: AgentSessionRow): AgentSessionRecord {
     threadId: row.threadId,
     conversationId: row.conversationId,
     goalId: row.goalId,
+    workItemId: row.workItemId,
     generation: row.generation,
     parentSessionId: row.parentSessionId,
     oxyTaskId: row.oxyTaskId,
@@ -636,6 +638,7 @@ export interface CreateAgentSessionInput {
   threadId?: string;
   conversationId?: string;
   goalId?: string;
+  workItemId?: string;
   generation?: number;
   parentSessionId?: string;
   oxyTaskId?: string;
@@ -659,6 +662,7 @@ function agentSessionValues(input: CreateAgentSessionInput): typeof agentSession
     threadId: input.threadId ?? null,
     conversationId: input.conversationId ?? null,
     goalId: input.goalId ?? null,
+    workItemId: input.workItemId ?? null,
     ...(input.generation !== undefined && { generation: input.generation }),
     parentSessionId: input.parentSessionId ?? null,
     oxyTaskId: input.oxyTaskId ?? null,

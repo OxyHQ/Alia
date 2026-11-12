@@ -143,6 +143,13 @@ export async function calculateCredits(
   return credits;
 }
 
+function reservationTransaction<T>(
+  executor: Executor | undefined,
+  work: (tx: Executor) => Promise<T>,
+): Promise<T> {
+  return executor ? work(executor) : getDb().transaction(work);
+}
+
 /**
  * Reserve initial credits for a request
  * Returns null if insufficient credits
@@ -155,6 +162,8 @@ export async function reserveCredits(
     requestedModel: string;
     aliaRequestId?: string;
     productCreditSnapshot?: ProductCreditSnapshot;
+    /** Atomically persist a durable job and its hold. Network preflight must precede this transaction. */
+    executor?: Executor;
   },
 ): Promise<CreditReservation | null> {
   try {
@@ -171,7 +180,7 @@ export async function reserveCredits(
     const reserveResult =
       admission === undefined
         ? await spendCreditsFreeFirst(getDb(), userId, amount)
-        : await getDb().transaction(async (tx) => {
+        : await reservationTransaction(admission.executor, async (tx) => {
             let balance = await spendCreditsFreeFirst(tx, userId, amount);
             if (balance === null && admission.productCreditSnapshot) {
               const allocation = await reserveProductCreditAllocation(
