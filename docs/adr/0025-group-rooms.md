@@ -152,8 +152,12 @@ one. Existing replacement, deletion and conversation ownership rules apply to ev
 Agent tool receipts are durable and idempotent, but are not evidence of a successful whole turn.
 Persist a separate completion only after a clean reaction-only finish backed by the same
 actor/thread/turn's receipts. Fence it against supersession and use a canonical admitted-turn key
-that also distinguishes trigger content. Recovery delivers an already completed action without
-rerunning inference or creating an empty assistant message. This remains an internal Alia
+that also distinguishes trigger content. Queued group recovery delivers an already completed action
+without rerunning inference or creating an empty assistant message. Direct chat rejects a reused
+turn ID and reloads canonical state on reconnect; a newly admitted retry is a new turn. Direct
+`alia.agent_turn` admission and clean-completion markers distinguish stored conversation state from
+a successful reaction-only outcome. Nonverbal completions share the existing room rate limit.
+This remains an internal Alia
 capability and an additive payload on its existing socket event, with no new Oxy authority contract.
 
 ### Bounds
