@@ -1,6 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAliaRuntime } from './config';
-import { applyRoomEvent, type RoomLedger } from './room-events';
+import {
+  applyRoomEvent,
+  roomFailureReason,
+  type RoomFailureReason,
+  type RoomLedger,
+} from './room-events';
 import type { Message } from './types';
 
 /**
@@ -21,15 +26,33 @@ export function useRoomEvents(
   conversationId: string | undefined,
   ledger: RoomLedger,
   setMessages: (update: (prev: Message[]) => Message[]) => void,
+  onFailure?: (failure: { chainId: string; reason: RoomFailureReason }) => void,
 ): void {
   const { host } = useAliaRuntime();
   const subscribe = host.subscribeRoomEvents;
+  const failureRef = useRef(onFailure);
+  failureRef.current = onFailure;
   useEffect(() => {
     if (!conversationId || !subscribe) return;
     let lastEventAt = Date.now();
+    const failedChains = new Set<string>();
     const unsubscribe = subscribe(conversationId, (event) => {
       lastEventAt = Date.now();
       setMessages((prev) => applyRoomEvent(prev, ledger, conversationId, event));
+      const reason =
+        event.event === 'group.idle' && event.data !== null && typeof event.data === 'object'
+          ? roomFailureReason((event.data as { reason?: unknown }).reason)
+          : null;
+      if (
+        event.conversationId === conversationId &&
+        reason !== null &&
+        typeof event.chainId === 'string' &&
+        event.chainId !== '' &&
+        !failedChains.has(event.chainId)
+      ) {
+        failedChains.add(event.chainId);
+        failureRef.current?.({ chainId: event.chainId, reason });
+      }
     });
     // A quiet room whose `group.idle` was lost: end it the way that event would have. Nothing open
     // means `applyRoomEvent` hands back the same array and nothing re-renders.

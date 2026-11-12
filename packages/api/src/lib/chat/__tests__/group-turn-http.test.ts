@@ -59,8 +59,7 @@ function setup(options: {
   const prepareRoom = vi.fn(
     async (): Promise<PreparedRoom> => ({
       chainId: 'p1',
-      firstRoundSize: options.firstRoundSize ?? 2,
-      unreachableAgentIds: options.unreachable ?? [],
+      ready: options.firstRoundSize !== 0,
       start: async () => {
         started();
         await options.onStart?.((event) => bus.publish(event));
@@ -101,7 +100,7 @@ const member = (consultId: string, id: string) =>
   });
 
 describe('serveGroupTurn as a subscriber of the room', () => {
-  it('forwards the first round as the SSE frames clients already read, then ends cleanly', async () => {
+  it('forwards the entire chain until idle as the existing SSE frames', async () => {
     const t = setup({
       onStart: async (publish) => {
         await publish(member('k1', 'a'));
@@ -126,14 +125,15 @@ describe('serveGroupTurn as a subscriber of the room', () => {
           }),
         );
         await publish(e('alia.agent_end', { consultId: 'k2', status: 'completed', content: 'Hi' }));
-        // after the first round: the room goes on, the request is gone
+        await publish(e('group.idle', { reason: 'done' }));
+        // after the room ends: events are ignored
         await publish(member('k3', 'a'));
         await publish(e('alia.agent_delta', { consultId: 'k3', content: 'late' }));
       },
     });
     const outcome = await t.run();
 
-    expect(outcome).toEqual({ completed: 2, settled: true });
+    expect(outcome).toEqual({ completed: 2, settled: true, status: 'completed' });
     const frames = parse(t.chunks);
     expect(frames.map((f) => f.event ?? 'data')).toEqual([
       'alia.group_turn',
@@ -165,9 +165,10 @@ describe('serveGroupTurn as a subscriber of the room', () => {
       onStart: async (publish) => {
         await publish(member('k1', 'a'));
         await publish(e('alia.agent_end', { consultId: 'k1', status: 'completed', content: 'x' }));
+        await publish(e('group.idle', { reason: 'done' }));
       },
     });
-    expect(await t.run()).toEqual({ completed: 1, settled: true });
+    expect(await t.run()).toEqual({ completed: 1, settled: true, status: 'completed' });
     expect(t.started).toHaveBeenCalledTimes(1);
   });
 
@@ -179,9 +180,10 @@ describe('serveGroupTurn as a subscriber of the room', () => {
         await publish(e('alia.agent_end', { consultId: 'zz', status: 'completed' }, 'p0'));
         await publish(member('k1', 'a'));
         await publish(e('alia.agent_end', { consultId: 'k1', status: 'completed', content: 'x' }));
+        await publish(e('group.idle', { reason: 'done' }));
       },
     });
-    expect(await t.run()).toEqual({ completed: 1, settled: true });
+    expect(await t.run()).toEqual({ completed: 1, settled: true, status: 'completed' });
     expect(t.chunks.join('')).not.toContain('old chain');
   });
 
@@ -193,9 +195,10 @@ describe('serveGroupTurn as a subscriber of the room', () => {
         await publish(e('alia.agent_end', { consultId: 'k1', status: 'declined' }));
         await publish(member('k2', 'b'));
         await publish(e('alia.agent_end', { consultId: 'k2', status: 'completed', content: 'me' }));
+        await publish(e('group.idle', { reason: 'done' }));
       },
     });
-    expect(await t.run()).toEqual({ completed: 1, settled: true });
+    expect(await t.run()).toEqual({ completed: 1, settled: true, status: 'completed' });
     const frames = parse(t.chunks);
     expect(frames.filter((f) => f.event === 'alia.agent_start')).toHaveLength(1);
     expect(frames.some((f) => f.data.status === 'declined')).toBe(false);
@@ -221,10 +224,11 @@ describe('serveGroupTurn as a subscriber of the room', () => {
             error: { code: 'agent_timeout' },
           }),
         );
+        await publish(e('group.idle', { reason: 'error' }));
       },
     });
     const outcome = await t.run();
-    expect(outcome).toEqual({ completed: 0, settled: true });
+    expect(outcome).toEqual({ completed: 0, settled: true, status: 'failed' });
     expect(parse(t.chunks).map((f) => f.event ?? 'data')).toEqual([
       'alia.group_turn',
       'alia.agent_start',
@@ -246,7 +250,7 @@ describe('serveGroupTurn as a subscriber of the room', () => {
       },
     });
     const outcome = await t.run();
-    expect(outcome).toEqual({ completed: 0, settled: false });
+    expect(outcome).toEqual({ completed: 0, settled: false, status: 'continuing' });
     const frames = parse(t.chunks);
     expect(frames.at(-2)).toMatchObject({
       event: 'alia.agent_end',
@@ -271,14 +275,14 @@ describe('serveGroupTurn as a subscriber of the room', () => {
     expect(t.abandoned).not.toHaveBeenCalled();
   });
 
-  it('reports the members the person cannot reach as failed and queues nothing when none can answer', async () => {
+  it('fails the request without ghost member cards when no member is available', async () => {
     const t = setup({ firstRoundSize: 0, unreachable: ['a', 'b'] });
     const outcome = await t.run();
-    expect(outcome).toEqual({ completed: 0, settled: true });
+    expect(outcome).toEqual({ completed: 0, settled: true, status: 'failed' });
     expect(t.started).not.toHaveBeenCalled();
     const ends = parse(t.chunks).filter((f) => f.event === 'alia.agent_end');
-    expect(ends).toHaveLength(2);
-    expect(ends[0]!.data).toMatchObject({ status: 'failed', error: { code: 'agent_unavailable' } });
+    expect(ends).toHaveLength(0);
+    expect(t.sse.done).not.toHaveBeenCalled();
   });
 
   it('a chain that ends (superseded, capped) settles the request', async () => {
@@ -313,4 +317,135 @@ describe('serveGroupTurn as a subscriber of the room', () => {
     expect(await lastIsAssistant.run()).toBeNull();
     expect(lastIsAssistant.prepareRoom).not.toHaveBeenCalled();
   });
+});
+
+describe('group completion is not the same as producing text', () => {
+  it('deliberate silence closes normally without activating a member', async () => {
+    const t = setup({
+      onStart: async (publish) => {
+        await publish(e('group.idle', { reason: 'done' }));
+      },
+    });
+    expect(await t.run()).toEqual({ completed: 0, settled: true, status: 'quiet' });
+    expect(t.sse.done).toHaveBeenCalledOnce();
+    expect(parse(t.chunks).map((f) => f.event ?? 'data')).toEqual(['alia.group_turn', 'data']);
+  });
+
+  it('a selector error is a failure even after a member answered', async () => {
+    const t = setup({
+      onStart: async (publish) => {
+        await publish(member('k1', 'a'));
+        await publish(
+          e('alia.agent_end', { consultId: 'k1', status: 'completed', content: 'some result' }),
+        );
+        await publish(e('group.idle', { reason: 'error' }));
+      },
+    });
+    expect(await t.run()).toEqual({ completed: 1, settled: true, status: 'failed' });
+    expect(t.sse.done).not.toHaveBeenCalled();
+    expect(t.chunks.join('')).not.toContain('finish_reason');
+  });
+
+  it('does not finish after a fixed number of speakers while selection continues', async () => {
+    const t = setup({
+      firstRoundSize: 1,
+      onStart: async (publish) => {
+        for (const id of ['a', 'b', 'c']) {
+          await publish(member(id, id));
+          await publish(e('alia.agent_end', { consultId: id, status: 'completed', content: id }));
+        }
+        await publish(e('group.idle', { reason: 'done' }));
+      },
+    });
+    expect(await t.run()).toEqual({ completed: 3, settled: true, status: 'completed' });
+  });
+});
+
+describe('group subscriber failure boundaries', () => {
+  it('a pre-aborted request revokes prepared tasks and never starts a chain', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('Stopped'));
+    const t = setup({ signal: controller.signal });
+    await expect(t.run()).rejects.toThrow('Stopped');
+    expect(t.started).not.toHaveBeenCalled();
+    expect(t.abandoned).toHaveBeenCalledOnce();
+    expect(t.sse.done).not.toHaveBeenCalled();
+  });
+
+  it('a failed member remains failed when the idle event is missing at the deadline', async () => {
+    const t = setup({
+      startedAt: Date.now() - GROUP_REQUEST_BUDGET_MS + 10,
+      onStart: async (publish) => {
+        await publish(member('a', 'a'));
+        await publish(
+          e('alia.agent_end', {
+            consultId: 'a',
+            status: 'failed',
+            error: { code: 'agent_unavailable' },
+          }),
+        );
+      },
+    });
+    expect((await t.run())?.status).toBe('failed');
+    expect(t.sse.done).not.toHaveBeenCalled();
+  });
+
+  it('an abandoned active member is failed, not marked as continuing', async () => {
+    const t = setup({
+      onStart: async (publish) => {
+        await publish(member('a', 'a'));
+        await publish(e('alia.agent_delta', { consultId: 'a', content: 'partial' }));
+        await publish(e('group.idle', { reason: 'error' }));
+      },
+    });
+    expect((await t.run())?.status).toBe('failed');
+    expect(parse(t.chunks).at(-1)?.data).toMatchObject({
+      status: 'failed',
+      error: { code: 'room_failed' },
+    });
+  });
+});
+
+it('uses the existing SSE declined representation when an open member is superseded', async () => {
+  const t = setup({
+    onStart: async (publish) => {
+      await publish(member('a', 'a'));
+      await publish(e('alia.agent_delta', { consultId: 'a', content: 'obsolete' }));
+      await publish(e('group.idle', { reason: 'superseded' }));
+    },
+  });
+  expect((await t.run())?.status).toBe('quiet');
+  expect(parse(t.chunks).find((frame) => frame.event === 'alia.agent_end')?.data).toMatchObject({
+    status: 'failed',
+    error: { code: 'agent_declined' },
+  });
+});
+
+it('a recovered consultation replaces its storage failure and duplicate replay counts once', async () => {
+  const t = setup({
+    onStart: async (publish) => {
+      await publish(member('stable-consult', 'a'));
+      await publish(e('alia.agent_delta', { consultId: 'stable-consult', content: 'answer' }));
+      await publish(
+        e('alia.agent_end', {
+          consultId: 'stable-consult',
+          status: 'failed',
+          error: { code: 'store_failed' },
+        }),
+      );
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await publish(member('stable-consult', 'a'));
+        await publish(
+          e('alia.agent_end', {
+            consultId: 'stable-consult',
+            status: 'completed',
+            content: 'answer',
+            messageId: 'stored',
+          }),
+        );
+      }
+      await publish(e('group.idle', { reason: 'done' }));
+    },
+  });
+  expect(await t.run()).toEqual({ completed: 1, settled: true, status: 'completed' });
 });

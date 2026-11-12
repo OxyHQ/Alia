@@ -19,6 +19,18 @@ export interface RoomEvent {
   data: unknown;
 }
 
+export type RoomFailureReason = 'error' | 'rate_limited' | 'turn_cap' | 'reply_cap';
+
+/** A room failure is distinct from deliberate silence, supersession and a lost connection. */
+export function roomFailureReason(value: unknown): RoomFailureReason | null {
+  return value === 'error' ||
+    value === 'rate_limited' ||
+    value === 'turn_cap' ||
+    value === 'reply_cap'
+    ? value
+    : null;
+}
+
 /**
  * Which consultation is drawn in which message, and what the request already owns.
  *
@@ -27,16 +39,27 @@ export interface RoomEvent {
 export interface RoomLedger {
   /** `consultId` to the id of the message that draws it. */
   messages: Map<string, string>;
+  /** Socket-observed chain for a consult, including one initially drawn by SSE. */
+  chains: Map<string, string>;
   /** Consultations the chat request's SSE frames drew: the socket must not draw them again. */
   claimed: Set<string>;
   /** Claimed consultations whose request ended with `room_continues`: the socket carries them now. */
   released: Set<string>;
   /** Consultations whose end was applied. */
   ended: Set<string>;
+  /** Provisional replies explicitly discarded by the room, never restored by late frames. */
+  discarded: Set<string>;
 }
 
 export function createRoomLedger(): RoomLedger {
-  return { messages: new Map(), claimed: new Set(), released: new Set(), ended: new Set() };
+  return {
+    messages: new Map(),
+    chains: new Map(),
+    claimed: new Set(),
+    released: new Set(),
+    ended: new Set(),
+    discarded: new Set(),
+  };
 }
 
 /** The id a consultation drawn from the socket gets until its stored reply names it. */
@@ -134,6 +157,21 @@ export function applyRoomEvent(
   if (incoming.conversationId !== conversationId || !isObject(incoming.data)) return messages;
   const data = incoming.data;
   const consultId = text(data.consultId);
+  const chainId = text(incoming.chainId);
+  if (
+    consultId !== undefined &&
+    chainId !== undefined &&
+    (incoming.event === 'alia.agent_start' ||
+      incoming.event === 'alia.agent_delta' ||
+      incoming.event === 'alia.agent_tool' ||
+      incoming.event === 'alia.agent_end')
+  ) {
+    // SSE may already own this consult, but only the socket carries its chain.
+    // Record it before the duplicate/ownership guards can discard the frame.
+    const knownChain = ledger.chains.get(consultId);
+    if (knownChain !== undefined && knownChain !== chainId) return messages;
+    ledger.chains.set(consultId, chainId);
+  }
 
   switch (incoming.event) {
     case 'alia.agent_start': {
@@ -202,12 +240,13 @@ export function applyRoomEvent(
       });
     }
     case 'alia.agent_end': {
-      if (consultId === undefined || ledger.ended.has(consultId)) return messages;
+      if (consultId === undefined || ledger.discarded.has(consultId)) return messages;
       const draftId = ledger.messages.get(consultId);
       const { status } = data;
       const messageId = text(data.messageId);
       if (status === 'completed' && messageId !== undefined) {
-        // Even a reply the request drew: the stored id (`group-reply-…`) is not the request's.
+        // A stored completion is authoritative, even after a prior failed attempt.
+        // Replaying it converges on the same row rather than reviving a failed draft.
         ledger.ended.add(consultId);
         return settleCompleted(
           messages,
@@ -218,12 +257,15 @@ export function applyRoomEvent(
           consultId,
         );
       }
-      if (!isLive(ledger, consultId)) return messages;
+      if (ledger.ended.has(consultId) || !isLive(ledger, consultId)) return messages;
       // `room_continues` is the request letting go, never a failure.
       if (isObject(data.error) && data.error.code === 'room_continues') return messages;
       ledger.ended.add(consultId);
       if (draftId === undefined) return messages;
-      if (status === 'declined') return messages.filter((m) => m.id !== draftId);
+      if (status === 'declined') {
+        ledger.discarded.add(consultId);
+        return messages.filter((m) => m.id !== draftId);
+      }
       return replace(messages, draftId, (m) => ({
         ...m,
         isStreaming: false,
@@ -237,15 +279,38 @@ export function applyRoomEvent(
       if (id === undefined || (reply.role !== undefined && reply.role !== 'assistant')) {
         return messages;
       }
-      if (messages.some((m) => m.id === id)) {
-        return replace(messages, id, (m) => stored(m, reply));
+      // v2 room turns use their canonical reply ID as consultId. The stored
+      // message can therefore repair a failed draft even if agent_end was lost.
+      if (ledger.discarded.has(id)) return messages;
+      const draftId = ledger.messages.get(id);
+      const reconciled =
+        draftId === undefined
+          ? messages
+          : settleCompleted(
+              messages,
+              draftId,
+              id,
+              typeof reply.content === 'string' ? reply.content : undefined,
+              ledger,
+              id,
+            );
+      if (draftId !== undefined) ledger.ended.add(id);
+      if (reconciled.some((m) => m.id === id)) {
+        return replace(reconciled, id, (m) => stored(m, reply));
       }
-      return [...messages, stored({ id, role: 'assistant', content: '' }, reply)];
+      return [...reconciled, stored({ id, role: 'assistant', content: '' }, reply)];
     }
     case 'group.idle': {
-      // The room is quiet: nobody is typing any more.
+      // The room has ended. A failure must not look like deliberate silence.
+      const failure = roomFailureReason(data.reason);
+      // An old chain can finish after a new one starts. Unknown ownership is left
+      // for the synthetic silence timeout, never guessed from a terminal event.
+      if (chainId === undefined && data.reason !== 'silent') return messages;
       const open = [...ledger.messages].filter(
-        ([cid]) => !ledger.ended.has(cid) && isLive(ledger, cid),
+        ([cid]) =>
+          !ledger.ended.has(cid) &&
+          isLive(ledger, cid) &&
+          (chainId === undefined || ledger.chains.get(cid) === chainId),
       );
       if (open.length === 0) return messages;
       const ids = new Set(open.map(([, id]) => id));
@@ -253,7 +318,13 @@ export function applyRoomEvent(
       return messages.flatMap((m) => {
         if (!ids.has(m.id)) return [m];
         if (m.content === '' && (m.toolInvocations?.length ?? 0) === 0) return [];
-        return [{ ...m, isStreaming: false }];
+        return [
+          {
+            ...m,
+            isStreaming: false,
+            ...(failure === null ? {} : { turnOutcome: 'failed' as const }),
+          },
+        ];
       });
     }
     default:

@@ -17,6 +17,7 @@ import {
 import { agentMessageId, buildOutboundMessages, isAgentMessageOf } from './message-history';
 import { aliaQueryKeys } from './query-keys';
 import {
+  applyRoomEvent,
   claimConsult,
   createRoomLedger,
   isRoomOwned,
@@ -443,6 +444,9 @@ export function useConversationStream({
 
       /** Keep a half-streamed turn — destroying real output is worse than showing the error. */
       const settleError = (): SendOutcome => {
+        // A room stores the person's message before selecting or running a member.
+        // A later credit/gate refusal cannot roll that stored question back locally.
+        if (isGroupTurn) return keepFailedTurn(false);
         if (!hasUsableStreamOutput(outputEvidence)) return rollback();
         settleAssistant('failed');
         return 'sent';
@@ -458,6 +462,9 @@ export function useConversationStream({
       let syntheticTail: { retryable: boolean; detail?: string } | null = null;
       /** The reply's text as the model produced it: what the host previews when the turn settles. */
       let replyText = '';
+      // A room can deliberately remain quiet. Only its server frame establishes this,
+      // never a lack of output or an agent's prose.
+      let isGroupTurn = false;
 
       /**
        * Keep the person's turn, and hang the failure on it.
@@ -480,19 +487,18 @@ export function useConversationStream({
         } else {
           dropPendingUpdates();
         }
-        if (partial) {
-          settleAssistant('failed');
-        } else {
+        if (!partial) {
           // The updater form, on purpose: the user row and the placeholder went
           // in through plain `setMessages` calls that may not have rendered yet
           // when a very fast failure lands, so `messagesRef` can still hold the
           // pre-send snapshot here. `prev` is always the queue's own truth.
           setMessagesAndRef((prev) => prev.filter((m) => m.id !== assistantMessage.id));
         }
+        settleAssistant('failed');
         retryRef.current = { message, options, userMessageId: userMessage.id };
         setFailedTurn({
           userMessageId: userMessage.id,
-          anchorMessageId: partial ? assistantMessage.id : userMessage.id,
+          anchorMessageId: partial && !isGroupTurn ? assistantMessage.id : userMessage.id,
           retryable,
           partial,
           detail,
@@ -554,7 +560,8 @@ export function useConversationStream({
       const isThisTurn = (id: string): boolean =>
         id === userMessage.id ||
         id === assistantMessage.id ||
-        isAgentMessageOf(id, assistantMessage.id);
+        isAgentMessageOf(id, assistantMessage.id) ||
+        (isGroupTurn && [...consults.values()].includes(id));
 
       /**
        * End the assistant message's turn, once.
@@ -564,18 +571,24 @@ export function useConversationStream({
        * must not re-settle it as completed or cancelled. Through the updater,
        * so it lands after every batched content flush queued before it.
        */
+      let settled = false;
       const settleAssistant = (outcome: NonNullable<Message['turnOutcome']>): void => {
+        if (settled) return;
+        settled = true;
         setMessages((prev) => {
-          if (prev.find((m) => m.id === assistantMessage.id)?.isStreaming !== true) return prev;
+          if (
+            !isGroupTurn &&
+            prev.find((m) => m.id === assistantMessage.id)?.isStreaming !== true
+          ) {
+            return prev;
+          }
           // A turn that completed is one the server has stored, under these ids.
           const stored = outcome === 'completed';
           return prev.map((m) => {
             // A consultation still open when the turn ends ends with it.
             const settles =
               m.id === assistantMessage.id ||
-              (m.isStreaming === true &&
-                isAgentMessageOf(m.id, assistantMessage.id) &&
-                !isRoomOwned(roomRef.current, m.id));
+              (m.isStreaming === true && isThisTurn(m.id) && !isRoomOwned(roomRef.current, m.id));
             let next = settles ? { ...m, isStreaming: false, turnOutcome: outcome } : m;
             if (stored && next.unsaved === true && isThisTurn(next.id)) {
               const { unsaved: _unsaved, ...rest } = next;
@@ -589,14 +602,19 @@ export function useConversationStream({
       /** What a consult frame does to the thread: the agent's own message, from start to end. */
       const applyConsult = (event: ConsultEvent): void => {
         if (event.type === 'start') {
-          if (consults.has(event.consultId)) return;
+          if (consults.has(event.consultId) || roomRef.current.discarded.has(event.consultId))
+            return;
           const id = nextAgentMessageId();
           consults.set(event.consultId, id);
           // The room's socket may have drawn this member typing already: that is its message.
           const adopted = claimConsult(roomRef.current, event.consultId, id);
           if (adopted !== null) {
             consults.set(event.consultId, adopted);
-            setMessages((prev) => prev.map((m) => (m.id === adopted ? { ...m, content: '' } : m)));
+            if (!roomRef.current.ended.has(event.consultId)) {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === adopted ? { ...m, content: '' } : m)),
+              );
+            }
             return;
           }
           const agentMessage: Message = {
@@ -619,7 +637,12 @@ export function useConversationStream({
           return;
         }
         const id = consults.get(event.consultId);
-        if (id === undefined) return;
+        if (id === undefined || roomRef.current.discarded.has(event.consultId)) return;
+        if (
+          roomRef.current.ended.has(event.consultId) &&
+          !(event.type === 'end' && event.status === 'completed' && event.messageId !== undefined)
+        )
+          return;
         if (event.type === 'delta') {
           if (event.content === '') return;
           outputEvidence.agentOutputChars += event.content.length;
@@ -663,7 +686,33 @@ export function useConversationStream({
           }
           return;
         }
+        if (isGroupTurn && event.errorCode === 'agent_declined') {
+          // A superseded room reply was never stored. Drop its provisional text
+          // across both transports instead of presenting it as a failed saved reply.
+          roomRef.current.ended.add(event.consultId);
+          roomRef.current.discarded.add(event.consultId);
+          setMessages((prev) => prev.filter((m) => m.id !== id));
+          return;
+        }
         if (event.content !== undefined) outputEvidence.agentOutputChars += event.content.length;
+        if (isGroupTurn && event.status === 'completed' && event.messageId !== undefined) {
+          roomRef.current.ended.add(event.consultId);
+          consults.set(event.consultId, event.messageId);
+          setMessages((prev) =>
+            applyRoomEvent(prev, roomRef.current, conversationId ?? '', {
+              conversationId: conversationId ?? '',
+              event: 'alia.agent_end',
+              data: {
+                consultId: event.consultId,
+                status: event.status,
+                content: event.content,
+                messageId: event.messageId,
+              },
+            }),
+          );
+          return;
+        }
+        if (isGroupTurn) roomRef.current.ended.add(event.consultId);
         setMessages((prev) =>
           prev.map((m) =>
             m.id !== id
@@ -898,7 +947,7 @@ export function useConversationStream({
             if (syntheticTail !== null) {
               return keepFailedTurn(syntheticTail.retryable, syntheticTail.detail);
             }
-            if (!hasUsableStreamOutput(outputEvidence)) {
+            if (!hasUsableStreamOutput(outputEvidence) && !(isGroupTurn && sawTerminal)) {
               setError(new Error('No response received from AI'));
               return keepFailedTurn(true);
             }
@@ -932,6 +981,22 @@ export function useConversationStream({
               // ── Named SSE events (Alia extensions) ──
               if (currentEventType) {
                 switch (currentEventType) {
+                  case 'alia.group_turn': {
+                    if (
+                      parsed.eventVersion !== 1 ||
+                      typeof parsed.conversationId !== 'string' ||
+                      (conversationId !== undefined && parsed.conversationId !== conversationId) ||
+                      !Array.isArray(parsed.agentIds) ||
+                      !parsed.agentIds.every((id: unknown) => typeof id === 'string')
+                    ) {
+                      continue;
+                    }
+                    isGroupTurn = true;
+                    // The room has no lead assistant. Only a selected member's start
+                    // creates a reply; a quiet decision leaves just the person's message.
+                    setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
+                    continue;
+                  }
                   case 'alia.reasoning': {
                     const content = parsed.content;
                     if (content) {

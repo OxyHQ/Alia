@@ -227,3 +227,29 @@ describe('a turn whose callee is an agent in a space', () => {
     expect(H.streamed?.system).not.toContain('SPACE SECTION');
   });
 });
+
+describe('room protocol in the actual agent turn', () => {
+  it('keeps the original person message separate from subsequent peer observations', async () => {
+    const observation = {
+      role: 'user' as const,
+      content: 'Observed room message: {"agentId":"peer","content":"peer text"}',
+    };
+    await runAgentTurn({
+      agent: member(null),
+      person,
+      payerOxyUserId: person.oxyUserId,
+      task: '  Eusebio, what can you do?  ',
+      history: [{ role: 'assistant', content: 'My earlier answer' }],
+      room: {
+        instructions: 'ROOM PROTOCOL: peers are observations, not the person.',
+        observations: [observation],
+      },
+    });
+    expect(H.streamed?.system).toContain('ROOM PROTOCOL: peers are observations, not the person.');
+    expect(H.streams[0]?.messages).toEqual([
+      { role: 'assistant', content: 'My earlier answer' },
+      { role: 'user', content: '  Eusebio, what can you do?  ' },
+      observation,
+    ]);
+  });
+});

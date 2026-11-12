@@ -146,6 +146,86 @@ describe('a member speaking in the room', () => {
     expect(messages[0]?.content).toBe('a');
   });
 
+  it.each(['end-first', 'message-only'] as const)(
+    'recovers a stored reply after a failed attempt without duplicating it (%s)',
+    (replay) => {
+      const id = 'group-reply-p1-1';
+      const failed = run([
+        start(id),
+        delta('Partial', id),
+        end({ status: 'failed', error: { code: 'store_failed' } }, id),
+      ]);
+      expect(failed.messages[0]?.turnOutcome).toBe('failed');
+      const completed = end({ status: 'completed', content: 'Stored answer', messageId: id }, id);
+      const { messages, ledger } = run(
+        [
+          start(id),
+          ...(replay === 'end-first' ? [completed] : []),
+          reply(id, 'Stored answer'),
+          completed,
+          reply(id, 'Stored answer'),
+          delta('late duplicate', id),
+          end({ status: 'failed', error: { code: 'store_failed' } }, id),
+        ],
+        failed.messages,
+        failed.ledger,
+      );
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        id,
+        content: 'Stored answer',
+        turnOutcome: 'completed',
+        isStreaming: false,
+      });
+      expect(messages[0]?.unsaved).toBeUndefined();
+      expect(ledger.messages.get(id)).toBe(id);
+    },
+  );
+
+  it.each([false, true])(
+    'recovers a stored completion claimed by SSE (released: %s)',
+    (released) => {
+      const id = 'group-reply-p1-1';
+      const ledger = createRoomLedger();
+      claimConsult(ledger, id, 'sse-draft');
+      if (released) releaseConsult(ledger, id);
+      ledger.ended.add(id);
+      const { messages } = run(
+        [
+          start(id),
+          end({ status: 'completed', content: 'Stored answer', messageId: id }, id),
+          reply(id, 'Stored answer'),
+        ],
+        [
+          {
+            id: 'sse-draft',
+            role: 'assistant',
+            content: 'Partial',
+            turnOutcome: 'failed',
+            agentInfo: NADIA,
+          },
+        ],
+        ledger,
+      );
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ id, content: 'Stored answer', turnOutcome: 'completed' });
+    },
+  );
+
+  it('does not revive an explicitly discarded reply through a late completion replay', () => {
+    const id = 'group-reply-p1-1';
+    const { messages, ledger } = run([
+      start(id),
+      delta('Superseded draft', id),
+      end({ status: 'declined' }, id),
+      start(id),
+      end({ status: 'completed', messageId: id, content: 'Stale answer' }, id),
+      reply(id, 'Stale answer'),
+    ]);
+    expect(messages).toEqual([]);
+    expect(ledger.discarded.has(id)).toBe(true);
+  });
+
   it('ends a failed member as failed, and a declined one as nothing', () => {
     const failed = run([start(), end({ status: 'failed', error: { code: 'agent_unavailable' } })]);
     expect(failed.messages[0]).toMatchObject({ isStreaming: false, turnOutcome: 'failed' });
@@ -173,6 +253,31 @@ describe('a member speaking in the room', () => {
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatchObject({ content: 'half', isStreaming: false });
   });
+
+  it.each(['error', 'rate_limited', 'turn_cap', 'reply_cap'])(
+    'marks only unfinished room output failed when the chain ends with %s',
+    (reason) => {
+      const { messages } = run([
+        start('k1'),
+        end({ status: 'completed', content: 'Finished', messageId: 'group-reply-p1-0' }, 'k1'),
+        start('k2'),
+        delta('unfinished', 'k2'),
+        start('k3'),
+        event('group.idle', { reason }),
+      ]);
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({
+        content: 'Finished',
+        turnOutcome: 'completed',
+        isStreaming: false,
+      });
+      expect(messages[1]).toMatchObject({
+        content: 'unfinished',
+        turnOutcome: 'failed',
+        isStreaming: false,
+      });
+    },
+  );
 
   it('ignores events of other conversations and malformed ones', () => {
     const before: Message[] = [];
@@ -244,5 +349,99 @@ describe('a member the chat request already drew', () => {
     const drawn = run([start(), delta('Ho')], [], ledger);
     expect(claimConsult(ledger, 'k1', 'a-agent-0')).toBe('room-k1');
     expect(drawn.messages).toHaveLength(1);
+  });
+});
+
+describe('room chain ownership', () => {
+  const inChain = (chainId: string, frame: RoomEvent): RoomEvent => ({ ...frame, chainId });
+
+  it.each(['done', 'superseded', 'error'])(
+    'a delayed old-chain %s cannot settle a new chain',
+    (reason) => {
+      const { messages, ledger } = run([
+        inChain('old', start('old-consult')),
+        inChain('old', delta('old output', 'old-consult')),
+        inChain('new', start('new-consult')),
+        inChain('new', delta('new output', 'new-consult')),
+        inChain('old', event('group.idle', { reason })),
+      ]);
+      expect(messages[0]).toMatchObject({ content: 'old output', isStreaming: false });
+      expect(messages[1]).toMatchObject({ content: 'new output', isStreaming: true });
+      expect(messages[1]?.turnOutcome).toBeUndefined();
+      expect(ledger.ended.has('old-consult')).toBe(true);
+      expect(ledger.ended.has('new-consult')).toBe(false);
+    },
+  );
+
+  it.each([
+    start('claimed'),
+    delta('duplicate', 'claimed'),
+    event('alia.agent_tool', {
+      consultId: 'claimed',
+      phase: 'call',
+      toolCallId: 't1',
+      name: 'search',
+    }),
+    end({ status: 'failed', error: { code: 'room_continues' } }, 'claimed'),
+  ])('learns the chain from an SSE-owned $event before release', (socketEvent) => {
+    const ledger = createRoomLedger();
+    claimConsult(ledger, 'claimed', 'sse-reply');
+    const initial: Message[] = [
+      { id: 'sse-reply', role: 'assistant', content: 'SSE text', isStreaming: true },
+    ];
+    const observed = run([inChain('new', socketEvent)], initial, ledger);
+    expect(ledger.chains.get('claimed')).toBe('new');
+    expect(observed.messages).toEqual(initial);
+    releaseConsult(ledger, 'claimed');
+    const oldEnded = run(
+      [inChain('old', event('group.idle', { reason: 'error' }))],
+      observed.messages,
+      ledger,
+    );
+    expect(oldEnded.messages[0]?.isStreaming).toBe(true);
+    const ownEnded = run(
+      [inChain('new', event('group.idle', { reason: 'error' }))],
+      oldEnded.messages,
+      ledger,
+    );
+    expect(ownEnded.messages[0]).toMatchObject({
+      content: 'SSE text',
+      isStreaming: false,
+      turnOutcome: 'failed',
+    });
+  });
+
+  it('leaves unknown released SSE ownership alone until the synthetic silence timeout', () => {
+    const ledger = createRoomLedger();
+    claimConsult(ledger, 'unknown', 'sse-reply');
+    releaseConsult(ledger, 'unknown');
+    const initial: Message[] = [
+      { id: 'sse-reply', role: 'assistant', content: 'SSE text', isStreaming: true },
+    ];
+    const afterIdle = run([event('group.idle', { reason: 'error' })], initial, ledger);
+    expect(afterIdle.messages).toBe(initial);
+    expect(ledger.ended.has('unknown')).toBe(false);
+    const afterSilence = run(
+      [{ conversationId: CONV, event: 'group.idle', data: { reason: 'silent' } }],
+      afterIdle.messages,
+      ledger,
+    );
+    expect(afterSilence.messages[0]).toMatchObject({ content: 'SSE text', isStreaming: false });
+  });
+
+  it('ignores unscoped real terminals and does not let a conflicting event reassign a consult', () => {
+    const ledger = createRoomLedger();
+    const started = run([inChain('new', start()), inChain('new', delta('current'))], [], ledger);
+    const result = run(
+      [
+        inChain('old', delta('incorrect')),
+        { conversationId: CONV, event: 'group.idle', data: { reason: 'error' } },
+        inChain('old', event('group.idle', { reason: 'error' })),
+      ],
+      started.messages,
+      ledger,
+    );
+    expect(result.messages[0]).toMatchObject({ content: 'current', isStreaming: true });
+    expect(ledger.chains.get('k1')).toBe('new');
   });
 });

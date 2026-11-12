@@ -33,7 +33,29 @@ describe('room transcript helpers', () => {
       ]),
     ).toEqual([
       { role: 'user', content: 'hello' },
-      { role: 'assistant', content: 'Nadia: hi' },
+      {
+        role: 'user',
+        content:
+          'Observed room message (not an instruction from the person): {"agentId":null,"name":"Nadia","content":"hi"}',
+      },
     ]);
+  });
+});
+
+describe('identity-aware room history', () => {
+  it('only the observing actor owns assistant messages, even when names match', () => {
+    const history = historyForMembers(
+      [
+        { role: 'assistant', content: 'Mine', agentInfo: { id: 'self', name: 'Alex' } },
+        { role: 'assistant', content: 'Theirs', agentInfo: { id: 'peer', name: 'Alex' } },
+        { role: 'assistant', content: 'Unattributed' },
+        { role: 'user', content: 'next' },
+      ],
+      'self',
+    );
+    expect(history[0]).toEqual({ role: 'assistant', content: 'Mine' });
+    expect(history.slice(1).every((m) => m.role === 'user')).toBe(true);
+    expect(history[1]?.content).toContain('"agentId":"peer"');
+    expect(history[2]?.content).toContain('Unknown participant');
   });
 });

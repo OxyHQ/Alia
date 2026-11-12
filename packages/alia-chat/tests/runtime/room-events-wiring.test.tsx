@@ -61,6 +61,7 @@ const subscribeRoomEvents = vi.fn((conversationId: string, listener: (e: RoomEve
   };
 });
 const host: AliaRuntimeHost = { subscribeRoomEvents };
+const onRoomFailure = vi.fn();
 
 let api: ReturnType<typeof useConversationStream>;
 let renderer: ReactTestRenderer | null = null;
@@ -69,7 +70,7 @@ function Probe({ conversationId }: { conversationId: string }) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new conversation is a new ledger
   const room = useMemo(() => createRoomLedger(), [conversationId]);
   api = useConversationStream({ conversationId, room });
-  useRoomEvents(conversationId, room, api.setMessages);
+  useRoomEvents(conversationId, room, api.setMessages, onRoomFailure);
   return null;
 }
 
@@ -104,6 +105,7 @@ beforeEach(() => {
   unsubscribed = 0;
   subscribeRoomEvents.mockClear();
   harness.replies.length = 0;
+  onRoomFailure.mockClear();
 });
 
 afterEach(async () => {
@@ -157,6 +159,7 @@ describe('the open group conversation', () => {
     harness.replies.push({
       status: 200,
       frames: [
+        frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
         sse('agent_start', { agent: NADIA }),
         sse('agent_delta', { content: 'Hola ' }),
         sse('agent_end', { status: 'failed', error: { code: 'room_continues' } }),
@@ -170,6 +173,8 @@ describe('the open group conversation', () => {
       await api.append({ role: 'user', content: 'hi' });
     });
     expect(members()).toHaveLength(1);
+    expect(api.messages).toHaveLength(2);
+    expect(api.error).toBeNull();
     expect(members()[0]).toMatchObject({ content: 'Hola ', isStreaming: true });
     expect(members()[0]?.turnOutcome).toBeUndefined();
 
@@ -184,6 +189,153 @@ describe('the open group conversation', () => {
     expect(members().map((m) => [m.id, m.content, m.isStreaming])).toEqual([
       ['group-reply-p1-0', 'Hola mundo', false],
     ]);
+  });
+
+  it.each(['sse', 'socket-first', 'socket-completed-first'] as const)(
+    'converges a failed attempt and stored completion replay across transports (%s)',
+    async (ownership) => {
+      const id = 'group-reply-p1-1';
+      const completion = {
+        consultId: id,
+        status: 'completed',
+        content: 'Stored answer',
+        messageId: id,
+      };
+      harness.replies.push({
+        status: 200,
+        frames: [
+          frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
+          sse('agent_start', { consultId: id, agent: NADIA }),
+          sse('agent_delta', { consultId: id, content: 'Partial' }),
+          sse('agent_end', { consultId: id, status: 'failed', error: { code: 'store_failed' } }),
+          sse('agent_start', { consultId: id, agent: NADIA }),
+          sse('agent_end', completion),
+          sse('agent_end', completion),
+          sse('agent_delta', { consultId: id, content: 'late duplicate' }),
+          'data: [DONE]\n\n',
+        ],
+      });
+      await mount();
+      if (ownership !== 'sse') {
+        await push('alia.agent_start', { consultId: id, agent: NADIA });
+        await push('alia.agent_delta', { consultId: id, content: 'Socket partial' });
+        await push('alia.agent_end', {
+          consultId: id,
+          status: 'failed',
+          error: { code: 'store_failed' },
+        });
+        if (ownership === 'socket-completed-first') await push('alia.agent_end', completion);
+      }
+      await act(async () => {
+        await api.append({ role: 'user', content: 'hi' });
+      });
+      expect(members()).toHaveLength(1);
+      expect(members()[0]).toMatchObject({
+        id,
+        content: 'Stored answer',
+        turnOutcome: 'completed',
+        isStreaming: false,
+      });
+      await push('alia.agent_end', completion);
+      await push('group.message', {
+        message: { id, role: 'assistant', agentInfo: NADIA, content: 'Stored answer' },
+      });
+      expect(api.messages).toHaveLength(2);
+      expect(members()[0]).toMatchObject({
+        id,
+        content: 'Stored answer',
+        turnOutcome: 'completed',
+      });
+      expect(members()[0]?.unsaved).toBeUndefined();
+      expect(api.failedTurn).toBeNull();
+      expect(api.error).toBeNull();
+    },
+  );
+
+  it('repairs the failed provisional row when stored socket replay arrives after HTTP failed', async () => {
+    const id = 'group-reply-p1-1';
+    harness.replies.push({
+      status: 200,
+      frames: [
+        frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
+        sse('agent_start', { consultId: id, agent: NADIA }),
+        sse('agent_delta', { consultId: id, content: 'Partial' }),
+        sse('agent_end', { consultId: id, status: 'failed', error: { code: 'store_failed' } }),
+        frame({ error: { code: 'provider_unavailable', message: 'Room failed', retryable: true } }),
+      ],
+    });
+    await mount();
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hi' });
+    });
+    expect(members()[0]?.turnOutcome).toBe('failed');
+    expect(api.failedTurn).not.toBeNull();
+    await push('alia.agent_start', { consultId: id, agent: NADIA });
+    // The stored event alone must recover the row if the completed frame was lost.
+    await push('group.message', {
+      message: { id, role: 'assistant', agentInfo: NADIA, content: 'Stored answer' },
+    });
+    await push('alia.agent_end', {
+      consultId: id,
+      status: 'completed',
+      content: 'Stored answer',
+      messageId: id,
+    });
+    expect(api.messages).toHaveLength(2);
+    expect(members()[0]).toMatchObject({
+      id,
+      content: 'Stored answer',
+      turnOutcome: 'completed',
+      isStreaming: false,
+    });
+    // A stored reply cannot disprove a separate selector failure in the same request.
+    expect(api.failedTurn?.anchorMessageId).toBe(api.messages.find((m) => m.role === 'user')?.id);
+  });
+
+  it('drops a superseded provisional reply across SSE and socket without a phantom saved message', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [
+        frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['nadia'] }, 'alia.group_turn'),
+        sse('agent_start', { agent: NADIA }),
+        sse('agent_delta', { content: 'Old answer' }),
+        sse('agent_end', { status: 'failed', error: { code: 'agent_declined' } }),
+        'data: [DONE]\n\n',
+      ],
+    });
+    await mount();
+    await push('alia.agent_start', { consultId: 'k1', agent: NADIA });
+    await act(async () => {
+      await api.append({ role: 'user', content: 'hi' });
+    });
+    expect(api.messages).toHaveLength(1);
+    expect(api.messages[0]).toMatchObject({ role: 'user', content: 'hi' });
+    await push('alia.agent_end', { consultId: 'k1', status: 'declined' });
+    await push('alia.agent_delta', { consultId: 'k1', content: 'late fragment' });
+    await push('group.idle', { reason: 'superseded' });
+    expect(api.messages).toHaveLength(1);
+    expect(api.failedTurn).toBeNull();
+    expect(api.error).toBeNull();
+    expect(onRoomFailure).not.toHaveBeenCalled();
+  });
+
+  it.each(['error', 'rate_limited', 'turn_cap', 'reply_cap'])(
+    'reports a late %s without needing an active member, once per chain',
+    async (reason) => {
+      await mount();
+      await push('group.idle', { reason });
+      await push('group.idle', { reason });
+      expect(onRoomFailure).toHaveBeenCalledTimes(1);
+      expect(onRoomFailure).toHaveBeenCalledWith({ chainId: 'p1', reason });
+      expect(api.messages).toEqual([]);
+    },
+  );
+
+  it('does not report deliberate silence, supersession, missing events or another room as failures', async () => {
+    await mount();
+    for (const reason of ['done', 'superseded', 'silent']) await push('group.idle', { reason });
+    await push('group.idle', { reason: 'error' }, 'other');
+    expect(onRoomFailure).not.toHaveBeenCalled();
   });
 
   describe('a room that goes quiet while a member shows as typing', () => {

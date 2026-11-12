@@ -179,6 +179,8 @@ export async function runAgentTurn(input: {
    * lone question. Omitted (`consultAgent`), the agent is given `task` and nothing else.
    */
   history?: readonly AgentTurnMessage[];
+  /** Server-owned group protocol and observations since the person's message. */
+  room?: { readonly instructions: string; readonly observations: readonly AgentTurnMessage[] };
   /** A tighter limit than {@link AGENT_TIMEOUT_MS}, for a turn that shares a request's time. */
   timeoutMs?: number;
 }): Promise<AgentTurnResult> {
@@ -190,7 +192,9 @@ export async function runAgentTurn(input: {
   if (agent !== null && (await isExternalAgent(agent._id))) {
     return runExternalAgentTurn({
       agentId: agent._id,
-      task,
+      task: input.room
+        ? `${input.room.instructions}\n\nPerson's original message: ${JSON.stringify(task)}\n\nSubsequent room observations: ${JSON.stringify(input.room.observations)}`
+        : task,
       ...(input.history ? { history: input.history } : {}),
       ...(observer?.onTextDelta ? { onTextDelta: observer.onTextDelta } : {}),
       ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
@@ -294,10 +298,15 @@ export async function runAgentTurn(input: {
   };
 
   try {
-    const history = [...(input.history ?? []), { role: 'user' as const, content: task }];
+    const history = [
+      ...(input.history ?? []),
+      { role: 'user' as const, content: task },
+      ...(input.room?.observations ?? []),
+    ];
     const turnConfig = {
       model,
-      system: systemPrompt + appCatalogPrompt,
+      system:
+        systemPrompt + appCatalogPrompt + (input.room ? `\n\n${input.room.instructions}` : ''),
       maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
       temperature: 0.4,
       abortSignal: controller.signal,

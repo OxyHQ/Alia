@@ -276,3 +276,173 @@ describe('the assistant message’s lifecycle stamp', () => {
     expect(api.failedTurn).toMatchObject({ anchorMessageId: reply().id, partial: true });
   });
 });
+
+const groupFrame = `event: alia.group_turn\ndata: ${JSON.stringify({ eventVersion: 1, conversationId: 'c1', agentIds: ['salella', 'eusebio'] })}\n\n`;
+const agentFrame = (event: string, data: Record<string, unknown>) =>
+  `event: alia.${event}\ndata: ${JSON.stringify({ eventVersion: 1, consultId: 'eusebio-turn', ...data })}\n\n`;
+const terminalFrame = `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`;
+
+describe('natural group participation', () => {
+  it('shows no unselected agent or lead placeholder while deciding, then accepts deliberate silence', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(groupFrame);
+    expect(api.messages.map((message) => message.role)).toEqual(['user']);
+    expect(api.isLoading).toBe(true);
+
+    await deliver(terminalFrame, 'data: [DONE]\n\n');
+    await close();
+    expect(await outcome).toBe('sent');
+    expect(api.messages).toHaveLength(1);
+    expect(api.messages[0]).toMatchObject({ role: 'user', content: 'hello?' });
+    expect(api.messages[0]?.unsaved).toBeUndefined();
+    expect(api.failedTurn).toBeNull();
+    expect(api.error).toBeNull();
+    expect(api.isLoading).toBe(false);
+    expect(api.composerPhase).toBe('complete');
+  });
+
+  it('renders only the selected agent and settles it even though there is no lead placeholder', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(
+      groupFrame,
+      agentFrame('agent_start', {
+        agent: { id: 'eusebio', name: 'Eusebio', handle: 'eusebio' },
+        task: 'Hola! Eusebio que puedes hacer?',
+      }),
+    );
+    expect(api.messages).toHaveLength(2);
+    expect(reply()).toMatchObject({ agentInfo: { id: 'eusebio' }, isStreaming: true });
+    await deliver(
+      agentFrame('agent_delta', { content: 'Soy Eusebio.' }),
+      terminalFrame,
+      'data: [DONE]\n\n',
+    );
+    await close();
+    expect(await outcome).toBe('sent');
+    expect(api.messages).toHaveLength(2);
+    expect(reply()).toMatchObject({
+      agentInfo: { id: 'eusebio' },
+      content: 'Soy Eusebio.',
+      isStreaming: false,
+      turnOutcome: 'completed',
+    });
+    expect(api.messages.some((message) => message.agentInfo?.id === 'salella')).toBe(false);
+    expect(api.error).toBeNull();
+  });
+
+  it('keeps the stored question and retry error when selection fails before any member starts', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(
+      groupFrame,
+      `data: ${JSON.stringify({ error: { code: 'provider_unavailable', message: 'Selection failed', retryable: true } })}\n\n`,
+    );
+    expect(await outcome).toBe('errored');
+    expect(api.messages).toHaveLength(1);
+    expect(api.messages[0]).toMatchObject({ role: 'user', content: 'hello?' });
+    expect(api.failedTurn).toMatchObject({
+      anchorMessageId: api.messages[0]?.id,
+      partial: false,
+      retryable: true,
+    });
+    expect(api.error).not.toBeNull();
+    expect(api.composerPhase).toBe('error');
+    expect(api.isLoading).toBe(false);
+  });
+
+  it('keeps the stored group question when credits run out during selection', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(
+      groupFrame,
+      `data: ${JSON.stringify({ error: { code: 'INSUFFICIENT_CREDITS', message: 'Not enough credits', retryable: false } })}\n\n`,
+    );
+    await close();
+    expect(await outcome).toBe('errored');
+    expect(api.messages).toHaveLength(1);
+    expect(api.messages[0]).toMatchObject({ role: 'user', content: 'hello?' });
+    expect(api.failedTurn).toMatchObject({
+      anchorMessageId: api.messages[0]?.id,
+      partial: false,
+      retryable: false,
+    });
+    expect(api.error).not.toBeNull();
+  });
+
+  it('keeps partial group output and anchors a failure to the question rather than a removed lead', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(
+      groupFrame,
+      agentFrame('agent_start', { agent: { id: 'eusebio', name: 'Eusebio', handle: 'eusebio' } }),
+      agentFrame('agent_delta', { content: 'Una parte' }),
+    );
+    await deliver(
+      `data: ${JSON.stringify({ error: { code: 'provider_unavailable', message: 'Selection failed', retryable: true } })}\n\n`,
+    );
+    expect(await outcome).toBe('sent');
+    expect(api.messages).toHaveLength(2);
+    expect(reply()).toMatchObject({
+      content: 'Una parte',
+      isStreaming: false,
+      turnOutcome: 'failed',
+    });
+    expect(api.failedTurn).toMatchObject({ anchorMessageId: api.messages[0]?.id, partial: true });
+  });
+
+  it('preserves a completed member reply if selection fails on the next step', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(
+      groupFrame,
+      agentFrame('agent_start', { agent: { id: 'eusebio', name: 'Eusebio', handle: 'eusebio' } }),
+      agentFrame('agent_end', { status: 'completed', content: 'Soy Eusebio.' }),
+    );
+    await deliver(
+      `data: ${JSON.stringify({ error: { code: 'provider_unavailable', message: 'Next selection failed', retryable: true } })}\n\n`,
+    );
+    expect(await outcome).toBe('sent');
+    expect(api.messages).toHaveLength(2);
+    expect(reply()).toMatchObject({
+      content: 'Soy Eusebio.',
+      isStreaming: false,
+      turnOutcome: 'completed',
+    });
+    expect(api.failedTurn).toMatchObject({
+      anchorMessageId: api.messages[0]?.id,
+      partial: true,
+      retryable: true,
+    });
+  });
+
+  it('does not mistake a disconnected group stream for deliberate silence', async () => {
+    await mount();
+    const { outcome } = await begin();
+    await deliver(groupFrame);
+    await close();
+    expect(await outcome).toBe('errored');
+    expect(api.messages).toHaveLength(1);
+    expect(api.failedTurn).toMatchObject({ partial: false, retryable: true });
+    expect(api.error).not.toBeNull();
+  });
+
+  it.each([
+    '',
+    'event: alia.group_turn\ndata: {"eventVersion":2,"conversationId":"c1","agentIds":["eusebio"]}\n\n',
+    'event: alia.group_turn\ndata: {"eventVersion":1,"conversationId":"other","agentIds":["eusebio"]}\n\n',
+    'event: alia.group_turn\ndata: {"eventVersion":1,"conversationId":"c1","agentIds":[123]}\n\n',
+  ])(
+    'still rejects empty ordinary turns and invalid group declarations (%s)',
+    async (declaration) => {
+      await mount();
+      const { outcome } = await begin();
+      await deliver(declaration, terminalFrame, 'data: [DONE]\n\n');
+      await close();
+      expect(await outcome).toBe('errored');
+      expect(api.failedTurn).toMatchObject({ partial: false, retryable: true });
+      expect(api.error).not.toBeNull();
+    },
+  );
+});

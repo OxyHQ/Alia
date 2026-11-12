@@ -1,17 +1,8 @@
 /**
- * The HTTP side of a group turn: the request that reaches `POST /v1/chat/completions` for a
- * conversation that is a group.
- *
- * It no longer runs the members (ADR 0025). The room does, in a worker, past this request's end.
- * The request prepares the chain (the person's message is stored, the members they may reach are
- * checked, each member's authority is minted: `room/start.ts`), subscribes to the room's event bus,
- * queues the first step, and forwards the chain's events as the SSE frames it has always sent
- * (`alia.agent_start`, `agent_delta`, `agent_tool`, `agent_end`) until the FIRST ROUND settles —
- * every member the person's message asked has ended its turn — or the request's own limit nears.
- * Then it ends cleanly; whatever the room still has to say (a member answering another's `@mention`)
- * arrives on the person's sockets and in the stored conversation.
- *
- * It is answered as a stream and only as a stream, and only for the person's own session.
+ * A group request subscribes to its durable room. It waits for the chain to become idle or its
+ * HTTP budget to expire; the number of speakers is decided by the room, never by a first round.
+ * Deliberate silence is successful. Inference/authority failures stay typed failures even after
+ * partial answers. After the request ends, room events continue over the existing socket bus.
  */
 
 import type { Request, Response } from 'express';
@@ -38,19 +29,17 @@ export interface GroupHttpDeps {
 
 const defaultDeps = (): GroupHttpDeps => ({ bus: getRoomBus(), prepareRoom });
 
-/** What the request saw of the first round. */
+/** What the request observed of the room chain. */
 export interface GroupServeOutcome {
   /** Replies that completed while the request was open. */
   readonly completed: number;
-  /** Whether the first round ended before the request did (otherwise the room is still answering). */
+  /** Whether the chain ended before the request did (otherwise the room is still answering). */
   readonly settled: boolean;
+  /** Deliberate silence is successful; failures must still go through failTurn. */
+  readonly status: 'completed' | 'quiet' | 'continuing' | 'failed';
 }
 
-/**
- * Serve one group turn. Resolves with what the request saw (when nobody could answer it is
- * `completed: 0, settled: true` and the stream is left open: the caller ends it with a typed failure), or `null` when
- * the request was refused before a stream opened.
- */
+/** Failed outcomes leave the stream open for the route's failTurn; other outcomes finish it. */
 export async function serveGroupTurn(
   input: {
     readonly req: Request;
@@ -106,23 +95,20 @@ export async function serveGroupTurn(
     accessToken: req.accessToken,
     surfaceApplicationId: await appSurfaceOf(req),
   });
-  for (const agentId of room.unreachableAgentIds) {
-    emit('alia.agent_end', {
-      consultId: `unreachable-${agentId}`,
-      status: 'failed',
-      error: { code: 'agent_unavailable' },
-    });
+  if (input.signal.aborted) {
+    await room.abandon();
+    throw input.signal.reason ?? new Error('Group request aborted before queueing');
   }
 
   let completed = 0;
   let settled = true;
-  if (room.firstRoundSize > 0) {
-    const watched = watchFirstRound({
+  let status: GroupServeOutcome['status'] = 'failed';
+  if (room.ready) {
+    const watched = watchRoom({
       bus: deps.bus,
       userId,
       conversationId,
       chainId: room.chainId,
-      firstRoundSize: room.firstRoundSize,
       remainingMs: GROUP_REQUEST_BUDGET_MS - (Date.now() - input.startedAt),
       signal: input.signal,
       emit,
@@ -130,15 +116,15 @@ export async function serveGroupTurn(
       begin: () => room.start(),
     });
     try {
-      ({ completed, settled } = await watched);
+      ({ completed, settled, status } = await watched);
     } catch (error: unknown) {
       await room.abandon();
       throw error;
     }
   }
 
-  // Nobody answered and the round is over: the caller ends the stream with a typed failure instead.
-  if (settled && completed === 0) return { completed, settled };
+  // Failure is independent of whether earlier members produced text.
+  if (status === 'failed') return { completed, settled, status };
 
   res.write(
     `data: ${JSON.stringify({
@@ -150,11 +136,11 @@ export async function serveGroupTurn(
     })}\n\n`,
   );
   sse.done();
-  return { completed, settled };
+  return { completed, settled, status };
 }
 
 /**
- * Forward a chain's events as SSE frames until its first round ends, the chain ends, the budget is
+ * Forward a chain's events as SSE frames until the chain ends, the budget is
  * spent or the client leaves.
  *
  * A member that declines is invisible: its `agent_start` is held until the member shows it is
@@ -162,27 +148,33 @@ export async function serveGroupTurn(
  * turn is still running when the request ends is closed with a typed `room_continues` end so a
  * client never waits on it; its reply still lands in the room.
  */
-function watchFirstRound(input: {
+function watchRoom(input: {
   readonly bus: RoomBus;
   readonly userId: string;
   readonly conversationId: string;
   readonly chainId: string;
-  readonly firstRoundSize: number;
   readonly remainingMs: number;
   readonly signal: AbortSignal;
   readonly emit: (event: string, data: Record<string, unknown>) => void;
   readonly begin: () => Promise<void>;
-}): Promise<{ completed: number; settled: boolean }> {
+}): Promise<GroupServeOutcome> {
   return new Promise((resolve, reject) => {
     const heldStarts = new Map<string, Record<string, unknown>>();
     const open = new Set<string>();
-    let ended = 0;
+    const failedConsults = new Set<string>();
+    const completedConsults = new Set<string>();
     let completed = 0;
     let done = false;
+    let begun = false;
+    let pendingFinish: { settled: boolean; reason?: unknown } | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const finish = (settled: boolean) => {
+    const finish = (settled: boolean, reason?: unknown) => {
       if (done) return;
+      if (!begun) {
+        pendingFinish = { settled, reason };
+        return;
+      }
       done = true;
       unsubscribe();
       if (timer) clearTimeout(timer);
@@ -191,10 +183,27 @@ function watchFirstRound(input: {
         input.emit('alia.agent_end', {
           consultId,
           status: 'failed',
-          error: { code: 'room_continues' },
+          error: {
+            code:
+              reason === 'superseded'
+                ? 'agent_declined'
+                : settled
+                  ? 'room_failed'
+                  : 'room_continues',
+          },
         });
       }
-      resolve({ completed, settled });
+      const status: GroupServeOutcome['status'] =
+        failedConsults.size > 0
+          ? 'failed'
+          : !settled
+            ? 'continuing'
+            : reason !== 'done' && reason !== 'superseded'
+              ? 'failed'
+              : completed > 0
+                ? 'completed'
+                : 'quiet';
+      resolve({ completed, settled, status });
     };
     const onAbort = () => finish(false);
 
@@ -207,7 +216,7 @@ function watchFirstRound(input: {
     };
 
     const onEvent = (event: RoomEvent) => {
-      if (done || event.chainId !== input.chainId) return;
+      if (done || pendingFinish?.settled || event.chainId !== input.chainId) return;
       const consultId = typeof event.data.consultId === 'string' ? event.data.consultId : '';
       switch (event.event) {
         case 'alia.agent_start':
@@ -219,7 +228,7 @@ function watchFirstRound(input: {
           input.emit(event.event, event.data);
           return;
         case 'alia.agent_end': {
-          ended += 1;
+          if (event.data.status === 'failed') failedConsults.add(consultId);
           if (event.data.status === 'declined') {
             // Nothing was said: show nothing, unless the member already did something visible.
             heldStarts.delete(consultId);
@@ -234,14 +243,19 @@ function watchFirstRound(input: {
             // The start always precedes its end, even for a reply that arrived whole.
             release(consultId);
             open.delete(consultId);
-            if (event.data.status === 'completed') completed += 1;
+            if (event.data.status === 'completed') {
+              failedConsults.delete(consultId);
+              if (!completedConsults.has(consultId)) {
+                completedConsults.add(consultId);
+                completed += 1;
+              }
+            }
             input.emit('alia.agent_end', event.data);
           }
-          if (ended >= input.firstRoundSize) finish(true);
           return;
         }
         case 'group.idle':
-          finish(true);
+          finish(true, event.data.reason);
           return;
         default:
           return;
@@ -249,15 +263,25 @@ function watchFirstRound(input: {
     };
 
     const unsubscribe = input.bus.subscribe(input.userId, input.conversationId, onEvent);
-    if (input.signal.aborted) return finish(false);
+    if (input.signal.aborted) {
+      unsubscribe();
+      reject(input.signal.reason ?? new Error('Group request aborted before queueing'));
+      return;
+    }
     input.signal.addEventListener('abort', onAbort, { once: true });
     timer = setTimeout(() => finish(false), Math.max(input.remainingMs, 0));
-    input.begin().catch((error: unknown) => {
-      done = true;
-      unsubscribe();
-      if (timer) clearTimeout(timer);
-      input.signal.removeEventListener('abort', onAbort);
-      reject(error);
-    });
+    input
+      .begin()
+      .then(() => {
+        begun = true;
+        if (pendingFinish) finish(pendingFinish.settled, pendingFinish.reason);
+      })
+      .catch((error: unknown) => {
+        done = true;
+        unsubscribe();
+        if (timer) clearTimeout(timer);
+        input.signal.removeEventListener('abort', onAbort);
+        reject(error);
+      });
   });
 }
