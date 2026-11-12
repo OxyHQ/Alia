@@ -758,11 +758,33 @@ export async function rewriteMessages(
     const rows = build(stored).map((row, seq) => {
       const previous =
         row.clientMessageId === undefined ? undefined : byId.get(row.clientMessageId);
-      const sameActor = previous && previous.agentInfoId === (row.agentInfo?.id ?? null);
+      // A client may omit display metadata; that does not change who authored
+      // an already identified message. Explicit identity changes remain a new target.
+      const effectiveRow =
+        previous &&
+        row.retainFeedback !== false &&
+        previous.role === row.role &&
+        previous.agentInfoId !== null &&
+        row.agentInfo === undefined
+          ? {
+              ...row,
+              agentInfo: {
+                id: previous.agentInfoId,
+                name: previous.agentInfoName ?? '',
+                color: previous.agentInfoColor,
+                character: previous.agentInfoCharacter,
+                handle: previous.agentInfoHandle ?? '',
+              },
+            }
+          : row;
+      const sameActor =
+        previous &&
+        previous.role === effectiveRow.role &&
+        previous.agentInfoId === (effectiveRow.agentInfo?.id ?? null);
       const preserve = previous && row.retainFeedback !== false && sameActor;
       if (preserve && row.clientMessageId) retained.add(row.clientMessageId);
       return toInsert({
-        ...row,
+        ...effectiveRow,
         conversationId,
         oxyUserId,
         seq,

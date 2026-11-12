@@ -207,6 +207,36 @@ describe('durable message reaction events', () => {
     expect(await f.mutate('remove', false)).toMatchObject({ revision: 2, reactions: [] });
   });
 
+  it('keeps stored authorship and reactions when client echo omits actor display metadata', async () => {
+    const f = await fixture();
+    const added = await f.mutate('echo', true);
+    await replaceMessages(db, f.userId, f.conversationId, [
+      { clientMessageId: 'question', role: 'user', content: 'Hola' },
+      { clientMessageId: 'answer', role: 'assistant', content: 'Hola' },
+    ]);
+    expect((await listMessages(db, f.userId, f.conversationId))[1]).toMatchObject({
+      agentInfoId: actor.id,
+      reactions: ['❤️'],
+      reactionRevision: 1,
+    });
+    expect(await isReactionEventCurrent(db, added!.event!)).toBe(true);
+    await replaceMessages(db, f.userId, f.conversationId, [
+      { clientMessageId: 'question', role: 'user', content: 'Hola' },
+      {
+        clientMessageId: 'answer',
+        role: 'assistant',
+        content: 'Otra persona',
+        agentInfo: { ...actor, id: 'different-actor' },
+      },
+    ]);
+    expect((await listMessages(db, f.userId, f.conversationId))[1]).toMatchObject({
+      agentInfoId: 'different-actor',
+      reactions: null,
+      reactionRevision: 0,
+    });
+    expect(await isReactionEventCurrent(db, added!.event!)).toBe(false);
+  });
+
   it('serializes reaction writes with replacement without losing either ordering', async () => {
     const f = await fixture();
     await Promise.all([
