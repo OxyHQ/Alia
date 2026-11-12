@@ -428,8 +428,7 @@ gate-2 assertion that every file permitted to name a provider hostname is filed 
 ### (c) "the product runs on `/v1/chat/completions`, not `/alia/chat`" — **TRUE**
 
 Every shipped client posts to `/v1/chat/completions`: `packages/app/src/features/chat/runtime/use-chat-conversation.ts:44`,
-`packages/alia-chat/src/hooks/useAliaChat.ts:217`, `packages/alia-codea/src/chatParticipant.ts:177`
-and `inlineCompletionProvider.ts:93`, `packages/integrations/src/shared/api-client.ts:198`/`:260`.
+`packages/alia-chat/src/hooks/useAliaChat.ts:217`, `packages/integrations/src/shared/api-client.ts:198`/`:260`.
 `/alia/chat` has **zero in-repo callers**. Measured: 23 occurrences in `.ts`/`.tsx` across
 `packages/`, of which 9 are outside `__tests__` and only **5 are not comments** —
 `src/index.ts:233` and `:253` (its own two mounts), `src/index.ts:299` (the root route's endpoint
@@ -845,7 +844,7 @@ one audit.
 `ALREADY_TRUE` (2), `ROLLUP_OF` (1), `BLOCKED_OPERATOR` (10), `BLOCKED_KAANA` (7, Alia's half only)
 and `DUPLICATE_OF` (21). **Why:** every one of them rested on a premise that changed after 2026-08-19 —
 Alia was cut over to `Alia -> Oxy -> Kaana` in `697c3f9` (#477), ADR 0010 made `api.alia.onl/v1/*` a
-permanent product API, OxyHQ/oxy#972 closed, and Codea and the CLI moved onto `/alia/chat` (#561).
+permanent product API, OxyHQ/oxy#972 closed, and the CLI moved onto `/alia/chat` (#561).
 
 **Result:** **47 earned** (`resolvedSince: 2026-09-10`, each with `resolutionEvidence` naming the
 mechanism `file:line` and the guard that keeps it true), **59 still open** (each with a rewritten

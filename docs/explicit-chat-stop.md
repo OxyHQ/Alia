@@ -115,7 +115,7 @@ local tests.
 
 ### Desktop adoption
 
-Codea's webview Stop and native chat panel Stop use the
+The desktop client's Stop uses the
 server SDK lifecycle helper over their existing Oxy linked transport. Each HTTP
 request in a local tool loop has a fresh cancellation ID; stopping between local
 tools prevents further rounds and does not undo an action that already ran.
@@ -124,17 +124,17 @@ The account lifetime signal is separate from the stream signal: a terminal
 `turn_cancelled` frame preserves delivered partial text and does not abort the
 control request while its acknowledgement is still pending.
 Account changes, opening saved history, clearing a conversation, view teardown
-and Codea inline-suggestion invalidation only detach. Late text and local tool
+only detach. Late text and local tool
 results cannot enter a replacement conversation. Typing a character is not treated as an explicit chat Stop command.
 
 These consumers do not calculate or refund credits. The receiver's measured
 reconciliation remains authoritative, and their HTTP fixtures establish request
 identity, acknowledgement and account fencing rather than live financial
-settlement. Codea 1.0.10 uses server SDK 1.3.1’s exported
+settlement. The desktop client uses server SDK 1.3.1’s exported
 SSE reader over the same Oxy linked fetch. Presentation, synthetic-message handling
 and local tool assembly stay in the desktop packages; byte framing, typed tool
 fragments, stream limits and terminal detection are shared. Invalid or truncated
 streams become visible failures rather than successful partial replies. Full
 multimodal/tool request messages remain unchanged. These versions require the
 receiver rollout and server SDK release before distribution; see the separate artifact steps in
-[deployment](./deployment.md#codea-desktop-artifact).
+[deployment](./deployment.md).

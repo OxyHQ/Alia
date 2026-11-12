@@ -7,7 +7,6 @@ order: 0
 # Alia
 
 Alia is Oxy's assistant. One runtime serves the Expo app (web, iOS, Android), the
-Codea VS Code extension and CLI ([OxyHQ/Codea](https://github.com/OxyHQ/Codea)), other
 Oxy apps and third parties through the SDK. Alia acts for the person in their Oxy apps, runs
 tasks in the background, writes first when something needs them, and lets people
 create **agents** — personas with their own Oxy account, memory and computer.
@@ -43,7 +42,7 @@ Alia is one of three things, and the three are not nested
   Alia, Kaana and Mention, billing.
 - **Alia** — the assistant, with its own **permanent product API** (`api.alia.onl/v1/*`
   and `/alia/chat`, plus the product routes beside them). Three groups call it, all
-  authorized by Oxy: Alia's own surfaces — the app, Codea (extension and CLI),
+  authorized by Oxy: Alia's own surfaces — the app (extension and CLI),
   on `/alia/chat` with the user's Oxy session; other applications in the Oxy ecosystem;
   and third parties through `@alia.onl/sdk`. It accepts an OpenAI-compatible request
   shape and streams `alia.*` product events; it does not sunset.

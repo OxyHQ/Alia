@@ -315,8 +315,7 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 5. `POST /webhooks/oxy` accepts a normalized event from an authorized Oxy service and
    deduplicates on `(appId, eventId)`; `POST /webhooks/oxy/:serviceId` returns `410`.
 6. The two removed model-resolution endpoints return `410`: `/v1/resolve-model`,
-   `/v1/report-usage`. The whole `/codea` router is gone (it served only the retired
-   `alia_sk_*` keys) and answers `404`.
+   `/v1/report-usage`. The retired `alia_sk_*` key routers are gone and answer `404`.
 
 ## Rollback
 

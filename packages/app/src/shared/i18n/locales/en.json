@@ -926,10 +926,6 @@
     "proUsage": "Full-featured AI assistant",
     "maxUsage": "Extended capacity for power users",
     "ultraUsage": "Maximum power for heavy workloads",
-    "codeaTitle": "Ship faster with Codea",
-    "codeaSubtitle": "AI-powered code completions, inline chat, and agentic workflows for VS Code & CLI",
-    "codeaProUsage": "AI-powered code completions & chat",
-    "codeaMaxUsage": "Maximum coding capacity",
     "sharedCredits": "Credits shared with your Alia plan",
     "teamTitle": "Team",
     "teamDescription": "Scale your team's productivity with Alia",
@@ -1758,11 +1754,11 @@
     "personalEmpty": "No personal connectors yet. Add one with +",
     "device": {
       "title": "Off on your computer",
-      "description": "Command connectors run only on your own computer, started by Alia for desktop or Codea — never on Alia's servers. These are turned off: turn one on to run it there again.",
+      "description": "Command connectors run only on your own computer, started by Alia for desktop — never on Alia's servers. These are turned off: turn one on to run it there again.",
       "turnOn": "Turn on",
       "turnOnTitle": "Turn on {{name}}?",
-      "turnOnDescription": "It runs this command on your computer while Alia for desktop or Codea is open: {{command}}",
-      "turnedOnToast": "{{name}} is on. It starts the next time Alia for desktop or Codea connects.",
+      "turnOnDescription": "It runs this command on your computer while Alia for desktop is open: {{command}}",
+      "turnedOnToast": "{{name}} is on. It starts the next time Alia for desktop connects.",
       "turnOnFailed": "Could not turn the connector on. Try again."
     }
   },

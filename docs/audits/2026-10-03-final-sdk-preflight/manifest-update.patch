@@ -38,39 +38,6 @@
      "@tailwindcss/vite": "^4.3.2",
      "@tanstack/react-query": "^5.102.8",
      "@xyflow/react": "^12.11.2",
---- a/packages/alia-codea-cli/package.json
-+++ b/packages/alia-codea-cli/package.json
-@@ -27,7 +27,7 @@
-   "author": "Alia",
-   "license": "MIT",
-   "dependencies": {
--    "@oxy.so/core": "^4.0.0",
-+    "@oxy.so/core": "4.2.0",
-     "chalk": "^5.6.2",
-     "commander": "^15.0.0",
-     "conf": "^15.1.0",
---- a/packages/alia-codea/package.json
-+++ b/packages/alia-codea/package.json
-@@ -243,7 +243,7 @@
-     "test": "vitest run"
-   },
-   "dependencies": {
--    "@oxy.so/core": "^4.0.0",
-+    "@oxy.so/core": "4.2.0",
-     "jwt-decode": "^4.0.0",
-     "openai": "^6.46.0"
-   },
---- a/packages/alia-codea/webview-ui/package.json
-+++ b/packages/alia-codea/webview-ui/package.json
-@@ -13,7 +13,7 @@
-     "@base-ui/react": "^1.6.0",
-     "@hugeicons/core-free-icons": "^4.2.2",
-     "@hugeicons/react": "^1.1.9",
--    "@oxy.so/bloom": "^6.3.0",
-+    "@oxy.so/bloom": "6.2.1",
-     "@radix-ui/react-alert-dialog": "^1.1.19",
-     "@radix-ui/react-avatar": "^1.2.2",
-     "@radix-ui/react-dialog": "^1.1.19",
 --- a/packages/alia-computer-host/package.json
 +++ b/packages/alia-computer-host/package.json
 @@ -20,7 +20,7 @@

@@ -264,10 +264,15 @@ interface MatrixRow {
  * them annotated as removed; the rows go whole and are no longer cited as `dependsOn` by the rows
  * that stay.
  *
+ * ## 150 -> 147: the coding clients leave the matrix
+ *
+ * The VS Code extension and the CLI live in their own repository, so their rows go too: three
+ * of them were annotated as removed.
+ *
  * Codea's extension and CLI moved to OxyHQ/Codea, so the eleven rows that described their files
  * leave the matrix the same way; none of them was annotated as removed.
  */
-const REMOVED_ROW_COUNT = 150;
+const REMOVED_ROW_COUNT = 147;
 
 const OWNERS = new Set(['alia', 'oxy', 'kaana', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

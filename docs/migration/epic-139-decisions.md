@@ -131,9 +131,9 @@ migrate to. A date there would be a deadline holders cannot meet (O6).
 cutover rather than as the separately-decided change this section reserved. The three costs it priced
 were paid there: resolution is by exact opaque Oxy routing-profile id (`mode:*`/`route:*` via
 `config/oxy-inference-routing-profile-ids.ts`; `fallback-engine.ts` and `alias-translation.ts` are
-gone), the credit multiplier hangs off the routing profile (`KAANA_ROUTING_PROFILES`), and Codea,
+gone), the credit multiplier hangs off the routing profile (`KAANA_ROUTING_PROFILES`),,
 the CLI moved onto `/alia/chat` in #561. An installed copy of an older `@alia.onl/sdk` or
-`@alia-codea/cli` that still sends an `alia-*` id gets the `400 unknown_routing_profile` refusal
+that still sends an `alia-*` id gets the `400 unknown_routing_profile` refusal
 recorded under D1. The measurement below is kept as the record of why the cut was deferred until then.
 
 **Decided at the time: the aliases stay on the request path. A full cut remains available as an explicit,
@@ -153,11 +153,9 @@ Removing them from resolution too would brick the product today. Three costs, ea
    `model?.creditMultiplier || 1` off the alias entry. Remove the alias and every request bills at
    1× regardless of tier.
 
-And two consumers this repository cannot migrate by editing itself: **`@alia.onl/sdk` (latest
+And a consumer this repository cannot migrate by editing itself: **`@alia.onl/sdk` (latest
 published `5.1.0`, 2026-08-02)** ships as raw source, so consumers compile the aliases into their own
-bundles; **`@alia-codea/cli` (latest published `2.0.1`)** hardcodes `route:code`. *(**Measured**
-from npm: a handoff said `6.0.0` and `2.0.2`; neither exists — the SDK's published versions end at
-`5.1.0` and the CLI's at `2.0.1`.)* An installed copy keeps sending the old identifier until its
+bundles. An installed copy keeps sending the old identifier until its
 owner upgrades, which is exactly what "keeps resolving unadvertised" protects.
 
 **If a full cut is later chosen**, the three costs above are the work: a resolver that accepts

@@ -24,30 +24,6 @@
     "seconds": 2.62
   },
   {
-    "name": "alia-codea-types",
-    "cwd": "packages/alia-codea",
-    "argv": [
-      "bun",
-      "--no-env-file",
-      "run",
-      "typecheck"
-    ],
-    "exitCode": 0,
-    "seconds": 1.367
-  },
-  {
-    "name": "alia-codea-cli-types",
-    "cwd": "packages/alia-codea-cli",
-    "argv": [
-      "bun",
-      "--no-env-file",
-      "run",
-      "typecheck"
-    ],
-    "exitCode": 0,
-    "seconds": 1.517
-  },
-  {
     "name": "alia-computer-host-types",
     "cwd": "packages/alia-computer-host",
     "argv": [

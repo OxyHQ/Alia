@@ -180,7 +180,7 @@ function main(): void {
   // The vacuity floor. An empty checked set satisfies "no package failed", and a
   // filter bug, a renamed workspace or an over-grown exclusion list all produce
   // exactly that. Two today (`@alia/computer-host`, `@alia/integrations`);
-  // it was four before Codea's two packages moved to OxyHQ/Codea.
+  // it was four before two packages moved to their own repository.
   if (checked.length < 2) {
     console.error(`Only ${checked.length} workspace(s) would be checked; the gate has eroded.`);
     process.exit(1);
