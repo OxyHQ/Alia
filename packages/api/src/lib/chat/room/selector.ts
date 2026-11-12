@@ -10,7 +10,9 @@ import {
   REACTION_SELECTION_SYSTEM,
   ReactionDecisionSchema,
   reactionRoomDecision,
-  RoomDecisionSchema,
+  roomDecisionChoices,
+  roomChoiceSchema,
+  roomChoiceDecision,
   roomSelectionData,
   validateRoomDecision,
   type RoomDecision,
@@ -18,7 +20,9 @@ import {
 } from './decision.js';
 
 export async function selectRoomDecision(input: RoomSelectionInput): Promise<RoomDecision> {
-  const prompt = roomSelectionData(input);
+  const choices = input.trigger ? undefined : roomDecisionChoices(input);
+  const schema = choices ? roomChoiceSchema(choices) : ReactionDecisionSchema;
+  const prompt = roomSelectionData(input, choices);
   const resolved = await resolveUtilityModel();
   const reservation = await reserveBackgroundProductCredits(input.userId);
   if (!reservation) throw new Error('Room selection requires credits');
@@ -27,7 +31,7 @@ export async function selectRoomDecision(input: RoomSelectionInput): Promise<Roo
   try {
     const result = await generateObject({
       model: getAIModel(resolved, 'agent_run'),
-      schema: input.trigger ? ReactionDecisionSchema : RoomDecisionSchema,
+      schema,
       system: input.trigger ? REACTION_SELECTION_SYSTEM : ROOM_SELECTION_SYSTEM,
       prompt,
       maxOutputTokens: utilityOutputTokens(512),
@@ -51,7 +55,9 @@ export async function selectRoomDecision(input: RoomSelectionInput): Promise<Roo
     );
     settled = true;
     const decision = validateRoomDecision(
-      input.trigger ? reactionRoomDecision(result.object, input.trigger) : result.object,
+      input.trigger
+        ? reactionRoomDecision(result.object, input.trigger)
+        : roomChoiceDecision(result.object, choices!),
       input,
     );
     log.agents.info(
