@@ -122,3 +122,20 @@ export async function reserveBackgroundProductCredits(userId: string, amount?: n
       readConfiguredProductCreditSnapshotForService(userId);
   return reservation;
 }
+
+/** Resolve remote policy before taking database locks, then reserve with the job atomically. */
+export async function prepareBackgroundCreditReservation(userId: string, amount: number) {
+  const { reserveCredits } = await import('./credits-manager');
+  const { captureCreditPriceBook } = await import('./credit-price-snapshot');
+  const snapshot = configuredProductCreditAdapter()
+    ? await productCreditSnapshotOrNone(() => readConfiguredProductCreditSnapshotForService(userId))
+    : undefined;
+  const priceBook = await captureCreditPriceBook();
+  return (executor: import('../db/index').Executor) =>
+    reserveCredits(userId, amount, {
+      priceBook,
+      requestedModel: 'background-product-work',
+      productCreditSnapshot: snapshot,
+      executor,
+    });
+}

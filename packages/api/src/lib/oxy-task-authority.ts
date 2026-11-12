@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
 import { agentSessions } from '../db/schema/agent-sessions.js';
 import { log } from './logger.js';
@@ -58,6 +58,8 @@ export async function retireFinishedOxyTasks(): Promise<void> {
         isNotNull(agentSessions.oxyTaskId),
         isNull(agentSessions.oxyTaskRetiredAt),
         isNull(agentSessions.parentSessionId),
+        sql`not exists (select 1 from agent_work_authorities a where a.oxy_task_id = ${agentSessions.oxyTaskId})`,
+        sql`not exists (select 1 from agent_work_items w where w.oxy_task_id = ${agentSessions.oxyTaskId} and w.status in ('pending', 'running'))`,
         inArray(agentSessions.status, ['completed', 'cancelled', 'failed']),
       ),
     )

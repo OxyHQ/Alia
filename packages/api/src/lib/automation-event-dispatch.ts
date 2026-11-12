@@ -13,6 +13,7 @@
 
 import {
   claimStalledAutomationEvents,
+  retryAutomationEvent,
   markAutomationEventStatus,
   matchingEventAutomations,
   type NormalizedAutomationEventInput,
@@ -20,7 +21,6 @@ import {
 import { getDb } from '../db/index.js';
 import { routeEventToAgentInboxes } from './agent/inbox-router.js';
 import { dispatchStructuredAutomation } from './automation-dispatcher.js';
-import { getErrorMessage } from './errors/index.js';
 import { log } from './logger.js';
 import { sendNotification } from './notification-service.js';
 
@@ -66,14 +66,15 @@ export async function dispatchEventReportingFailure(
       { err: error, eventId: event.eventId, appId: event.appId },
       'Normalized Oxy event failed',
     );
-    await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'failed').catch(
-      () => undefined,
+    const exhausted = await retryAutomationEvent(getDb(), event.appId, event.eventId).catch(
+      () => false,
     );
+    if (!exhausted) return;
     await sendNotification({
       userId: event.accountId,
       type: 'oxy_service',
       title: `${event.appId} automation failed`,
-      body: `Event processing failed: ${getErrorMessage(error).slice(0, 200)}`,
+      body: 'The event could not be processed after repeated attempts. Check its status in Alia.',
       priority: 'normal',
       channels: ['in_app', 'push'],
       data: { eventId: event.eventId, appId: event.appId, eventType: event.eventType },

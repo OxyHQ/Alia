@@ -104,7 +104,12 @@ vi.mock('../../../src/lib/labels', () => ({
   useLabels: () => ({ t: (key: string) => key, locale: 'en' }),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ user: { id: 'me' }, isAuthenticated: true }),
+  useOxy: () => ({
+    user: { id: 'me' },
+    isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
+  }),
 }));
 
 const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');

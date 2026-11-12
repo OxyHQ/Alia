@@ -1,3 +1,4 @@
+import { agentWorkAuthorities } from '../schema/agent-work';
 /**
  * An agent's inbox and subscriptions (ADR 0026).
  *
@@ -47,12 +48,12 @@ export const INBOX_ITEM_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
 function capSummary(data: Record<string, unknown>): Record<string, unknown> {
   const json = JSON.stringify(data);
-  if (json.length <= INBOX_SUMMARY_MAX_BYTES) return data;
+  if (Buffer.byteLength(json, 'utf8') <= INBOX_SUMMARY_MAX_BYTES) return data;
   // Keep whole small fields, drop what does not fit: a truncated JSON string is not JSON.
   const kept: Record<string, unknown> = {};
   let size = 2;
   for (const [key, value] of Object.entries(data)) {
-    const part = JSON.stringify({ [key]: value }).length;
+    const part = Buffer.byteLength(JSON.stringify({ [key]: value }), 'utf8');
     if (size + part > INBOX_SUMMARY_MAX_BYTES) continue;
     kept[key] = value;
     size += part;
@@ -168,7 +169,7 @@ export async function takeInboxItems(
     .select({ id: agentInboxItems.id })
     .from(agentInboxItems)
     .where(and(eq(agentInboxItems.agentId, agentId), eq(agentInboxItems.status, 'pending')))
-    .orderBy(asc(agentInboxItems.receivedAt))
+    .orderBy(asc(agentInboxItems.receivedAt), asc(agentInboxItems.id))
     .limit(limit)
     // A concurrent taker skips the rows this one has locked instead of waiting for them and taking
     // them too: `UPDATE … WHERE id IN (SELECT … LIMIT n)` evaluates the pick once from a snapshot, so
@@ -186,7 +187,7 @@ export async function takeInboxItems(
     )
     .returning();
   return (taken as AgentInboxItemRow[]).sort(
-    (a, b) => a.receivedAt.getTime() - b.receivedAt.getTime(),
+    (a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id.localeCompare(b.id),
   );
 }
 
@@ -204,6 +205,15 @@ export async function purgeInboxItems(
   db: Executor,
   options: { now: Date; keepMs: number },
 ): Promise<void> {
+  await db
+    .update(agentInboxItems)
+    .set({ status: 'dismissed' })
+    .where(
+      and(
+        eq(agentInboxItems.status, 'pending'),
+        lt(agentInboxItems.receivedAt, new Date(options.now.getTime() - INBOX_ITEM_MAX_AGE_MS)),
+      ),
+    );
   await db
     .delete(agentInboxItems)
     .where(
@@ -298,9 +308,13 @@ export async function dueHeartbeats(db: Executor, now: Date): Promise<HeartbeatC
           sql`${agents.lastHeartbeatAt} is null`,
           sql`${agents.lastHeartbeatAt} <= ${now.toISOString()}::timestamptz - (${agents.scheduleInterval} * interval '1 minute')`,
         ),
-        sql`exists (select 1 from ${agentInboxItems} where ${agentInboxItems.agentId} = ${agents.id} and ${agentInboxItems.status} = 'pending')`,
+        sql`exists (select 1 from ${agentInboxItems} where ${agentInboxItems.agentId} = ${agents.id} and ${agentInboxItems.status} = 'pending' and ${agentInboxItems.receivedAt} >= ${new Date(now.getTime() - INBOX_ITEM_MAX_AGE_MS).toISOString()}::timestamptz)`,
+        // Filter before LIMIT: agents waiting for owner authority must not starve ready agents.
+        sql`exists (select 1 from ${agentWorkAuthorities} where ${agentWorkAuthorities.agentId} = ${agents.id} and ${agentWorkAuthorities.ownerAccountId} = ${agents.ownerOxyAccountId} and ${agentWorkAuthorities.expiresAt} > ${now.toISOString()}::timestamptz)`,
+        sql`not exists (select 1 from agent_work_items w where w.agent_id = ${agents.id} and w.kind = 'heartbeat' and w.status in ('pending', 'running'))`,
       ),
     )
+    .orderBy(sql`${agents.lastHeartbeatAt} asc nulls first`, asc(agents.id))
     .limit(200);
   return rows.flatMap((row) =>
     row.ownerAccountId && row.intervalMinutes
@@ -324,6 +338,10 @@ export async function claimHeartbeat(
     .where(
       and(
         eq(agents.id, candidate.agentId),
+        eq(agents.ownerOxyAccountId, candidate.ownerAccountId),
+        eq(agents.status, 'active'),
+        eq(agents.isPublished, true),
+        eq(agents.scheduleInterval, candidate.intervalMinutes),
         candidate.lastHeartbeatAt === null
           ? sql`${agents.lastHeartbeatAt} is null`
           : eq(agents.lastHeartbeatAt, candidate.lastHeartbeatAt),
@@ -351,4 +369,32 @@ export async function findHeartbeatState(
     .where(eq(agents.id, agentId))
     .limit(1);
   return row ?? null;
+}
+
+/** Suppress the per-email classifier only after this exact agent's durable batch accepted it. */
+export async function emailIsBatched(
+  db: Executor,
+  agentId: string,
+  eventId: string,
+  now = new Date(),
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: agentInboxItems.id })
+    .from(agentInboxItems)
+    .innerJoin(agents, eq(agents.id, agentInboxItems.agentId))
+    .innerJoin(agentWorkAuthorities, eq(agentWorkAuthorities.agentId, agents.id))
+    .where(
+      and(
+        eq(agentInboxItems.agentId, agentId),
+        eq(agentInboxItems.dedupeKey, `inbox:${eventId}`),
+        inArray(agentInboxItems.status, ['pending', 'delivered']),
+        eq(agents.status, 'active'),
+        eq(agents.isPublished, true),
+        sql`${agents.scheduleInterval} > 0`,
+        sql`${agentWorkAuthorities.expiresAt} > ${now.toISOString()}::timestamptz`,
+        eq(agentWorkAuthorities.ownerAccountId, agents.ownerOxyAccountId),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
 }

@@ -138,6 +138,7 @@ export const agentSessions = pgTable(
     threadId: text(),
     conversationId: text(),
     goalId: text(),
+    workItemId: text(),
     generation: integer().notNull().default(1),
     /** A delegating parent session. Self-referencing, optional. */
     parentSessionId: text(),

@@ -15,7 +15,9 @@ const api = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: true }) }));
+vi.mock('@oxy.so/services/ui/client', () => ({
+  useOxy: () => ({ isAuthenticated: true, canUsePrivateApi: true, isAccountCacheReady: true }),
+}));
 vi.mock('@/shared/api/client', () => ({ default: api }));
 
 const { spaceErrorCode, useSpaceMutations, useSpaces } = await import('../use-spaces');
@@ -92,7 +94,7 @@ afterEach(() => {
 describe('space hooks', () => {
   it('reads the person’s spaces', async () => {
     const seen = await mount();
-    expect(api.get).toHaveBeenCalledWith('/spaces');
+    expect(api.get).toHaveBeenCalledWith('/spaces', { signal: expect.any(AbortSignal) });
     expect(seen.current.spaces.data).toEqual([space]);
   });
 

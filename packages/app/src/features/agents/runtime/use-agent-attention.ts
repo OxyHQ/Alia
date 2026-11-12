@@ -44,6 +44,11 @@ export interface AgentInboxItem {
 /** What waits for the agent, and how often it looks (`GET /agents/:id/inbox`). */
 export interface AgentInbox {
   items: AgentInboxItem[];
+  workStatus?: {
+    state: 'paused' | 'working' | 'scheduled' | 'blocked' | 'waiting';
+    reason: string | null;
+    nextWakeAt?: string;
+  };
   /** The heartbeat in minutes (null: none) and when it last woke the agent (null: never). */
   heartbeat: { intervalMinutes: number | null; lastHeartbeatAt: string | null };
 }
@@ -71,10 +76,12 @@ export function useAgentInbox(agentId: string) {
     queryFn: async (): Promise<AgentInbox> => {
       const response = await apiClient.get<{
         items?: AgentInboxItem[];
+        workStatus?: AgentInbox['workStatus'];
         heartbeat?: Partial<AgentInbox['heartbeat']>;
       }>(API_ROUTES.agents.inbox(agentId), { params: { status: 'pending' } });
       return {
         items: response.data.items ?? [],
+        ...(response.data.workStatus ? { workStatus: response.data.workStatus } : {}),
         heartbeat: {
           intervalMinutes: response.data.heartbeat?.intervalMinutes ?? null,
           lastHeartbeatAt: response.data.heartbeat?.lastHeartbeatAt ?? null,

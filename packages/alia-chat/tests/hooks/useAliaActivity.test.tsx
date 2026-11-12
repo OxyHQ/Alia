@@ -2,7 +2,12 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  auth: { isAuthenticated: true, oxyServices: { session: { accessToken: 'tok' } } },
+  auth: {
+    isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
+    oxyServices: { session: { accessToken: 'tok' } },
+  },
   acquire: vi.fn(),
   release: vi.fn(),
 }));

@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
+import { isAxiosError } from 'axios';
 import apiClient from '@/shared/api/client';
 import { API_ROUTES } from '@/shared/api/routes';
 import { queryKeys } from '@/shared/api/query-keys';
@@ -27,18 +28,49 @@ import type { Agent } from '@/shared/contracts/agents';
 const EXTERNAL_PRESENCE_REFRESH_MS = 30_000;
 
 export function useMyAgents() {
-  const { isAuthenticated } = useOxy();
+  const { user, canUsePrivateApi, isAccountCacheReady } = useOxy();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.agents.mine,
-    queryFn: async (): Promise<Agent[]> => {
-      const response = await apiClient.get<{ agents: Agent[] }>(API_ROUTES.agents.me);
+    queryFn: async ({ signal }): Promise<Agent[]> => {
+      const response = await apiClient.get<{ agents: Agent[] }>(API_ROUTES.agents.me, { signal });
       return response.data.agents;
     },
-    enabled: isAuthenticated,
+    enabled: canUsePrivateApi && isAccountCacheReady,
     staleTime: 1000 * 60 * 5,
     // A connected computer comes and goes: while any of the agents is one, look again now and then.
     refetchInterval: (query) =>
       query.state.data?.some((agent) => agent.external) ? EXTERNAL_PRESENCE_REFRESH_MS : false,
   });
+  // This handshake is not persisted. Each agent retries independently, without
+  // blocking the sidebar or requiring another list refresh after an outage.
+  const eligible =
+    canUsePrivateApi && isAccountCacheReady && user?.id
+      ? (query.data ?? []).filter(
+          (agent) =>
+            agent.ownerOxyAccountId === user.id &&
+            agent.status === 'active' &&
+            agent.scheduleInterval &&
+            !agent.external,
+        )
+      : [];
+  useQueries({
+    queries: eligible.map((agent) => ({
+      queryKey: queryKeys.agents.workAuthority(user?.id ?? '', agent._id),
+      queryFn: async ({ signal }: { signal: AbortSignal }) => {
+        await apiClient.post(`/agents/${encodeURIComponent(agent._id)}/work`, {}, { signal });
+        return true;
+      },
+      gcTime: 0,
+      staleTime: Infinity,
+      retry: (attempt: number, error: unknown) => attempt < 2 && retryableActivation(error),
+      refetchInterval: (query: { state: { status: string; error: unknown } }) =>
+        query.state.status === 'error' && retryableActivation(query.state.error) ? 60_000 : false,
+    })),
+  });
+  return query;
+}
+
+function retryableActivation(error: unknown): boolean {
+  return !isAxiosError(error) || ![401, 403].includes(error.response?.status ?? 0);
 }

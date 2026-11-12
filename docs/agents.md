@@ -693,17 +693,22 @@ a notification that opens `/@handle`.
   messages are unanswered (`lib/agent/outreach-budget.ts`). Alia's own
   initiative (`postAliaCheckIn`, her outreach conversation) spends the same
   budget, counted in that conversation.
-- `scheduleFollowUp` lets the agent schedule its own next look: a one-off
-  automation (`inputs.origin = 'agent_follow_up'`, at most 5 pending per
-  person and agent). Its result is NOT posted; the agent speaks through
-  `sendMessageToUser` only if it found something worth saying.
+- `scheduleFollowUp` persists a dated continuation of the current session, with
+  the same requester task and cumulative step/token budget (at most 5 pending).
+  Its result is not posted automatically; the agent speaks through
+  `sendMessageToUser` when there is something useful to say.
 
 ### An agent noticing things on its own
 
-An agent can subscribe to events (its owner's, or its own mailbox's). They collect in its inbox, and an
-opt-in heartbeat (`schedule_interval`) wakes it once with the list, only when something is waiting.
-The owner manages it in the agent's own editor (heartbeat, subscriptions, what is waiting). Design and bounds: ADR 0026 and
-[Background work](./proactive-intelligence.md#an-agent-that-notices-things-adr-0026).
+Subscribed events collect in the agent's inbox. Its attention interval batches up
+to 20 into durable work; an empty inbox costs no inference. New agents start at
+60 minutes; existing pauses remain paused. The authenticated owner establishes
+the standing Oxy task, and workers use the ordinary agent runner and existing
+accesses to investigate and act. The editor exposes pending events and whether
+work is waiting, scheduled, running, paused or blocked.
+
+See [ADR 0033](./adr/0033-durable-autonomous-work.md) for authority, transactional
+handoff, recovery, limits and migration from historical one-shot automations.
 
 ### Work longer than a chat turn
 

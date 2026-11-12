@@ -19,6 +19,7 @@ import {
 } from '../agents/agentInboxRepository';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentInboxItems } from '../schema/agent-runtime';
+import { agentWorkAuthorities } from '../schema/agent-work';
 import { agents } from '../schema/agents';
 import { TEST_CHARACTER } from './support/agent-character';
 
@@ -74,6 +75,12 @@ async function agent(
       })
       .where(eq(agents.id, created._id));
   }
+  await db.insert(agentWorkAuthorities).values({
+    agentId: created._id,
+    ownerAccountId: OWNER,
+    oxyTaskId: unique(),
+    expiresAt: new Date('2030-01-01T00:00:00Z'),
+  });
   return created._id;
 }
 

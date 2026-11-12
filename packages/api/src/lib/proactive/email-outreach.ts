@@ -1,3 +1,4 @@
+import { emailIsBatched } from '../../db/agents/agentInboxRepository.js';
 /**
  * An important email arrived — the friend tells you.
  *
@@ -98,6 +99,7 @@ const newEmailDataSchema = z.object({
 });
 
 export interface InboxEmailEvent {
+  readonly eventId?: string;
   /** The account whose mailbox received it: a person, or an agent's bot account. */
   readonly accountId: string;
   /** When the email arrived (the event's `occurredAt`). */
@@ -131,6 +133,7 @@ export type EmailOutreachOutcome =
         | 'not_an_alia_user'
         | 'disabled'
         | 'duplicate'
+        | 'batched'
         | 'stale';
     }
   | {
@@ -351,6 +354,14 @@ export async function handleInboxEmailEvent(event: InboxEmailEvent): Promise<Ema
   const db = getDb();
   const audience = await resolveAudience(event.accountId);
   if (!audience) return { status: 'ignored', reason: 'no_audience' };
+  if (
+    audience.agentId &&
+    event.eventId &&
+    (await emailIsBatched(db, audience.agentId, event.eventId))
+  ) {
+    return { status: 'ignored', reason: 'batched' };
+  }
+
   if (audience.agentId === null && !(await hasAnyConversation(db, audience.oxyUserId))) {
     return { status: 'ignored', reason: 'not_an_alia_user' };
   }

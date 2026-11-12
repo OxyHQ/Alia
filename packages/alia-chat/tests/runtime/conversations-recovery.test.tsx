@@ -14,12 +14,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const server = vi.hoisted(() => ({
   respond: (_method: string, _url: string): { status: number; body?: unknown } => ({ status: 200 }),
   calls: [] as string[],
+  apiReady: true,
+  cacheReady: true,
 }));
 
 vi.mock('@oxy.so/services/ui/client', async () => ({
   ...(await import('../support/app-assertion-host')).hostWithoutAppAssertion,
   useOxy: () => ({
     isAuthenticated: true,
+    canUsePrivateApi: server.apiReady,
+    isAccountCacheReady: server.cacheReady,
     oxyServices: {
       createLinkedClient: () => ({
         client: {
@@ -63,25 +67,34 @@ const copy = (id: string) => ({
 });
 
 let renderer: ReactTestRenderer | undefined;
+let rerender: () => Promise<void>;
 function mount(probe: () => void) {
   function Probe() {
     probe();
     return null;
   }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const tree = () => (
+    <QueryClientProvider client={client}>
+      <AliaRuntimeProvider apiUrl="http://api.test" offline={offline}>
+        <Probe />
+      </AliaRuntimeProvider>
+    </QueryClientProvider>
+  );
+  rerender = async () => {
+    await act(async () => {
+      renderer?.update(tree());
+    });
+  };
   return act(async () => {
-    renderer = create(
-      <QueryClientProvider client={client}>
-        <AliaRuntimeProvider apiUrl="http://api.test" offline={offline}>
-          <Probe />
-        </AliaRuntimeProvider>
-      </QueryClientProvider>,
-    );
+    renderer = create(tree());
   });
 }
 
 beforeEach(() => {
   server.calls = [];
+  server.apiReady = true;
+  server.cacheReady = true;
   stored.value = JSON.stringify([copy('c1'), copy('c2')]);
 });
 afterEach(() => {
@@ -136,7 +149,7 @@ describe('a session the server cannot reach', () => {
     expect(state?.data?.pages[0]?.conversations[0]?.messages).toEqual([]);
   });
 
-  it('shows nothing, and no error, to a session with no offline copy bound', async () => {
+  it('reports an authentication failure instead of caching an empty successful list', async () => {
     server.respond = () => ({ status: 401 });
     stored.value = null;
     let state: ReturnType<typeof useConversations> | undefined;
@@ -147,6 +160,35 @@ describe('a session the server cannot reach', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
 
-    expect(state?.data?.pages[0]?.conversations).toEqual([]);
+    expect(state?.data).toBeUndefined();
+    expect(state?.isError).toBe(true);
   });
+});
+
+it('waits for both the restored account cache and usable authentication, then loads immediately', async () => {
+  server.apiReady = false;
+  server.cacheReady = false;
+  server.respond = () => ({
+    status: 200,
+    body: {
+      conversations: [{ ...copy('online'), messages: [] }],
+      hasMore: false,
+      nextCursor: null,
+    },
+  });
+  let state: ReturnType<typeof useConversations> | undefined;
+  await mount(() => {
+    state = useConversations();
+  });
+  expect(server.calls).toEqual([]);
+  server.apiReady = true;
+  await rerender();
+  expect(server.calls).toEqual([]);
+  server.cacheReady = true;
+  await rerender();
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  expect(server.calls).toHaveLength(1);
+  expect(state?.data?.pages[0]?.conversations[0]?.id).toBe('online');
 });

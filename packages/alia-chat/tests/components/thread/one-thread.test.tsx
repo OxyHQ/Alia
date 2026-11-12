@@ -118,7 +118,12 @@ vi.mock('../../../src/runtime/attachment-utils', () => ({
 }));
 vi.mock('../../../src/runtime/api', () => ({ useAliaApi: () => ({ patch: async () => ({}) }) }));
 vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ user: { id: 'me' }, isAuthenticated: true }),
+  useOxy: () => ({
+    user: { id: 'me' },
+    isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
+  }),
 }));
 vi.mock('@oxy.so/core', () => ({ getAccountDisplayName: () => 'Nate' }));
 

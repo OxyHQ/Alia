@@ -1,3 +1,4 @@
+import { dispatchAgentWork } from './work.js';
 import { retireFinishedOxyTasks } from '../oxy-task-authority.js';
 /**
  * The sweep that keeps background agent runs from being lost.
@@ -88,36 +89,49 @@ export async function reapAgentRuns(now: Date = new Date()): Promise<ReapResult>
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
+let sweeping = false;
+
 async function sweep(): Promise<void> {
-  await reapAgentRuns().catch((err: unknown) => log.agents.error({ err }, '[AgentRun] Reap error'));
-  // Sessions queued and never picked up: the same "nothing will ever settle
-  // this" event, so the same sweep. A single conditional UPDATE, safe on every
-  // task.
-  await retireFinishedOxyTasks().catch((err: unknown) =>
-    log.agents.warn({ err }, 'Oxy task retirement sweep failed'),
-  );
-  await reclaimOrphanedAgentSessions().catch((err: unknown) =>
-    log.agents.error({ err }, '[AgentSession] Orphan reclaim error'),
-  );
-  // Alia's own task runs have no session to resume; one whose worker vanished
-  // is failed and refunded (`alia-task-reaper.ts`).
-  await reapAbandonedAliaRuns().catch((err: unknown) =>
-    log.agents.error({ err }, '[AliaTaskRun] Reap error'),
-  );
-  // Oxy events accepted (202) whose dispatch died with its instance: Oxy will
-  // not redeliver, so the stored row is re-dispatched (`automation-event-dispatch.ts`).
-  await reapStalledAutomationEvents().catch((err: unknown) =>
-    log.triggers.error({ err }, '[AutomationEvent] Reap error'),
-  );
-  // Messaging-platform messages acked and not yet answered, because their
-  // instance died (`channels/inbound-sweep.ts`).
-  await reapStalledChannelInbound().catch((err: unknown) =>
-    log.webhook.error({ err }, '[ChannelInbound] Reap error'),
-  );
-  // Agents with something waiting in their inbox whose heartbeat is due (`heartbeat.ts`).
-  await runAgentHeartbeats().catch((err: unknown) =>
-    log.agents.error({ err }, '[AgentHeartbeat] Error'),
-  );
+  if (sweeping) return;
+  sweeping = true;
+  try {
+    await reapAgentRuns().catch((err: unknown) =>
+      log.agents.error({ err }, '[AgentRun] Reap error'),
+    );
+    // Sessions queued and never picked up: the same "nothing will ever settle
+    // this" event, so the same sweep. A single conditional UPDATE, safe on every
+    // task.
+    await retireFinishedOxyTasks().catch((err: unknown) =>
+      log.agents.warn({ err }, 'Oxy task retirement sweep failed'),
+    );
+    await reclaimOrphanedAgentSessions().catch((err: unknown) =>
+      log.agents.error({ err }, '[AgentSession] Orphan reclaim error'),
+    );
+    // Alia's own task runs have no session to resume; one whose worker vanished
+    // is failed and refunded (`alia-task-reaper.ts`).
+    await reapAbandonedAliaRuns().catch((err: unknown) =>
+      log.agents.error({ err }, '[AliaTaskRun] Reap error'),
+    );
+    // Oxy events accepted (202) whose dispatch died with its instance: Oxy will
+    // not redeliver, so the stored row is re-dispatched (`automation-event-dispatch.ts`).
+    await reapStalledAutomationEvents().catch((err: unknown) =>
+      log.triggers.error({ err }, '[AutomationEvent] Reap error'),
+    );
+    // Messaging-platform messages acked and not yet answered, because their
+    // instance died (`channels/inbound-sweep.ts`).
+    await reapStalledChannelInbound().catch((err: unknown) =>
+      log.webhook.error({ err }, '[ChannelInbound] Reap error'),
+    );
+    // Agents with something waiting in their inbox whose heartbeat is due (`heartbeat.ts`).
+    await runAgentHeartbeats().catch((err: unknown) =>
+      log.agents.error({ err }, '[AgentHeartbeat] Error'),
+    );
+    await dispatchAgentWork().catch((err: unknown) =>
+      log.agents.error({ err }, 'Agent work sweep failed'),
+    );
+  } finally {
+    sweeping = false;
+  }
 }
 
 export function startAgentRunReaper(): void {

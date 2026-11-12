@@ -1,3 +1,4 @@
+import { autonomousWorkMayRun } from './work.js';
 import { retireFinishedOxyTasks } from '../oxy-task-authority.js';
 import { canReachAgent } from '../agent-account.js';
 /**
@@ -118,6 +119,7 @@ function runOutreach(
         oxyUserId: session.oxyUserId,
         agentId: session.agentId,
         kind: 'check_in',
+        idempotencyKey: `${session.id}:${message}`,
         content: message,
       });
       if (outcome.posted) {
@@ -127,7 +129,7 @@ function runOutreach(
         return 'Delivered. The person was notified.';
       }
       return outcome.reason === 'daily_limit'
-        ? "Not sent: you have reached today's limit of messages to this person. Put it in your final result instead."
+        ? "Not sent: you have reached today's limit of messages to this person. Keep the result in your work history; it will not be sent automatically."
         : outcome.reason === 'unanswered'
           ? 'Not sent: the person has not answered your last messages. Do not message them again until they reply.'
           : `Not sent (${outcome.reason}).`;
@@ -138,6 +140,7 @@ function runOutreach(
         agentId: session.agentId,
         at,
         note,
+        sourceSessionId: session.id,
       });
       return outcome.scheduled
         ? `Scheduled for ${outcome.at}.`
@@ -169,6 +172,16 @@ async function driveAgentSession(
 ): Promise<void> {
   const sessionId = session._id;
 
+  if (session.workItemId && !(await autonomousWorkMayRun(sessionId))) {
+    await updateAgentSession(getDb(), sessionId, {
+      status: 'cancelled',
+      result: 'Autonomous work was stopped',
+      stats: { completedAt: new Date() },
+    });
+    if (session.creditReservation)
+      await safeRefund(session.creditReservation, 'autonomous work stopped before execution');
+    return;
+  }
   const found = await findAgentById(getDb(), session.agentId);
   if (!found) {
     await updateAgentSession(getDb(), sessionId, { status: 'failed', result: 'Agent not found' });
@@ -455,7 +468,11 @@ async function driveAgentSession(
 
       // Check for cancellation
       const currentStatus = await findAgentSessionStatus(getDb(), sessionId);
-      if (currentStatus === null || currentStatus === 'cancelled') {
+      if (
+        currentStatus === null ||
+        currentStatus === 'cancelled' ||
+        (session.workItemId && !(await autonomousWorkMayRun(sessionId)))
+      ) {
         eventStream.append('system_message', 'Session cancelled');
         stateMachine.transition('cancelled');
         break;

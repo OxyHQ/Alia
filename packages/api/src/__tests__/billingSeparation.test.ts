@@ -694,7 +694,8 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // `alia_sk_*` keys it was the only lane for. `lib/automation-dispatcher.ts`
     // joined when automation runs started holding credits like a goal does.
     // `lib/agent/deferred-approvals.ts` left with approvals (ADR 0020 §3).
-    expect(derived.length).toBe(11);
+    // Durable autonomous work reserves its hold with the session in one transaction.
+    expect(derived.length).toBe(12);
   });
 });
 

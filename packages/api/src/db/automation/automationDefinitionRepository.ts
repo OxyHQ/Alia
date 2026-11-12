@@ -505,6 +505,7 @@ export async function claimStalledAutomationEvents(
       and(
         inArray(automationEvents.status, ['received', 'matched']),
         lt(automationEvents.updatedAt, staleBefore),
+        sql`(${automationEvents.retryAfter} is null or ${automationEvents.retryAfter} <= ${options.now.toISOString()}::timestamptz)`,
         gt(automationEvents.receivedAt, receivedAfter),
       ),
     )
@@ -685,6 +686,14 @@ export async function claimAutomationRunPlan(input: {
   /** An Alia run's hold, kept so the reaper can refund a run nobody finished. */
   creditReservation?: AutomationRunCreditHold;
 }): Promise<boolean> {
+  // Shares the definition lock with edits and migration of internal wakes. A stale cron callback
+  // cannot run an automation that was disabled after the scheduler read it.
+  const [definition] = await input.db
+    .select({ enabled: automationDefinitions.enabled })
+    .from(automationDefinitions)
+    .where(eq(automationDefinitions.id, input.automationId))
+    .for('update');
+  if (!definition?.enabled) return false;
   const actorType = input.actorType ?? 'agent';
   const selectedAgentIds = selectedAgentIdsOf(input.stages);
   const inserted = await input.db
@@ -1336,4 +1345,30 @@ export async function claimAutomationConversation(
     .where(eq(automationDefinitions.id, automationId))
     .limit(1);
   return row?.conversationId ?? null;
+}
+
+/** A temporary failure remains recoverable; only exhaustion is terminal. One notifier wins. */
+export async function retryAutomationEvent(
+  db: Executor,
+  appId: string,
+  eventId: string,
+  now = new Date(),
+): Promise<boolean> {
+  const [row] = await db
+    .update(automationEvents)
+    .set({
+      attempts: sql`${automationEvents.attempts} + 1`,
+      status: sql`case when ${automationEvents.attempts} >= 11 then 'failed' else 'received' end`,
+      retryAfter: sql`${now.toISOString()}::timestamptz + least(3600, 60 * power(2, least(${automationEvents.attempts}, 6))) * interval '1 second'`,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(automationEvents.appId, appId),
+        eq(automationEvents.eventId, eventId),
+        inArray(automationEvents.status, ['received', 'matched']),
+      ),
+    )
+    .returning({ status: automationEvents.status });
+  return row?.status === 'failed';
 }

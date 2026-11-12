@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const claim = vi.fn();
+const retryEvent = vi.fn(async () => false);
 const mark = vi.fn(() => Promise.resolve());
 const match = vi.fn();
 const dispatch = vi.fn(() => Promise.resolve());
@@ -9,6 +10,7 @@ const notify = vi.fn(() => Promise.resolve());
 vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   claimStalledAutomationEvents: claim,
+  retryAutomationEvent: retryEvent,
   markAutomationEventStatus: mark,
   matchingEventAutomations: match,
 }));
@@ -62,16 +64,26 @@ describe('reapStalledAutomationEvents', () => {
     expect(mark).toHaveBeenCalledWith({}, 'inbox', 'e1', 'processed');
   });
 
-  it('records a failing event as failed, tells the person, and keeps going', async () => {
+  it('keeps a temporary failure retryable and continues without notifying prematurely', async () => {
     claim.mockResolvedValue([event('bad'), event('good')]);
     match.mockResolvedValue([{ id: 'auto-1' }]);
     dispatch.mockRejectedValueOnce(new Error('boom'));
 
     expect(await reapStalledAutomationEvents()).toBe(2);
 
-    expect(mark).toHaveBeenCalledWith({}, 'inbox', 'bad', 'failed');
-    expect(notify).toHaveBeenCalledTimes(1);
+    expect(retryEvent).toHaveBeenCalledWith({}, 'inbox', 'bad');
+    expect(notify).not.toHaveBeenCalled();
     expect(mark).toHaveBeenCalledWith({}, 'inbox', 'good', 'processed');
+  });
+
+  it('notifies only after retry exhaustion, without exposing the underlying error', async () => {
+    claim.mockResolvedValue([event('exhausted')]);
+    match.mockResolvedValue([{ id: 'auto-1' }]);
+    dispatch.mockRejectedValueOnce(new Error('private upstream details'));
+    retryEvent.mockResolvedValueOnce(true);
+    await reapStalledAutomationEvents();
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(notify.mock.calls)).not.toContain('private upstream details');
   });
 
   it('routes a re-dispatched event to agent inboxes even when no automation matches it', async () => {

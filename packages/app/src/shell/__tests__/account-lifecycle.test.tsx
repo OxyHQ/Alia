@@ -102,10 +102,15 @@ describe('resetAccountSession', () => {
     expect(useUIStore.getState().rightPanelWidth).toBe(480);
   });
 
-  it('on a switch, drops Alia’s cached answers and leaves Oxy’s own to Oxy', async () => {
+  it('preserves the account cache Oxy already restored and resets unmanaged queries', async () => {
     seedAccountA(client);
+    client.setQueryData(['conversations'], { pages: [{ conversations: [{ id: 'B-chat' }] }] });
+    client.setQueryData(['credits'], { balance: 10 });
     resetAccountSession(client, 'B');
-    await vi.waitFor(() => expect(client.getQueryData(['conversations'])).toBeUndefined());
+    await vi.waitFor(() => expect(client.getQueryData(['credits'])).toBeUndefined());
+    expect(client.getQueryData(['conversations'])).toEqual({
+      pages: [{ conversations: [{ id: 'B-chat' }] }],
+    });
     expect(client.getQueryData(['accounts', 'current'])).toEqual({ id: 'A' });
   });
 

@@ -1,3 +1,5 @@
+import { establishAgentWork } from '../../lib/agent/work.js';
+import { listAgentWork, readAgentWorkState } from '../../db/agents/agentWorkRepository.js';
 /**
  * What an agent hears about, and what it has been told (ADR 0026).
  *
@@ -56,6 +58,21 @@ async function agentForOwnerSurface(req: Request, res: Response) {
   }
   return loaded.agent;
 }
+
+/** Establish background provenance from the actual signed-in owner, never from an event. */
+router.post('/:id/work', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const agent = await agentForOwnerSurface(req, res);
+    if (!agent || !req.user || !req.accessToken) return;
+    if (agent.ownerOxyAccountId !== req.user.id)
+      return res.status(403).json({ error: 'Only the owner may start autonomous work' });
+    await establishAgentWork(agent._id, req.user.id, req.accessToken);
+    res.status(204).end();
+  } catch (err) {
+    log.agents.error({ err }, 'Could not establish autonomous work');
+    res.status(503).json({ error: 'Autonomous work is temporarily unavailable' });
+  }
+});
 
 router.get('/:id/subscriptions', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -141,6 +158,8 @@ router.get('/:id/inbox', authenticateToken, async (req: Request, res: Response) 
     // timestamp reads as "nothing happened", not "it is not working".
     res.json({
       items,
+      work: await listAgentWork(getDb(), agent._id),
+      workStatus: await readAgentWorkState(getDb(), agent._id),
       heartbeat: {
         intervalMinutes: heartbeat?.intervalMinutes ?? null,
         lastHeartbeatAt: heartbeat?.lastHeartbeatAt?.toISOString() ?? null,

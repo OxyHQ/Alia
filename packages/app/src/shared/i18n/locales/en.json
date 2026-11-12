@@ -432,6 +432,7 @@
     "security": "Security"
   },
   "sidebar": {
+    "loadError": "Could not refresh your sidebar.",
     "newChat": "New Chat",
     "agents": "Agents",
     "library": "Library",
@@ -1402,6 +1403,22 @@
         "unsubscribeFailed": "Could not remove it. Try again."
       },
       "inbox": {
+        "work": "Work",
+        "state": {
+          "paused": "Paused",
+          "working": "Working",
+          "scheduled": "Next step scheduled",
+          "blocked": "Needs attention",
+          "waiting": "Waiting for news"
+        },
+        "reason": {
+          "needs_session": "Open Alia with your account to resume work.",
+          "insufficient_credits": "There are not enough credits to continue.",
+          "work_limit_reached": "Stopped at the task limit. Review its progress.",
+          "temporarily_unavailable": "A service is unavailable. It will retry later.",
+          "expired": "This follow-up expired.",
+          "execution_failed": "The last task could not finish. Check its activity."
+        },
         "title": "Waiting in its inbox",
         "looked": "Last look",
         "waiting": "Waiting",

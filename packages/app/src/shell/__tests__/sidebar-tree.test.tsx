@@ -107,7 +107,7 @@ vi.mock('@alia.onl/sdk/runtime', async () => ({
     hasNextPage: false,
     isFetchingNextPage: state.isFetchingNextPage,
     isFetchNextPageError: false,
-    isLoading: state.isLoading,
+    isPending: state.isLoading,
   }),
   usePrefetchConversation: () => vi.fn(),
   useDeleteConversation: () => ({ mutateAsync: vi.fn() }),
@@ -119,7 +119,7 @@ vi.mock('@/features/agents/runtime/use-my-agents', () => ({
 vi.mock('@/features/spaces/runtime/use-spaces', () => ({
   useSpaces: () => ({
     data: state.spacesLoading ? undefined : state.spaces,
-    isLoading: state.spacesLoading,
+    isPending: state.spacesLoading,
   }),
   useSpaceMutations: () => state.mutations,
   spaceErrorCode: () => undefined,

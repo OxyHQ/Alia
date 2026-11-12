@@ -50,7 +50,12 @@ vi.mock('@oxy.so/bloom/agent-avatar', () => ({
 }));
 vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: () => null }));
 vi.mock('@oxy.so/services/ui/client', () => ({
-  useOxy: () => ({ user: { id: 'u1' }, isAuthenticated: true }),
+  useOxy: () => ({
+    user: { id: 'u1' },
+    isAuthenticated: true,
+    canUsePrivateApi: true,
+    isAccountCacheReady: true,
+  }),
 }));
 vi.mock('@oxy.so/core', () => ({ getAccountDisplayName: () => 'Nate' }));
 vi.mock('@oxy.so/bloom/toast', () => ({

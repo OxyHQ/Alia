@@ -23,6 +23,18 @@ export function AgentInboxSection({ agentId, name }: { agentId: string; name: st
         </AgentCreatorField>
       ) : (
         <>
+          {inbox.workStatus ? (
+            <AgentCreatorField label={t(`${K}.work`)} divider={false}>
+              <Text variant="body-2-regular">{t(`${K}.state.${inbox.workStatus.state}`)}</Text>
+              {inbox.workStatus.reason ? (
+                <Text variant="body-2-regular">
+                  {t(`${K}.reason.${inbox.workStatus.reason}`, {
+                    defaultValue: t(`${K}.reason.execution_failed`),
+                  })}
+                </Text>
+              ) : null}
+            </AgentCreatorField>
+          ) : null}
           <AgentCreatorField label={t(`${K}.looked`)} divider={false}>
             <Text variant="body-2-regular">
               {inbox.heartbeat.lastHeartbeatAt
