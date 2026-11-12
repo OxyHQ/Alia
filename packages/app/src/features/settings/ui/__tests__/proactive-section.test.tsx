@@ -4,8 +4,8 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The settings page "Avisos": Alia may tell the person about important email. Each agent's own
- * mailbox alert is a switch in that agent's editor.
+ * The settings page "Avisos": Alia may tell the person about important email. A gemie's own
+ * mailbox alert is a switch in Gemies, so a row the server lists for one is not drawn here.
  *
  * Bloom is stubbed at its boundary as host elements carrying their props; the
  * words come from the real catalog.
@@ -90,20 +90,10 @@ describe('Avisos: important email', () => {
       agents: [{ agentId: 'agent-1', name: 'Scout', handle: 'scout', color: null, enabled: false }],
     };
     api.get.mockImplementation(async () => ({ data: server }));
-    api.put.mockImplementation(
-      async (_path, input: { agentId: string | null; enabled: boolean }) => {
-        server =
-          input.agentId === null
-            ? { ...server, alia: { enabled: input.enabled } }
-            : {
-                ...server,
-                agents: server.agents.map((agent) =>
-                  agent.agentId === input.agentId ? { ...agent, enabled: input.enabled } : agent,
-                ),
-              };
-        return { data: {} };
-      },
-    );
+    api.put.mockImplementation(async (_path, input: { agentId: null; enabled: boolean }) => {
+      server = { ...server, alia: { enabled: input.enabled } };
+      return { data: {} };
+    });
     const tree = await render(<ProactiveSection />);
     expect(api.get).toHaveBeenCalledWith('/notifications/email-alerts', {
       signal: expect.any(AbortSignal),

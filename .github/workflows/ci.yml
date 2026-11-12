@@ -342,19 +342,6 @@ jobs:
       - name: Test app
         run: bun run --filter @alia/app test
 
-      # What `/@pepe` names lives under `app/(app)/[username]/` (`index`, `details`
-      # and `edit`), a dynamic segment at the top of the group — which is what
-      # makes `/@pepe` possible and what makes it match every single-segment path
-      # no static route claims. Forty-odd routes sit at that level. This resolves
-      # each of them through Expo Router's own matcher and fails if the profile has
-      # taken one, if there is a second dynamic route at the root, or if
-      # `/@pepe/details` or `/@pepe/edit` stop reaching it, and it is
-      # not a test file because a `__tests__` file under `app/` is itself a
-      # ROUTE: `expo-router/_ctx.web.js` excludes exactly `+api`, `+middleware`,
-      # `+html` and `+native-intent`, and nothing else.
-      - name: Verify no route is swallowed by the agent profile
-        run: node scripts/check-single-segment-routes.mjs
-
       # `require('…/thing.png')` is typed `any`, so `tsc` never resolves it: a
       # source file naming a deleted asset passes every gate here and fails in
       # Metro at runtime. It happened — the agent avatar's PNGs were deleted in

@@ -1,18 +1,15 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { workspacePanelKind } from '@/features/chat/model/workspace-panel-kind';
-import { AgentAvatar, type AvatarCharacter } from '@oxy.so/bloom/agent-avatar';
 import { ButtonGroup, ButtonGroupItem } from '@oxy.so/bloom/button-group';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@oxy.so/bloom/dropdown-menu';
 import { RiDeleteBinLine } from '@oxy.so/bloom/icons/RiDeleteBinLine';
-import { RiGroupLine } from '@oxy.so/bloom/icons/RiGroupLine';
 import { RiDownloadLine } from '@oxy.so/bloom/icons/RiDownloadLine';
 import { RiMoreFill } from '@oxy.so/bloom/icons/RiMoreFill';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
@@ -21,7 +18,6 @@ import { RiShare2Line } from '@oxy.so/bloom/icons/RiShare2Line';
 import { RiSideBarLine } from '@oxy.so/bloom/icons/RiSideBarLine';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
 import { RiDeleteBin6Line } from '@oxy.so/bloom/icons/RiDeleteBin6Line';
-import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
 import { confirm } from '@oxy.so/bloom/surfaces';
 import React, { useRef } from 'react';
 
@@ -42,21 +38,6 @@ export interface ChatHeaderActionsProps {
    * second press while the first clear is in flight sends nothing.
    */
   onClear?: () => Promise<unknown>;
-  /** Show the agent's terminal in the panel. Absent where no agent works in this chat. */
-  onOpenTerminal?: () => void;
-  /** The agents taking part in this conversation (not Alia), each one editable from the menu. */
-  agents?: readonly ChatHeaderAgent[];
-  /** Open one participant's editor. */
-  onEditAgent?: (agentId: string) => void;
-  /** Open the group picker. Absent where the screen cannot start one. */
-  onStartGroup?: () => void;
-}
-
-/** A participant the menu offers to edit. */
-interface ChatHeaderAgent {
-  id: string;
-  name: string;
-  character: AvatarCharacter;
 }
 
 /**
@@ -83,10 +64,6 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
   onExport,
   onDelete,
   onClear,
-  onOpenTerminal,
-  agents,
-  onEditAgent,
-  onStartGroup,
 }: ChatHeaderActionsProps) {
   const { t } = useTranslation();
   /** Held while a clear is in flight, so the item cannot start a second one. */
@@ -146,25 +123,6 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {agents === undefined || agents.length === 0 || onEditAgent === undefined ? null : (
-            <>
-              <DropdownMenuLabel>{t('chatHeader.inThisConversation')}</DropdownMenuLabel>
-              {agents.map((agent) => (
-                <DropdownMenuItem
-                  key={agent.id}
-                  onPress={() => onEditAgent(agent.id)}
-                  leading={<AgentAvatar character={agent.character} size={20} />}
-                >
-                  {t('chatHeader.editNamed', { name: agent.name })}
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
-          {onStartGroup === undefined ? null : (
-            <DropdownMenuItem onPress={onStartGroup} leading={<RiGroupLine size="sm" />}>
-              {t('chatHeader.startGroup')}
-            </DropdownMenuItem>
-          )}
           {onSearch === undefined ? null : (
             <DropdownMenuItem onPress={onSearch} leading={<RiSearchLine size="sm" />}>
               {t('chatHeader.searchThread')}
@@ -173,11 +131,6 @@ export const ChatHeaderActions = React.memo(function ChatHeaderActions({
           <DropdownMenuItem onPress={togglePanel} leading={<RiSideBarLine size="sm" />}>
             {panelOpen ? t('chatHeader.hidePanel') : t('chatHeader.showPanel')}
           </DropdownMenuItem>
-          {onOpenTerminal === undefined ? null : (
-            <DropdownMenuItem onPress={onOpenTerminal} leading={<RiTerminalBoxLine size="sm" />}>
-              {t('chatHeader.agentTerminal')}
-            </DropdownMenuItem>
-          )}
           <DropdownMenuItem
             onPress={() => useUIStore.getState().setRightPanel('credits')}
             leading={<RiDashboardLine size="sm" />}

@@ -154,7 +154,7 @@ export default function EditSkillScreen() {
     try {
       await remove.mutateAsync(skill._id);
       toast.success(t('skills.deleted'));
-      router.replace('/(app)/skills');
+      router.replace('/(app)/settings/skills');
     } catch {
       toast.error(t('skills.deleteError'));
     }

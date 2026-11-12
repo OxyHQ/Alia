@@ -45,7 +45,6 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
     removeItem: vi.fn(async () => {}),
   },
 }));
-vi.mock('expo-router', () => ({ usePathname: () => '/c/one' }));
 vi.mock('@oxy.so/services/ui/client', () => ({ useOxy: () => ({ isAuthenticated: false }) }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({
@@ -82,15 +81,6 @@ vi.mock('@oxy.so/bloom/surfaces', () => ({
   },
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { success: () => {}, error: () => {} } }));
-// The terminal's placeholder is Bloom's skeleton: nothing to run here.
-vi.mock('@/shared/ui/skeletons', () => ({ LinesSkeleton: () => null }));
-
-vi.mock('@/features/chat/ui/workspace/agent-terminal', async () => {
-  const { host } = await import('@/shared/testing/panel-bloom-stubs');
-  return { AgentTerminal: host('AgentTerminal') };
-});
-vi.mock('@/features/chat/ui/workspace/agent-panel', () => ({ AgentPanel: () => null }));
-vi.mock('@/features/agents/ui/agent-editor-panel', () => ({ AgentEditorPanel: () => null }));
 vi.mock('@alia.onl/sdk', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
   return { CanvasComponent: host('CanvasPreview'), ThoughtPanel: () => null };
@@ -172,7 +162,6 @@ beforeEach(() => {
   surfaces.confirmAnswer = true;
   useUIStore.setState({
     rightPanel: 'canvas',
-    agentTerminal: null,
     codePanelView: 'changes',
     canvasArtifacts: [],
   });

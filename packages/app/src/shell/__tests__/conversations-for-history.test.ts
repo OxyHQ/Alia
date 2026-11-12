@@ -1,21 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { conversationsForHistory } from '../sidebar-history';
-import { type Conversation } from '@alia.onl/sdk/model';
+import type { Conversation } from '@alia.onl/sdk/model';
 
 /**
- * What the sidebar's History is allowed to list.
- *
- * An agent gets ONE row, in the Agents section, whatever number of conversations
- * its thread is made of. Every one of those conversations reaching History too
- * is the failure this guards: an agent talked to five times would put five rows
- * beside its single row above, which is the shape the permanent thread exists to
- * replace.
+ * What the sidebar's History is allowed to list: Alia's chats, and none of the gemies'
+ * conversations (their threads, groups and space rooms live in Gemies).
  *
  * The case that decides whether the filter works at all is `agentId: null`. The
  * column is `agent_id text` and `GET /conversations` sends `c.agentId` straight
- * through, so an ordinary conversation arrives carrying an explicit null — a
- * filter written against `undefined` keeps every agent conversation, and one
+ * through, so a chat of Alia's arrives carrying an explicit null — a
+ * filter written against `undefined` keeps every gemie conversation, and one
  * written against `null` alone hides every conversation restored from local
  * storage, which carries neither. Both are asserted.
  */
@@ -34,9 +29,22 @@ function conversation(id: string, agentId?: string | null): Conversation {
 const ids = (conversations: readonly Conversation[]) => conversations.map((c) => c.id);
 
 describe('the conversations History lists', () => {
-  it("leaves out a conversation that belongs to an agent's thread", () => {
+  it("leaves out a conversation that belongs to a gemie's thread", () => {
     const kept = conversationsForHistory(
       [conversation('plain', null), conversation('with-pepe', 'agent_pepe')],
+      [],
+    );
+
+    expect(ids(kept)).toEqual(['plain']);
+  });
+
+  it('leaves out a group of gemies and a space room', () => {
+    const kept = conversationsForHistory(
+      [
+        { ...conversation('plain', null), memberAgentIds: [], spaceId: null },
+        { ...conversation('group', null), memberAgentIds: ['a1', 'a2'] },
+        { ...conversation('room', null), spaceId: 'space-1' },
+      ],
       [],
     );
 

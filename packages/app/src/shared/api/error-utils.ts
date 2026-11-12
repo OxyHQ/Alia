@@ -97,8 +97,3 @@ export function errorName(err: unknown): string | undefined {
   if (err instanceof Error) return err.name;
   return asObject(err).name;
 }
-
-/** The Axios-style `response.data` body of an error, if present. */
-export function errorResponseData(err: unknown): ErrorResponseData | undefined {
-  return asObject(err).response?.data;
-}

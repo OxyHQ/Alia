@@ -10,7 +10,6 @@ import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
 import { RiLightbulbFlashLine } from '@oxy.so/bloom/icons/RiLightbulbFlashLine';
 import { RiQuillPenLine } from '@oxy.so/bloom/icons/RiQuillPenLine';
 import { RiSmartphoneLine } from '@oxy.so/bloom/icons/RiSmartphoneLine';
-import { RiTerminalBoxLine } from '@oxy.so/bloom/icons/RiTerminalBoxLine';
 import { RiComputerLine } from '@oxy.so/bloom/icons/RiComputerLine';
 import { RiNotification3Line } from '@oxy.so/bloom/icons/RiNotification3Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
@@ -113,12 +112,6 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
         route: '/(app)/settings/accounts',
         icon: RiSmartphoneLine,
         labelKey: 'settings.sections.accounts',
-      },
-      {
-        id: 'external-agents',
-        route: '/(app)/settings/external-agents',
-        icon: RiTerminalBoxLine,
-        labelKey: 'settings.sections.externalAgents',
       },
     ],
   },

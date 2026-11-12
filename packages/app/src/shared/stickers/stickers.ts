@@ -35,12 +35,6 @@ const INTROVERT_CHILLING = '01a0eadb-6e8f-727e-b102-914aa907f2a5';
 
 /** Screen (or state) → the sticker above its empty state. */
 export const EMPTY_STATE_STICKERS = {
-  /** The agents list, with none yet. */
-  agentsEmpty: INTROVERT_WAVE,
-  /** The agents list, a search that matched none. */
-  agentsNoResults: BLOB_SHRUGGING,
-  /** An agent's session log, with nothing recorded. */
-  agentSession: BLOB_WATCHING,
   /** Tasks, the active tab. */
   tasksActive: INTROVERT_CHILLING,
   /** Tasks, the finished tab. */
@@ -59,8 +53,6 @@ export const EMPTY_STATE_STICKERS = {
   referrals: INTROVERT_WAVE,
   /** 😕 taste-buds (confused): the 404 page. */
   notFound: '01a0eadb-ee07-7b6f-a868-3fea8fc02476',
-  /** An agent that does not exist or is not the person's to see. */
-  agentNotFound: BLOB_OOPS,
   /** A skill that does not exist or is not the person's to see. */
   skillNotFound: BLOB_OOPS,
   /** An invitation that is no longer valid. */

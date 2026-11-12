@@ -27,34 +27,27 @@ const IMMUTABLE = 'public, max-age=31536000, immutable';
 const UNINDEXED_PREFIXES = ['/shared/'];
 
 /**
- * A path the asset server canonicalises: it answers `/@pepe` with a 307 to `/%40pepe`, because `@` is
- * a reserved character and it writes every path in its encoded form. An agent's thread is `/@pepe`
- * (a person's profile too), so every visit to one began with that redirect and left `%40` in the
- * address bar, in every link copied from it. Those paths are the app's own routes, not files.
+ * Where the gemies live (Gemies ADR 0034). alia.onl was once the agents' home too: a gemie's thread
+ * (`/@pepe`), its page and editor (`/@pepe/details`, `/@pepe/edit`) and the catalogue
+ * (`/agents`, `/agents/…`). This app is Alia's alone now, so those addresses — in every link copied
+ * from them — move permanently to the same path on Gemies, rather than ending on a page that is
+ * not here.
  */
-const APP_ROUTE_WITH_RESERVED_CHARACTER = /^\/@/;
+const GEMIES_ORIGIN = 'https://gemies.ai';
+const GEMIES_PATH = /^\/(?:@|agents(?:\/|$))/;
 
-/**
- * The app shell for a route the asset server would redirect: its `/` document, answered under the
- * request's own URL. Same bytes `not_found_handling` serves for every other client-side route, so
- * the router reads the path exactly as it was typed. The asset server is never asked for the
- * `@` path, which is how Mention avoids this too: its shell is served by its backend and the CDN
- * is only asked for the document, never for the route.
- */
-async function appShell(request, env) {
-  const url = new URL(request.url);
-  const shell = await env.ASSETS.fetch(new Request(new URL('/', url), request));
-  return new Response(shell.body, shell);
+/** The same address on Gemies, path and query as they were typed. */
+function toGemies(request) {
+  const { pathname, search } = new URL(request.url);
+  return Response.redirect(`${GEMIES_ORIGIN}${pathname}${search}`, 301);
 }
 
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
     const isDocumentRequest = request.method === 'GET' || request.method === 'HEAD';
-    const response =
-      isDocumentRequest && APP_ROUTE_WITH_RESERVED_CHARACTER.test(pathname)
-        ? await appShell(request, env)
-        : await env.ASSETS.fetch(request);
+    if (isDocumentRequest && GEMIES_PATH.test(pathname)) return toGemies(request);
+    const response = await env.ASSETS.fetch(request);
     const shared = SHARED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
     const hashed = HASHED.some((pattern) => pattern.test(pathname));
     const unindexed = UNINDEXED_PREFIXES.some((prefix) => pathname.startsWith(prefix));

@@ -3,7 +3,6 @@ import {
   type AliaChatState,
   AliaChatContent,
   AliaParticipants,
-  type AliaParticipant,
   type AliaSuggestion,
 } from '@alia.onl/sdk';
 import { useConversation } from '@alia.onl/sdk/runtime';
@@ -14,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ShellPageHeader } from '@/shared/ui/page-chrome';
 import { UsageLimitDialog } from '@/features/billing/ui/usage-limit-dialog';
 import { useStore } from '@/features/chat/runtime/global-store';
-import { useOpenAgentEditor } from '@/features/chat/runtime/use-open-agent-editor';
 import { useModelStore } from '@/features/chat/runtime/model-store';
 import { useAppVoiceOptions } from '@/features/chat/runtime/use-app-voice-options';
 import { useCreditWarnings } from '@/features/chat/runtime/use-credit-warnings';
@@ -40,27 +38,6 @@ import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
 interface ConversationScreenProps {
   /** The conversation open, or omitted on the new-chat screen: the first turn creates it. */
   conversationId?: string;
-  /** The agent answering, when this thread belongs to one. */
-  agentId?: string;
-  /** The agent's name, for the breadcrumb when the chat has no title yet. */
-  agentName?: string;
-  /**
-   * The handle whose thread this is, when it is one.
-   *
-   * It is what the history behind the conversation is paged from, and what is re-read when a new
-   * stretch is started: the route shows the ACTIVE stretch, and starting one makes a different
-   * conversation active. Absent on `/c/:id`, which is a single conversation with no thread behind
-   * it, and on the new-chat screen.
-   */
-  threadHandle?: string;
-  /**
-   * The route is still resolving which conversation this is (an agent's thread is looked up by its
-   * handle). The frame, the header and the composer are drawn at once and the thread shows its
-   * skeleton, rather than a page that waits.
-   */
-  loading?: boolean;
-  /** The conversation's members when it is a group (two or more); the route reads them. */
-  group?: readonly AliaParticipant[];
 }
 
 /** The SDK keys a suggestion by `id` and calls a fill-in-the-blanks one a `template`. */
@@ -74,12 +51,11 @@ const asSuggestions = (
   }));
 
 /**
- * One open conversation — the whole of it, wherever it was reached from.
+ * One open conversation with Alia — the whole of it, wherever it was reached from.
  *
- * There are three doors: `/` (the new-chat screen: no conversation yet), `/c/:id`, a chat in the
- * sidebar, and `/a/:username`, the permanent thread with one agent. They are the SAME screen
- * behind different doors, so it lives here rather than in any route: a chat that gains voice or
- * loses a dialog has to gain or lose it in all of them.
+ * There are two doors: `/` (the new-chat screen: no conversation yet) and `/c/:id`, a chat in the
+ * sidebar. They are the SAME screen behind different doors, so it lives here rather than in any
+ * route: a chat that gains voice or loses a dialog has to gain or lose it in both.
  *
  * The conversation is the SDK's (`AliaChatContent`, the same one the bottom sheet mounts). What
  * is here is the app around it: which power level and which of the person's own devices, the add
@@ -87,14 +63,7 @@ const asSuggestions = (
  * its actions, the project the chat is filed under, and the dialogs and toasts that belong to the
  * account rather than to the conversation.
  */
-export const ConversationScreen = ({
-  conversationId,
-  agentId,
-  agentName,
-  threadHandle,
-  loading = false,
-  group,
-}: ConversationScreenProps) => {
+export const ConversationScreen = ({ conversationId }: ConversationScreenProps) => {
   const { t } = useTranslation();
   const { isAuthenticated, signIn } = useAuth();
   const { isDarkColorScheme } = useColorScheme();
@@ -138,7 +107,7 @@ export const ConversationScreen = ({
 
   // ── Suggestions over the composer ──
   const [suggestionQuery, setSuggestionQuery] = useState('');
-  const { data: welcome } = useWelcomeSuggestions(agentId);
+  const { data: welcome } = useWelcomeSuggestions();
   const { data: matches } = useSearchSuggestions(suggestionQuery);
   const welcomeSuggestions = useMemo(() => asSuggestions(welcome), [welcome]);
   const suggestionMatches = useMemo(() => asSuggestions(matches), [matches]);
@@ -161,31 +130,15 @@ export const ConversationScreen = ({
       folders.find((f) => f.conversationIds.includes(conversationId))?.name ??
       t('sidebar.chats'))
     : undefined;
-  const title = conversationDetails?.title || agentName;
-  // The header is the conversation's participants — its lead and the agents that joined — drawn
-  // by the SDK; the app draws no title of its own there.
-  // Pressing the participants opens the agent's editor; Alia has none, so her avatar just waves.
-  const openAgentEditor = useOpenAgentEditor();
-  const openAgent = useMemo(
-    () => (agentId === undefined ? undefined : () => openAgentEditor(agentId)),
-    [agentId, openAgentEditor],
-  );
+  const title = conversationDetails?.title;
+  // The header is the conversation's participants — Alia and the gemies she consulted — drawn by
+  // the SDK; the app draws no title of its own there.
   const chrome = useCallback(
     (chat: AliaChatState): AliaChatChrome => {
-      // The menu is there from the first screen: starting a group, editing an agent and the panel
-      // need no stored conversation; what needs one (search, share, export, clear, delete) is
-      // left out of it until there is one.
-      const actions = (
-        <ConversationActions
-          chat={chat}
-          agentName={agentName}
-          agentId={agentId}
-          threadHandle={threadHandle}
-          // Only an ordinary chat is shared: an agent's thread is a view over several
-          // conversations, and a temporary chat is never stored.
-          shareable={!ephemeral && agentId === undefined && group === undefined}
-        />
-      );
+      // The menu is there from the first screen: the panel needs no stored conversation; what
+      // needs one (search, share, export, clear, delete) is left out of it until there is one.
+      // A temporary chat is never stored, so it is never shared.
+      const actions = <ConversationActions chat={chat} shareable={!ephemeral} />;
       return {
         // Once there is a conversation its header is Bloom's `PageHeader` as the multi-agent chat
         // sets it: the participants centred, the actions beside them. (A container given its own
@@ -194,17 +147,10 @@ export const ConversationScreen = ({
         // from its first frame, while its messages load: otherwise the container's breadcrumb shows
         // for an instant and is replaced.
         header:
-          chat.hasMessages || conversationId !== undefined || loading ? (
+          chat.hasMessages || conversationId !== undefined ? (
             <ShellPageHeader
               titleAlign="center"
-              // The lead's profile is read by the chat itself; until then the name the route knows.
-              title={
-                loading ? (
-                  agentName
-                ) : (
-                  <AliaParticipants participants={chat.participants} onPress={openAgent} />
-                )
-              }
+              title={<AliaParticipants participants={chat.participants} />}
               actions={
                 <>
                   {actions}
@@ -224,21 +170,13 @@ export const ConversationScreen = ({
         ),
       };
     },
-    [title, t, projectName, conversationId, agentName, agentId, threadHandle, ephemeral, openAgent],
+    [title, t, projectName, conversationId, ephemeral],
   );
-
-  const agent = useMemo(() => (agentId === undefined ? undefined : { id: agentId }), [agentId]);
 
   return (
     <KeyboardFrame>
       <AliaChatContent
         conversationId={conversationId}
-        agent={agent}
-        // An agent's thread is drawn as chat bubbles; Alia's own chat keeps its plain replies.
-        bubbles={agentId !== undefined}
-        loading={loading}
-        group={group}
-        threadHandle={threadHandle}
         ephemeral={ephemeral}
         model={model}
         onModelChange={conversationId === undefined ? setGlobalLevel : setConversationLevel}

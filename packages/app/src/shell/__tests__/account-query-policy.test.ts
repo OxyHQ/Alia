@@ -19,9 +19,6 @@ it('persists the lists a returning person sees first, and nothing that holds mes
   const persisted = (queryKey: readonly unknown[]) =>
     policy.persistsQuery(client.getQueryCache().build(client, { queryKey: [...queryKey] }));
   for (const queryKey of [
-    ['agents', 'mine'],
-    ['spaces'],
-    ['agent-thread', 'pepe', 'default'],
     ['conversations', { agentId: undefined, app: undefined }],
     ['alia-agent-profile', 'a1'],
     ['skills', 'installed'],
@@ -30,7 +27,7 @@ it('persists the lists a returning person sees first, and nothing that holds mes
   }
   for (const queryKey of [
     ['conversation', 'c1'],
-    ['agent-thread-messages', 'pepe'],
+    ['agents', 'mine'],
     ['billing', 'subscription', 'u1'],
     ['credits'],
     ['alia-shared-conversation', 'token'],

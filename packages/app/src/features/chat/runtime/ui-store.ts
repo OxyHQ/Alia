@@ -3,28 +3,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ContextUsage } from '@/features/chat/model/context-usage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type RightPanel = 'credits' | 'thought' | 'canvas' | 'gallery' | 'agent' | 'editor' | null;
+export type RightPanel = 'credits' | 'thought' | 'canvas' | 'gallery' | null;
 
-/**
- * The agent whose terminal the code panel can show, and the route it was
- * opened from.
- *
- * Keyed by the ROUTE rather than held globally: the panel is the layout's and
- * outlives a navigation, so a terminal opened in one agent's chat would
- * otherwise keep streaming that agent's activity beside the next chat. The
- * panel offers it only while the route is the one it was opened on (#608 §5,
- * selection identity).
- */
-export interface AgentTerminalSelection {
-  agentId: string;
-  route: string;
-}
-
-/**
- * What the code panel shows: its changes, or its second tab — the canvas
- * preview, or the agent's terminal in the same slot.
- */
-export type CodePanelView = 'changes' | 'preview' | 'terminal';
+/** What the code panel shows: its changes, or its second tab, the canvas preview. */
+export type CodePanelView = 'changes' | 'preview';
 
 export interface CanvasArtifact {
   id: string;
@@ -41,8 +23,6 @@ interface UIState {
    * SDK's `useThoughtStore`: the thread selects, this only says the panel is on show.
    */
   rightPanel: RightPanel;
-  /** The agent the editor panel is open on; read only while `rightPanel` is `'editor'`. */
-  editedAgentId: string | null;
   /**
    * What each conversation's latest turn put in the context window, by
    * conversation id, as the `alia.context` event reported it; and the latest of
@@ -53,15 +33,7 @@ interface UIState {
   lastContextUsage: ContextUsage | null;
   setContextUsage: (conversationId: string | null, usage: ContextUsage) => void;
   shortcutsDialogOpen: boolean;
-  /** The dialog in which the person picks the agents of a new group conversation. */
-  groupPickerOpen: boolean;
-  setGroupPickerOpen: (open: boolean) => void;
   canvasArtifacts: CanvasArtifact[];
-  activeAgentSessionId: string | null;
-  activeAgentId: string | null;
-  /** The conversation whose turn opened the active agent session, when one did. */
-  activeAgentConversationId: string | null;
-  agentTerminal: AgentTerminalSelection | null;
   codePanelView: CodePanelView;
   /**
    * Whether the intro screen has been answered on this device — by signing in
@@ -72,11 +44,6 @@ interface UIState {
   // Actions
   setRightPanel: (panel: RightPanel) => void;
   toggleRightPanel: (panel: RightPanel) => void;
-  /** Open the right panel on this agent's editor. */
-  openAgentEditor: (agentId: string) => void;
-  openAgentPanel: (sessionId: string, agentId: string, conversationId?: string | null) => void;
-  /** Open the code panel on this agent's terminal, for the route it was asked for on. */
-  openAgentTerminal: (agentId: string, route: string) => void;
   setCodePanelView: (view: CodePanelView) => void;
   setShortcutsDialogOpen: (open: boolean) => void;
   toggleShortcutsDialog: () => void;
@@ -87,9 +54,8 @@ interface UIState {
    * How wide the right panel is, in px, on a screen wide enough to show it
    * beside the chat.
    *
-   * It used to be two constants — 320, or 420 when an agent was in it — so the
-   * execution panel, the canvas and the agent were each whatever width somebody
-   * picked once. #608 §5 asks for "panel lateral y redimensionado coherentes
+   * It used to be two constants, so the execution panel and the canvas were
+   * each whatever width somebody picked once. #608 §5 asks for "panel lateral y redimensionado coherentes
    * con el template", and the template's panel is dragged.
    *
    * One width for every kind of panel rather than one per kind: the drag is the
@@ -115,9 +81,8 @@ export function clampRightPanelWidth(width: number): number {
 
 export const useUIStore = create<UIState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       rightPanel: null,
-      editedAgentId: null,
       contextUsage: {},
       lastContextUsage: null,
       setContextUsage: (conversationId, usage) =>
@@ -129,13 +94,7 @@ export const useUIStore = create<UIState>()(
               : { ...state.contextUsage, [conversationId]: usage },
         })),
       shortcutsDialogOpen: false,
-      groupPickerOpen: false,
-      setGroupPickerOpen: (open) => set({ groupPickerOpen: open }),
       canvasArtifacts: [],
-      activeAgentSessionId: null,
-      activeAgentId: null,
-      activeAgentConversationId: null,
-      agentTerminal: null,
       codePanelView: 'changes',
       rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
 
@@ -147,19 +106,6 @@ export const useUIStore = create<UIState>()(
 
       toggleRightPanel: (panel) =>
         set((state) => ({ rightPanel: state.rightPanel === panel ? null : panel })),
-
-      openAgentEditor: (agentId) => set({ rightPanel: 'editor', editedAgentId: agentId }),
-
-      openAgentPanel: (sessionId, agentId, conversationId = null) =>
-        set({
-          rightPanel: 'agent',
-          activeAgentSessionId: sessionId,
-          activeAgentId: agentId,
-          activeAgentConversationId: conversationId,
-        }),
-
-      openAgentTerminal: (agentId, route) =>
-        set({ rightPanel: 'canvas', agentTerminal: { agentId, route }, codePanelView: 'terminal' }),
 
       setCodePanelView: (view) => set({ codePanelView: view }),
 

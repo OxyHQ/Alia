@@ -83,12 +83,12 @@ describe('setRightPanelWidth', () => {
 
 describe('one width for every panel', () => {
   it('does not change when the panel changes what it holds', () => {
-    // The old code swapped 320 for 420 on the agent panel. The drag is the
+    // The old code swapped 320 for 420 by what the panel held. The drag is the
     // reader's statement about their screen; forgetting it because the panel
     // now holds something else would be a strange kind of memory.
     useUIStore.getState().setRightPanelWidth(500);
 
-    useUIStore.getState().setRightPanel('agent');
+    useUIStore.getState().setRightPanel('thought');
     expect(useUIStore.getState().rightPanelWidth).toBe(500);
 
     useUIStore.getState().setRightPanel('canvas');

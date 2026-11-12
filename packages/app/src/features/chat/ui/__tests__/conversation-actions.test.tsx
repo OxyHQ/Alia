@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The conversation's own actions, wired to the app: what an export is called and says, when a
- * delete is confirmed and where it goes, and which agent's terminal the chat can show. The menu
+ * delete is confirmed and where it goes, and how a link is shared. The menu
  * that draws them is pinned in `chat-surfaces.test.tsx`; the chat they act on is the SDK's.
  */
 
@@ -26,11 +26,6 @@ const world = vi.hoisted(() => ({
   linkFails: false,
   links: [] as [string, string, string][],
   cachedTitle: undefined as string | undefined,
-  ui: {
-    activeAgentConversationId: null as string | null,
-    activeAgentId: null as string | null,
-    openAgentTerminal: vi.fn(),
-  },
   menu: null as null | Record<string, any>,
 }));
 
@@ -70,7 +65,6 @@ vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ getQueryData: () => world.cachedTitle && { title: world.cachedTitle } }),
 }));
 vi.mock('expo-router', () => ({
-  usePathname: () => '/c/c1',
   useRouter: () => ({ replace: (path: string) => world.replaced.push(path) }),
 }));
 vi.mock('@/features/chat/runtime/conversation-share', () => ({
@@ -83,14 +77,6 @@ vi.mock('@/features/chat/runtime/conversation-share', () => ({
     world.links.push(args);
     return world.linkOutcome;
   },
-}));
-vi.mock('@/features/chat/runtime/use-open-agent-editor', () => ({
-  useOpenAgentEditor: () => vi.fn(),
-}));
-vi.mock('@/features/chat/runtime/ui-store', () => ({
-  useUIStore: Object.assign((select: (s: typeof world.ui) => unknown) => select(world.ui), {
-    getState: () => world.ui,
-  }),
 }));
 vi.mock('@/features/chat/ui/chat-header-actions', () => ({
   ChatHeaderActions: (props: Record<string, any>) => {
@@ -145,18 +131,14 @@ beforeEach(() => {
   world.linkFails = false;
   world.links = [];
   world.cachedTitle = undefined;
-  world.ui.activeAgentConversationId = null;
-  world.ui.activeAgentId = null;
-  world.ui.openAgentTerminal.mockClear();
   world.menu = null;
   act(() => renderer?.unmount());
   renderer = undefined;
 });
 
 describe('before there is a stored conversation', () => {
-  it('still offers starting a group, and leaves out what needs a thread', () => {
+  it('leaves out what needs a thread', () => {
     const menu = mount({ chat: chat({ conversationId: undefined, openSearch: vi.fn() }) });
-    expect(menu.onStartGroup).toBeTypeOf('function');
     for (const needsThread of [
       'onSearch',
       'onShare',
@@ -173,18 +155,12 @@ describe('before there is a stored conversation', () => {
 describe('exporting the conversation', () => {
   it('names the document after the generated title the cache already holds', async () => {
     world.cachedTitle = 'Trip to Lugo';
-    const menu = mount({ agentName: 'Atlas' });
+    const menu = mount();
     await act(async () => menu.onExport());
-    expect(world.delivered).toEqual([
-      ['Trip to Lugo.md', '# Trip to Lugo (Atlas)', 'Trip to Lugo'],
-    ]);
+    expect(world.delivered).toEqual([['Trip to Lugo.md', '# Trip to Lugo (Alia)', 'Trip to Lugo']]);
   });
 
-  it('falls back to the agent’s name, then to "new chat"', async () => {
-    const named = mount({ agentName: 'Atlas' });
-    await act(async () => named.onExport());
-    expect(world.delivered.at(-1)?.[0]).toBe('Atlas.md');
-
+  it('falls back to "new chat"', async () => {
     const unnamed = mount();
     await act(async () => unnamed.onExport());
     expect(world.delivered.at(-1)?.[0]).toBe('chat.newChat.md');
@@ -282,10 +258,6 @@ describe('deleting the conversation', () => {
     await act(async () => menu.onDelete());
     expect(world.replaced).toEqual([]);
   });
-
-  it('is not offered on an agent’s thread: it is a view over several conversations', () => {
-    expect(mount({ threadHandle: 'pepe' }).onDelete).toBeUndefined();
-  });
 });
 
 describe('the rest of the menu', () => {
@@ -297,25 +269,5 @@ describe('the rest of the menu', () => {
     const withSearch = mount({ chat: chat({ openSearch, clearMessages }) });
     expect(withSearch.onSearch).toBe(openSearch);
     expect(withSearch.onClear).toBe(clearMessages);
-  });
-
-  it('shows the terminal of the thread’s own agent', () => {
-    const menu = mount({ agentId: 'a1' });
-    act(() => menu.onOpenTerminal());
-    expect(world.ui.openAgentTerminal).toHaveBeenCalledWith('a1', '/c/c1');
-  });
-
-  it('shows the terminal of the agent a turn of THIS conversation put to work', () => {
-    world.ui.activeAgentConversationId = 'c1';
-    world.ui.activeAgentId = 'a9';
-    const menu = mount();
-    act(() => menu.onOpenTerminal());
-    expect(world.ui.openAgentTerminal).toHaveBeenCalledWith('a9', '/c/c1');
-  });
-
-  it('offers no terminal when the agent at work belongs to another chat', () => {
-    world.ui.activeAgentConversationId = 'other';
-    world.ui.activeAgentId = 'a9';
-    expect(mount().onOpenTerminal).toBeUndefined();
   });
 });

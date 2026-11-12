@@ -9,11 +9,11 @@ import { View } from 'react-native';
 const K = 'settings.assistant.proactive';
 
 /**
- * When Alia and the agents may write first.
+ * When Alia may write first.
  *
- * Today one thing: an important email, Alia about the person's own Inbox. Each agent's own mailbox
- * is a switch in that agent's editor. On by default; the limits (three a day, none while
- * the last two are unanswered) are the same for everybody and not a setting.
+ * Today one thing: an important email, about the person's own Inbox. A gemie's own mailbox is a
+ * switch in Gemies. On by default; the limits (three a day, none while the last two are
+ * unanswered) are the same for everybody and not a setting.
  */
 export function ProactiveSection() {
   const { t } = useTranslation();
@@ -41,7 +41,7 @@ export function ProactiveSection() {
             <Switch
               accessibilityLabel={t(`${K}.aliaEmailLabel`)}
               checked={alerts.alia.enabled}
-              onCheckedChange={(enabled) => setEnabled(null, enabled)}
+              onCheckedChange={setEnabled}
             />
           </SettingsRow>
         </SettingsCard>

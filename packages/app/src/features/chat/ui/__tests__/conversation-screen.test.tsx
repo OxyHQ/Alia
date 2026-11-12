@@ -3,8 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * What the app composes around the SDK's conversation: the one screen behind `/`, `/c/:id` and
- * `/@agent`. The conversation itself (its thread, composer and call) is the SDK's and pinned
+ * What the app composes around the SDK's conversation: the one screen behind `/` and `/c/:id`. The conversation itself (its thread, composer and call) is the SDK's and pinned
  * there; here is only what the app decides — which power level a turn is sent with, what the
  * person's own devices add to the selector, the breadcrumb and its actions, the project crumb, the
  * sign-in a signed-out send asks for, and the dialog for a usage limit.
@@ -26,10 +25,6 @@ const world = vi.hoisted(() => ({
   setGhostMode: vi.fn(),
 }));
 
-const openAgentEditor = vi.hoisted(() => vi.fn());
-vi.mock('@/features/chat/runtime/use-open-agent-editor', () => ({
-  useOpenAgentEditor: () => openAgentEditor,
-}));
 vi.mock('@/features/notifications/ui/notifications-bell', () => ({
   NotificationsBell: () => null,
 }));
@@ -177,13 +172,10 @@ beforeEach(() => {
 });
 
 describe('the conversation the screen names', () => {
-  it('passes the conversation, its agent and its thread to the SDK screen as they are', () => {
-    mount({ conversationId: 'c1', agentId: 'a1', threadHandle: 'pepe' });
-    expect(content()).toMatchObject({
-      conversationId: 'c1',
-      agent: { id: 'a1' },
-      threadHandle: 'pepe',
-    });
+  it('passes the conversation to the SDK screen as it is, with Alia as its lead', () => {
+    mount({ conversationId: 'c1' });
+    expect(content().conversationId).toBe('c1');
+    expect(content().agent).toBeUndefined();
   });
 
   it('names none on the new-chat screen, which is what makes its first turn create one', () => {
@@ -236,22 +228,22 @@ describe('the power level', () => {
 });
 
 describe('the breadcrumb', () => {
-  it('draws the conversation’s own title, then the agent’s name, then "new chat"', () => {
+  it('draws the conversation’s own title, then "new chat"', () => {
     world.title = 'Trip to Lugo';
-    mount({ conversationId: 'c1', agentName: 'Atlas' });
+    mount({ conversationId: 'c1' });
     expect(content().chrome({}).title).toBe('Trip to Lugo');
 
     world.title = undefined;
-    mount({ conversationId: 'c1', agentName: 'Atlas' });
-    expect(content().chrome({}).title).toBe('Atlas');
-
     mount({ conversationId: 'c1' });
     expect(content().chrome({}).title).toBe('chat.newChat');
   });
 
   it('puts the SDK’s participants in the header once there is a conversation, and draws no title of its own there', () => {
-    mount({ conversationId: 'c1', agentName: 'Atlas' });
-    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    mount({ conversationId: 'c1' });
+    const participants = {
+      lead: { id: 'alia', name: 'Alia' },
+      joined: [{ id: 'a1', name: 'Atlas' }],
+    };
     const header = content().chrome({ participants, hasMessages: true })
       .header as React.ReactElement<{ title: React.ReactElement<Record<string, unknown>> }>;
     expect(header.props.title.props).toMatchObject({ participants });
@@ -259,64 +251,29 @@ describe('the breadcrumb', () => {
     expect(header.props).toHaveProperty('actions');
   });
 
-  it('opens the agent’s editor panel from the header avatar, and leaves Alia’s to wave', () => {
-    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
-    mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' });
-    const header = content().chrome({ participants, hasMessages: true })
-      .header as React.ReactElement<{ title: React.ReactElement<{ onPress?: () => void }> }>;
-    header.props.title.props.onPress?.();
-    expect(openAgentEditor).toHaveBeenCalledWith('a1');
-
-    mount({ conversationId: 'c1' });
-    const alia = content().chrome({ participants, hasMessages: true })
-      .header as React.ReactElement<{ title: React.ReactElement<{ onPress?: () => void }> }>;
-    expect(alia.props.title.props.onPress).toBeUndefined();
-  });
-
-  it('is drawn at once while the route resolves the conversation: its header, the chat told to wait', () => {
-    mount({ agentId: 'a1', agentName: 'Atlas', loading: true });
-    expect(content().loading).toBe(true);
-    const header = content().chrome({ hasMessages: false }).header as React.ReactElement<{
-      title: unknown;
-    }>;
-    // The name the route knows, not the lead's profile (the chat is still reading it).
-    expect(header.props.title).toBe('Atlas');
-  });
-
-  it('hands a group’s members to the chat and does not offer to share it', () => {
-    const group = [
-      { id: 'a1', name: 'Atlas' },
-      { id: 'a2', name: 'Nadia' },
-    ];
-    mount({ conversationId: 'c1', group: group as never });
-    expect(content().group).toBe(group);
-    const actions = content().chrome({ hasMessages: true }).actions as React.ReactElement<{
-      children: React.ReactElement<{ shareable: boolean }>[];
-    }>;
-    expect(actions.props.children[1].props.shareable).toBe(false);
-  });
-
-  it('offers sharing on an ordinary chat only, never on an agent’s thread', () => {
-    const shareableOf = (props: Parameters<typeof mount>[0]) => {
-      mount(props);
+  it('offers sharing on a saved chat, never on a temporary one', () => {
+    const shareable = () => {
       const actions = content().chrome({ hasMessages: true }).actions as React.ReactElement<{
         children: React.ReactElement<{ shareable: boolean }>[];
       }>;
       return actions.props.children[1].props.shareable;
     };
-    expect(shareableOf({ conversationId: 'c1' })).toBe(true);
-    expect(shareableOf({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' })).toBe(false);
+    mount({ conversationId: 'c1' });
+    expect(shareable()).toBe(true);
+    world.ghostMode = true;
+    mount({ conversationId: 'c1' });
+    expect(shareable()).toBe(false);
   });
 
   it('has no participants header on the empty chat: its greeting carries the mark', () => {
-    mount({ agentName: 'Atlas' });
-    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    mount();
+    const participants = { lead: { id: 'alia', name: 'Alia' }, joined: [] };
     expect(content().chrome({ participants, hasMessages: false }).header).toBeUndefined();
   });
 
   it('has the header from the first frame of an open conversation, before its messages load', () => {
-    mount({ conversationId: 'c1', agentName: 'Atlas' });
-    const participants = { lead: { id: 'a1', name: 'Atlas' }, joined: [] };
+    mount({ conversationId: 'c1' });
+    const participants = { lead: { id: 'alia', name: 'Alia' }, joined: [] };
     expect(content().chrome({ participants, hasMessages: false }).header).toBeDefined();
   });
 
@@ -335,7 +292,7 @@ describe('the breadcrumb', () => {
     expect(content().chrome({}).project).toBe('sidebar.chats');
   });
 
-  it('files the new-chat screen under nothing, and still offers it the menu: starting a group needs no stored chat', () => {
+  it('files the new-chat screen under nothing, and still offers it the menu: the panel needs no stored chat', () => {
     mount();
     expect(content().chrome({}).project).toBeUndefined();
     expect(content().chrome({}).actions).toBeDefined();
@@ -343,7 +300,7 @@ describe('the breadcrumb', () => {
   });
 
   it('wires the actions to what the chat tells it, once there is a conversation', () => {
-    mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas', threadHandle: 'pepe' });
+    mount({ conversationId: 'c1' });
     const chat = { conversationId: 'c1' };
     // The actions are the bell and the chat's own menu; the menu is the child that carries the chat.
     const actions = content().chrome(chat).actions as React.ReactElement<{
@@ -353,12 +310,7 @@ describe('the breadcrumb', () => {
       (child): child is React.ReactElement<Record<string, unknown>> =>
         React.isValidElement(child) && 'chat' in (child.props as object),
     );
-    expect(menu?.props).toMatchObject({
-      chat,
-      agentName: 'Atlas',
-      agentId: 'a1',
-      threadHandle: 'pepe',
-    });
+    expect(menu?.props).toMatchObject({ chat, shareable: true });
   });
 });
 
@@ -397,13 +349,6 @@ describe('what the account decides', () => {
 });
 
 describe('the frame', () => {
-  it('draws an agent’s thread as chat bubbles, and Alia’s own chat plain', () => {
-    mount({ conversationId: 'c1', agentId: 'a1', agentName: 'Atlas' });
-    expect(content()).toMatchObject({ bubbles: true });
-    mount({ conversationId: 'c1' });
-    expect(content()).toMatchObject({ bubbles: false });
-  });
-
   it('stands the chat in the safe area, running only while on show', () => {
     mount();
     expect(content()).toMatchObject({
