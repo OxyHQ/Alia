@@ -36,3 +36,11 @@ CREATE INDEX "agent_work_root_idx" ON "agent_work_items" USING btree ("root_id")
 CREATE INDEX "agent_work_authority_idx" ON "agent_work_items" USING btree ("oxy_task_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "agent_work_session_key" ON "agent_work_items" USING btree ("session_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "agent_work_heartbeat_key" ON "agent_work_items" USING btree ("agent_id") WHERE "agent_work_items"."kind" = 'heartbeat' and "agent_work_items"."status" in ('pending', 'running');
+--> statement-breakpoint
+ALTER TABLE "automation_events" ADD COLUMN "attempts" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "automation_events" ADD COLUMN "retry_after" timestamp with time zone;
+--> statement-breakpoint
+CREATE TABLE "agent_work_revocations" (
+	"oxy_task_id" text PRIMARY KEY NOT NULL,
+	"created_at" timestamp with time zone DEFAULT date_trunc('milliseconds', now()) NOT NULL
+);

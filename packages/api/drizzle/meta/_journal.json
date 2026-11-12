@@ -918,20 +918,6 @@
       "when": 1794452004543,
       "tag": "0130_glorious_photon",
       "breakpoints": true
-    },
-    {
-      "idx": 131,
-      "version": "7",
-      "when": 1794452104834,
-      "tag": "0131_classy_harpoon",
-      "breakpoints": true
-    },
-    {
-      "idx": 132,
-      "version": "7",
-      "when": 1794454288543,
-      "tag": "0132_conscious_loa",
-      "breakpoints": true
     }
   ]
 }

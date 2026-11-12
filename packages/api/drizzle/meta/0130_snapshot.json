@@ -1,5 +1,5 @@
 {
-  "id": "b9571659-c17d-4312-b8ec-1d69b045e055",
+  "id": "49582e2b-d22b-4707-b34f-21db73968678",
   "prevId": "b171e2e2-4372-45cc-b18e-77cb28fcfce4",
   "version": "7",
   "dialect": "postgresql",
@@ -4109,6 +4109,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "retry_after": {
+          "name": "retry_after",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "received_at": {
           "name": "received_at",
@@ -15215,6 +15228,32 @@
           "value": "\"agent_work_items\".\"kind\" in ('heartbeat', 'follow_up')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.agent_work_revocations": {
+      "name": "agent_work_revocations",
+      "schema": "",
+      "columns": {
+        "oxy_task_id": {
+          "name": "oxy_task_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     }
   },
