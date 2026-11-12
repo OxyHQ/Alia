@@ -52,7 +52,6 @@ beforeEach(() => {
   h.settle.mockResolvedValue({ creditsCharged: 1 });
   h.generate.mockResolvedValue({
     object: {
-      assessment: 'The original request asks Eusebio to explain his capabilities.',
       choice: 'person-request:e',
     },
     usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
@@ -70,11 +69,10 @@ describe('room selection inference accounting', () => {
     expect(call.system).toBe(ROOM_SELECTION_SYSTEM);
     expect(
       call.schema.parse({
-        assessment: 'The recipient is unclear.',
         choice: 'clarify-person-request:e',
       }),
-    ).toEqual({ assessment: 'The recipient is unclear.', choice: 'clarify-person-request:e' });
-    expect(Object.keys(call.schema.shape)).toEqual(['assessment', 'choice']);
+    ).toEqual({ choice: 'clarify-person-request:e' });
+    expect(Object.keys(call.schema.shape)).toEqual(['choice']);
     expect(JSON.parse(call.prompt).allowedChoices).toContainEqual({
       id: 'person-request:e',
       action: 'speak',
@@ -96,7 +94,7 @@ describe('room selection inference accounting', () => {
     expect(h.generate).not.toHaveBeenCalled();
   });
 
-  it('uses the authoritative source choice and never returns or logs the assessment', async () => {
+  it('uses only the authoritative source choice and discards unsolicited explanatory output', async () => {
     const assessment = 'Transient description of pending work; never stored or logged.';
     h.generate.mockResolvedValue({ object: { assessment, choice: 'person-request:e' }, usage: {} });
     const decision = await selectRoomDecision(input);
@@ -114,7 +112,7 @@ describe('room selection inference accounting', () => {
 
   it('settles a completed generation even if its selected ID is invalid', async () => {
     h.generate.mockResolvedValue({
-      object: { assessment: 'Invalid recipient.', choice: 'person-request:outsider' },
+      object: { choice: 'person-request:outsider' },
       usage: {},
     });
     await expect(selectRoomDecision(input)).rejects.toThrow();
