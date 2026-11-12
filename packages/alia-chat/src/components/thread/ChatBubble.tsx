@@ -11,6 +11,8 @@ import { useTheme, withAlpha } from '@oxy.so/bloom/theme';
 import { type ComponentProps, type ReactNode, useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { useLabels } from '../../lib/labels';
+import { reactionPills, type ReactionPillData } from '../../lib/reaction-pills';
+import type { MessageReactionEntry } from '../../runtime/types';
 import { RiEmojiPicker } from '../icons/RiEmojiPicker';
 import { RiMoreDots } from '../icons/RiMoreDots';
 import { RiReplyLine } from '../icons/RiReplyLine';
@@ -31,6 +33,8 @@ type Glyph = (props: { width?: number; height?: number; fill?: string }) => Reac
 export function ChatBubble({
   side,
   reactions = [],
+  reactionEntries,
+  reactionViewerId,
   onReact,
   menu = [],
   onReply,
@@ -39,6 +43,8 @@ export function ChatBubble({
   side: 'user' | 'reply';
   /** The emoji left on this turn: drawn as pills under the bubble. */
   reactions?: readonly string[];
+  reactionEntries?: readonly MessageReactionEntry[];
+  reactionViewerId?: string;
   /** Leave an emoji on this turn, or take it back (a pill pressed, or a pick of the picker). Absent: no react button. */
   onReact?: (emoji: string) => void;
   /** What "more" offers: every other action of the turn. */
@@ -52,6 +58,7 @@ export function ChatBubble({
   const theme = useTheme();
   const { state: hovered, onIn, onOut } = useInteractionState();
   const [pinned, setPinned] = useState(false);
+  const pills = reactionPills(reactions, reactionEntries, reactionViewerId);
   const mine = side === 'user';
   // The person's bubble is the theme's primary: Bloom's theme is seeded from the agent's colour, and
   // Bloom picks the text that reads on it.
@@ -106,18 +113,18 @@ export function ChatBubble({
         </View>
         {mine ? null : icons}
       </View>
-      {reactions.length === 0 ? null : (
+      {pills.length === 0 ? null : (
         // The reactions sit on the bubble's lower edge, as the chat this is modelled on draws them.
         <View
           className={`-mt-2.5 flex-row flex-wrap items-center gap-1 ${
             mine ? 'justify-end me-2.5' : 'justify-start ms-2.5'
           }`}
         >
-          {reactions.map((emoji) => (
+          {pills.map((pill) => (
             <ReactionPill
-              key={emoji}
-              emoji={emoji}
-              onPress={onReact === undefined ? undefined : () => onReact(emoji)}
+              key={pill.emoji}
+              pill={pill}
+              onPress={onReact === undefined ? undefined : () => onReact(pill.emoji)}
             />
           ))}
         </View>
@@ -127,27 +134,45 @@ export function ChatBubble({
 }
 
 /** One reaction under a bubble: the emoji on a wash of the theme's primary, ringed in the surface. */
-function ReactionPill({ emoji, onPress }: { emoji: string; onPress?: () => void }) {
+function ReactionPill({ pill, onPress }: { pill: ReactionPillData; onPress?: () => void }) {
   const theme = useTheme();
   const { t } = useLabels();
   const { state: hovered, onIn, onOut } = useInteractionState();
+  const names = pill.authors
+    .map((author) =>
+      author.kind === 'agent'
+        ? author.name
+        : t(pill.selected ? 'chat.reactionYou' : 'chat.reactionPerson'),
+    )
+    .join(', ');
+  const attributed = pill.authors.some((author) => author.kind === 'agent') || !pill.selected;
   return (
     <Pressable
       onHoverIn={onIn}
       onHoverOut={onOut}
-      accessibilityRole="button"
-      accessibilityLabel={t('chat.reaction', { emoji })}
-      accessibilityState={{ selected: true }}
+      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityLabel={
+        attributed
+          ? t('chat.reactionAuthors', { emoji: pill.emoji, count: pill.authors.length, names })
+          : t('chat.reaction', { emoji: pill.emoji })
+      }
+      accessibilityState={{ selected: pill.selected }}
       disabled={onPress === undefined}
       onPress={onPress}
-      className="h-[22px] flex-row items-center rounded-full px-2"
+      className="min-h-[22px] max-w-full flex-row items-center gap-1 rounded-full px-2"
       style={{
-        backgroundColor: withAlpha(theme.colors.primary, hovered ? 0.16 : 0.12),
+        backgroundColor: pill.selected
+          ? withAlpha(theme.colors.primary, hovered ? 0.16 : 0.12)
+          : theme.colors.backgroundSecondary,
         borderWidth: 2,
         borderColor: theme.colors.background,
       }}
     >
-      <Text className="text-sm leading-none">{emoji}</Text>
+      <Text className="text-sm leading-none">{pill.emoji}</Text>
+      {pill.authors.length > 1 ? (
+        <Text className="text-xs text-foreground">{pill.authors.length}</Text>
+      ) : null}
+      {attributed ? <Text className="shrink text-xs text-foreground">{names}</Text> : null}
     </Pressable>
   );
 }

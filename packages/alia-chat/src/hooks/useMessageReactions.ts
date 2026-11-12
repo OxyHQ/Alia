@@ -115,5 +115,5 @@ export function useMessageReactions({
     },
     [controller, enabled],
   );
-  return { reactionsOf, toggle };
+  return { reactionsOf, toggle, viewerId: accountId };
 }

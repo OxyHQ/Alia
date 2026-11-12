@@ -32,6 +32,9 @@ export function updateReactionCaches(client: QueryClient, update: MessageReactio
                   ? {
                       ...message,
                       reactions: update.reactions,
+                      ...(update.reactionEntries === undefined
+                        ? {}
+                        : { reactionEntries: update.reactionEntries }),
                       ...(update.revision === undefined
                         ? {}
                         : { reactionRevision: update.revision }),

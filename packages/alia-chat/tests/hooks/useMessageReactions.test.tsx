@@ -32,6 +32,7 @@ import { createRoomLedger, type RoomEvent } from '../../src/runtime/room-events'
 import { useRoomEvents } from '../../src/runtime/use-room-events';
 import { aliaQueryKeys } from '../../src/runtime/query-keys';
 import type { Message } from '../../src/runtime/types';
+import { reactionPills } from '../../src/lib/reaction-pills';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const initial: Message = {
@@ -117,6 +118,128 @@ afterEach(() => {
 });
 
 describe('saved message reactions', () => {
+  it('reconciles independent removals of a shared emoji by the person and two agents', async () => {
+    const person = { emoji: '❤️', author: { kind: 'user' as const, id: 'u1' } };
+    const salina = { emoji: '❤️', author: { kind: 'agent' as const, id: 'salina', name: 'Salina' } };
+    const eusebio = {
+      emoji: '❤️',
+      author: { kind: 'agent' as const, id: 'eusebio', name: 'Eusebio' },
+    };
+    const pills = () => reactionPills(visible(), current.messages[0]?.reactionEntries, 'u1');
+    await mount();
+    await act(async () =>
+      reactionsListener?.({
+        conversationId: 'c1',
+        messageId: 'm1',
+        reactions: ['❤️'],
+        reactionEntries: [person, salina, eusebio],
+        revision: 1,
+      }),
+    );
+    expect(pills()[0]?.authors).toHaveLength(3);
+    await toggle();
+    expect(wire.requests[0]?.body.active).toBe(false);
+    expect(pills()[0]).toMatchObject({ selected: false });
+    expect(pills()[0]?.authors).toEqual([salina.author, eusebio.author]);
+    await act(async () =>
+      reactionsListener?.({
+        conversationId: 'c1',
+        messageId: 'm1',
+        reactions: ['❤️'],
+        reactionEntries: [person, eusebio],
+        revision: 2,
+      }),
+    );
+    expect(pills()[0]?.authors).toEqual([eusebio.author]);
+    await act(async () =>
+      wire.requests[0]?.resolve({
+        data: {
+          messageId: 'm1',
+          reactions: [],
+          reactionEntries: [eusebio],
+          revision: 3,
+          mutationId: wire.requests[0]?.body.mutationId,
+        },
+      }),
+    );
+    expect(pills()).toEqual([{ emoji: '❤️', selected: false, authors: [eusebio.author] }]);
+    expect(current.messages[0]?.reactionEntries).toEqual([eusebio]);
+  });
+  it('preserves a simultaneous agent reaction when the person’s optimistic mutation fails', async () => {
+    const entry = { emoji: '❤️', author: { kind: 'agent' as const, id: 'salina', name: 'Salina' } };
+    client.setQueryData(aliaQueryKeys.conversations.detail('c1'), {
+      id: 'c1',
+      messages: [initial],
+    });
+    client.setQueryData(aliaQueryKeys.threads.messages('salina'), {
+      pages: [
+        { messages: [{ ...initial, conversationId: 'c1', cursor: 'cursor' }], nextCursor: null },
+      ],
+      pageParams: [undefined],
+    });
+    await mount();
+    await toggle();
+    await act(async () =>
+      reactionsListener?.({
+        conversationId: 'c1',
+        messageId: 'm1',
+        reactions: [],
+        reactionEntries: [entry],
+        revision: 2,
+      }),
+    );
+    expect(visible()).toEqual(['❤️']);
+    await act(async () => wire.requests[0]?.reject(new Error('connection lost')));
+    expect(visible()).toEqual([]);
+    expect(current.messages[0]).toMatchObject({ reactionEntries: [entry], reactionRevision: 2 });
+    expect(client.getQueryData(aliaQueryKeys.conversations.detail('c1'))).toMatchObject({
+      messages: [{ reactionEntries: [entry] }],
+    });
+    expect(client.getQueryData(aliaQueryKeys.threads.messages('salina'))).toMatchObject({
+      pages: [{ messages: [{ reactionEntries: [entry] }] }],
+    });
+    expect(wire.requests).toHaveLength(1);
+  });
+
+  it('preserves attributed feedback with legacy fields and clears it only with an explicit newer snapshot', async () => {
+    const entry = { emoji: '🎉', author: { kind: 'agent' as const, id: 'salina', name: 'Salina' } };
+    await mount();
+    await act(async () =>
+      reactionsListener?.({
+        conversationId: 'c1',
+        messageId: 'm1',
+        reactions: [],
+        reactionEntries: [entry],
+        revision: 2,
+      }),
+    );
+    await toggle();
+    await acknowledge(3);
+    expect(current.messages[0]?.reactionEntries).toEqual([entry]);
+    await act(async () =>
+      reactionsListener?.({
+        conversationId: 'c1',
+        messageId: 'm1',
+        reactions: ['❤️'],
+        reactionEntries: [],
+        revision: 4,
+      }),
+    );
+    await act(async () =>
+      reactionsListener?.({
+        conversationId: 'c1',
+        messageId: 'm1',
+        reactions: [],
+        reactionEntries: [entry],
+        revision: 2,
+      }),
+    );
+    expect(current.messages[0]).toMatchObject({
+      reactions: ['❤️'],
+      reactionEntries: [],
+      reactionRevision: 4,
+    });
+  });
   it('persists explicit intent, updates live/query/history state and accepts newer cross-device state', async () => {
     client.setQueryData(aliaQueryKeys.conversations.detail('c1'), {
       id: 'c1',

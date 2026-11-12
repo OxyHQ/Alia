@@ -89,6 +89,47 @@ const consult = (event: string, payload: Record<string, unknown>) =>
 const outcomesSent = (index: number): unknown =>
   (harness.requests[index]?.body.host as { outcomes?: unknown } | undefined)?.outcomes;
 const SINDI = { id: 'sindi', name: 'Sindi', handle: 'sindibot', color: 'teal' };
+const reactionResult = (overrides: Record<string, unknown> = {}) => ({
+  kind: 'agent_reaction',
+  success: true,
+  completesTurn: true,
+  conversationId: 'c1',
+  messageId: 'target',
+  actorId: 'sindi',
+  reactions: [],
+  reactionEntries: [{ emoji: '❤️', author: { kind: 'agent', id: 'sindi', name: 'Sindi' } }],
+  revision: 1,
+  mutationId: 'reaction-mutation',
+  ...overrides,
+});
+const reactionFrame = (overrides: Record<string, unknown> = {}) =>
+  frame(
+    {
+      tool_call_id: 'reaction-tool',
+      name: 'react_to_message',
+      output: reactionResult(overrides),
+    },
+    'alia.tool_result',
+  );
+const reactionCompletion = (overrides: Record<string, unknown> = {}) =>
+  frame(
+    {
+      eventVersion: 1,
+      turnId: 'coordinated-turn',
+      conversationId: 'c1',
+      agentId: 'sindi',
+      conversationStored: true,
+      reactionOnly: true,
+      ...overrides,
+    },
+    'alia.agent_turn',
+  );
+async function mountReaction() {
+  await mount({ conversationId: 'c1', agentId: 'sindi' });
+  await act(async () =>
+    api.setMessages([{ id: 'target', role: 'user', content: 'Todo ha salido bien.' }]),
+  );
+}
 
 async function send(text = 'hello') {
   await act(async () => {
@@ -111,6 +152,212 @@ afterEach(async () => {
     await act(async () => renderer?.unmount());
     renderer = null;
   }
+});
+
+describe('an agent reaction as the complete response', () => {
+  it('updates its existing target and settles cleanly without an empty assistant or tool card', async () => {
+    harness.replies.push({ status: 200, frames: [reactionFrame(), reactionCompletion(), done] });
+    await mountReaction();
+    await send('Gracias');
+    expect(api.error).toBeNull();
+    expect(api.failedTurn).toBeNull();
+    expect(api.messages.map((m) => m.role)).toEqual(['user', 'user']);
+    expect(api.messages[0]).toMatchObject({
+      reactionEntries: reactionResult().reactionEntries,
+      reactionRevision: 1,
+    });
+    expect(api.messages[1]?.unsaved).toBeUndefined();
+  });
+
+  it('requires server completion authority, not a tool’s finishTurn intent alone', async () => {
+    harness.replies.push({ status: 200, frames: [reactionFrame(), done] });
+    await mountReaction();
+    await send();
+    expect(api.failedTurn).not.toBeNull();
+    expect(api.messages[0]?.reactionEntries).toEqual(reactionResult().reactionEntries);
+  });
+
+  it.each([
+    { conversationId: 'another-thread' },
+    { agentId: 'another-agent' },
+    { eventVersion: 2 },
+    { conversationStored: false },
+    { turnId: 'another-turn' },
+  ])('rejects completion authority outside the admitted turn: %j', async (overrides) => {
+    harness.replies.push({
+      status: 200,
+      frames: [
+        reactionCompletion({ reactionOnly: false }),
+        reactionFrame(),
+        reactionCompletion(overrides),
+        done,
+      ],
+    });
+    await mountReaction();
+    await send();
+    expect(api.failedTurn).not.toBeNull();
+    expect(api.messages[0]?.reactionEntries).toEqual(reactionResult().reactionEntries);
+  });
+
+  it('removes a whitespace-only draft after authoritative clean completion', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [content(' \n'), reactionFrame(), reactionCompletion(), done],
+    });
+    await mountReaction();
+    await send();
+    expect(api.failedTurn).toBeNull();
+    expect(api.messages.some((message) => message.role === 'assistant')).toBe(false);
+  });
+
+  it.each(['length', 'content_filter'])(
+    'does not turn an abnormal %s finish followed by DONE into clean reaction completion',
+    async (reason) => {
+      harness.replies.push({
+        status: 200,
+        frames: [
+          reactionFrame(),
+          reactionCompletion(),
+          frame({ choices: [{ delta: {}, finish_reason: reason }] }),
+          done,
+        ],
+      });
+      await mountReaction();
+      await send();
+      expect(api.failedTurn).not.toBeNull();
+      expect(api.messages[0]?.reactionEntries).toEqual(reactionResult().reactionEntries);
+    },
+  );
+
+  it('keeps a nonreaction question card even beside a contradictory reaction-only marker', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [
+        reactionFrame(),
+        frame({
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    id: 'question',
+                    function: {
+                      name: 'askUserQuestion',
+                      arguments: JSON.stringify({ questions: [{ question: 'Which option?' }] }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        reactionCompletion(),
+        done,
+      ],
+    });
+    await mountReaction();
+    await send();
+    expect(
+      api.messages.at(-1)?.toolInvocations?.some((call) => call.toolCallId === 'question'),
+    ).toBe(true);
+  });
+
+  it('preserves a server-admitted user message when inference is refused afterwards', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [
+        reactionCompletion({ reactionOnly: false }),
+        frame({ error: { code: 'INSUFFICIENT_CREDITS', message: 'No credits', retryable: false } }),
+        done,
+      ],
+    });
+    await mountReaction();
+    await send();
+    expect(api.messages.filter((m) => m.role === 'user')).toHaveLength(2);
+    expect(api.messages[1]?.unsaved).toBeUndefined();
+    expect(api.failedTurn).not.toBeNull();
+    expect(api.messages.some((m) => m.role === 'assistant')).toBe(false);
+  });
+
+  it.each([
+    { completesTurn: false },
+    { success: false },
+    { actorId: 'another-agent' },
+    { conversationId: 'another-thread' },
+    { reactionEntries: undefined },
+  ])('does not accept an uncommitted, unscoped or non-terminal marker: %j', async (overrides) => {
+    harness.replies.push({ status: 200, frames: [reactionFrame(overrides), done] });
+    await mountReaction();
+    await send();
+    expect(api.failedTurn).not.toBeNull();
+    expect(api.messages.some((m) => m.role === 'assistant')).toBe(false);
+  });
+
+  it.each([
+    { tail: [] },
+    { tail: [frame({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })] },
+  ])(
+    'keeps the committed reaction but reports a cut-off stream without a clean terminal',
+    async ({ tail }) => {
+      harness.replies.push({ status: 200, frames: [reactionFrame(), ...tail] });
+      await mountReaction();
+      await send();
+      expect(api.failedTurn).not.toBeNull();
+      expect(api.messages[0]?.reactionEntries).toEqual(reactionResult().reactionEntries);
+      expect(api.failedTurn?.anchorMessageId).toBe(api.messages[1]?.id);
+    },
+  );
+
+  it('keeps a substantive response when the actor also reacts', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [content('Me alegra que haya ido bien.'), reactionFrame(), done],
+    });
+    await mountReaction();
+    await send();
+    expect(api.failedTurn).toBeNull();
+    expect(api.messages.at(-1)?.content).toBe('Me alegra que haya ido bien.');
+    expect(api.messages[0]?.reactionEntries).toEqual(reactionResult().reactionEntries);
+  });
+
+  it('does not hide a later typed inference failure behind the committed reaction', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [
+        reactionFrame(),
+        frame({ error: { code: 'provider_unavailable', message: 'Unavailable', retryable: true } }),
+        done,
+      ],
+    });
+    await mountReaction();
+    await send();
+    expect(api.failedTurn).not.toBeNull();
+    expect(api.messages[0]?.reactionEntries).toEqual(reactionResult().reactionEntries);
+    expect(api.messages.filter((m) => m.role === 'user')).toHaveLength(2);
+  });
+
+  it('settles a group reaction-only member without storing or drawing a blank reply', async () => {
+    harness.replies.push({
+      status: 200,
+      frames: [
+        frame({ eventVersion: 1, conversationId: 'c1', agentIds: ['sindi'] }, 'alia.group_turn'),
+        consult('agent_start', { agent: SINDI }),
+        consult('agent_tool', {
+          phase: 'result',
+          toolCallId: 'reaction-tool',
+          name: 'react_to_message',
+          output: reactionResult(),
+        }),
+        consult('agent_end', { status: 'completed', reactionOnly: true }),
+        done,
+      ],
+    });
+    await mountReaction();
+    await send();
+    expect(api.failedTurn).toBeNull();
+    expect(api.messages.map((m) => m.role)).toEqual(['user', 'user']);
+    expect(api.messages[0]?.reactionEntries).toEqual(reactionResult().reactionEntries);
+  });
 });
 
 describe('a consultation', () => {
