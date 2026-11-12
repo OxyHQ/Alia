@@ -844,7 +844,9 @@ export async function listAgentReactionTurnSnapshots(
       if (
         !receipts.some(
           (receipt) =>
-            receipt.messageId === stableId(row) && receipt.targetActorId === targetActorId,
+            receipt.messageId === stableId(row) &&
+            receipt.targetActorId === targetActorId &&
+            row.role === (receipt.targetActorId === null ? 'user' : 'assistant'),
         )
       )
         continue;
