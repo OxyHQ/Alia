@@ -10,7 +10,6 @@ import {
 } from '../decision.js';
 import { MAX_MENTION_DEPTH } from '../policy.js';
 
-const assessment = 'The identified request still needs its intended contribution.';
 const input: RoomSelectionInput = {
   userId: 'u',
   conversationId: 'room',
@@ -59,7 +58,7 @@ describe('complete legal choices for ordinary room selection', () => {
     const choices = roomDecisionChoices(context);
     const memberChoice = choices.find(({ id }) => id === 'member-request:r1:e');
     expect(memberChoice?.source).toEqual({ messageId: 'r1', role: 'assistant', actorId: 's' });
-    expect(roomChoiceDecision({ assessment, choice: memberChoice?.id }, choices)).toEqual({
+    expect(roomChoiceDecision({ choice: memberChoice?.id }, choices)).toEqual({
       action: 'speak',
       agentId: 'e',
       reason: 'handoff',
@@ -132,10 +131,8 @@ describe('complete legal choices for ordinary room selection', () => {
           };
           const choices = roomDecisionChoices(context);
           const offered = choices.map(({ id, decision }) => {
-            expect(roomChoiceSchema(choices).safeParse({ assessment, choice: id }).success).toBe(
-              true,
-            );
-            expect(roomChoiceDecision({ assessment, choice: id }, choices)).toBe(decision);
+            expect(roomChoiceSchema(choices).safeParse({ choice: id }).success).toBe(true);
+            expect(roomChoiceDecision({ choice: id }, choices)).toBe(decision);
             expect(Object.isFrozen(decision)).toBe(true);
             return JSON.stringify(validateRoomDecision(decision, context));
           });
@@ -178,17 +175,12 @@ describe('complete legal choices for ordinary room selection', () => {
   it('does not let generated fields change the server choice, and forbids contradictory flat output', () => {
     const choices = roomDecisionChoices(input);
     expect(
-      roomChoiceDecision(
-        { assessment, choice: 'person-request:e', agentId: 's', reason: 'handoff' },
-        choices,
-      ),
+      roomChoiceDecision({ choice: 'person-request:e', agentId: 's', reason: 'handoff' }, choices),
     ).toEqual({ action: 'speak', agentId: 'e', reason: 'directed' });
     expect(() =>
       roomChoiceDecision({ action: 'clarify', agentId: 's', reason: 'directed' }, choices),
     ).toThrow();
-    expect(() =>
-      roomChoiceDecision({ assessment, choice: 'member-request:unknown:e' }, choices),
-    ).toThrow();
+    expect(() => roomChoiceDecision({ choice: 'member-request:unknown:e' }, choices)).toThrow();
     const data = JSON.parse(roomSelectionData(input, choices));
     expect(data.allowedChoices).toEqual(
       choices.map(({ id, source, decision }) => ({
