@@ -91,8 +91,11 @@ After deterministic API/SDK tests and selector evaluation:
 7. Disconnect the SSE stream, allow work to continue, reconnect through Socket.IO and reload.
    Confirm the same reply appears once, with the correct actor, and all activity settles.
 8. Exercise selector timeout, invalid schema/roster ID, agent failure, no credits and inaccessible
-   addressee. They must produce typed failures, never quiet success or a fallback to all members.
-9. Exercise reply, turn, handoff and room-rate bounds, then verify task authority is revoked on
+   addressee. Repeat a selector failure after the first actor has answered: preserve that answer
+   but report the chain as failed. Failures must never become quiet success or a fallback to all
+   members. Check that returned generations settle measured usage even when their selected actor
+   ID is rejected; throwing inference calls release their reservations.
+9. Exercise reply, operation (selection plus execution), handoff and room-rate bounds, then verify task authority is revoked on
    normal end, quiet end, supersession and exhausted failure retries.
 10. During rollout, verify legacy `group-rooms` work drains under the old policy while new chains
     go exclusively to `group-rooms-v2`. Test cross-instance locking, not only in-memory locking.
