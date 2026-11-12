@@ -222,3 +222,24 @@ it('preserves a hiring requester on continuations instead of substituting the ag
   expect(await balance(owner)).toBe(85);
   await stopAgentWork(agent.id);
 });
+
+it('turning off attention preserves an explicitly requested continuation', async () => {
+  const { agent, id, owner } = await seed();
+  const explicitId = randomUUID();
+  await db.insert(agentWorkItems).values({
+    id: explicitId,
+    rootId: explicitId,
+    agentId: agent.id,
+    ownerAccountId: owner,
+    oxyTaskId: randomUUID(),
+    kind: 'follow_up',
+    objective: 'Requested task',
+    dueAt: new Date(),
+  });
+  await db.update(agents).set({ scheduleInterval: null }).where(eq(agents.id, agent.id));
+  await stopAgentWork(agent.id, true);
+  const rows = await db.select().from(agentWorkItems).where(eq(agentWorkItems.agentId, agent.id));
+  expect(rows.find((row) => row.id === id)?.status).toBe('cancelled');
+  expect(rows.find((row) => row.id === explicitId)?.status).toBe('pending');
+  await stopAgentWork(agent.id);
+});

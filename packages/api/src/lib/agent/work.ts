@@ -316,12 +316,19 @@ export async function stopAgentWork(agentId: string, onlyIfPaused = false): Prom
       (!authority || agent.ownerOxyAccountId === authority.ownerAccountId)
     )
       return;
+    // Turning off attention must not discard a continuation explicitly requested
+    // by a person. Pausing/deleting the agent itself cancels all its work.
+    const attentionOnly = onlyIfPaused && agent?.status === 'active';
+    if (attentionOnly && !authority) return;
     await tx
       .update(agentWorkItems)
       .set({ status: 'cancelled', failure: 'paused', updatedAt: new Date() })
       .where(
         and(
           eq(agentWorkItems.agentId, agentId),
+          attentionOnly && authority
+            ? eq(agentWorkItems.oxyTaskId, authority.oxyTaskId)
+            : undefined,
           inArray(agentWorkItems.status, ['pending', 'running']),
         ),
       );

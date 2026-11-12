@@ -128,11 +128,7 @@ export async function addAgentFollowUp(
       .select()
       .from(agentWorkItems)
       .where(eq(agentWorkItems.sessionId, source.id));
-    if (
-      parent &&
-      (parent.status === 'cancelled' || parent.status === 'failed' || !agent.scheduleInterval)
-    )
-      return null;
+    if (parent && (parent.status === 'cancelled' || parent.status === 'failed')) return null;
     // A tool replay must not schedule the same continuation twice.
     const [existing] = await tx
       .select()
@@ -192,8 +188,7 @@ export async function listAgentWork(db: Executor, agentId: string) {
 
 export async function readAgentWorkState(db: Executor, agentId: string) {
   const [agent] = await db.select().from(agents).where(eq(agents.id, agentId));
-  if (!agent || agent.status !== 'active' || !agent.scheduleInterval)
-    return { state: 'paused' as const, reason: null };
+  if (!agent || agent.status !== 'active') return { state: 'paused' as const, reason: null };
   const work = await listAgentWork(db, agentId);
   if (work.some((row) => row.status === 'running'))
     return { state: 'working' as const, reason: null };
@@ -201,6 +196,7 @@ export async function readAgentWorkState(db: Executor, agentId: string) {
   if (pending?.reason) return { state: 'blocked' as const, reason: pending.reason };
   if (pending)
     return { state: 'scheduled' as const, reason: null, nextWakeAt: pending.dueAt.toISOString() };
+  if (!agent.scheduleInterval) return { state: 'paused' as const, reason: null };
   const authority = agent.ownerOxyAccountId
     ? await findWorkAuthority(db, agentId, agent.ownerOxyAccountId)
     : null;
