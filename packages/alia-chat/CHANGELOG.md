@@ -1,8 +1,12 @@
 # @alia.onl/sdk
 
+## 22.10.0
+
+- Require Bloom 15.88 or newer and use its integrated Android avatar renderer and neutral runtime revision export; the separate native avatar package is no longer required. Native hosts retain immutable asset URLs and must rebuild to include Bloom’s native module. Explicit runtime overrides and web rendering are unchanged.
+
 ## 22.9.0
 
-- Native avatars can use the optional shared GPU companion `@oxy.so/bloom-avatar-native@^0.1.0`. Their default asset URL pins the installed companion manifest revision; Alia retains previous releases independently of web deployments. Hosts without the companion retain the WebView fallback, and web imports no native GPU graph.
+- Native avatars can use the then-optional shared GPU companion. Their default asset URL pins the installed companion manifest revision; Alia retains previous releases independently of web deployments. Hosts without the companion retain the WebView fallback, and web imports no native GPU graph.
 - Avatar icons nested inside a chat preserve its explicit `characterRuntimeUrl` override.
 - Regenerated Alia's bundled still with the smooth avatar runtime; idle icons retain the same character and dimensions without fetching the 3D runtime.
 

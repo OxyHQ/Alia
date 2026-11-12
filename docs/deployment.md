@@ -396,14 +396,14 @@ acceptance check from unit tests and artifact creation.
 
 ## Immutable avatar runtime releases
 
-Native `@oxy.so/bloom-avatar-native` binaries pin the SHA256 of the exact full
+Bloom native binaries pin the SHA256 of the exact full
 `manifest.json` bytes. Serve these independently of the current static export:
 `https://alia.onl/bloom-character/releases/<64-hex-revision>/runtime.mjs`.
 `packages/app/worker/avatar-releases.js` reads the dedicated `alia-avatar-runtime`
 R2 bucket through `AVATAR_RUNTIME_RELEASES`; flat `/bloom-character/runtime.mjs`
 continues to serve the current web export. Old releases stay available across
-Worker deployments. There is no expiration lifecycle, bucket lock or deletion
-step in this pipeline; administrative control remains available.
+Worker deployments and the move of the native renderer into Bloom itself. There
+is no expiration lifecycle, bucket lock or deletion step in this pipeline; administrative control remains available.
 
 Before deploying the app, `publish-avatar-runtime.mjs` validates every file against
 the installed Bloom manifest, then creates missing objects through the S3 API with
@@ -426,17 +426,17 @@ GETs use the Worker Cache API so repeated readers do not require R2 reads.
 Check an installed release without network writes with
 `node packages/app/scripts/publish-avatar-runtime.mjs --check`; optionally pass an
 artifact directory and `AVATAR_RUNTIME_REVISION` for an explicit revision. By
-default it requires the installed companion revision, preventing a mismatched
+default it requires the installed Bloom revision, preventing a mismatched
 web/native package pair from deploying. Gates: `node --test scripts/avatar-runtime-release.test.mjs scripts/asset-worker.test.mjs`.
 
-Initial verified release (2026-10-31): companion0.1.0 pins
+Initial verified release (2026-10-31): the original native package0.1.0 pins
 `7e44cfec2bd9e1490fb90270028fd84b12fcbc019f09709af9a1b9187b36b577`;
 436 objects including the manifest,164,467,312 bytes in the entire catalog, uploaded
 with conditional S3 writes and verified by reading each back. This is the whole
 release inventory, not an avatar's startup download. The native final packed smoke
 is recorded in Bloom's `docs/benchmarks/avatar-native-final-smoke-2026-10-31.json`.
 After deployment run `node packages/app/scripts/verify-avatar-release.mjs`: it checks
-the installed companion revision, public manifest, entry, base geometry, lazy work,
+the installed Bloom revision, public manifest, entry, base geometry, lazy work,
 CORS/MIME/cache, byte hashes and a true404 for a missing asset.
 
 Binary compression preserves all decoded bytes and URLs. The uploader creates

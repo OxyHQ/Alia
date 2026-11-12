@@ -151,7 +151,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     join(dirname(require.resolve('@oxy.so/bloom/package.json')), 'assets', 'character-runtime');
   const expected =
     process.env.AVATAR_RUNTIME_REVISION ??
-    require('@oxy.so/bloom-avatar-native/runtime-revision').AVATAR_RUNTIME_REVISION;
+    require('@oxy.so/bloom/agent-avatar/runtime-revision').AVATAR_RUNTIME_REVISION;
   const release = await readAvatarRelease(directory, expected);
   if (process.argv.includes('--check')) {
     console.log(
