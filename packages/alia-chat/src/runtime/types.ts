@@ -19,12 +19,20 @@ export interface ToolInvocation {
 /** What a message carries to the model: plain text, or multi-part once images are attached. */
 export type MessageContent = string | Array<{ type: string; [key: string]: unknown }>;
 
+/** Server-attributed feedback; authors retain independent reactions to the same message. */
+export interface MessageReactionEntry {
+  emoji: string;
+  author: { kind: 'user'; id: string } | { kind: 'agent'; id: string; name: string };
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: MessageContent;
   /** The emoji the person left on this message, as the server holds them. */
   reactions?: string[];
+  /** All authors' reactions. Omitted by older servers; an empty array clears the snapshot. */
+  reactionEntries?: MessageReactionEntry[];
   /** Server revision of the reaction snapshot; omitted by older servers. */
   reactionRevision?: number;
   /** Extended thinking content (when thinking mode is enabled). */

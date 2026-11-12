@@ -65,6 +65,7 @@ vi.mock('../../../src/components/icons/RiReplyLine', () => ({ RiReplyLine: () =>
 vi.mock('../../../src/lib/labels', () => ({ useLabels: () => ({ t: (key: string) => key }) }));
 
 import { ChatBubble } from '../../../src/components/thread/ChatBubble';
+import type { MessageReactionEntry } from '../../../src/runtime/types';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -86,6 +87,8 @@ function mount(
     menu?: ReturnType<typeof action>[];
     onReply?: () => void;
     reactions?: string[];
+    reactionEntries?: MessageReactionEntry[];
+    reactionViewerId?: string;
     onReact?: (emoji: string) => void;
   } = {},
 ) {
@@ -205,6 +208,48 @@ describe('ChatBubble', () => {
     expect(
       root.findAll((n) => is(n, 'View') && String(n.props.className ?? '').includes('-mt-2.5')),
     ).toHaveLength(0);
+  });
+
+  it('shows an agent’s reaction on a user bubble with a visible author and no own selection', () => {
+    const root = mount('user', {
+      reactionEntries: [{ emoji: '❤️', author: { kind: 'agent', id: 'salina', name: 'Salina' } }],
+      reactionViewerId: 'person',
+    });
+    const pill = root.find(
+      (n) => is(n, 'Pressable') && n.props.accessibilityLabel === 'chat.reactionAuthors',
+    );
+    expect(pill.props.accessibilityState).toEqual({ selected: false });
+    expect(pill.props.onPress).toBeUndefined();
+    expect(root.findAll((n) => is(n, 'Text')).some((n) => n.children.includes('Salina'))).toBe(
+      true,
+    );
+  });
+
+  it('shows one counted emoji for independent authors and taps only the person’s reaction', () => {
+    const onReact = vi.fn();
+    const root = mount('reply', {
+      reactions: ['❤️'],
+      reactionEntries: [
+        { emoji: '❤️', author: { kind: 'user', id: 'person' } },
+        { emoji: '❤️', author: { kind: 'agent', id: 'salina', name: 'Salina' } },
+      ],
+      reactionViewerId: 'person',
+      onReact,
+    });
+    const pill = root.find(
+      (n) => is(n, 'Pressable') && n.props.accessibilityLabel === 'chat.reactionAuthors',
+    );
+    expect(pill.props.accessibilityState).toEqual({ selected: true });
+    expect(root.findAll((n) => is(n, 'Text')).some((n) => n.children.includes('2'))).toBe(true);
+    expect(
+      root
+        .findAll((n) => is(n, 'Text'))
+        .some((n) =>
+          n.children.some((text) => typeof text === 'string' && text.includes('Salina')),
+        ),
+    ).toBe(true);
+    act(() => pill.props.onPress());
+    expect(onReact).toHaveBeenCalledExactlyOnceWith('❤️');
   });
 
   it('draws only the icons the turn can use: the person has no vote to cast on a question', () => {

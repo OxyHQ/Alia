@@ -30,6 +30,7 @@ import { askedQuestions, isQuestionInvocation } from '../../lib/questions';
 import { parseCatalogueTool, useToolRenderers } from '../../lib/tool-renderers';
 import { isWebInvocation, taskListLog, webSearchLog } from '../../lib/work-log';
 import { useAliaRuntime } from '../../runtime/config';
+import { isHiddenReactionInvocation } from '../../runtime/message-reactions';
 import { type Message, cardOf, formatElapsed, getToolPillLabel } from '../../runtime/model';
 import type { OpenThought } from '../../hooks/useOpenThought';
 import { Image } from '../Image';
@@ -48,6 +49,7 @@ import { TurnStatusLine } from './TurnStatusLine';
  * thread re-renders per streamed token, and a function made per row would re-render them all.
  */
 export interface ThreadActions {
+  reactionViewerId?: string;
   /** Copy a turn's words; resolves whether they really reached the clipboard. */
   copy: (text: string) => Promise<boolean>;
   vote: (messageId: string, vote: Vote, conversationId: string | undefined) => void;
@@ -168,7 +170,14 @@ export const ThreadRow = memo(function ThreadRow({
               {bubbles ? (
                 // An agent's thread: the person's turn is a bubble in the theme's primary, never Bloom's
                 // larger default.
-                <ChatBubble side="user" menu={questionActions} onReply={onQuestionReply}>
+                <ChatBubble
+                  side="user"
+                  reactions={message.reactions}
+                  reactionEntries={message.reactionEntries}
+                  reactionViewerId={actions.reactionViewerId}
+                  menu={questionActions}
+                  onReply={onQuestionReply}
+                >
                   {(foreground) => (
                     <>
                       {images.length > 0 && (
@@ -271,7 +280,9 @@ function ReplyTurn({
   const { faviconUrl } = useAliaRuntime().host;
   const renderers = useToolRenderers();
   const flights = useAliaFlights();
-  const toolInvocations = message.toolInvocations ?? [];
+  const toolInvocations = (message.toolInvocations ?? []).filter(
+    (call) => !isHiddenReactionInvocation(call),
+  );
   const plan = message.plan;
   const agent = message.agentInfo;
   const { readOnly = false } = actions;
@@ -580,6 +591,8 @@ function ReplyTurn({
                 <ChatBubble
                   side="reply"
                   reactions={reactions}
+                  reactionEntries={message.reactionEntries}
+                  reactionViewerId={actions.reactionViewerId}
                   onReact={onReact}
                   menu={moreActions}
                   onReply={onReply}

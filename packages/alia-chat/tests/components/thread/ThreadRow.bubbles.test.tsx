@@ -23,7 +23,7 @@ describe('the bubbles of an agent thread', () => {
 
   it('puts the words of a reply in a bubble, and leaves the work log and the cards whole', () => {
     expect(row).toMatch(
-      /\{bubbled \? \(\s*<ChatBubble\s+side="reply"\s+reactions=\{reactions\}\s+onReact=\{onReact\}\s+menu=\{moreActions\}\s+onReply=\{onReply\}\s*>\s*\{replyBody\}/,
+      /\{bubbled \? \(\s*<ChatBubble\s+side="reply"\s+reactions=\{reactions\}\s+reactionEntries=\{message.reactionEntries\}\s+reactionViewerId=\{actions.reactionViewerId\}\s+onReact=\{onReact\}\s+menu=\{moreActions\}\s+onReply=\{onReply\}\s*>\s*\{replyBody\}/,
     );
     expect(row).toMatch(/const bubbled = useBubbles\(\) \|\| agent !== undefined;/);
   });
@@ -37,9 +37,11 @@ describe('the bubbles of an agent thread', () => {
     );
   });
 
-  it("never reacts on the person's own turn: a reaction is a vote on a reply, and the bubble has no react button", () => {
+  it("shows agent reactions on the person's turn without offering self-reaction controls", () => {
     expect(row).not.toMatch(/questionReactions|onQuestionReact/);
-    expect(row).toMatch(/<ChatBubble\s+side="user"\s+menu=\{questionActions\}/);
+    const questionBubble = row.match(/<ChatBubble\s+side="user"[\s\S]*?>/)?.[0];
+    expect(questionBubble).toContain('reactionEntries={message.reactionEntries}');
+    expect(questionBubble).not.toContain('onReact=');
   });
 
   it('shows nothing of the work in an agent\'s thread: no "Worked" line, task list or search trail', () => {

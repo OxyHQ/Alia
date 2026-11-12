@@ -1,4 +1,4 @@
-import type { Message } from './types';
+import type { Message, MessageReactionEntry, ToolInvocation } from './types';
 import { createRandomUuid } from './random-uuid';
 
 /** Saved reaction state; older HTTP responses do not carry a revision. */
@@ -6,6 +6,7 @@ export interface MessageReactionSnapshot {
   conversationId: string;
   messageId: string;
   reactions: string[];
+  reactionEntries?: MessageReactionEntry[];
   revision?: number;
   mutationId?: string | null;
 }
@@ -15,12 +16,76 @@ export interface MessageReactionUpdate extends MessageReactionSnapshot {
   revision: number;
 }
 
+export interface AgentReactionResult extends MessageReactionUpdate {
+  kind: 'agent_reaction';
+  success: true;
+  actorId: string;
+  completesTurn: boolean;
+  reactionEntries: MessageReactionEntry[];
+}
+
+/** Read a committed, scoped reaction; completing the turn still requires server terminal authority. */
+export function readAgentReactionResult(
+  name: unknown,
+  output: unknown,
+  conversationId: string | undefined,
+  actorId: string | undefined,
+): AgentReactionResult | null {
+  if (name !== 'react_to_message' || !conversationId || !actorId) return null;
+  const update = readMessageReactionUpdate(output);
+  if (!update || !Array.isArray(update.reactionEntries) || update.conversationId !== conversationId)
+    return null;
+  const value = output as Record<string, unknown>;
+  return value.kind === 'agent_reaction' &&
+    value.success === true &&
+    value.actorId === actorId &&
+    typeof value.completesTurn === 'boolean' &&
+    typeof value.mutationId === 'string' &&
+    value.mutationId.length > 0
+    ? (value as unknown as AgentReactionResult)
+    : null;
+}
+
+/** Reactions live on their target message, not in an implementation-detail work card. */
+export function isHiddenReactionInvocation(call: ToolInvocation): boolean {
+  if (call.toolName !== 'react_to_message') return false;
+  if (call.state !== 'result') return true;
+  const result = call.result as Record<string, unknown> | null | undefined;
+  return (
+    readAgentReactionResult(
+      call.toolName,
+      result,
+      typeof result?.conversationId === 'string' ? result.conversationId : undefined,
+      typeof result?.actorId === 'string' ? result.actorId : undefined,
+    ) !== null
+  );
+}
+
 export interface MessageReactionMutation {
   conversationId: string;
   messageId: string;
   emoji: string;
   active: boolean;
   mutationId: string;
+}
+
+export function isMessageReactionEntry(value: unknown): value is MessageReactionEntry {
+  if (!value || typeof value !== 'object') return false;
+  const entry = value as Record<string, unknown>;
+  if (
+    typeof entry.emoji !== 'string' ||
+    !entry.emoji ||
+    !entry.author ||
+    typeof entry.author !== 'object'
+  )
+    return false;
+  const author = entry.author as Record<string, unknown>;
+  return (
+    typeof author.id === 'string' &&
+    author.id.length > 0 &&
+    (author.kind === 'user' ||
+      (author.kind === 'agent' && typeof author.name === 'string' && author.name.length > 0))
+  );
 }
 
 export function readMessageReactionUpdate(value: unknown): MessageReactionUpdate | null {
@@ -33,6 +98,8 @@ export function readMessageReactionUpdate(value: unknown): MessageReactionUpdate
     !v.messageId ||
     !Array.isArray(v.reactions) ||
     !v.reactions.every((emoji) => typeof emoji === 'string' && emoji !== '') ||
+    (v.reactionEntries !== undefined &&
+      (!Array.isArray(v.reactionEntries) || !v.reactionEntries.every(isMessageReactionEntry))) ||
     !Number.isSafeInteger(v.revision) ||
     (v.revision as number) < 0 ||
     (v.mutationId != null && (typeof v.mutationId !== 'string' || !v.mutationId))
@@ -69,7 +136,7 @@ export function readMessageReactionAcknowledgement(
 
 /** Update only the existing target row; a reaction never invents a chat message. */
 export function applyMessageReaction<
-  T extends Pick<Message, 'id' | 'reactions' | 'reactionRevision'>,
+  T extends Pick<Message, 'id' | 'reactions' | 'reactionEntries' | 'reactionRevision'>,
 >(messages: readonly T[], update: MessageReactionSnapshot): T[] {
   return messages.map((message) =>
     message.id !== update.messageId ||
@@ -78,6 +145,9 @@ export function applyMessageReaction<
       : {
           ...message,
           reactions: update.reactions,
+          ...(update.reactionEntries === undefined
+            ? {}
+            : { reactionEntries: update.reactionEntries }),
           ...(update.revision === undefined ? {} : { reactionRevision: update.revision }),
         },
   );

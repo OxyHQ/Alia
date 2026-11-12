@@ -10,6 +10,11 @@
  */
 
 import type { Message, ToolInvocation } from './types';
+import {
+  applyMessageReaction,
+  isHiddenReactionInvocation,
+  readAgentReactionResult,
+} from './message-reactions';
 
 /** `group:event` as the server pushes it: the frame body carries no `eventVersion`. */
 export interface RoomEvent {
@@ -176,7 +181,12 @@ export function applyRoomEvent(
   switch (incoming.event) {
     case 'alia.agent_start': {
       const agent = data.agent;
-      if (consultId === undefined || ledger.messages.has(consultId)) return messages;
+      if (
+        consultId === undefined ||
+        ledger.messages.has(consultId) ||
+        ledger.discarded.has(consultId)
+      )
+        return messages;
       if (!isObject(agent) || !text(agent.id) || !text(agent.name)) return messages;
       const id = roomDraftId(consultId);
       ledger.messages.set(consultId, id);
@@ -224,7 +234,17 @@ export function applyRoomEvent(
       const { phase, toolCallId, name, input } = data;
       if (id === undefined || (phase !== 'call' && phase !== 'result')) return messages;
       if (!text(toolCallId) || !text(name)) return messages;
-      return replace(messages, id, (m) => {
+      const reaction =
+        phase === 'result'
+          ? readAgentReactionResult(
+              name,
+              data.output,
+              conversationId,
+              messages.find((m) => m.id === id)?.agentInfo?.id,
+            )
+          : null;
+      const updated = reaction ? applyMessageReaction(messages, reaction) : messages;
+      return replace(updated, id, (m) => {
         const invocations = [...(m.toolInvocations ?? [])];
         const at = invocations.findIndex((call) => call.toolCallId === toolCallId);
         const invocation: ToolInvocation = {
@@ -244,6 +264,31 @@ export function applyRoomEvent(
       const draftId = ledger.messages.get(consultId);
       const { status } = data;
       const messageId = text(data.messageId);
+      if (
+        status === 'completed' &&
+        data.reactionOnly === true &&
+        messageId === undefined &&
+        !text(data.content)
+      ) {
+        ledger.ended.add(consultId);
+        const draft = messages.find((m) => m.id === draftId);
+        if (
+          !draft ||
+          (typeof draft.content === 'string' &&
+            draft.content.trim() === '' &&
+            !draft.plan &&
+            (draft.toolInvocations ?? []).every(isHiddenReactionInvocation))
+        ) {
+          ledger.discarded.add(consultId);
+          return messages.filter((m) => m.id !== draftId);
+        }
+        // A malformed marker must never erase words already shown to the person.
+        return replace(messages, draftId!, (m) => ({
+          ...m,
+          isStreaming: false,
+          turnOutcome: 'completed',
+        }));
+      }
       if (status === 'completed' && messageId !== undefined) {
         // A stored completion is authoritative, even after a prior failed attempt.
         // Replaying it converges on the same row rather than reviving a failed draft.
