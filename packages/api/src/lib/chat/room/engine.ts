@@ -5,7 +5,7 @@
  * and each step is a job (`queue.ts`): take the room's lock, check the chain is still the latest,
  * read the transcript as it is NOW, run the member's turn (`runAgentTurn`, so credits, memory per
  * actor and typed failures are the agent turn's own), store the reply, publish what happened, decide
- * who speaks next (`policy.ts#planNext`) and enqueue that step. Nothing here knows about HTTP.
+ * who speaks next (structured v2 selection; legacy jobs drain through `planNext`) and enqueue that step. Nothing here knows about HTTP.
  *
  * ## Failure semantics
  *
@@ -17,6 +17,8 @@
  * answer twice.
  */
 
+import type { RoomDecision, RoomSelectionInput, RoomSpeakerDecision } from './decision.js';
+import { validateRoomDecision } from './decision.js';
 import { randomUUID } from 'node:crypto';
 import type { HydratedAgent } from '../../agent-identity.js';
 import type { AgentInfo } from '../../../domain/conversation.js';
@@ -29,6 +31,9 @@ import {
   type ChainState,
   type RoomMember,
   ROOM_REPLY_WINDOW_MS,
+  MAX_REPLIES_PER_MESSAGE,
+  MAX_TURNS_PER_MESSAGE,
+  roomInstructions,
   createPassGate,
   isPass,
   isSuperseded,
@@ -36,11 +41,15 @@ import {
   roomPrompt,
   roomRateExceeded,
 } from './policy.js';
-import { type GroupInputMessage, historyForMembers, textOf } from './transcript.js';
+import { type GroupInputMessage, historyForMembers, memberMessages, textOf } from './transcript.js';
 import { GROUP_REPLY_MESSAGE_ID_PREFIX } from '../../../domain/conversation.js';
 
 /** One step of a chain, as the queue carries it. JSON only: it crosses Redis. */
 export interface RoomJobData {
+  /** v1 jobs drain on the legacy queue; only v2 jobs are created now. */
+  readonly version?: 2;
+  readonly phase?: 'select' | 'speak';
+  readonly decision?: RoomSpeakerDecision;
   readonly userId: string;
   readonly conversationId: string;
   /** The person message (row id) this chain answers: its identity. */
@@ -70,6 +79,7 @@ export interface TranscriptRow {
   readonly role: string;
   readonly content: unknown;
   readonly agentName: string | null;
+  readonly agentId?: string | null;
 }
 
 interface StoredReply {
@@ -79,6 +89,7 @@ interface StoredReply {
 }
 
 export interface RoomEngineDeps {
+  readonly select?: (input: RoomSelectionInput) => Promise<RoomDecision>;
   readonly lock: RoomLock;
   readonly publish: (event: RoomEvent) => Promise<void> | void;
   /** Queues the next step. */
@@ -192,6 +203,56 @@ async function runStep(data: RoomJobData, deps: RoomEngineDeps): Promise<RoomSte
   const triggerIndex = rows.findIndex((row) => row.id === triggerId);
   if (triggerIndex === -1) return end('superseded', 'skipped');
 
+  if (data.version === 2) {
+    if (data.turns >= MAX_TURNS_PER_MESSAGE) return end('turn_cap', 'ended');
+    if (data.replies >= MAX_REPLIES_PER_MESSAGE) return end('reply_cap', 'ended');
+    if (data.phase === 'select') {
+      const selectionInput: RoomSelectionInput = {
+        userId,
+        conversationId,
+        triggerId,
+        roster: data.roster,
+        rows,
+        lastSpeakerId: data.lastSpeakerId,
+        depth: data.depth,
+        space: data.space,
+      };
+      let decision: RoomDecision;
+      try {
+        if (!deps.select) throw new Error('No room selector configured');
+        decision = validateRoomDecision(await deps.select(selectionInput), selectionInput);
+      } catch {
+        if (isSuperseded(triggerId, await deps.latestPersonMessageId(userId, conversationId))) {
+          return end('superseded', 'skipped');
+        }
+        // Model errors may contain prompts. Log only identifiers, never the raw generation error.
+        log.agents.warn({ conversationId, triggerId }, 'Room selection failed');
+        return end('error', 'ended');
+      }
+      if (isSuperseded(triggerId, await deps.latestPersonMessageId(userId, conversationId))) {
+        return end('superseded', 'skipped');
+      }
+      if (decision.action === 'idle') return end('done', 'ended');
+      if (decision.action === 'unavailable') return end('error', 'ended');
+      const speaker = decision.agentId!;
+      await deps.enqueue({
+        ...data,
+        phase: 'speak',
+        speakerId: speaker,
+        decision: { ...decision, action: decision.action, agentId: speaker },
+        handedByAgentId: decision.reason === 'handoff' ? data.lastSpeakerId : null,
+        depth: data.depth + (decision.reason === 'handoff' ? 1 : 0),
+        turns: data.turns + 1,
+      });
+      return 'continued';
+    }
+    // A speak job contains the validated decision chosen before it was queued.
+    if (data.phase !== 'speak' || !data.decision || data.decision.agentId !== data.speakerId) {
+      return end('error', 'ended');
+    }
+    if (infoOf(data.roster, data.speakerId)?.available === false) return end('error', 'ended');
+  }
+
   const member = infoOf(data.roster, data.speakerId);
   const replyId = replyIdOf(triggerId, data.turns);
   const alreadyStored = rows.find((row) => row.clientMessageId === replyId);
@@ -199,9 +260,30 @@ async function runStep(data: RoomJobData, deps: RoomEngineDeps): Promise<RoomSte
   let reply: string | null = null;
   if (alreadyStored) {
     // A retried step whose reply was stored before the failure: it spoke, do not answer twice.
+    if (data.version === 2 && alreadyStored.agentId !== data.speakerId)
+      return end('error', 'ended');
     reply = textOf(alreadyStored.content);
   } else if (member) {
     reply = await speak({ data, deps, member, rows, triggerIndex, replyId, emit });
+  }
+
+  if (data.version === 2) {
+    if (isSuperseded(triggerId, await deps.latestPersonMessageId(userId, conversationId))) {
+      return end('superseded', 'skipped');
+    }
+    if (reply === null) return end('error', 'ended');
+    if (data.decision?.action === 'clarify') return end('done', 'ended');
+    const { decision: _decision, ...nextData } = data;
+    await deps.enqueue({
+      ...nextData,
+      phase: 'select',
+      speakerId: '',
+      handedByAgentId: null,
+      turns: data.turns + 1,
+      replies: data.replies + 1,
+      lastSpeakerId: data.speakerId,
+    });
+    return 'continued';
   }
 
   const state: ChainState = {
@@ -248,19 +330,9 @@ async function speak(input: {
   const { info } = member;
   const consultId = randomUUID();
   const roster = data.roster.map((m) => m.info);
-  const personText = textOf(rows[triggerIndex]!.content).trim();
+  const originalText = textOf(rows[triggerIndex]?.content);
+  const personText = data.version === 2 ? originalText : originalText.trim();
 
-  await emit('alia.agent_start', {
-    consultId,
-    agent: {
-      id: info.id,
-      name: info.name,
-      handle: info.handle,
-      color: info.color,
-      character: info.character,
-    },
-    task: personText,
-  });
   const fail = async (error: Record<string, unknown>) => {
     await emit('alia.agent_end', { consultId, status: 'failed', error });
     return null;
@@ -268,6 +340,25 @@ async function speak(input: {
 
   try {
     const agent = await deps.loadAgent(info.id);
+    if (
+      data.version === 2 &&
+      isSuperseded(
+        data.triggerId,
+        await deps.latestPersonMessageId(data.userId, data.conversationId),
+      )
+    )
+      return null;
+    await emit('alia.agent_start', {
+      consultId,
+      agent: {
+        id: info.id,
+        name: info.name,
+        handle: info.handle,
+        color: info.color,
+        character: info.character,
+      },
+      task: personText,
+    });
     if (agent === null) return await fail({ code: 'agent_unavailable' });
 
     const handedBy =
@@ -277,9 +368,10 @@ async function speak(input: {
     const asRow = (row: TranscriptRow): GroupInputMessage => ({
       role: row.role,
       content: row.content,
-      agentInfo: row.agentName === null ? null : { name: row.agentName },
+      agentInfo:
+        row.agentName === null ? null : { id: row.agentId ?? undefined, name: row.agentName },
     });
-    const history = historyForMembers(rows.slice(0, triggerIndex + 1).map(asRow));
+    const history = historyForMembers(rows.slice(0, triggerIndex + 1).map(asRow), info.id);
     const since = rows
       .slice(triggerIndex + 1)
       .filter((row) => row.role === 'assistant' && row.agentName !== null)
@@ -292,15 +384,31 @@ async function speak(input: {
     });
     const outcome: AgentTurnResult = await deps.runTurn({
       agent,
-      task: roomPrompt({
-        self: info,
-        roster,
-        personText,
-        since,
-        handedBy,
-        space: data.space ?? null,
-      }),
+      task:
+        data.version === 2
+          ? personText
+          : roomPrompt({
+              self: info,
+              roster,
+              personText,
+              since,
+              handedBy,
+              space: data.space ?? null,
+            }),
       history,
+      ...(data.version === 2
+        ? {
+            room: {
+              instructions: roomInstructions({
+                self: info,
+                roster,
+                clarify: data.decision?.action === 'clarify',
+                space: data.space,
+              }),
+              observations: memberMessages(rows.slice(triggerIndex + 1).map(asRow), info.id),
+            },
+          }
+        : {}),
       person: {
         oxyUserId: data.userId,
         isDirectSession: false,
@@ -309,7 +417,10 @@ async function speak(input: {
       },
       payerOxyUserId: data.userId,
       observer: {
-        onTextDelta: (content) => gate.push(content),
+        onTextDelta: (content) =>
+          data.version === 2
+            ? void emit('alia.agent_delta', { consultId, content })
+            : gate.push(content),
         onToolCall: ({ toolCallId, name, input: args }) => {
           void emit('alia.agent_tool', { consultId, phase: 'call', toolCallId, name, input: args });
         },
@@ -324,7 +435,7 @@ async function speak(input: {
         },
       },
     });
-    const passed = gate.finish();
+    const passed = data.version !== 2 && gate.finish();
 
     if (outcome.error !== undefined || outcome.response.trim() === '') {
       return await fail(
@@ -333,11 +444,21 @@ async function speak(input: {
           : { code: 'agent_unavailable' },
       );
     }
-    if (passed || isPass(outcome.response)) {
+    if (data.version !== 2 && (passed || isPass(outcome.response))) {
       await emit('alia.agent_end', { consultId, status: 'declined' });
       return null;
     }
 
+    if (
+      data.version === 2 &&
+      isSuperseded(
+        data.triggerId,
+        await deps.latestPersonMessageId(data.userId, data.conversationId),
+      )
+    ) {
+      await emit('alia.agent_end', { consultId, status: 'declined' });
+      return null;
+    }
     const content = outcome.response.trim();
     const stored = await storeWithRetry(deps, {
       userId: data.userId,

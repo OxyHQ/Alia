@@ -50,6 +50,7 @@ export function roomRuntime(): RoomRuntime {
         clientMessageId: row.clientMessageId,
         role: row.role,
         content: row.content,
+        agentId: row.agentInfoId,
         agentName: row.agentInfoId === null ? null : (row.agentInfoName ?? ''),
       }));
     },
@@ -64,6 +65,10 @@ export function roomRuntime(): RoomRuntime {
       const { attachAgentIdentity } = await import('../../agent-identity.js');
       const found = await findAgentById(getDb(), agentId);
       return found === null ? null : attachAgentIdentity(found);
+    },
+    select: async (input) => {
+      const { selectRoomDecision } = await import('./selector.js');
+      return selectRoomDecision(input);
     },
     runTurn: async (input) => {
       const { runAgentTurn } = await import('../../tools/agent-turn.js');

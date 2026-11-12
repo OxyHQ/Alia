@@ -7,8 +7,9 @@
  * the worker runs `runAgentTurn` as a task turn, like a background agent session does.
  */
 
+import { randomUUID } from 'node:crypto';
 import { findAgentById } from '../../../db/agents/agentRepository.js';
-import { findLatestUserMessage } from '../../../db/chat/messageRepository.js';
+import { findLatestUserMessage, listMessages } from '../../../db/chat/messageRepository.js';
 import { findSpaceByConversation } from '../../../db/spaces/spaceRepository.js';
 import { getDb } from '../../../db/index.js';
 import type { AgentInfo } from '../../../domain/conversation.js';
@@ -19,8 +20,8 @@ import { log } from '../../logger.js';
 import { createOxyTask, revokeOxyTask } from '../../oxy-task-authority.js';
 import type { RoomJobData } from './engine.js';
 import { enqueueRoomJob } from './queue.js';
-import { firstRound, type RoomMember } from './policy.js';
-import { type GroupInputMessage, lastUserText } from './transcript.js';
+import type { RoomMember } from './policy.js';
+import type { GroupInputMessage } from './transcript.js';
 
 type SaveParams = Parameters<typeof saveConversation>[0];
 
@@ -28,10 +29,8 @@ type SaveParams = Parameters<typeof saveConversation>[0];
 export interface PreparedRoom {
   /** The person message the chain answers; events of this chain carry it as `chainId`. */
   readonly chainId: string;
-  /** How many members the first round asks (the first round is settled when this many turns ended). */
-  readonly firstRoundSize: number;
-  /** Members the person may not reach: reported as failed, never queued. */
-  readonly unreachableAgentIds: readonly string[];
+  /** Whether at least one member is available for selection. */
+  readonly ready: boolean;
   /** Queues the first step. Subscribe to the bus BEFORE calling it. */
   start(): Promise<void>;
   /** Gives the minted authority back when the chain will not run. */
@@ -50,26 +49,32 @@ interface PrepareRoomInput {
 
 export type PrepareRoom = (input: PrepareRoomInput) => Promise<PreparedRoom>;
 
-const nothingToRun = (unreachable: readonly string[]): PreparedRoom => ({
-  chainId: '',
-  firstRoundSize: 0,
-  unreachableAgentIds: unreachable,
-  start: async () => undefined,
-  abandon: async () => undefined,
-});
-
 export const prepareRoom: PrepareRoom = async (input) => {
   const { userId, conversationId } = input;
-  const reachable: AgentInfo[] = [];
-  const unreachable: string[] = [];
+  const members: RoomMember[] = [];
   const accountOf = new Map<string, string>();
   for (const agentId of input.memberAgentIds) {
+    let info: AgentInfo = {
+      id: agentId,
+      name: 'Unavailable member',
+      handle: '',
+      color: null,
+      character: null,
+    };
     try {
       const found = await findAgentById(getDb(), agentId);
       if (found === null) {
-        unreachable.push(agentId);
+        members.push({ info, available: false });
         continue;
       }
+      const agent = await attachAgentIdentity(found);
+      info = {
+        id: agentId,
+        name: agentPromptName(agent),
+        color: agent.color,
+        character: agent.character,
+        handle: agent.handle ?? '',
+      };
       // The verdict is compared where it is read: only `reachable` opens the agent to the room.
       const reach = await canReachAgent(found, {
         oxyUserId: userId,
@@ -77,83 +82,83 @@ export const prepareRoom: PrepareRoom = async (input) => {
         surfaceApplicationId: input.surfaceApplicationId,
       });
       if (reach !== 'reachable') {
-        unreachable.push(agentId);
+        members.push({ info, available: false });
         continue;
       }
       accountOf.set(agentId, found.oxyAccountId);
-      const agent = await attachAgentIdentity(found);
-      reachable.push({
-        id: agentId,
-        name: agentPromptName(agent),
-        color: agent.color,
-        character: agent.character,
-        handle: agent.handle ?? 'unknown',
-      });
+      members.push({ info, available: true, description: found.description });
     } catch (error: unknown) {
       log.general.error({ err: error, agentId }, 'Could not check a group member');
-      unreachable.push(agentId);
+      members.push({ info, available: false });
     }
   }
-  if (reachable.length === 0) return nothingToRun(unreachable);
 
   // The person's message is stored FIRST: the chain answers a stored message, and a member reads
   // the room from the store, never from the request.
+  const messages = [...input.messages];
+  const last = messages.at(-1);
+  if (!last || last.role !== 'user') throw new Error('Room trigger must be a user message');
+  const triggerClientId = last.id ?? randomUUID();
+  messages[messages.length - 1] = { ...last, id: triggerClientId };
   await saveConversation({
     userId,
     conversationId,
-    messages: input.messages as unknown as SaveParams['messages'],
+    messages: messages as unknown as SaveParams['messages'],
     assistantResponse: '',
     omitLeadReply: true,
   });
-  const trigger = await findLatestUserMessage(getDb(), userId, conversationId);
+  const latest = await findLatestUserMessage(getDb(), userId, conversationId);
+  const trigger =
+    latest?.clientMessageId === triggerClientId
+      ? latest
+      : (await listMessages(getDb(), userId, conversationId)).find(
+          (row) => row.clientMessageId === triggerClientId,
+        );
   if (trigger === undefined) throw new Error('The person’s message was not stored');
+
+  // Fetch everything that can fail before minting task authority.
+  const space = await findSpaceByConversation(getDb(), userId, conversationId);
+  const spaceBrief = space ? { name: space.name, instructions: space.instructions } : null;
 
   // One Oxy task per member, bound to the person's bearer now and acting as that member later. A
   // member whose task cannot be minted still talks; it just has no Oxy apps (less authority, never
   // more).
   const roster: RoomMember[] = await Promise.all(
-    reachable.map(async (info): Promise<RoomMember> => {
-      if (input.accessToken === undefined) return { info };
+    members.map(async (member): Promise<RoomMember> => {
+      const { info } = member;
+      if (member.available === false || input.accessToken === undefined) return member;
       try {
         const actorAccountId = accountOf.get(info.id);
-        if (actorAccountId === undefined) return { info };
+        if (actorAccountId === undefined) return member;
         const oxyTaskId = await createOxyTask({
           accessToken: input.accessToken,
           effectiveAccountId: userId,
           actorAccountId,
           origin: { kind: 'request', id: `room:${trigger.id}:${info.id}` },
         });
-        return { info, oxyTaskId };
+        return { ...member, oxyTaskId };
       } catch (error: unknown) {
         log.agents.warn({ err: error, agentId: info.id }, 'Could not mint a room member task');
-        return { info };
+        return member;
       }
     }),
   );
   const taskIds = roster.flatMap((member) => (member.oxyTaskId ? [member.oxyTaskId] : []));
 
-  // The space this room belongs to, if any: its brief goes to every member's prompt (ADR 0028).
-  const space = await findSpaceByConversation(getDb(), userId, conversationId);
-  const spaceBrief = space ? { name: space.name, instructions: space.instructions } : null;
-
-  const queue = firstRound(
-    lastUserText(input.messages),
-    roster.map((member) => member.info),
-  );
-  const [speakerId, ...pending] = queue;
   return {
     chainId: trigger.id,
-    firstRoundSize: queue.length,
-    unreachableAgentIds: unreachable,
+    ready: roster.some((member) => member.available !== false),
     start: () =>
       enqueueRoomJob({
+        version: 2,
+        phase: 'select',
         userId,
         conversationId,
         triggerId: trigger.id,
         roster,
-        speakerId: speakerId!,
+        speakerId: '',
         handedByAgentId: null,
-        pending,
+        pending: [],
         depth: 0,
         replies: 0,
         turns: 0,

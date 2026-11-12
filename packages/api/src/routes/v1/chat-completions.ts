@@ -187,7 +187,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     /**
      * A GROUP conversation is answered by its members, not by Alia, in a room that outlives this
      * request (`lib/chat/room`, ADR 0025): this request stores the person's message, queues the
-     * first step and forwards the room's events until the first round settles. It is served before
+     * first step and forwards the room's events until it becomes idle. It is served before
      * anything is reserved for a turn of hers: each member reserves and settles its own. Only the
      * person's own session can talk to a group.
      */
@@ -210,19 +210,18 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           startedAt: requestStartTime,
           signal: providerAbort.signal,
         });
-        // Nobody answered AND the first round is over: a typed failure. A round still running when the
-        // request ends is not a failure, the room goes on answering.
-        if (outcome?.settled && outcome.completed === 0) {
+        // Deliberate silence is a completed turn. Any room failure stays typed, even after partial output.
+        if (outcome?.status === 'failed') {
           failTurn(
             new AliaError({
               code: AliaErrorCode.EMPTY_RESPONSE,
-              message: 'No member of the group could answer',
+              message: 'The group could not complete this turn',
               retryable: true,
               reason: 'provider_unavailable',
             }),
           );
         }
-        completed = outcome !== null && (outcome.completed > 0 || !outcome.settled);
+        completed = outcome !== null && outcome.status !== 'failed';
         return;
       }
     }

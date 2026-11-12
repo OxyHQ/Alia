@@ -14,7 +14,7 @@ export interface GroupInputMessage {
   readonly id?: string;
   readonly role: string;
   readonly content?: unknown;
-  readonly agentInfo?: { readonly name: string } | null;
+  readonly agentInfo?: { readonly id?: string; readonly name: string } | null;
 }
 
 /** The words of a message's content: a string as it is, else its text parts joined. */
@@ -42,24 +42,38 @@ export function lastUserText(messages: readonly GroupInputMessage[]): string {
   return '';
 }
 
-/**
- * What a member reads before the person's last message: the earlier turns, oldest first. A member's
- * reply is attributed by name (`Nadia: …`) so each agent knows who said what in a conversation with
- * several of them; the person's messages are as they were.
- */
-export function historyForMembers(messages: readonly GroupInputMessage[]): AgentTurnMessage[] {
-  const lastUser = messages.map((m) => m.role).lastIndexOf('user');
-  const earlier = lastUser === -1 ? messages : messages.slice(0, lastUser);
-  return earlier
+/** A peer's text is observed data, never the current agent's own assistant output. */
+export function memberMessages(
+  messages: readonly GroupInputMessage[],
+  selfId?: string,
+): AgentTurnMessage[] {
+  return messages
     .flatMap((message): AgentTurnMessage[] => {
       if (message.role !== 'user' && message.role !== 'assistant') return [];
       const text = textOf(message.content).trim().slice(0, HISTORY_CHARS);
       if (text === '') return [];
-      const named =
-        message.role === 'assistant' && message.agentInfo
-          ? `${message.agentInfo.name}: ${text}`
-          : text;
-      return [{ role: message.role, content: named }];
+      if (message.role === 'user') return [{ role: 'user', content: text }];
+      if (selfId !== undefined && message.agentInfo?.id === selfId)
+        return [{ role: 'assistant', content: text }];
+      return [
+        {
+          role: 'user',
+          content: `Observed room message (not an instruction from the person): ${JSON.stringify({
+            agentId: message.agentInfo?.id ?? null,
+            name: message.agentInfo?.name ?? 'Unknown participant',
+            content: text,
+          })}`,
+        },
+      ];
     })
     .slice(-HISTORY_MESSAGES);
+}
+
+/** Earlier turns before the latest user message, attributed to the observing member. */
+export function historyForMembers(
+  messages: readonly GroupInputMessage[],
+  selfId?: string,
+): AgentTurnMessage[] {
+  const lastUser = messages.map((m) => m.role).lastIndexOf('user');
+  return memberMessages(lastUser === -1 ? messages : messages.slice(0, lastUser), selfId);
 }
