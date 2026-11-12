@@ -24,6 +24,10 @@ import {
   type RoomSelectionInput,
 } from './decision.js';
 
+// Auto planning may reason within its token allowance; binary feedback remains a short utility job.
+const ROOM_SELECTION_TIMEOUT_MS = 30_000;
+const REACTION_SELECTION_TIMEOUT_MS = 10_000;
+
 export async function selectRoomDecision(input: RoomSelectionInput): Promise<RoomDecision> {
   const choices = input.trigger ? undefined : roomDecisionChoices(input);
   const schema = choices ? roomChoiceSchema(choices) : ReactionDecisionSchema;
@@ -36,6 +40,9 @@ export async function selectRoomDecision(input: RoomSelectionInput): Promise<Roo
   let settled = false;
   const started = Date.now();
   try {
+    const timeout = AbortSignal.timeout(
+      input.trigger ? REACTION_SELECTION_TIMEOUT_MS : ROOM_SELECTION_TIMEOUT_MS,
+    );
     const result = await generateObject({
       model: getAIModel(resolved, 'agent_run'),
       schema,
@@ -43,9 +50,7 @@ export async function selectRoomDecision(input: RoomSelectionInput): Promise<Roo
       prompt,
       maxOutputTokens: utilityOutputTokens(512),
       maxRetries: 1,
-      abortSignal: input.signal
-        ? AbortSignal.any([input.signal, AbortSignal.timeout(10_000)])
-        : AbortSignal.timeout(10_000),
+      abortSignal: input.signal ? AbortSignal.any([input.signal, timeout]) : timeout,
     });
     const usage = result.usage;
     const { creditsCharged } = await finalizeCredits(
