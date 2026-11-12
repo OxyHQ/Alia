@@ -161,7 +161,8 @@ function watchRoom(input: {
   return new Promise((resolve, reject) => {
     const heldStarts = new Map<string, Record<string, unknown>>();
     const open = new Set<string>();
-    let failed = false;
+    const failedConsults = new Set<string>();
+    const completedConsults = new Set<string>();
     let completed = 0;
     let done = false;
     let begun = false;
@@ -192,15 +193,16 @@ function watchRoom(input: {
           },
         });
       }
-      const status: GroupServeOutcome['status'] = failed
-        ? 'failed'
-        : !settled
-          ? 'continuing'
-          : reason !== 'done' && reason !== 'superseded'
-            ? 'failed'
-            : completed > 0
-              ? 'completed'
-              : 'quiet';
+      const status: GroupServeOutcome['status'] =
+        failedConsults.size > 0
+          ? 'failed'
+          : !settled
+            ? 'continuing'
+            : reason !== 'done' && reason !== 'superseded'
+              ? 'failed'
+              : completed > 0
+                ? 'completed'
+                : 'quiet';
       resolve({ completed, settled, status });
     };
     const onAbort = () => finish(false);
@@ -226,7 +228,7 @@ function watchRoom(input: {
           input.emit(event.event, event.data);
           return;
         case 'alia.agent_end': {
-          if (event.data.status === 'failed') failed = true;
+          if (event.data.status === 'failed') failedConsults.add(consultId);
           if (event.data.status === 'declined') {
             // Nothing was said: show nothing, unless the member already did something visible.
             heldStarts.delete(consultId);
@@ -241,7 +243,13 @@ function watchRoom(input: {
             // The start always precedes its end, even for a reply that arrived whole.
             release(consultId);
             open.delete(consultId);
-            if (event.data.status === 'completed') completed += 1;
+            if (event.data.status === 'completed') {
+              failedConsults.delete(consultId);
+              if (!completedConsults.has(consultId)) {
+                completedConsults.add(consultId);
+                completed += 1;
+              }
+            }
             input.emit('alia.agent_end', event.data);
           }
           return;

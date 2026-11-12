@@ -420,3 +420,32 @@ it('uses the existing SSE declined representation when an open member is superse
     error: { code: 'agent_declined' },
   });
 });
+
+it('a recovered consultation replaces its storage failure and duplicate replay counts once', async () => {
+  const t = setup({
+    onStart: async (publish) => {
+      await publish(member('stable-consult', 'a'));
+      await publish(e('alia.agent_delta', { consultId: 'stable-consult', content: 'answer' }));
+      await publish(
+        e('alia.agent_end', {
+          consultId: 'stable-consult',
+          status: 'failed',
+          error: { code: 'store_failed' },
+        }),
+      );
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await publish(member('stable-consult', 'a'));
+        await publish(
+          e('alia.agent_end', {
+            consultId: 'stable-consult',
+            status: 'completed',
+            content: 'answer',
+            messageId: 'stored',
+          }),
+        );
+      }
+      await publish(e('group.idle', { reason: 'done' }));
+    },
+  });
+  expect(await t.run()).toEqual({ completed: 1, settled: true, status: 'completed' });
+});

@@ -80,6 +80,8 @@ export interface TranscriptRow {
   readonly content: unknown;
   readonly agentName: string | null;
   readonly agentId?: string | null;
+  readonly seq?: number | null;
+  readonly createdAt?: Date;
 }
 
 interface StoredReply {
@@ -263,6 +265,31 @@ async function runStep(data: RoomJobData, deps: RoomEngineDeps): Promise<RoomSte
     if (data.version === 2 && alreadyStored.agentId !== data.speakerId)
       return end('error', 'ended');
     reply = textOf(alreadyStored.content);
+    if (data.version === 2 && member) {
+      // The database commit may have preceded a lost event or failed next-job enqueue. Replay the
+      // SAME consultation and stored message so every subscriber converges, without another turn.
+      await emit('alia.agent_start', {
+        consultId: replyId,
+        agent: member.info,
+        task: textOf(rows[triggerIndex]?.content),
+      });
+      await emit('alia.agent_end', {
+        consultId: replyId,
+        status: 'completed',
+        content: reply,
+        messageId: replyId,
+      });
+      await emit('group.message', {
+        message: {
+          id: replyId,
+          role: 'assistant',
+          content: reply,
+          agentInfo: member.info,
+          ...(alreadyStored.seq == null ? {} : { seq: alreadyStored.seq }),
+          ...(alreadyStored.createdAt ? { createdAt: alreadyStored.createdAt.toISOString() } : {}),
+        },
+      });
+    }
   } else if (member) {
     reply = await speak({ data, deps, member, rows, triggerIndex, replyId, emit });
   }
@@ -328,7 +355,7 @@ async function speak(input: {
 }): Promise<string | null> {
   const { data, deps, member, rows, triggerIndex, replyId, emit } = input;
   const { info } = member;
-  const consultId = randomUUID();
+  const consultId = data.version === 2 ? replyId : randomUUID();
   const roster = data.roster.map((m) => m.info);
   const originalText = textOf(rows[triggerIndex]?.content);
   const personText = data.version === 2 ? originalText : originalText.trim();

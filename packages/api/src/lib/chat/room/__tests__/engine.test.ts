@@ -704,3 +704,28 @@ describe('v2 room supersede races', () => {
     expect(h.events.at(-1)?.data.reason).toBe('superseded');
   });
 });
+
+describe('v2 stored reply recovery', () => {
+  it('replays a committed reply under the same consultation after event loss without rerunning the actor', async () => {
+    const h = harness({ script: () => 'durable answer', select: async () => selection('b') });
+    await processRoomStep(h.first(v2), h.deps);
+    const speaker = h.queued.shift()!;
+    await processRoomStep(speaker, h.deps);
+    const firstStart = h.events.find((event) => event.event === 'alia.agent_start')!;
+    const firstEnd = h.events.find((event) => event.event === 'alia.agent_end')!;
+    h.queued.length = 0;
+    h.events.length = 0;
+    await processRoomStep(speaker, h.deps);
+    expect(h.runs).toHaveLength(1);
+    expect(h.events[0]?.data.consultId).toBe(firstStart.data.consultId);
+    expect(h.events[1]?.data).toMatchObject({
+      consultId: firstStart.data.consultId,
+      status: 'completed',
+      messageId: firstEnd.data.messageId,
+    });
+    expect(h.events[2]).toMatchObject({
+      event: 'group.message',
+      data: { message: { id: firstEnd.data.messageId, content: 'durable answer' } },
+    });
+  });
+});
