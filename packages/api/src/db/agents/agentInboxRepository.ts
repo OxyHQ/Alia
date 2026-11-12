@@ -308,7 +308,10 @@ export async function dueHeartbeats(db: Executor, now: Date): Promise<HeartbeatC
           sql`${agents.lastHeartbeatAt} is null`,
           sql`${agents.lastHeartbeatAt} <= ${now.toISOString()}::timestamptz - (${agents.scheduleInterval} * interval '1 minute')`,
         ),
-        sql`exists (select 1 from ${agentInboxItems} where ${agentInboxItems.agentId} = ${agents.id} and ${agentInboxItems.status} = 'pending')`,
+        sql`exists (select 1 from ${agentInboxItems} where ${agentInboxItems.agentId} = ${agents.id} and ${agentInboxItems.status} = 'pending' and ${agentInboxItems.receivedAt} >= ${new Date(now.getTime() - INBOX_ITEM_MAX_AGE_MS).toISOString()}::timestamptz)`,
+        // Filter before LIMIT: agents waiting for owner authority must not starve ready agents.
+        sql`exists (select 1 from ${agentWorkAuthorities} where ${agentWorkAuthorities.agentId} = ${agents.id} and ${agentWorkAuthorities.ownerAccountId} = ${agents.ownerOxyAccountId} and ${agentWorkAuthorities.expiresAt} > ${now.toISOString()}::timestamptz)`,
+        sql`not exists (select 1 from agent_work_items w where w.agent_id = ${agents.id} and w.kind = 'heartbeat' and w.status in ('pending', 'running'))`,
       ),
     )
     .orderBy(sql`${agents.lastHeartbeatAt} asc nulls first`, asc(agents.id))

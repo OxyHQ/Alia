@@ -53,8 +53,15 @@ async function setup(authorize = true) {
     summary: { subject: 'a message' },
     now,
   });
-  const candidate = (await dueHeartbeats(db, now)).find((row) => row.agentId === agent.id);
-  if (!candidate) throw new Error('Candidate missing');
+  const candidate = {
+    agentId: agent.id,
+    ownerAccountId: owner,
+    intervalMinutes: 5,
+    lastHeartbeatAt: null,
+  };
+  if (authorize)
+    expect((await dueHeartbeats(db, now)).map((row) => row.agentId)).toContain(agent.id);
+  else expect((await dueHeartbeats(db, now)).map((row) => row.agentId)).not.toContain(agent.id);
   return { agent, owner, taskId, candidate };
 }
 
@@ -107,8 +114,10 @@ it('does not stack another heartbeat while the first execution is running', asyn
     now,
   });
   const later = new Date(now.getTime() + 6 * 60000);
-  const due = (await dueHeartbeats(db, later)).find((row) => row.agentId === agent.id)!;
-  expect(await acceptHeartbeat(db, due, later, () => 'work')).toBe(false);
+  expect((await dueHeartbeats(db, later)).map((row) => row.agentId)).not.toContain(agent.id);
+  expect(
+    await acceptHeartbeat(db, { ...candidate, lastHeartbeatAt: now }, later, () => 'work'),
+  ).toBe(false);
   expect(await countPendingInboxItems(db, agent.id)).toBe(1);
 });
 
