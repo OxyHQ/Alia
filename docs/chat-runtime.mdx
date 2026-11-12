@@ -183,6 +183,8 @@ targets and stored authorship even when a client omits display metadata. Removin
 replacing a target clears its feedback and cancels pending observations. During a rolling deploy,
 database compatibility triggers mirror genuine legacy reaction updates with a new revision and
 restore the cache on legacy inserts; they never grant response authority or create observations.
+The same migration seeds existing nonempty feedback before releasing its writer lock, making
+older reactions available to ordinary turns without scheduling retroactive replies.
 Deleting the owned conversation cascades its feedback and receipts and clears activity markers.
 
 Real Postgres tests in `reactionEvents.pgdb.test.ts`, `chatRepositories.pgdb.test.ts` and

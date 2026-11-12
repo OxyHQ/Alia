@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
@@ -89,6 +90,65 @@ async function due(id: string) {
 }
 
 describe('durable message reaction events', () => {
+  it('seeds preexisting feedback with the compatibility triggers before a legacy rewrite', async () => {
+    const f = await fixture();
+    const migration = readFileSync(
+      new URL('../../../drizzle/0133_reaction_conversation_ownership.sql', import.meta.url),
+      'utf8',
+    ).split('--> statement-breakpoint');
+    // An isolated schema models the state after 0132 and before 0133, without
+    // dropping triggers used by other suites on the disposable test database.
+    const schema = sql.identifier(`reaction_upgrade_${randomUUID().replaceAll('-', '')}`);
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`CREATE SCHEMA ${schema}`);
+      await tx.execute(sql`SET LOCAL search_path TO ${schema}, public`);
+      for (const table of ['conversations', 'messages', 'message_reaction_states']) {
+        await tx.execute(
+          sql`CREATE TABLE ${sql.identifier(table)} (LIKE ${sql.identifier('public')}.${sql.identifier(table)} INCLUDING ALL)`,
+        );
+      }
+      await tx.execute(
+        sql`INSERT INTO conversations SELECT * FROM public.conversations WHERE oxy_user_id = ${f.userId}`,
+      );
+      await tx.execute(
+        sql`INSERT INTO messages SELECT * FROM public.messages WHERE oxy_user_id = ${f.userId}`,
+      );
+      await tx.execute(
+        sql`UPDATE messages SET reactions = '["❤️"]'::jsonb WHERE client_message_id = 'answer'`,
+      );
+      for (const statement of migration) await tx.execute(sql.raw(statement));
+      const seeded = await tx.execute(sql`SELECT reactions, revision FROM message_reaction_states`);
+      expect([...seeded]).toEqual([{ reactions: ['❤️'], revision: 0 }]);
+      expect(await listReactionContext(tx, f.userId, f.conversationId)).toEqual([
+        expect.objectContaining({ messageId: 'answer', reactions: ['❤️'], revision: 0 }),
+      ]);
+
+      // The old saver deletes and reinserts a client echo without feedback.
+      await tx.execute(sql`DELETE FROM messages WHERE client_message_id = 'answer'`);
+      await tx.execute(
+        sql`INSERT INTO messages SELECT * FROM public.messages WHERE oxy_user_id = ${f.userId} AND client_message_id = 'answer'`,
+      );
+      const restored = await tx.execute(
+        sql`SELECT reactions, reaction_revision FROM messages WHERE client_message_id = 'answer'`,
+      );
+      expect([...restored]).toEqual([{ reactions: ['❤️'], reaction_revision: 0 }]);
+
+      // A subsequent old-client removal wins, even if the seed is rerun.
+      await tx.execute(
+        sql`UPDATE messages SET reactions = '[]'::jsonb WHERE client_message_id = 'answer'`,
+      );
+      await tx.execute(sql.raw(migration[migration.length - 1]));
+      const removed = await tx.execute(
+        sql`SELECT reactions, revision FROM message_reaction_states`,
+      );
+      expect([...removed]).toEqual([{ reactions: [], revision: 1 }]);
+      await tx.execute(sql`DROP SCHEMA ${schema} CASCADE`);
+    });
+    expect(
+      await db.select().from(reactionEvents).where(eq(reactionEvents.oxyUserId, f.userId)),
+    ).toHaveLength(0);
+  });
+
   it('atomically records one revision/outbox for concurrent retries and delays perception', async () => {
     const f = await fixture();
     const results = await Promise.all(Array.from({ length: 8 }, () => f.mutate('same', true)));

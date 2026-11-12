@@ -15493,7 +15493,23 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "reaction_states_conversation_fk": {
+          "name": "reaction_states_conversation_fk",
+          "tableFrom": "message_reaction_states",
+          "tableTo": "conversations",
+          "columnsFrom": [
+            "oxy_user_id",
+            "conversation_id"
+          ],
+          "columnsTo": [
+            "oxy_user_id",
+            "conversation_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -15730,7 +15746,23 @@
           "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "reaction_events_conversation_fk": {
+          "name": "reaction_events_conversation_fk",
+          "tableFrom": "reaction_events",
+          "tableTo": "conversations",
+          "columnsFrom": [
+            "oxy_user_id",
+            "conversation_id"
+          ],
+          "columnsTo": [
+            "oxy_user_id",
+            "conversation_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

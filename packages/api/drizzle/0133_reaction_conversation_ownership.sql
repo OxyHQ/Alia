@@ -1,7 +1,4 @@
 -- oxy:deploy-phase=pre
-ALTER TABLE "message_reaction_states" ADD CONSTRAINT "reaction_states_conversation_fk" FOREIGN KEY ("oxy_user_id","conversation_id") REFERENCES "public"."conversations"("oxy_user_id","conversation_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "reaction_events" ADD CONSTRAINT "reaction_events_conversation_fk" FOREIGN KEY ("oxy_user_id","conversation_id") REFERENCES "public"."conversations"("oxy_user_id","conversation_id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
 -- Compatibility boundary for old API instances during the rolling deployment.
 -- Legacy updates change the JSON cache without knowing reaction_revision. They
 -- advance durable state, but never create a response event or execution authority.
@@ -51,3 +48,19 @@ $$;
 --> statement-breakpoint
 CREATE TRIGGER messages_restore_reaction_cache BEFORE INSERT ON messages
   FOR EACH ROW EXECUTE FUNCTION alia_restore_reaction_cache();
+
+--> statement-breakpoint
+-- Seed feedback that predates the durable store in the SAME transaction as the
+-- compatibility triggers. CREATE TRIGGER already fences concurrent message
+-- writers until commit; a later separate migration would leave an unprotected gap.
+-- Read only owned, nonempty feedback and never replace a newer canonical state.
+INSERT INTO message_reaction_states
+  (id, oxy_user_id, conversation_id, message_id, target_actor_id, reactions, revision)
+SELECT gen_random_uuid()::text, m.oxy_user_id, m.conversation_id,
+  coalesce(m.client_message_id, m.id),
+  CASE WHEN m.role = 'assistant' THEN coalesce(m.agent_info_id, c.agent_id) ELSE NULL END,
+  m.reactions, m.reaction_revision
+FROM messages m
+JOIN conversations c ON c.oxy_user_id = m.oxy_user_id AND c.conversation_id = m.conversation_id
+WHERE m.reactions IS NOT NULL AND m.reactions <> '[]'::jsonb
+ON CONFLICT (oxy_user_id, conversation_id, message_id) DO NOTHING;
