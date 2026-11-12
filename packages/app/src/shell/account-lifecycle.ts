@@ -2,7 +2,7 @@ import { ALIA_ACCOUNT_QUERIES } from '@/shared/api/query-keys';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useInsertionEffect, useLayoutEffect, useRef } from 'react';
 import { queryKeys as oxyQueryKeys } from '@oxy.so/services/ui/client';
-import { useConversationStore, useThoughtStore } from '@alia.onl/sdk/runtime';
+import { useConversationStore, useThoughtStore } from '@gemies/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';

@@ -13,7 +13,7 @@ import { RiSettings3Line } from '@oxy.so/bloom/icons/RiSettings3Line';
 import { RiSparklingLine } from '@oxy.so/bloom/icons/RiSparklingLine';
 import { RiStarFill } from '@oxy.so/bloom/icons/RiStarFill';
 import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
-import { useConversations } from '@alia.onl/sdk/runtime';
+import { useConversations } from '@gemies/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';

@@ -7,9 +7,9 @@
  *  1. The retired product routes (`<kaana|alia>-lite`, `<kaana|alia>-v1-*`).
  *  2. The native-product-agent lane (ADR 0020 §8): its manifest and bootstrap,
  *     requester assertions, the internal MCP pilot flag, the two delegation
- *     tools `consultAgent` replaced, the negotiated stream features, and an
- *     application binding on an agent (ADR 0021 keeps it deleted: where an
- *     agent opens is Oxy's fact, read live, never an Alia column).
+ *     tools `consultAgent` replaced, and the negotiated stream features. (The
+ *     check that an agent carries no application binding, ADR 0021, lives with
+ *     the agent schemas in OxyHQ/Gemies.)
  *
  * Records of the past keep their words: changelogs are history, not code. Every pattern is
  * spelled in pieces so this file does not match itself.
@@ -50,16 +50,6 @@ const retiredLane = new RegExp(
   'g',
 );
 
-/**
- * What an agent is on the wire, as this repository reads it: no application
- * binding. The app is Alia's alone and reads no agent since 2026-11-12; the
- * SDK still reads a gemie's profile (the chat opened on one, a consulted one).
- * The server's schema and repository moved to OxyHQ/Gemies with the backend,
- * and carry the same check there.
- */
-const agentSchemas = ['packages/alia-chat/src/runtime/agents.ts'];
-const applicationBinding = new RegExp(`application${'Id'}|application${'_id'}`, 'g');
-
 const failures = [];
 
 function report(file, source, pattern, why) {
@@ -79,15 +69,6 @@ for (const file of tracked) {
   report(file, source, retiredProductRoutes, 'retired product route');
   if (!laneHistory.some((history) => history.test(file))) {
     report(file, source, retiredLane, 'retired native-product-agent lane, ADR 0020 §8');
-  }
-  if (agentSchemas.includes(file)) {
-    report(file, source, applicationBinding, 'an agent has no application binding, ADR 0021');
-  }
-}
-
-for (const file of agentSchemas) {
-  if (!existsSync(new URL(file, root))) {
-    failures.push(`${file}: missing — the application-binding check would look at nothing`);
   }
 }
 

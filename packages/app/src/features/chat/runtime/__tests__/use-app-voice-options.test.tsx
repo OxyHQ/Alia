@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * The app's part of a voice call. The call itself — its states, what it says, when it ends, where
  * it lives — is the SDK's (pinned in its `useVoiceLauncher`, `VoiceSession` and
- * `AliaChatContent` tests); here is only what the app answers: the gate, where a block sends the
+ * `GemieChatContent` tests); here is only what the app answers: the gate, where a block sends the
  * person, what is refreshed when a call ends, and the sounds it plays.
  */
 const host = vi.hoisted(() => ({
@@ -33,14 +33,14 @@ vi.mock('@/features/voice/model/voice-sounds', () => ({
   VOICE_SOUNDS: { thinking: 'thinking.mp3' },
 }));
 
-import type { AliaVoiceOptions } from '@alia.onl/sdk';
+import type { GemieVoiceOptions } from '@gemies/sdk';
 import { useAppVoiceOptions } from '@/features/chat/runtime/use-app-voice-options';
 import { queryKeys } from '@/shared/api/query-keys';
 
 function mount() {
   const client = new QueryClient();
   const invalidate = vi.spyOn(client, 'invalidateQueries');
-  const seen: { options: AliaVoiceOptions | null } = { options: null };
+  const seen: { options: GemieVoiceOptions | null } = { options: null };
   function Probe() {
     seen.options = useAppVoiceOptions();
     return null;
@@ -49,9 +49,9 @@ function mount() {
     create(React.createElement(QueryClientProvider, { client }, React.createElement(Probe)));
   });
   const options = (): Required<
-    Pick<AliaVoiceOptions, 'canStartVoice' | 'onVoiceBlocked' | 'onCallEnded'>
+    Pick<GemieVoiceOptions, 'canStartVoice' | 'onVoiceBlocked' | 'onCallEnded'>
   > &
-    AliaVoiceOptions => seen.options as never;
+    GemieVoiceOptions => seen.options as never;
   return { invalidate, options };
 }
 

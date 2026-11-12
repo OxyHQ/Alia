@@ -1,10 +1,10 @@
-import type { AliaChatLabels } from '@alia.onl/sdk';
+import type { GemieChatLabels } from '@gemies/sdk';
 
 /** The app's translator, as a parameter: pure, so a hook and a provider can both ask for the words. */
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 /** The words of the SDK's composer, in the person's language. */
-export function composerLabels(t: Translate): Partial<AliaChatLabels> {
+export function composerLabels(t: Translate): Partial<GemieChatLabels> {
   return {
     placeholder: (name) => t('composer.placeholder', { name }),
     composerMessage: t('composer.message'),

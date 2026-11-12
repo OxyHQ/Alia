@@ -11,8 +11,8 @@ vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: catalogue.t, locale: 'es-ES' }),
 }));
 const seen = vi.hoisted(() => ({ labels: null as null | Record<string, never> }));
-vi.mock('@alia.onl/sdk', () => ({
-  AliaChatLabelsProvider: ({ labels }: { labels: Record<string, never> }) => {
+vi.mock('@gemies/sdk', () => ({
+  GemieChatLabelsProvider: ({ labels }: { labels: Record<string, never> }) => {
     seen.labels = labels;
     return null;
   },

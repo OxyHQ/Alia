@@ -595,7 +595,7 @@ render of every block built a parser (compiling linkify-it's regexes), and
 since the other two sit in its renderer's `useMemo` deps, the renderer and
 the `StyleSheet.create` inside it were rebuilt as well. The SDK's
 `AliaMarkdown` now passes one shared parser and the defaults' own values,
-created once (`packages/alia-chat/src/components/Markdown.tsx`, pinned by
+created once (`packages/sdk/src/components/Markdown.tsx`, pinned by
 `tests/components/Markdown.stable-props.test.tsx`). Measured: **−7 MiB of heap
 with the thread open** (51.5 → 44.4 MiB; a heap-sampling profile had put
 3.8 MiB of it under `MarkdownIt` → `LinkifyIt.compile` alone), and about 1ms of

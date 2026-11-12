@@ -1,4 +1,4 @@
-import { type AliaChatLabels, AliaChatLabelsProvider } from '@alia.onl/sdk';
+import { type GemieChatLabels, GemieChatLabelsProvider } from '@gemies/sdk';
 import { useMemo, type ReactNode } from 'react';
 import { composerLabels } from '@/features/chat/model/composer-labels';
 import { voiceEndedText, voiceErrorText } from '@/features/voice/model/voice-error-text';
@@ -15,7 +15,7 @@ import { useTranslation } from '@/shared/i18n/use-translation';
  */
 export function ChatLabelsProvider({ children }: { children: ReactNode }) {
   const { t, locale } = useTranslation();
-  const labels = useMemo<Partial<AliaChatLabels>>(
+  const labels = useMemo<Partial<GemieChatLabels>>(
     () => ({
       t,
       locale,
@@ -48,5 +48,5 @@ export function ChatLabelsProvider({ children }: { children: ReactNode }) {
     }),
     [t, locale],
   );
-  return <AliaChatLabelsProvider labels={labels}>{children}</AliaChatLabelsProvider>;
+  return <GemieChatLabelsProvider labels={labels}>{children}</GemieChatLabelsProvider>;
 }

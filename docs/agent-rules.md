@@ -8,7 +8,7 @@ comprobable; aquí está el texto completo. Antes de tocar un área lee su doc
   2026-11-12 (su [ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md)):
   la API, integrations, el computer host, sus despliegues, canaries, runbooks y ADRs.
   Un cambio de servidor, de rutas, de eventos del stream, de base de datos o de
-  despliegue va allí. Aquí quedan la app, `@alia.onl/sdk` y `@alia.onl/server`.
+  despliegue va allí. Aquí quedan la app, `@gemies/sdk` y `@gemies/server`.
   Las referencias a «ADR 00xx» en el código son la serie de Gemies.
 - **Tres papeles (ADR 0010):** Kaana = API de inferencia (solo modelos; las
   credenciales de proveedor viven allí). Oxy = plataforma + Oxy Console (TODAS
@@ -26,8 +26,8 @@ comprobable; aquí está el texto completo. Antes de tocar un área lee su doc
   (Groq, Cerebras, OpenRouter…) y los ids de deployment siguen ocultos en la
   superficie de producto (UI, errores, analítica).
 - **La conversación es del SDK (ADR 0018).** El hilo, sus tarjetas, el panel de pensamiento, el
-  compositor con su selector de nivel y la llamada de voz los dibuja `AliaChatContent`
-  (`packages/alia-chat`), el mismo que monta el bottom sheet. La app solo pone lo suyo (sidebar,
+  compositor con su selector de nivel y la llamada de voz los dibuja `GemieChatContent`
+  (`@gemies/sdk`), el mismo que monta el bottom sheet. La app solo pone lo suyo (sidebar,
   right panel, layout, rutas, callbacks de host) por props y slots; no copies un componente de
   conversación a `packages/app`. `one-thread.test.tsx` lo comprueba.
 - **Un fallo de inferencia llega como error tipado** y el SDK lo pinta como fallo
@@ -40,7 +40,7 @@ comprobable; aquí está el texto completo. Antes de tocar un área lee su doc
   curso; `__tests__/no-loading-screens.test.ts` lo hace cumplir.
 - **`process.env` en Expo:** solo `process.env.EXPO_PUBLIC_*` estático; Metro no
   inlinea otra cosa. Lo hacen cumplir los plugins de `biome-plugins/`.
-- **`@alia.onl/sdk` se publica como código fuente**: el consumidor compila `src/` con su
+- **`@gemies/sdk` se publica como código fuente**: el consumidor compila `src/` con su
   Metro o tsc, así que tiene que resolver y tipar en una instalación externa real.
   `check:entries` mantiene la voz detrás de `./voice` y `check:entry-types` compila un
   consumidor de cada entrada por separado.

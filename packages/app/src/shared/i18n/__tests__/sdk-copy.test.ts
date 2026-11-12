@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { englishCopy } from '@alia.onl/sdk/model';
-import { COPY_EN } from '../../../../../alia-chat/src/lib/copy-en';
+import { englishCopy } from '@gemies/sdk/model';
+import { COPY_EN } from '../../../../../../node_modules/@gemies/sdk/src/lib/copy-en';
 import { translator } from '@/shared/testing/translate';
 import en from '../locales/en.json';
 import es from '../locales/es.json';
@@ -46,7 +46,7 @@ describe('the activity rows in Spanish, through the app’s catalogue', () => {
   const t = translator('es');
 
   it('names the plan it showed and counts its steps', async () => {
-    const { auditText, buildAuditTimeline } = await import('@alia.onl/sdk/model');
+    const { auditText, buildAuditTimeline } = await import('@gemies/sdk/model');
     const [entry] = buildAuditTimeline([
       {
         id: 'a1',
@@ -60,7 +60,7 @@ describe('the activity rows in Spanish, through the app’s catalogue', () => {
   });
 
   it('names a research phase it knows, and any other as researching', async () => {
-    const { auditText, buildAuditTimeline } = await import('@alia.onl/sdk/model');
+    const { auditText, buildAuditTimeline } = await import('@gemies/sdk/model');
     const phase = (value: string) =>
       auditText(
         buildAuditTimeline([
@@ -78,7 +78,7 @@ describe('the activity rows in Spanish, through the app’s catalogue', () => {
   });
 
   it('translates a tool the catalogue has words for', async () => {
-    const { buildAuditTimeline, auditText } = await import('@alia.onl/sdk/model');
+    const { buildAuditTimeline, auditText } = await import('@gemies/sdk/model');
     const [entry] = buildAuditTimeline([
       {
         id: 'a1',

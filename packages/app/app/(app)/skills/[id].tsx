@@ -1,4 +1,4 @@
-import { ReplyMarkdown } from '@alia.onl/sdk';
+import { ReplyMarkdown } from '@gemies/sdk';
 import { SkillCover } from '@/features/skills/ui/skill-cover';
 import {
   useInstallSkill,

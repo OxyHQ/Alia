@@ -16,15 +16,15 @@ import {
 import { formatRelativeTime } from '@/shared/format/relative-time';
 import { GEMIES_URL } from '@/shared/routing/gemies';
 import { queryKeys } from '@/shared/api/query-keys';
-import { AliaAvatar } from '@alia.onl/sdk';
-import type { Conversation } from '@alia.onl/sdk/model';
+import { GemieAvatar } from '@gemies/sdk';
+import type { Conversation } from '@gemies/sdk/model';
 import {
   useConversationStore,
   useConversations,
   useDeleteConversation,
   usePrefetchConversation,
   useRenameConversation,
-} from '@alia.onl/sdk/runtime';
+} from '@gemies/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import {
   flatConversations,
@@ -656,7 +656,7 @@ function useSidebarProps() {
     // The panel's own header stays above the tools: the mark and name (home), and the collapse control.
     logo: {
       // A still thumbnail: a permanent 26px spot should not hold a live 3D renderer on every page.
-      icon: <AliaAvatar size={26} portrait />,
+      icon: <GemieAvatar size={26} portrait />,
       wordmark: 'Alia',
       onPress: () => {
         closeNav?.();

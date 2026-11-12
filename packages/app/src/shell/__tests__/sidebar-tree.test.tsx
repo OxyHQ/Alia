@@ -68,7 +68,7 @@ vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ isAuthenticated: true, user: { id: 'user-a' }, showBottomSheet: vi.fn() }),
 }));
 
-vi.mock('@alia.onl/sdk', () => ({ AliaAvatar: () => null }));
+vi.mock('@gemies/sdk', () => ({ GemieAvatar: () => null }));
 vi.mock('@/features/onboarding/ui/invite-dialog', () => ({ InviteDialog: () => null }));
 vi.mock('@/features/projects/ui/project-edit-dialog', () => ({ ProjectEditDialog: () => null }));
 vi.mock('@/features/settings/ui/settings-context', () => ({
@@ -80,8 +80,8 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 }));
 // The conversation store is the SDK's own (the sidebar reads which row streams from it); the
 // hooks that talk to the API are stubbed.
-vi.mock('@alia.onl/sdk/runtime', async () => ({
-  ...(await import('../../../../alia-chat/src/runtime/conversation-store')),
+vi.mock('@gemies/sdk/runtime', async () => ({
+  ...(await import('../../../../../node_modules/@gemies/sdk/src/runtime/conversation-store')),
   useConversations: () => ({
     data: state.isLoading ? undefined : { pages: [{ conversations: state.conversations }] },
     fetchNextPage: vi.fn(),
@@ -237,7 +237,7 @@ vi.mock('@oxy.so/bloom/typography', async () => {
 import { Sidebar } from '../sidebar';
 import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
 import { useFoldersStore } from '@/features/projects/runtime/folders-store';
-import { useConversationStore } from '@alia.onl/sdk/runtime';
+import { useConversationStore } from '@gemies/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
 import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
 import { useProjectsStore } from '@/features/projects/runtime/projects-store';

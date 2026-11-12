@@ -49,7 +49,7 @@ prefix=alia-release-app-
 # `exclude` (the `paths-ignore` shape) is driven with a docs-only scope; the
 # `include` cases use the app's scope exactly as deploy-frontends.yml passes it.
 docs='(\.md$|^docs/)'
-app='^(packages/app/|packages/alia-chat/|package\.json$|\.github/workflows/deploy-frontends\.yml$|bun\.lock$)'
+app='^(packages/app/|package\.json$|\.github/workflows/deploy-frontends\.yml$|bun\.lock$)'
 
 failures=0
 # run <expected exit> <expected output line or ''> <env...> -- <args...>
@@ -108,7 +108,7 @@ run 0 app=false FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\nscri
 # target: releases
 run 0 site=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nREADME.md\npackages/app/src/x.ts')" \
   -- target site exclude "$docs" $prefix
-run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nscripts/x.mjs\npackages/alia-chat/package.json')" \
+run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n2\nscripts/x.mjs\nbun.lock')" \
   -- target app include "$app" $prefix
 # A rename out of scope still counts the path it left.
 run 0 app=true FAKE_MARKER=$prefix$older "FAKE_COMPARE=$(printf 'ahead\n1\nlegacy/x.ts\npackages/app/x.ts')" \

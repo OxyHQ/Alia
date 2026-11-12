@@ -81,7 +81,7 @@ vi.mock('@oxy.so/bloom/surfaces', () => ({
   },
 }));
 vi.mock('@oxy.so/bloom/toast', () => ({ toast: { success: () => {}, error: () => {} } }));
-vi.mock('@alia.onl/sdk', async () => {
+vi.mock('@gemies/sdk', async () => {
   const { host } = await import('@/shared/testing/panel-bloom-stubs');
   return { CanvasComponent: host('CanvasPreview'), ThoughtPanel: () => null };
 });

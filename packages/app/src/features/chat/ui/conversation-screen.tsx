@@ -1,11 +1,11 @@
 import {
-  type AliaChatChrome,
-  type AliaChatState,
-  AliaChatContent,
-  AliaParticipants,
-  type AliaSuggestion,
-} from '@alia.onl/sdk';
-import { useConversation } from '@alia.onl/sdk/runtime';
+  type GemieChatChrome,
+  type GemieChatState,
+  GemieChatContent,
+  GemieParticipants,
+  type GemieSuggestion,
+} from '@gemies/sdk';
+import { useConversation } from '@gemies/sdk/runtime';
 import { ComposerPanelStatusTab } from '@oxy.so/bloom/composer-panel';
 import { useAuth } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -43,7 +43,7 @@ interface ConversationScreenProps {
 /** The SDK keys a suggestion by `id` and calls a fill-in-the-blanks one a `template`. */
 const asSuggestions = (
   suggestions: readonly Suggestion[] | undefined,
-): AliaSuggestion[] | undefined =>
+): GemieSuggestion[] | undefined =>
   suggestions?.map((suggestion) => ({
     id: suggestion.suggestionId,
     text: suggestion.text,
@@ -57,7 +57,7 @@ const asSuggestions = (
  * sidebar. They are the SAME screen behind different doors, so it lives here rather than in any
  * route: a chat that gains voice or loses a dialog has to gain or lose it in both.
  *
- * The conversation is the SDK's (`AliaChatContent`, the same one the bottom sheet mounts). What
+ * The conversation is the SDK's (`GemieChatContent`, the same one the bottom sheet mounts). What
  * is here is the app around it: which power level and which of the person's own devices, the add
  * menu with its skills and connected apps, the plan and credits behind a call, the breadcrumb and
  * its actions, the project the chat is filed under, and the dialogs and toasts that belong to the
@@ -113,7 +113,7 @@ export const ConversationScreen = ({ conversationId }: ConversationScreenProps) 
   const suggestionMatches = useMemo(() => asSuggestions(matches), [matches]);
   const { mutate: recordSuggestionUsage } = useRecordSuggestionUsage();
   const handleSuggestionPicked = useCallback(
-    (suggestion: AliaSuggestion) => recordSuggestionUsage(suggestion.id),
+    (suggestion: GemieSuggestion) => recordSuggestionUsage(suggestion.id),
     [recordSuggestionUsage],
   );
 
@@ -134,7 +134,7 @@ export const ConversationScreen = ({ conversationId }: ConversationScreenProps) 
   // The header is the conversation's participants — Alia and the gemies she consulted — drawn by
   // the SDK; the app draws no title of its own there.
   const chrome = useCallback(
-    (chat: AliaChatState): AliaChatChrome => {
+    (chat: GemieChatState): GemieChatChrome => {
       // The menu is there from the first screen: the panel needs no stored conversation; what
       // needs one (search, share, export, clear, delete) is left out of it until there is one.
       // A temporary chat is never stored, so it is never shared.
@@ -150,7 +150,7 @@ export const ConversationScreen = ({ conversationId }: ConversationScreenProps) 
           chat.hasMessages || conversationId !== undefined ? (
             <ShellPageHeader
               titleAlign="center"
-              title={<AliaParticipants participants={chat.participants} />}
+              title={<GemieParticipants participants={chat.participants} />}
               actions={
                 <>
                   {actions}
@@ -175,7 +175,7 @@ export const ConversationScreen = ({ conversationId }: ConversationScreenProps) 
 
   return (
     <KeyboardFrame>
-      <AliaChatContent
+      <GemieChatContent
         conversationId={conversationId}
         ephemeral={ephemeral}
         model={model}

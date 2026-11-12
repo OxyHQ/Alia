@@ -1,15 +1,13 @@
 {
   "name": "alia-monorepo",
   "version": "1.0.0",
-  "description": "Monorepo de Alia: la app (web+móvil) y el SDK y el server publicados. El backend vive en OxyHQ/Gemies.",
+  "description": "Monorepo de Alia: la app (web+móvil). El backend, @gemies/sdk y @gemies/server viven en OxyHQ/Gemies.",
   "private": true,
   "trustedDependencies": [
     "@shopify/react-native-skia"
   ],
   "workspaces": [
-    "packages/app",
-    "packages/alia-chat",
-    "packages/alia-server"
+    "packages/app"
   ],
   "packageManager": "bun@1.4.3",
   "scripts": {

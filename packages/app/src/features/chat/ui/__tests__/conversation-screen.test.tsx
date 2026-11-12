@@ -28,14 +28,14 @@ const world = vi.hoisted(() => ({
 vi.mock('@/features/notifications/ui/notifications-bell', () => ({
   NotificationsBell: () => null,
 }));
-vi.mock('@alia.onl/sdk', async () => {
+vi.mock('@gemies/sdk', async () => {
   const ReactModule = await import('react');
   return {
-    AliaChatContent: (props: Record<string, unknown>) => {
+    GemieChatContent: (props: Record<string, unknown>) => {
       world.props = props;
-      return ReactModule.createElement('AliaChatContent', null);
+      return ReactModule.createElement('GemieChatContent', null);
     },
-    AliaParticipants: (props: object) => ReactModule.createElement('Participants', props),
+    GemieParticipants: (props: object) => ReactModule.createElement('Participants', props),
   };
 });
 vi.mock('@/shared/ui/page-chrome', async () => {
@@ -44,7 +44,7 @@ vi.mock('@/shared/ui/page-chrome', async () => {
     ShellPageHeader: (props: object) => ReactModule.createElement('ShellPageHeader', props),
   };
 });
-vi.mock('@alia.onl/sdk/model', () => ({
+vi.mock('@gemies/sdk/model', () => ({
   // The real rule, kept small: a level is sent as itself, a connected device model too.
   resolveModeSelection: (stored: string | null | undefined, ids: string[] | undefined) => {
     const ok =
@@ -53,7 +53,7 @@ vi.mock('@alia.onl/sdk/model', () => ({
     return { shown: ok ? stored : 'auto', send: ok ? stored : 'auto', source: 'requested' };
   },
 }));
-vi.mock('@alia.onl/sdk/runtime', () => ({
+vi.mock('@gemies/sdk/runtime', () => ({
   useConversation: () => ({ data: world.title === undefined ? undefined : { title: world.title } }),
 }));
 vi.mock('@oxy.so/services/ui/client', () => ({
