@@ -27,9 +27,15 @@ export const agentWorkItems = pgTable(
     oxyTaskId: text().notNull(),
     kind: text({ enum: ['heartbeat', 'follow_up'] }).notNull(),
     objective: text().notNull(),
+    /** Requested replies are delivered reliably; initiative stays quiet unless worth reporting. */
+    deliveryMode: text({ enum: ['initiative', 'requested'] })
+      .notNull()
+      .default('initiative'),
+    deliveredAt: timestamptz(),
     dueAt: timestamptz().notNull(),
     rootId: text().notNull(),
     sourceSessionId: text(),
+    sourceToolCallId: text(),
     sessionId: text(),
     status: text({ enum: ['pending', 'running', 'completed', 'failed', 'cancelled'] })
       .notNull()
@@ -45,6 +51,7 @@ export const agentWorkItems = pgTable(
     index('agent_work_root_idx').on(t.rootId),
     index('agent_work_authority_idx').on(t.oxyTaskId),
     uniqueIndex('agent_work_session_key').on(t.sessionId),
+    uniqueIndex('agent_work_source_call_key').on(t.sourceSessionId, t.sourceToolCallId),
     uniqueIndex('agent_work_heartbeat_key')
       .on(t.agentId)
       .where(sql`${t.kind} = 'heartbeat' and ${t.status} in ('pending', 'running')`),
@@ -53,6 +60,12 @@ export const agentWorkItems = pgTable(
       sql`${t.status} in ('pending', 'running', 'completed', 'failed', 'cancelled')`,
     ),
     check('agent_work_kind_check', sql`${t.kind} in ('heartbeat', 'follow_up')`),
+    check('agent_work_delivery_mode_check', sql`${t.deliveryMode} in ('initiative', 'requested')`),
+    index('agent_work_delivery_idx')
+      .on(t.updatedAt)
+      .where(
+        sql`${t.deliveryMode} = 'requested' and ${t.deliveredAt} is null and ${t.status} in ('completed', 'failed')`,
+      ),
   ],
 );
 

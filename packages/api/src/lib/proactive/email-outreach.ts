@@ -138,7 +138,12 @@ export type EmailOutreachOutcome =
     }
   | {
       readonly status: 'skipped';
-      readonly reason: 'daily_limit' | 'unanswered' | 'empty' | 'agent_not_found';
+      readonly reason:
+        | 'daily_limit'
+        | 'unanswered'
+        | 'empty'
+        | 'agent_not_found'
+        | 'conversation_not_found';
     }
   | { readonly status: 'routine'; readonly category: string }
   | { readonly status: 'failed' };

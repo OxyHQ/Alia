@@ -79,6 +79,10 @@ async function processAgentSession(data: AgentJobData): Promise<AgentJobResult> 
         ? 'completed'
         : 'failed';
   try {
+    if (session?.workItemId) {
+      const { deliverAgentWorkResult } = await import('./agent/work-delivery.js');
+      await deliverAgentWorkResult(session.workItemId);
+    }
     // The result goes INTO the person's conversation with the agent, which
     // also notifies them; a finished run used to reach them only as a push
     // whose body was the first 500 characters, with nowhere to tap through to.

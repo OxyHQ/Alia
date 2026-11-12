@@ -51,7 +51,8 @@ import { MAX_DELEGATION_DEPTH } from '../constants.js';
 import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { postAgentMessage } from './agent-outreach.js';
 import type { AgentRuntimeContext } from './actions.js';
-import { scheduleAgentFollowUp } from './follow-ups.js';
+import { followUpReceipt, scheduleAgentFollowUp } from './follow-ups.js';
+import { requestedAgentWork } from './work-delivery.js';
 import { agentMemoryPromptSection } from './agent-memory-runtime.js';
 import { resolveComputerActor } from '../computer/computer-actor.js';
 import { compactContext } from './context-compaction.js';
@@ -133,18 +134,6 @@ function runOutreach(
         : outcome.reason === 'unanswered'
           ? 'Not sent: the person has not answered your last messages. Do not message them again until they reply.'
           : `Not sent (${outcome.reason}).`;
-    },
-    scheduleFollowUp: async (at, note) => {
-      const outcome = await scheduleAgentFollowUp({
-        ownerAccountId: session.oxyUserId,
-        agentId: session.agentId,
-        at,
-        note,
-        sourceSessionId: session.id,
-      });
-      return outcome.scheduled
-        ? `Scheduled for ${outcome.at}.`
-        : `Not scheduled (${outcome.reason}).`;
     },
   };
 }
@@ -330,6 +319,7 @@ async function driveAgentSession(
    * memory, triggers, MCP, integrations, and the Oxy services this path could
    * never see before — comes from the same place every other surface gets it.
    */
+  const requestedReply = await requestedAgentWork(session.workItemId);
   const {
     tools: allActions,
     routing: toolRouting,
@@ -372,7 +362,23 @@ async function driveAgentSession(
       onHireAgent,
       // A child run (delegated, orchestrated) reports to its parent, not to
       // the person, so only a top-level run may write to them.
-      ...(session.parentSessionId ? {} : { outreach: runOutreach(session, eventStream) }),
+      ...(session.parentSessionId
+        ? {}
+        : {
+            ...(requestedReply ? {} : { outreach: runOutreach(session, eventStream) }),
+            scheduleFollowUp: async (at: Date, note: string, now: Date, toolCallId: string) =>
+              followUpReceipt(
+                await scheduleAgentFollowUp({
+                  ownerAccountId: session.oxyUserId,
+                  agentId: session.agentId,
+                  sourceSessionId: session.id,
+                  at,
+                  note,
+                  now,
+                  toolCallId,
+                }),
+              ),
+          }),
       todoManager,
       browserSession,
       eventStream,
@@ -388,7 +394,10 @@ async function driveAgentSession(
   const memorySection = grantsMemory
     ? await agentMemoryPromptSection(session.oxyUserId, agent._id)
     : '';
-  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, await agentSpacePrompt(agent))}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}${memorySection}`;
+  const deliveryPrompt = requestedReply
+    ? '\n\nThis is the scheduled reply the person requested. Complete their request now. Write your final result directly to them in their language; it will be delivered automatically in the original conversation. Do not merely report that you sent it or schedule it again.'
+    : '';
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config, await agentSpacePrompt(agent))}${agentIdentityPrompt(Object.keys(allActions))}${appCatalogPrompt}${memorySection}${deliveryPrompt}`;
 
   // Persisted every step, so a resumed run keeps counting against the SAME
   // budget instead of starting a fresh one.

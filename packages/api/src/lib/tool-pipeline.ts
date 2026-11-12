@@ -647,7 +647,7 @@ export class ToolPipeline {
       }
       if (grants.allows('automation') && !nested) {
         if (isDirectSession) {
-          aliaTools.createAutomation = createAutomationTool(userId, accessToken);
+          aliaTools.createAutomation = createAutomationTool(userId, accessToken, agent?._id);
         }
       }
       // `web`, not a family of its own: what it does is read the open web, and

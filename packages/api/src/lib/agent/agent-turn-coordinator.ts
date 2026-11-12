@@ -14,6 +14,7 @@ import { EventStream } from './event-stream.js';
 import { withAgentAdmission } from '../../db/agents/agentRuntimeRepository.js';
 import { startAgentSession } from './session-handoff.js';
 import { log } from '../logger.js';
+import { scheduleChatFollowUp } from './chat-follow-ups.js';
 
 export interface CoordinatedAgentTurn {
   id: string;
@@ -75,6 +76,22 @@ export class AgentTurnCoordinator {
       onComplete: (result) => {
         completedResult = result;
       },
+      ...(input.requesterToken && input.conversationId
+        ? {
+            scheduleFollowUp: (at: Date, note: string, now: Date, toolCallId: string) =>
+              scheduleChatFollowUp({
+                agentId: input.agent._id,
+                agentAccountId: input.agent.oxyAccountId,
+                ownerAccountId: input.oxyUserId,
+                sourceSessionId: session.id,
+                requesterToken: input.requesterToken!,
+                at,
+                note,
+                now,
+                toolCallId,
+              }),
+          }
+        : {}),
       /**
        * A chat turn has 80 seconds. Work that needs longer is handed to a
        * durable background run of the same agent, which resumes across

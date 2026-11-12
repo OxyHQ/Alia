@@ -22,6 +22,7 @@ import { enqueueAgentSession } from '../task-queue';
 import { agentOpensOn } from '../agent-availability';
 import { log } from '../logger';
 import { agentHirePrice } from './session-handoff';
+import { deliverPendingAgentWorkResults } from './work-delivery';
 
 /** Only called from a verified, owner-present request. No bearer survives this call. */
 export async function establishAgentWork(
@@ -104,6 +105,7 @@ export async function dispatchAgentWork(now = new Date()): Promise<number> {
   await db.execute(sql`update agent_work_items w set status = s.status, updated_at = now()
     from agent_sessions s where w.session_id = s.id and w.status = 'running'
     and s.status in ('completed', 'failed', 'cancelled')`);
+  await deliverPendingAgentWorkResults();
   let started = 0;
   for (const work of await pendingWork(db, now)) {
     try {
@@ -248,6 +250,7 @@ export async function dispatchAgentWork(now = new Date()): Promise<number> {
             task: work.objective + context + currentWork,
             status: 'queued',
             ...(source?.threadId ? { threadId: source.threadId } : {}),
+            ...(source?.conversationId ? { conversationId: source.conversationId } : {}),
             ...(source?.goalId ? { goalId: source.goalId } : {}),
             workItemId: work.id,
             creditReservation: reservation,

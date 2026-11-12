@@ -29,6 +29,7 @@ import { findAgentById } from '../../db/agents/agentRepository.js';
 import {
   createConversation,
   findActiveThreadConversation,
+  findConversation,
   upsertConversation,
 } from '../../db/chat/conversationRepository.js';
 import {
@@ -55,7 +56,12 @@ export type AgentOutreachOutcome =
   | { readonly posted: true; readonly conversationId: string; readonly messageId: string }
   | {
       readonly posted: false;
-      readonly reason: 'agent_not_found' | 'daily_limit' | 'unanswered' | 'empty';
+      readonly reason:
+        | 'agent_not_found'
+        | 'daily_limit'
+        | 'unanswered'
+        | 'empty'
+        | 'conversation_not_found';
     };
 
 export interface AgentOutreachInput {
@@ -64,6 +70,8 @@ export interface AgentOutreachInput {
   readonly content: string;
   readonly kind: AgentOutreachKind;
   readonly idempotencyKey?: string;
+  /** Requested continuations return to their originating conversation. */
+  readonly conversationId?: string;
   /** A short notification title; defaults to the agent's name. */
   readonly title?: string;
   /**
@@ -117,7 +125,13 @@ export async function postAgentMessage(input: AgentOutreachInput): Promise<Agent
         conversationId: receipt.conversationId,
         messageId,
       };
+    const original = input.conversationId
+      ? await findConversation(tx, input.oxyUserId, input.conversationId)
+      : null;
+    if (input.conversationId && (!original || original.agentId !== agent._id))
+      return { posted: false as const, reason: 'conversation_not_found' as const };
     const conversation =
+      original ??
       (await findActiveThreadConversation(tx, input.oxyUserId, agent._id)) ??
       (await createConversation(tx, {
         oxyUserId: input.oxyUserId,
