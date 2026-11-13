@@ -384,6 +384,7 @@
     "chats": "Chats",
     "support": "Support",
     "shows": "Shows",
+    "unread": "{{count}} unread",
     "newConversation": "New conversation",
     "chatOptions": "Options for {{title}}",
     "rename": "Rename",
@@ -1662,70 +1663,83 @@
   },
   "gemie": {
     "accounts": {
-      "title": "Connected accounts",
-      "description": "Link a WhatsApp or Telegram account and {{name}} answers the messages that arrive on it, as you choose below. Only {{name}} can read or send through it.",
-      "loadFailed": "Could not load this. Try again.",
-      "link": "Link an account",
-      "linkNamed": "Link a {{platform}} account",
-      "linkFailed": "Could not link {{platform}}: {{reason}}",
-      "tryAgain": "try again in a moment.",
-      "linkExpired": "The {{platform}} code expired before it was scanned. Link it again.",
-      "unavailable": "Linking WhatsApp or Telegram is not available right now.",
-      "linked": "{{platform}} is linked. {{name}} answers there now.",
-      "scanTitle": "Scan with {{platform}}",
-      "scan": {
-        "whatsapp": "Open WhatsApp on your phone, go to Settings > Linked devices > Link a device, and scan this code."
+      "answerChat": "Answer {{name}}",
+      "answeringLabel": "Answers on its own",
+      "answeringNobody": "Nobody",
+      "answeringNone": "No gemie replies on its own to what arrives here. The gemies above still read and send when you ask them.",
+      "answersOnItsOwn": "Answers on its own",
+      "cancel": "Cancel",
+      "connect": "Connect an account",
+      "connectFailed": "Could not connect {{platform}}: {{reason}}",
+      "connectNamed": "Connect a {{platform}} account",
+      "connected": "{{platform}} is connected. Choose which of your gemies may use it.",
+      "description": "Connect your WhatsApp or Telegram once, then choose which of your gemies may use each account. They read and send through it when you ask them, or when a task of yours needs it. One of them can also answer what arrives on it on its own.",
+      "grantLabel": "{{gemie}} may use {{account}}",
+      "grants": {
+        "description": "{{name}} reads and sends through these when you ask it, or when a task of yours needs it.",
+        "empty": "You have not connected a WhatsApp or Telegram account yet.",
+        "manage": "Connect or manage accounts",
+        "title": "Accounts {{name}} can use"
       },
-      "status": {
-        "qr-pending": "Waiting for the scan",
-        "connected": "Connected",
-        "disconnected": "Reconnecting",
-        "logged-out": "Unlinked from the phone. Remove it and link it again.",
-        "failed": "Could not reconnect. Remove it and link it again.",
-        "paused": "Paused"
-      },
-      "lastMessage": "Last message: {{when}}",
-      "noMessagesYet": "No messages yet",
-      "repliesLabel": "Who {{name}} answers",
-      "replies": {
-        "everyone": "Everyone who writes",
-        "chosen": "Only the chats I choose",
-        "nobody": "Nobody: {{name}} only reads and sends when you ask"
-      },
-      "groupRepliesLabel": "In groups",
+      "groupChat": "{{name}} (group)",
       "groupReplies": {
         "mentions": "Only when mentioned or replied to",
         "never": "Never"
       },
+      "groupRepliesLabel": "In groups",
+      "lastMessage": "Last message: {{when}}",
+      "linkExpired": "The {{platform}} code expired before it was scanned. Connect it again.",
+      "loadFailed": "Could not load this. Try again.",
       "noChats": "No chats yet. They appear here once messages arrive.",
-      "groupChat": "{{name}} (group)",
-      "answerChat": "Answer {{name}}",
+      "noMessagesYet": "No messages yet",
       "remove": "Remove",
+      "removeDescription": "Your gemies stop using this {{platform}} account and its synced chats are deleted. You can connect it again by scanning a new code.",
+      "removeFailed": "Could not remove it. Try again.",
       "removeNamed": "Remove the {{platform}} account",
       "removeTitle": "Remove {{platform}}",
-      "removeDescription": "{{name}} stops answering on this {{platform}} account and its synced chats are deleted. You can link it again by scanning a new code.",
       "removed": "{{platform}} removed",
-      "removeFailed": "Could not remove it. Try again.",
-      "cancel": "Cancel",
-      "saveFailed": "Could not save. Try again.",
+      "replies": {
+        "chosen": "Only the chats I choose",
+        "everyone": "Everyone who writes",
+        "nobody": "Nobody: {{name}} only reads and sends when you ask"
+      },
+      "repliesLabel": "Who {{name}} answers",
       "retry": "Retry",
+      "saveFailed": "Could not save. Try again.",
+      "scan": {
+        "whatsapp": "Open WhatsApp on your phone, go to Settings > Linked devices > Link a device, and scan this code."
+      },
+      "scanTitle": "Scan with {{platform}}",
+      "status": {
+        "connected": "Connected",
+        "disconnected": "Reconnecting",
+        "failed": "Could not reconnect. Remove it and connect it again.",
+        "logged-out": "Unlinked from the phone. Remove it and connect it again.",
+        "paused": "Paused",
+        "qr-pending": "Waiting for the scan"
+      },
       "telegram": {
         "cannotReply": "Telegram does not let {{name}} reply yet: allow \"Reply to messages\" for the bot in Telegram › Settings › Telegram Business › Chatbots.",
         "linkTitle": "Connect Telegram",
         "note": "Telegram Business needs Telegram Premium, and covers your private chats only (not groups or channels). It stays connected until you remove it in Telegram.",
         "open": "Open Telegram",
-        "removeDescription": "{{name}} stops answering on your Telegram and what it read there is deleted. To disconnect it in Telegram too, remove the bot in Telegram › Settings › Telegram Business › Chatbots.",
+        "removeDescription": "Your gemies stop using your Telegram and what they read there is deleted. To disconnect it in Telegram too, remove the bot in Telegram › Settings › Telegram Business › Chatbots.",
         "status": {
           "disconnected": "Reconnecting",
           "failed": "Telegram could not be reached. It retries on its own.",
-          "logged-out": "Revoked: this Telegram now answers through another gemie. Remove it, or link it again.",
+          "logged-out": "Revoked: this Telegram was connected again as another account. Remove this one.",
           "paused": "Paused in Telegram. It resumes on its own when you turn the bot back on there.",
           "qr-pending": "Waiting for you in Telegram"
         },
         "step1": "1. Open the Gemies bot in Telegram and press Start (or scan this code with your phone).",
         "step2": "2. In Telegram, go to Settings › Telegram Business › Chatbots, add the bot and choose which chats it may answer.",
         "waitingBusiness": "Telegram knows it is you. Now go to Telegram › Settings › Telegram Business › Chatbots and add the bot you just opened."
-      }
+      },
+      "title": "Connected accounts",
+      "tryAgain": "try again in a moment.",
+      "unavailable": "Connecting WhatsApp or Telegram is not available right now.",
+      "usedBy": "Gemies that can use it",
+      "usedByHint": "They read and send through it when you ask them, or when a task of yours needs it."
     },
     "connectors": {
       "cancel": "Cancel",
@@ -1733,7 +1747,13 @@
         "communication": "Communication",
         "data": "Data",
         "development": "Development",
-        "productivity": "Productivity"
+        "productivity": "Productivity",
+        "commerce": "Commerce",
+        "design": "Design",
+        "finance": "Finance",
+        "marketing": "Marketing",
+        "other": "Other",
+        "search": "Search and research"
       },
       "connected": {
         "browse": "Browse connectors",
@@ -1788,7 +1808,7 @@
         "categories": "Categories",
         "connect": "Connect",
         "connectAnother": "Add account",
-        "description": "Connect the apps you work with. Each is the provider’s own MCP server: you sign in with them, and Gemies never sees your password.",
+        "description": "Connect the apps you work with: the providers’ own MCP servers, and hundreds more from the official MCP Registry. Official means the provider publishes it; Community means a developer does. When one asks you to sign in, you sign in with them, and Gemies never sees your password.",
         "docs": "About",
         "empty": "No connector is available right now.",
         "featured": "Featured",
@@ -1800,6 +1820,31 @@
         "connectedCount": {
           "one": "Connected",
           "other": "{{count}} accounts connected"
+        },
+        "allCount": {
+          "one": "All connectors · 1",
+          "other": "All connectors · {{count}}"
+        },
+        "filter": {
+          "noSignIn": "No sign-in",
+          "official": "Official",
+          "verified": "Verified"
+        },
+        "filters": "Filters",
+        "more": {
+          "one": "Show 1 more",
+          "other": "Show more ({{count}} left)"
+        },
+        "results": {
+          "zero": "No results",
+          "one": "1 result",
+          "other": "{{count}} results"
+        },
+        "sort": "Sort by",
+        "sortBy": {
+          "featured": "Featured",
+          "name": "Name",
+          "recent": "Recently updated"
         }
       },
       "usedBy": "Used by {{names}}",
@@ -1807,6 +1852,11 @@
         "zero": "No tools",
         "one": "1 tool",
         "other": "{{count}} tools"
+      },
+      "trust": {
+        "community": "Community",
+        "official": "Official",
+        "verified": "Verified"
       }
     }
   }

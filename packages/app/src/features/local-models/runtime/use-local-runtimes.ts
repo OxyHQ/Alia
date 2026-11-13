@@ -23,9 +23,6 @@ interface LocalRuntime {
   models: LocalRuntimeModel[];
 }
 
-/** How long a read of the account's runtimes is trusted before a mount or focus reads it again. */
-const REFRESH_MS = 30_000;
-
 function useLocalRuntimes() {
   const { isAuthenticated } = useOxy();
 
@@ -36,12 +33,10 @@ function useLocalRuntimes() {
       return response.data.runtimes ?? [];
     },
     enabled: isAuthenticated,
-    // No polling (every 30 s on every chat, for a list that changes when a tab opens or closes).
-    // Read on mount and when the tab comes back; a request to a runtime that just left is
-    // answered with a refusal the composer shows. Realtime: the server knows when a runtime's
-    // socket connects or drops, and a `user-runtimes:changed` event would invalidate this key.
-    staleTime: REFRESH_MS,
-    refetchOnWindowFocus: true,
+    // Kept by the account's realtime connection: a device offering or withdrawing its models is a
+    // `runtimes` signal that re-reads this once, and so is a reconnect (`useAppRealtime`). No timer.
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
     retry: false,
   });
 }

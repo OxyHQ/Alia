@@ -384,6 +384,7 @@
     "chats": "Chats",
     "support": "Soporte",
     "shows": "Shows",
+    "unread": "{{count}} sin leer",
     "newConversation": "Nueva conversación",
     "chatOptions": "Opciones de {{title}}",
     "rename": "Renombrar",
@@ -1662,70 +1663,83 @@
   },
   "gemie": {
     "accounts": {
-      "title": "Cuentas conectadas",
-      "description": "Vincula una cuenta de WhatsApp o Telegram y {{name}} responderá los mensajes que lleguen a ella, como elijas abajo. Solo {{name}} puede leer o enviar por ella.",
-      "loadFailed": "No se ha podido cargar. Inténtalo de nuevo.",
-      "link": "Vincular una cuenta",
-      "linkNamed": "Vincular una cuenta de {{platform}}",
-      "linkFailed": "No se ha podido vincular {{platform}}: {{reason}}",
-      "tryAgain": "inténtalo de nuevo en un momento.",
-      "linkExpired": "El código de {{platform}} caducó antes de escanearlo. Vuelve a vincularlo.",
-      "unavailable": "Ahora mismo no se puede vincular WhatsApp ni Telegram.",
-      "linked": "{{platform}} está vinculado. {{name}} ya responde allí.",
-      "scanTitle": "Escanea con {{platform}}",
-      "scan": {
-        "whatsapp": "Abre WhatsApp en tu teléfono, ve a Ajustes > Dispositivos vinculados > Vincular un dispositivo y escanea este código."
+      "answerChat": "Responder a {{name}}",
+      "answeringLabel": "Responde por su cuenta",
+      "answeringNobody": "Nadie",
+      "answeringNone": "Ningún gemie responde por su cuenta a lo que llega aquí. Los gemies de arriba siguen leyendo y enviando cuando se lo pides.",
+      "answersOnItsOwn": "Responde por su cuenta",
+      "cancel": "Cancelar",
+      "connect": "Conectar una cuenta",
+      "connectFailed": "No se ha podido conectar {{platform}}: {{reason}}",
+      "connectNamed": "Conectar una cuenta de {{platform}}",
+      "connected": "{{platform}} está conectado. Elige qué gemies pueden usarlo.",
+      "description": "Conecta tu WhatsApp o tu Telegram una vez y elige qué gemies pueden usar cada cuenta. Leen y envían por ella cuando se lo pides o cuando una tarea tuya lo necesita. Uno de ellos puede además responder por su cuenta a lo que llega.",
+      "grantLabel": "{{gemie}} puede usar {{account}}",
+      "grants": {
+        "description": "{{name}} lee y envía por estas cuentas cuando se lo pides o cuando una tarea tuya lo necesita.",
+        "empty": "Aún no has conectado ninguna cuenta de WhatsApp ni de Telegram.",
+        "manage": "Conectar o gestionar cuentas",
+        "title": "Cuentas que puede usar {{name}}"
       },
-      "status": {
-        "qr-pending": "Esperando el escaneo",
-        "connected": "Conectada",
-        "disconnected": "Reconectando",
-        "logged-out": "Desvinculada desde el teléfono. Quítala y vuelve a vincularla.",
-        "failed": "No se ha podido reconectar. Quítala y vuelve a vincularla.",
-        "paused": "En pausa"
-      },
-      "lastMessage": "Último mensaje: {{when}}",
-      "noMessagesYet": "Aún no hay mensajes",
-      "repliesLabel": "A quién responde {{name}}",
-      "replies": {
-        "everyone": "A todo el que escriba",
-        "chosen": "Solo a los chats que elija",
-        "nobody": "A nadie: {{name}} solo lee y envía cuando se lo pides"
-      },
-      "groupRepliesLabel": "En grupos",
+      "groupChat": "{{name}} (grupo)",
       "groupReplies": {
         "mentions": "Solo cuando le mencionan o le responden",
         "never": "Nunca"
       },
+      "groupRepliesLabel": "En grupos",
+      "lastMessage": "Último mensaje: {{when}}",
+      "linkExpired": "El código de {{platform}} caducó antes de escanearlo. Vuelve a conectarlo.",
+      "loadFailed": "No se ha podido cargar. Inténtalo de nuevo.",
       "noChats": "Aún no hay chats. Aparecen aquí cuando llegan mensajes.",
-      "groupChat": "{{name}} (grupo)",
-      "answerChat": "Responder a {{name}}",
+      "noMessagesYet": "Aún no hay mensajes",
       "remove": "Quitar",
+      "removeDescription": "Tus gemies dejarán de usar esta cuenta de {{platform}} y se borrarán sus chats sincronizados. Puedes volver a conectarla escaneando un código nuevo.",
+      "removeFailed": "No se ha podido quitar. Inténtalo de nuevo.",
       "removeNamed": "Quitar la cuenta de {{platform}}",
       "removeTitle": "Quitar {{platform}}",
-      "removeDescription": "{{name}} dejará de responder en esta cuenta de {{platform}} y se borrarán sus chats sincronizados. Puedes volver a vincularla escaneando un código nuevo.",
       "removed": "{{platform}} quitado",
-      "removeFailed": "No se ha podido quitar. Inténtalo de nuevo.",
-      "cancel": "Cancelar",
-      "saveFailed": "No se ha podido guardar. Inténtalo de nuevo.",
+      "replies": {
+        "chosen": "Solo a los chats que elija",
+        "everyone": "A todo el que escriba",
+        "nobody": "A nadie: {{name}} solo lee y envía cuando se lo pides"
+      },
+      "repliesLabel": "A quién responde {{name}}",
       "retry": "Reintentar",
+      "saveFailed": "No se ha podido guardar. Inténtalo de nuevo.",
+      "scan": {
+        "whatsapp": "Abre WhatsApp en tu teléfono, ve a Ajustes > Dispositivos vinculados > Vincular un dispositivo y escanea este código."
+      },
+      "scanTitle": "Escanea con {{platform}}",
+      "status": {
+        "connected": "Conectada",
+        "disconnected": "Reconectando",
+        "failed": "No se ha podido reconectar. Quítala y vuelve a conectarla.",
+        "logged-out": "Desvinculada desde el teléfono. Quítala y vuelve a conectarla.",
+        "paused": "En pausa",
+        "qr-pending": "Esperando el escaneo"
+      },
       "telegram": {
         "cannotReply": "Telegram aún no deja responder a {{name}}: permite «Responder a mensajes» al bot en Telegram › Ajustes › Telegram Business › Chatbots.",
         "linkTitle": "Conectar Telegram",
         "note": "Telegram Business necesita Telegram Premium y solo cubre tus chats privados (no grupos ni canales). Sigue conectado hasta que lo quites en Telegram.",
         "open": "Abrir Telegram",
-        "removeDescription": "{{name}} deja de responder en tu Telegram y se borra lo que leyó allí. Para desconectarlo también en Telegram, quita el bot en Telegram › Ajustes › Telegram Business › Chatbots.",
+        "removeDescription": "Tus gemies dejarán de usar tu Telegram y se borrará lo que leyeron allí. Para desconectarlo también en Telegram, quita el bot en Telegram › Ajustes › Telegram Business › Chatbots.",
         "status": {
           "disconnected": "Reconectando",
           "failed": "No se ha podido contactar con Telegram. Lo reintenta solo.",
-          "logged-out": "Revocado: este Telegram ahora responde a través de otro gemie. Quítalo o vuelve a vincularlo.",
+          "logged-out": "Revocado: este Telegram se conectó de nuevo como otra cuenta. Quita esta.",
           "paused": "En pausa en Telegram. Se reanuda solo cuando vuelvas a activar el bot allí.",
           "qr-pending": "Esperándote en Telegram"
         },
         "step1": "1. Abre el bot de Gemies en Telegram y pulsa Iniciar (o escanea este código con el teléfono).",
         "step2": "2. En Telegram, ve a Ajustes › Telegram Business › Chatbots, añade el bot y elige qué chats puede responder.",
         "waitingBusiness": "Telegram ya sabe que eres tú. Ahora ve a Telegram › Ajustes › Telegram Business › Chatbots y añade el bot que acabas de abrir."
-      }
+      },
+      "title": "Cuentas conectadas",
+      "tryAgain": "inténtalo de nuevo en un momento.",
+      "unavailable": "Ahora mismo no se puede conectar WhatsApp ni Telegram.",
+      "usedBy": "Gemies que pueden usarla",
+      "usedByHint": "Leen y envían por ella cuando se lo pides o cuando una tarea tuya lo necesita."
     },
     "connectors": {
       "cancel": "Cancelar",
@@ -1733,7 +1747,13 @@
         "communication": "Comunicación",
         "data": "Datos",
         "development": "Desarrollo",
-        "productivity": "Productividad"
+        "productivity": "Productividad",
+        "commerce": "Comercio",
+        "design": "Diseño",
+        "finance": "Finanzas",
+        "marketing": "Marketing",
+        "other": "Otros",
+        "search": "Búsqueda e investigación"
       },
       "connected": {
         "browse": "Explorar conectores",
@@ -1788,7 +1808,7 @@
         "categories": "Categorías",
         "connect": "Conectar",
         "connectAnother": "Añadir cuenta",
-        "description": "Conecta las apps con las que trabajas. Cada una es el servidor MCP del propio proveedor: inicias sesión con ellos y Gemies nunca ve tu contraseña.",
+        "description": "Conecta las apps con las que trabajas: los servidores MCP de los propios proveedores y cientos más del registro oficial de MCP. Oficial significa que lo publica el proveedor; Comunidad, que lo publica un desarrollador. Si alguno te pide iniciar sesión, la inicias con ellos y Gemies nunca ve tu contraseña.",
         "docs": "Más información",
         "empty": "Ahora mismo no hay conectores disponibles.",
         "featured": "Destacados",
@@ -1800,6 +1820,31 @@
         "connectedCount": {
           "one": "Conectado",
           "other": "{{count}} cuentas conectadas"
+        },
+        "allCount": {
+          "one": "Todos los conectores · 1",
+          "other": "Todos los conectores · {{count}}"
+        },
+        "filter": {
+          "noSignIn": "Sin inicio de sesión",
+          "official": "Oficiales",
+          "verified": "Verificados"
+        },
+        "filters": "Filtros",
+        "more": {
+          "one": "Mostrar 1 más",
+          "other": "Mostrar más (quedan {{count}})"
+        },
+        "results": {
+          "zero": "Sin resultados",
+          "one": "1 resultado",
+          "other": "{{count}} resultados"
+        },
+        "sort": "Ordenar por",
+        "sortBy": {
+          "featured": "Destacados",
+          "name": "Nombre",
+          "recent": "Actualizados recientemente"
         }
       },
       "usedBy": "Lo usan {{names}}",
@@ -1807,6 +1852,11 @@
         "zero": "Sin herramientas",
         "one": "1 herramienta",
         "other": "{{count}} herramientas"
+      },
+      "trust": {
+        "community": "Comunidad",
+        "official": "Oficial",
+        "verified": "Verificado"
       }
     }
   }

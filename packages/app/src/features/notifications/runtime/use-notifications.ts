@@ -31,10 +31,10 @@ export function useNotifications(limit = 30) {
       const res = await apiClient.get('/notifications', { params: { limit } });
       return res.data;
     },
-    staleTime: 1000 * 30, // 30 seconds
-    // No polling: `use-notification-setup` invalidates ['notifications'] on every socket
-    // `notification`, and the tab coming back revalidates it.
-    refetchOnWindowFocus: true,
+    // No timer: a new notification is the `notification` event on the account's realtime
+    // connection, which re-reads this list once (`useAppRealtime`).
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
     retry: 2,
     enabled: isAuthenticated,
   });
@@ -49,7 +49,7 @@ export function useUnreadCount() {
       const res = await apiClient.get('/notifications/unread-count');
       return res.data;
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes — socket invalidates on real events
+    staleTime: Number.POSITIVE_INFINITY, // the `notification` event re-reads it
     refetchInterval: false, // rely on socket-driven invalidation
     retry: 1,
     enabled: isAuthenticated,

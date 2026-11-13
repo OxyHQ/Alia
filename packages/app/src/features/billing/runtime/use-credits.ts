@@ -39,14 +39,12 @@ export function useCredits() {
     undefined,
     {
       enabled: isAuthenticated && !!subject && !!activeSessionId,
-      // No polling (it was every 10 s from the composer on every chat: a quarter of the API calls
-      // that rate-limited an active person on Gemies, 2026-11-13). The balance moves when a turn
-      // ends (`use-alia-host` invalidates it), on a purchase or a referral (they invalidate it), and
-      // is revalidated when the tab comes back. This session's last balance stays in memory, never
-      // on disk, and is drawn meanwhile. Realtime: a `credits:changed` socket event would
-      // invalidate `queryKeys.credits.info` here.
-      staleTime: 30_000,
-      refetchOnWindowFocus: true,
+      // No timer: the balance is the server's `credits` event on the account's realtime connection
+      // (`useAppRealtime`), on every device, when a turn settles, a purchase lands or a referral
+      // pays; a client too far behind to catch up reads it again once. This session's last
+      // balance stays in memory to be drawn meanwhile (never on disk).
+      staleTime: Number.POSITIVE_INFINITY,
+      refetchOnWindowFocus: false,
       queryFn: async () => {
         const { data } = await apiClient.get('/credits');
         if (data.subjectAccountId !== subject) throw new Error('Credit account changed');
