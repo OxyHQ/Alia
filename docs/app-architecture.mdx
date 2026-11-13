@@ -12,15 +12,14 @@ order: 3
 classes. Metro is `@oxy.so/app-preset`'s `createOxyMetroConfig`
 (`metro.config.js`).
 
-Development bundles use Noxcturnal, Expo's oxc transformer
-(`experiments.noxcturnalTransformWorker` in `app.config.ts`). It runs only while
-the Babel config is the bare Expo preset, so `babel.config.js` is the one line
-`require('@oxy.so/app-preset/babel')` (bare `babel-preset-expo` in development)
-and Metro has no custom Babel transformer: an SVG drawn as a component is a TSX
-component, not an imported `.svg`. Production exports stay on Babel, because
-Noxcturnal keeps the requires of dead platform branches and pulls native-only
-packages into the web bundle. `LOG_EVENTS=<file>` shows which files fall back to
-Babel and why (`transform:noxcturnal:fallback`).
+Development and production bundles both go through Babel (`babel.config.js` is
+the one line `require('@oxy.so/app-preset/babel')`). Noxcturnal, Expo's oxc
+transformer (`experiments.noxcturnalTransformWorker`), stays off: its 0.1.x
+releases miscompile `@tanstack/query-core`'s `QueriesObserver` on web — the
+temporary that holds the lowered constructor's return value reuses the name of
+the `#result` private key — so every `useQueries` throws "attempted to use
+private field on non-instance" in development only. Turn it back on only with a
+release that compiles that class correctly.
 
 ```
 packages/app/
