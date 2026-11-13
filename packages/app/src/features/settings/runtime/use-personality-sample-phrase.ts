@@ -84,7 +84,9 @@ export function usePersonalitySamplePhrase() {
               // nothing to write as a call). What it knows of the person is the memory profile
               // already in its prompt.
               tool_choice: 'none',
-              max_tokens: 80,
+              // No `max_tokens`: on a reasoning model the cap counts its thinking too, and 80
+              // tokens of it left no greeting at all (`finish_reason: length`, empty). The
+              // prompt asks for one or two sentences; the server bounds the rest.
               temperature: 0.95,
               messages: [
                 {
