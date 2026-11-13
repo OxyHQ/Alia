@@ -157,7 +157,6 @@
       "personalization": "Personalización",
       "memory": "Memoria",
       "accounts": "Cuentas conectadas",
-      "connectors": "Conectores",
       "writingStyle": "Estilo de Escritura",
       "localModels": "Modelos locales",
       "storage": "Almacenamiento",
@@ -210,33 +209,6 @@
       "creditsPerMonth": "{{count}} créditos al mes",
       "logout": "Cerrar sesión",
       "logoutConfirm": "Cerrarás la sesión de Alia en este dispositivo. Tus otros dispositivos siguen con la sesión iniciada."
-    },
-    "connections": {
-      "catalog": "Catálogo de conectores",
-      "viewDetails": "Ver detalles",
-      "noOutput": "No hay salida disponible",
-      "noTools": "No hay herramientas disponibles",
-      "notConnected": "No conectado",
-      "toolCount": {
-        "zero": "Ninguna herramienta activada",
-        "one": "1 herramienta activada",
-        "other": "{{count}} herramientas activadas"
-      },
-      "serverStatus": {
-        "installed": "Instalado",
-        "running": "En ejecución",
-        "stopped": "Detenido",
-        "error": "Error"
-      },
-      "capability": {
-        "read": "Lectura",
-        "readWrite": "Lectura, escritura"
-      },
-      "auth": {
-        "oauth": "OAuth",
-        "apiKey": "Clave de API",
-        "none": "Ninguna"
-      }
     },
     "assistant": {
       "memory": {
@@ -466,7 +438,8 @@
       "yellow": "Ámbar",
       "lime": "Verde",
       "cyan": "Cian"
-    }
+    },
+    "connectors": "Conectores"
   },
   "billing": {
     "title": "Facturación",
@@ -1196,80 +1169,6 @@
     "newChat": "Nueva conversación",
     "closeDialog": "Cerrar diálogo"
   },
-  "connectors": {
-    "title": "Conectores",
-    "subtitle": "Conecta apps y servicios para que Alia actúe en tu nombre",
-    "searchPlaceholder": "Buscar conectores...",
-    "installed": "Instalados",
-    "installedEmpty": "Aún no hay conectores instalados",
-    "connect": "Conectar",
-    "install": "Instalar",
-    "installing": "Instalando...",
-    "installName": "Instalar {{name}}",
-    "installEnvDescription": "Este conector requiere las siguientes variables de entorno.",
-    "enterValue": "Introduce {{name}}",
-    "installedToast": "{{name}} instalado",
-    "installFailed": "No se pudo instalar el conector",
-    "connected": "Conectado",
-    "connectFailed": "No se pudo conectar",
-    "oauthError": "La conexión se canceló o falló",
-    "noResults": "Ningún conector coincide con tu búsqueda",
-    "addCustom": "Añadir conector personalizado",
-    "addCustomTitle": "Añadir conector personalizado",
-    "addCustomDescription": "Conéctate a un servidor MCP remoto mediante su URL.",
-    "nameLabel": "Nombre",
-    "namePlaceholder": "Mi conector personalizado",
-    "urlLabel": "URL del servidor MCP remoto",
-    "advancedSettings": "Ajustes avanzados",
-    "headerNameLabel": "Nombre de cabecera (opcional)",
-    "headerValueLabel": "Valor de cabecera (opcional)",
-    "customAdded": "{{name}} añadido",
-    "customExists": "Ya existe un conector con este nombre",
-    "customFailed": "No se pudo añadir el conector",
-    "adding": "Añadiendo...",
-    "add": "Añadir",
-    "detailTitle": "Conector",
-    "back": "Conectores",
-    "notFound": "Conector no encontrado",
-    "skills": "Habilidades",
-    "information": "Información",
-    "connectToSeeTools": "Conéctate para ver las herramientas disponibles",
-    "capabilities": "Capacidades",
-    "transport": "Transporte",
-    "authentication": "Autenticación",
-    "website": "Sitio web",
-    "status": "Estado",
-    "uninstall": "Desinstalar",
-    "uninstallTitle": "¿Desinstalar conector?",
-    "uninstallDescription": "Esto elimina {{name}} y sus herramientas. Puedes reinstalarlo cuando quieras.",
-    "uninstalledToast": "{{name}} desinstalado",
-    "uninstallFailed": "No se pudo desinstalar el conector",
-    "installFromList": "Instálalo desde la lista de conectores",
-    "examplePrompt": "resume mi actividad reciente",
-    "category": {
-      "featured": "Destacados",
-      "productivity": "Productividad",
-      "development": "Desarrollo",
-      "communication": "Comunicación",
-      "data": "Datos",
-      "search": "Búsqueda",
-      "filesystem": "Sistema de archivos"
-    },
-    "tab": {
-      "public": "Públicos",
-      "personal": "Personales"
-    },
-    "personalEmpty": "Aún no tienes conectores personales. Añade uno con +",
-    "device": {
-      "title": "Apagados en tu ordenador",
-      "description": "Los conectores de comando solo se ejecutan en tu propio ordenador, los inicia Alia para escritorio , nunca los servidores de Alia. Estos están apagados: enciende uno para que vuelva a ejecutarse allí.",
-      "turnOn": "Encender",
-      "turnOnTitle": "¿Encender {{name}}?",
-      "turnOnDescription": "Ejecuta este comando en tu ordenador mientras Alia para escritorio esté abierto: {{command}}",
-      "turnedOnToast": "{{name}} está encendido. Se inicia la próxima vez que Alia para escritorio se conecte.",
-      "turnOnFailed": "No se pudo encender el conector. Inténtalo de nuevo."
-    }
-  },
   "weather": {
     "toggleUnit": "Cambiar unidad de temperatura",
     "condition": {
@@ -1826,6 +1725,88 @@
         "step1": "1. Abre el bot de Gemies en Telegram y pulsa Iniciar (o escanea este código con el teléfono).",
         "step2": "2. En Telegram, ve a Ajustes › Telegram Business › Chatbots, añade el bot y elige qué chats puede responder.",
         "waitingBusiness": "Telegram ya sabe que eres tú. Ahora ve a Telegram › Ajustes › Telegram Business › Chatbots y añade el bot que acabas de abrir."
+      }
+    },
+    "connectors": {
+      "cancel": "Cancelar",
+      "category": {
+        "communication": "Comunicación",
+        "data": "Datos",
+        "development": "Desarrollo",
+        "productivity": "Productividad"
+      },
+      "connected": {
+        "browse": "Explorar conectores",
+        "description": "Las cuentas que conectaste. Alia puede usarlas todas; los demás gemies solo las que les des en su editor.",
+        "emptyDescription": "Conecta Notion, Linear, Slack y más para que tus gemies trabajen con ellos.",
+        "emptyTitle": "Todavía no hay nada conectado",
+        "loadFailed": "No se pudieron cargar tus conectores.",
+        "title": "Conectados"
+      },
+      "custom": {
+        "add": "Añadir servidor",
+        "adding": "Añadiendo…",
+        "advanced": "Avanzado",
+        "cancel": "Cancelar",
+        "description": "Tu propio servidor MCP remoto, por su dirección https. Si te pide iniciar sesión, te llevará allí.",
+        "failed": "No se pudo añadir el servidor.",
+        "headerName": "Nombre de la cabecera",
+        "headerValue": "Valor de la cabecera",
+        "name": "Nombre",
+        "namePlaceholder": "Mi servidor",
+        "title": "Añadir un servidor MCP propio",
+        "url": "URL del servidor"
+      },
+      "disconnect": "Desconectar",
+      "disconnectDescription": "Gemies olvida esta cuenta y pide a {{name}} que retire su acceso. Los gemies que la usaban pierden sus herramientas.",
+      "disconnectFailed": "Ahora mismo no se pudo desconectar. Vuelve a intentarlo.",
+      "disconnectTitle": "¿Desconectar {{name}}?",
+      "disconnected": "{{name}} está desconectado.",
+      "reconnect": "Volver a conectar",
+      "reconnectFailed": "No se pudo volver a conectar {{name}}.",
+      "reconnected": "{{name}} vuelve a estar conectado.",
+      "rename": "Cambiar nombre",
+      "renameDescription": "Cómo distingues esta cuenta de {{name}} de las demás.",
+      "renameFailed": "No se pudo guardar el nombre.",
+      "renameLabel": "Nombre de la cuenta",
+      "renameSave": "Guardar",
+      "renameTitle": "Pon nombre a esta cuenta",
+      "signIn": {
+        "connected": "{{name}} está conectado.",
+        "declined": "Se canceló el inicio de sesión.",
+        "expired": "El inicio de sesión tardó demasiado. Vuelve a intentarlo.",
+        "failed": "No se pudo conectar {{name}}. Vuelve a intentarlo.",
+        "failedGeneric": "No se pudo conectar el conector. Vuelve a intentarlo."
+      },
+      "status": {
+        "error": "Hay que volver a conectarlo",
+        "installed": "Aún sin conectar",
+        "running": "Conectado"
+      },
+      "store": {
+        "all": "Todos",
+        "categories": "Categorías",
+        "connect": "Conectar",
+        "connectAnother": "Añadir cuenta",
+        "description": "Conecta las apps con las que trabajas. Cada una es el servidor MCP del propio proveedor: inicias sesión con ellos y Gemies nunca ve tu contraseña.",
+        "docs": "Más información",
+        "empty": "Ahora mismo no hay conectores disponibles.",
+        "featured": "Destacados",
+        "loadFailed": "No se pudieron cargar los conectores.",
+        "noResults": "Ningún conector coincide con «{{query}}».",
+        "retry": "Reintentar",
+        "search": "Buscar conectores",
+        "title": "Conectores",
+        "connectedCount": {
+          "one": "Conectado",
+          "other": "{{count}} cuentas conectadas"
+        }
+      },
+      "usedBy": "Lo usan {{names}}",
+      "toolCount": {
+        "zero": "Sin herramientas",
+        "one": "1 herramienta",
+        "other": "{{count}} herramientas"
       }
     }
   }

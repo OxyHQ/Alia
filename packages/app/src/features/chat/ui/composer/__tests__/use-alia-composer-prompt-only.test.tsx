@@ -55,9 +55,7 @@ vi.mock('@/features/chat/runtime/use-capability-modes', () => ({
     toggle: () => {},
   }),
 }));
-vi.mock('@/features/connections/runtime/use-mcp-servers', () => ({
-  useMcpServers: () => ({ installed: [] }),
-}));
+vi.mock('@gemies/sdk/connectors', () => ({ useConnections: () => ({ data: [] }) }));
 vi.mock('@/features/skills/runtime/use-skills', () => ({
   useInstalledSkills: () => ({ data: [] }),
 }));

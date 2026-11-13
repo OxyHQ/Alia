@@ -3,7 +3,7 @@ import type { SettingsIcon } from '@oxy.so/bloom/settings-modal';
 import { RiSettings6Line } from '@oxy.so/bloom/icons/RiSettings6Line';
 import { RiBankCardLine } from '@oxy.so/bloom/icons/RiBankCardLine';
 import { RiDashboardLine } from '@oxy.so/bloom/icons/RiDashboardLine';
-import { RiToolsFill } from '@oxy.so/bloom/icons/RiToolsFill';
+import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 import { RiDatabase2Line } from '@oxy.so/bloom/icons/RiDatabase2Line';
 import { RiShieldLine } from '@oxy.so/bloom/icons/RiShieldLine';
 import { RiPaletteLine } from '@oxy.so/bloom/icons/RiPaletteLine';
@@ -52,8 +52,8 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
       {
         id: 'connectors',
         route: '/(app)/settings/connectors',
-        icon: RiToolsFill,
-        labelKey: 'settings.sections.connectors',
+        icon: RiPlugLine,
+        labelKey: 'gemie.connectors.connected.title',
       },
       {
         id: 'storage',

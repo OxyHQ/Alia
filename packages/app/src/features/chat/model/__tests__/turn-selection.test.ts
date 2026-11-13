@@ -6,7 +6,7 @@ import {
   toggleConnectorId,
   toggleSkillName,
 } from '@/features/chat/model/turn-selection';
-import type { InstalledMcpServer } from '@/features/connections/runtime/use-mcp-servers';
+import type { Connection } from '@gemies/sdk/connectors';
 import type { InstalledSkill } from '@/features/skills/runtime/use-skills';
 
 /**
@@ -56,19 +56,22 @@ function skill(over: Partial<InstalledSkill> & { _id: string; name: string }): I
   } as InstalledSkill;
 }
 
-function connector(over: Partial<InstalledMcpServer> & { _id: string }): InstalledMcpServer {
+function connector(over: Partial<Connection> & { _id: string }): Connection {
   return {
     name: over._id,
     displayName: over._id,
+    description: null,
+    accountLabel: null,
     source: 'registry',
-    transport: 'streamable-http',
-    runtime: 'server',
+    registryId: over._id,
     config: {},
     status: 'running',
-    tools: [{ name: 't', description: '', inputSchema: {} }],
-    enabled: true,
+    statusMessage: null,
+    tools: [{ name: 't', description: '' }],
+    logoUrl: null,
+    usedBy: [],
     ...over,
-  } as InstalledMcpServer;
+  };
 }
 
 describe('buildTurnSelection', () => {
@@ -94,6 +97,23 @@ describe('buildTurnSelection', () => {
 
     expect(selection.skills).toEqual([]);
     expect(selection.connectors.map((c) => c.label)).toEqual(['Linear']);
+  });
+
+  it('names which account, when the person connected several of one connector', () => {
+    const selection = buildTurnSelection({
+      installedSkills: [],
+      installedConnectors: [
+        connector({ _id: 'n1', displayName: 'Notion', accountLabel: 'ana@acme.com' }),
+        connector({ _id: 'n2', displayName: 'Notion', accountLabel: 'Home' }),
+      ],
+      selectedSkillNames: [],
+      selectedConnectorId: null,
+    });
+
+    expect(selection.connectors.map((c) => c.label)).toEqual([
+      'Notion · ana@acme.com',
+      'Notion · Home',
+    ]);
   });
 
   it('leaves a disabled skill out', () => {
@@ -138,11 +158,9 @@ describe('buildTurnSelection', () => {
 });
 
 describe('isRunnableConnector', () => {
-  const cases: Array<[string, Partial<InstalledMcpServer>]> = [
-    ['disabled', { enabled: false }],
-    ['not running', { status: 'stopped' }],
-    ['erroring', { status: 'error' }],
-    ['on the local runtime', { runtime: 'local' }],
+  const cases: Array<[string, Partial<Connection>]> = [
+    ['not connected yet', { status: 'installed' }],
+    ['needing a reconnect', { status: 'error' }],
     ['exporting no tools', { tools: [] }],
   ];
 
@@ -150,7 +168,7 @@ describe('isRunnableConnector', () => {
     expect(isRunnableConnector(connector({ _id: 'c1', ...over }))).toBe(false);
   });
 
-  it('accepts a running server connector with tools', () => {
+  it('accepts a connected connector with tools', () => {
     expect(isRunnableConnector(connector({ _id: 'c1' }))).toBe(true);
   });
 });

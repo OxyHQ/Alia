@@ -46,6 +46,7 @@ const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
   shows: 'sidebar.shows',
+  connectors: 'sidebar.connectors',
   notifications: 'sidebar.notifications',
 };
 

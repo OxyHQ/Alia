@@ -1,5 +1,6 @@
 import { type ComposerAddMenu, useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
 import type { GemieAttachment, GemieComposerProps } from '@gemies/sdk';
+import { useConnections } from '@gemies/sdk/connectors';
 import {
   type DraftTarget,
   useComposerDraft,
@@ -13,7 +14,6 @@ import {
   toggleSkillName,
 } from '@/features/chat/model/turn-selection';
 import { useCapabilityModes } from '@/features/chat/runtime/use-capability-modes';
-import { useMcpServers } from '@/features/connections/runtime/use-mcp-servers';
 import { useInstalledSkills } from '@/features/skills/runtime/use-skills';
 import type { SendOptions } from '@/shared/contracts/chat-turn';
 import { useTranslation } from '@/shared/i18n/use-translation';
@@ -104,7 +104,7 @@ export function useComposerMenu({
     [address],
   );
   const { active: modeActive, toggle: toggleMode } = useCapabilityModes();
-  const { installed } = useMcpServers();
+  const { data: installed = [] } = useConnections();
   const { data: installedSkills = [] } = useInstalledSkills();
 
   /**

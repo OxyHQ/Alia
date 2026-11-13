@@ -84,9 +84,6 @@ vi.mock('@/features/settings/ui/skills-section', () => ({ SkillsSection: () => n
 vi.mock('@/features/settings/ui/writing-style-section', () => ({
   WritingStyleSection: () => null,
 }));
-vi.mock('@/features/settings/ui/connector-detail-section', () => ({
-  ConnectorDetailSection: () => null,
-}));
 vi.mock('@/features/settings/ui/agent-attention-section', () => ({
   AgentAttentionSection: () => null,
 }));
@@ -140,23 +137,13 @@ it('does not expose private sections or deep links to a signed-out account', () 
   mount();
   act(() => actions.open('accounts'));
   expect(state.props.pages.accounts).toBeUndefined();
-  expect(state.props.pages['connector-detail']).toBeUndefined();
+  expect(state.props.pages.connectors).toBeUndefined();
   expect(state.opens.at(-1).page).toBe('general');
 });
-it('retains OAuth callback parameters after returning to the workspace', () => {
+it('retains the parameters a deep link opened a page with', () => {
   mount();
-  act(() =>
-    actions.open('connector-detail', {
-      id: 'calendar',
-      mcp_oauth_code: 'fixture',
-      mcp_oauth_state: 'state',
-    }),
-  );
-  expect(actions.params).toEqual({
-    id: 'calendar',
-    mcp_oauth_code: 'fixture',
-    mcp_oauth_state: 'state',
-  });
+  act(() => actions.open('skills', { id: 'pdf-forms' }));
+  expect(actions.params).toEqual({ id: 'pdf-forms' });
 });
 it('hands off SDK surfaces only after modal exit completes', () => {
   mount();

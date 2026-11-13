@@ -78,9 +78,13 @@ vi.mock('@oxy.so/bloom/icons/RiPencilLine', icon('RiPencilLine'));
 vi.mock('@oxy.so/bloom/icons/RiBookOpenLine', icon('RiBookOpenLine'));
 vi.mock('@oxy.so/bloom/icons/RiPlugLine', icon('RiPlugLine'));
 
-vi.mock('@/shared/ui/image', async () => {
+// The connector's logo is the SDK's one component; the menu only hands it the connector.
+vi.mock('@gemies/sdk/connectors', async () => {
   const ReactModule = await import('react');
-  return { Image: (props: Record<string, unknown>) => ReactModule.createElement('Image', props) };
+  return {
+    ConnectorLogo: (props: Record<string, unknown>) =>
+      ReactModule.createElement('ConnectorLogo', props),
+  };
 });
 vi.mock('@oxy.so/bloom/icons/RiPlugLine', async () => {
   const ReactModule = await import('react');
@@ -189,7 +193,14 @@ describe('every switch says which way it is', () => {
             { id: 's2', name: 'draw', label: 'Draw', description: 'draws', selected: false },
           ],
           connectors: [
-            { id: 'c1', label: 'Calendar', icon: undefined, toolCount: 3, selected: true },
+            {
+              id: 'c1',
+              label: 'Calendar',
+              name: 'Connector',
+              logoUrl: null,
+              toolCount: 3,
+              selected: true,
+            },
           ],
         },
       }),
@@ -223,7 +234,14 @@ describe('the groups appear on their own terms', () => {
         turnSelection: {
           skills: [],
           connectors: [
-            { id: 'c1', label: 'Calendar', icon: undefined, toolCount: 1, selected: false },
+            {
+              id: 'c1',
+              label: 'Calendar',
+              name: 'Connector',
+              logoUrl: null,
+              toolCount: 1,
+              selected: false,
+            },
           ],
         },
       }),
@@ -242,7 +260,14 @@ describe('the groups appear on their own terms', () => {
             { id: 's1', name: 'research', label: 'Research', description: '', selected: false },
           ],
           connectors: [
-            { id: 'c1', label: 'Calendar', icon: undefined, toolCount: 1, selected: false },
+            {
+              id: 'c1',
+              label: 'Calendar',
+              name: 'Connector',
+              logoUrl: null,
+              toolCount: 1,
+              selected: false,
+            },
           ],
         },
       }),
@@ -266,7 +291,16 @@ describe('the groups appear on their own terms', () => {
       base({
         turnSelection: {
           skills: [{ id: 's1', name: 'a', label: 'A', description: '', selected: false }],
-          connectors: [{ id: 'c1', label: 'B', icon: undefined, toolCount: 1, selected: false }],
+          connectors: [
+            {
+              id: 'c1',
+              label: 'B',
+              name: 'Connector',
+              logoUrl: null,
+              toolCount: 1,
+              selected: false,
+            },
+          ],
         },
       }),
     );
@@ -283,7 +317,14 @@ describe('the groups appear on their own terms', () => {
             { id: 's1', name: 'canvas', label: 'Canvas skill', description: '', selected: false },
           ],
           connectors: [
-            { id: 'canvas', label: 'Canvas app', icon: undefined, toolCount: 1, selected: false },
+            {
+              id: 'canvas',
+              label: 'Canvas app',
+              name: 'Connector',
+              logoUrl: null,
+              toolCount: 1,
+              selected: false,
+            },
           ],
         },
       }),
@@ -312,7 +353,16 @@ describe('a press reaches the thing it names', () => {
     const options = base({
       turnSelection: {
         skills: [{ id: 's1', name: 'deep:research', label: 'R', description: '', selected: false }],
-        connectors: [{ id: 'c:1', label: 'C', icon: undefined, toolCount: 1, selected: false }],
+        connectors: [
+          {
+            id: 'c:1',
+            label: 'C',
+            name: 'Connector',
+            logoUrl: null,
+            toolCount: 1,
+            selected: false,
+          },
+        ],
       },
     });
     const menu = run(options);
