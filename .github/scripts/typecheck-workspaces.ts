@@ -141,8 +141,7 @@ function main(): void {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts: readonly [string, number, number][] = [
-    // One since 2026-11-12: the backend moved to OxyHQ/Gemies, and then
-    // `@alia.onl/sdk` and `@alia.onl/server`, as `@gemies/sdk` and `@gemies/server`.
+    // One: the app. The backend and the SDK live in OxyHQ/Gemies.
     ['workspaces', workspaces.length, 1],
     ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 0],
     ['EXCLUDED', Object.keys(EXCLUDED).length, 0],
