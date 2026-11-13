@@ -95,8 +95,8 @@ describe('screens that wait', () => {
       };
       walk(JSON.parse(raw), '');
     }
-    // Names of tools the model calls (`Loading tools`, `Loading WhatsApp chats`) are what the
+    // Names of tools the model calls (`Loading tools`, `Loading chats`) are what the
     // AGENT is doing, not a screen waiting.
-    expect(found.filter((entry) => !/loadTools|getWhatsAppChats/.test(entry))).toEqual([]);
+    expect(found.filter((entry) => !/loadTools|listAccountChats/.test(entry))).toEqual([]);
   });
 });

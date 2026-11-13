@@ -771,7 +771,6 @@
         "sendTelegramMessage": "Telegram",
         "sendSlack": "Slack",
         "sendDiscord": "Discord",
-        "sendSignal": "Signal",
         "sendEmail": "Email",
         "loadTools": "Loading tools",
         "agentSearch": "Searching Gemies",
@@ -1240,9 +1239,9 @@
       "searchKnowledgeBase": "Searching knowledge base",
       "webScraper": "Reading web page",
       "browse": "Browsing the web",
-      "sendWhatsAppMessage": "Sending WhatsApp message",
-      "getWhatsAppChats": "Loading WhatsApp chats",
-      "getWhatsAppMessages": "Reading WhatsApp messages",
+      "listAccountChats": "Loading chats",
+      "readAccountMessages": "Reading messages",
+      "sendAccountMessage": "Sending a message",
       "sendTelegramMessage": "Sending Telegram message",
       "getCurrentDate": "Getting current date",
       "generateFile": "Generating file",
@@ -1849,5 +1848,55 @@
     "title": "Shared conversation",
     "open": "Open Alia",
     "footer": "A read-only copy, shared by the person who had this conversation."
+  },
+  "gemie": {
+    "accounts": {
+      "title": "Connected accounts",
+      "description": "Link a WhatsApp or Telegram account and {{name}} answers the messages that arrive on it, as you choose below. Only {{name}} can read or send through it.",
+      "loadFailed": "Could not load this. Try again.",
+      "link": "Link an account",
+      "linkNamed": "Link a {{platform}} account",
+      "linkFailed": "Could not link {{platform}}: {{reason}}",
+      "tryAgain": "try again in a moment.",
+      "linkExpired": "The {{platform}} code expired before it was scanned. Link it again.",
+      "unavailable": "Linking WhatsApp or Telegram is not available right now.",
+      "linked": "{{platform}} is linked. {{name}} answers there now.",
+      "scanTitle": "Scan with {{platform}}",
+      "scan": {
+        "whatsapp": "Open WhatsApp on your phone, go to Settings > Linked devices > Link a device, and scan this code.",
+        "telegram": "Open Telegram on your phone, go to Settings > Devices > Link Desktop Device, and scan this code."
+      },
+      "status": {
+        "qr-pending": "Waiting for the scan",
+        "connected": "Connected",
+        "disconnected": "Reconnecting",
+        "logged-out": "Unlinked from the phone. Remove it and link it again.",
+        "failed": "Could not reconnect. Remove it and link it again."
+      },
+      "lastMessage": "Last message: {{when}}",
+      "noMessagesYet": "No messages yet",
+      "repliesLabel": "Who {{name}} answers",
+      "replies": {
+        "everyone": "Everyone who writes",
+        "chosen": "Only the chats I choose",
+        "nobody": "Nobody: {{name}} only reads and sends when you ask"
+      },
+      "groupRepliesLabel": "In groups",
+      "groupReplies": {
+        "mentions": "Only when mentioned or replied to",
+        "never": "Never"
+      },
+      "noChats": "No chats yet. They appear here once messages arrive.",
+      "groupChat": "{{name}} (group)",
+      "answerChat": "Answer {{name}}",
+      "remove": "Remove",
+      "removeNamed": "Remove the {{platform}} account",
+      "removeTitle": "Remove {{platform}}",
+      "removeDescription": "{{name}} stops answering on this {{platform}} account and its synced chats are deleted. You can link it again by scanning a new code.",
+      "removed": "{{platform}} removed",
+      "removeFailed": "Could not remove it. Try again.",
+      "cancel": "Cancel",
+      "saveFailed": "Could not save. Try again."
+    }
   }
 }
