@@ -46,7 +46,7 @@ const ALLOWED: Record<string, readonly string[]> = {
   settings: ['billing', 'chat', 'library', 'local-models', 'memory', 'notifications', 'skills'],
   chat: ['billing', 'local-models', 'memory', 'notifications', 'projects', 'skills', 'voice'],
   // realtime: what the account's connection keeps live is those features' own (`useAppRealtime`).
-  realtime: ['billing', 'local-models'],
+  realtime: ['billing', 'local-models', 'projects'],
 };
 
 /** What `shared/ui` may not reach: it renders what it is handed. */

@@ -1,7 +1,6 @@
 import type { Conversation } from '@gemies/sdk/model';
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { Folder } from '@/features/projects/runtime/folders-store';
-import type { Project } from '@/features/projects/runtime/projects-store';
+import type { Folder, Project } from '@/features/projects/runtime/collections';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import {

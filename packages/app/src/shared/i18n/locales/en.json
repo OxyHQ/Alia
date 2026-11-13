@@ -359,6 +359,7 @@
     "security": "Security"
   },
   "sidebar": {
+    "collectionsError": "Could not save that change to your folders. Try again.",
     "loadError": "Could not refresh your sidebar.",
     "newChat": "New Chat",
     "library": "Library",

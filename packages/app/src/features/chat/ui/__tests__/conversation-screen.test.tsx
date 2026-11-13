@@ -124,13 +124,8 @@ vi.mock('@/features/local-models/runtime/use-local-runtimes', () => ({
     loading: world.deviceIdsLoading,
   }),
 }));
-vi.mock('@/features/projects/runtime/projects-store', () => ({
-  useProjectsStore: (select: (s: { projects: unknown[] }) => unknown) =>
-    select({ projects: world.projects }),
-}));
-vi.mock('@/features/projects/runtime/folders-store', () => ({
-  useFoldersStore: (select: (s: { folders: unknown[] }) => unknown) =>
-    select({ folders: world.folders }),
+vi.mock('@/features/projects/runtime/collections', () => ({
+  useAccountCollections: () => ({ projects: world.projects, folders: world.folders }),
 }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (key: string) => key, locale: 'en' }),

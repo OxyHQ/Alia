@@ -20,6 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const linking = vi.hoisted(() => ({ openURL: vi.fn() }));
 const state = vi.hoisted(() => ({
   storage: new Map<string, string>(),
+  // biome-ignore lint/suspicious/noExplicitAny: the mocked collections store, set by its factory
+  collections: null as any,
   sidebarProps: null as null | Record<string, any>,
   conversations: [] as any[],
   isLoading: false,
@@ -81,6 +83,77 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 }));
 // The conversation store is the SDK's own (the sidebar reads which row streams from it); the
 // hooks that talk to the API are stubbed.
+// The account's folders, projects, pins and favourites, held here as the server would hold them.
+vi.mock('@/features/projects/runtime/collections', async () => {
+  const { create } = await import('zustand');
+  type Item = {
+    id: string;
+    kind: 'folder' | 'project';
+    name: string;
+    conversationIds: string[];
+    isExpanded: boolean;
+    [key: string]: unknown;
+  };
+  const store = create(() => ({
+    collections: [] as Item[],
+    pinned: [] as string[],
+    favorites: [] as string[],
+  }));
+  state.collections = store;
+  const set = (change: (s: ReturnType<typeof store.getState>) => object) =>
+    Promise.resolve(store.setState(change(store.getState())));
+  const flip = (list: string[], id: string) =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+  const edit = (id: string, change: (c: Item) => Item) =>
+    set((s) => ({ collections: s.collections.map((c) => (c.id === id ? change(c) : c)) }));
+  const make = (kind: Item['kind']) => (name: string) =>
+    set((s) => ({
+      collections: [
+        ...s.collections,
+        {
+          id: `${kind}-${s.collections.length + 1}`,
+          kind,
+          name,
+          conversationIds: [],
+          isExpanded: true,
+        },
+      ],
+    }));
+  const add = (id: string, conversationId: string) =>
+    edit(id, (c) => ({ ...c, conversationIds: [...c.conversationIds, conversationId] }));
+  const remove = (id: string, conversationId: string) =>
+    edit(id, (c) => ({
+      ...c,
+      conversationIds: c.conversationIds.filter((x) => x !== conversationId),
+    }));
+  return {
+    useAccountCollections: () => {
+      const s = store();
+      return {
+        folders: s.collections.filter((c) => c.kind === 'folder'),
+        projects: s.collections.filter((c) => c.kind === 'project'),
+        pinnedIds: s.pinned,
+        favoriteIds: s.favorites,
+        togglePin: (id: string) => set((x) => ({ pinned: flip(x.pinned, id) })),
+        toggleFavorite: (id: string) => set((x) => ({ favorites: flip(x.favorites, id) })),
+        createFolder: make('folder'),
+        createProject: make('project'),
+        updateFolder: (id: string, u: object) => edit(id, (c) => ({ ...c, ...u })),
+        updateProject: (id: string, u: object) => edit(id, (c) => ({ ...c, ...u })),
+        deleteFolder: (id: string) =>
+          set((x) => ({ collections: x.collections.filter((c) => c.id !== id) })),
+        deleteProject: (id: string) =>
+          set((x) => ({ collections: x.collections.filter((c) => c.id !== id) })),
+        toggleFolder: (id: string) => edit(id, (c) => ({ ...c, isExpanded: !c.isExpanded })),
+        toggleProject: (id: string) => edit(id, (c) => ({ ...c, isExpanded: !c.isExpanded })),
+        addConversationToFolder: add,
+        addConversationToProject: add,
+        removeConversationFromFolder: remove,
+        removeConversationFromProject: remove,
+      };
+    },
+  };
+});
 vi.mock('@gemies/sdk/runtime', async () => ({
   ...(await import('../../../../../node_modules/@gemies/sdk/src/runtime/conversation-store')),
   useConversations: () => ({
@@ -237,12 +310,8 @@ vi.mock('@oxy.so/bloom/typography', async () => {
 });
 
 import { Sidebar } from '../sidebar';
-import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
-import { useFoldersStore } from '@/features/projects/runtime/folders-store';
 import { useConversationStore } from '@gemies/sdk/runtime';
 import { useStore } from '@/features/chat/runtime/global-store';
-import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
-import { useProjectsStore } from '@/features/projects/runtime/projects-store';
 
 const NOW = new Date();
 
@@ -309,12 +378,9 @@ beforeEach(async () => {
   linking.openURL.mockClear();
   useStore.setState({ chatId: null });
   useConversationStore.setState({ streamingConversationId: null });
-  await useProjectsStore.getState().loadProjects('user-a');
-  await useFoldersStore.getState().loadFolders('user-a');
+  state.collections.setState({ collections: [], pinned: [], favorites: [] });
   state.replace.mockClear();
   state.push.mockClear();
-  await usePinnedStore.getState().loadPinned('user-a');
-  await useFavoritesStore.getState().loadFavorites('user-a');
 });
 
 afterEach(() => {
@@ -334,12 +400,12 @@ describe('the sidebar list', () => {
     expect(sections()[1]!.key).toBe('projects');
   });
 
-  it('puts a pinned chat first and keeps the pin for this account', async () => {
+  it('puts a pinned chat first and keeps the pin on the account', async () => {
     await mount();
     await pressChatMenu('beta', 'sidebar.pin');
     expect(chatIds()).toEqual(['beta', 'alpha']);
     expect(chatItems()[0].icon).toBeDefined();
-    expect(JSON.parse(state.storage.get('alia-pinned-conversations:user-a')!)).toEqual(['beta']);
+    expect(state.collections.getState().pinned).toEqual(['beta']);
     // The same menu now offers the way back: the label says unpin.
     await pressChatMenu('beta', 'sidebar.unpin');
     expect(chatIds()).toEqual(['alpha', 'beta']);
@@ -349,7 +415,7 @@ describe('the sidebar list', () => {
     await mount();
     await pressChatMenu('beta', 'sidebar.addFavorite');
     expect(chatIds()).toEqual(['beta', 'alpha']);
-    expect(JSON.parse(state.storage.get('alia-favorite-conversations:user-a')!)).toEqual(['beta']);
+    expect(state.collections.getState().favorites).toEqual(['beta']);
     await pressChatMenu('beta', 'sidebar.removeFavorite');
     expect(chatIds()).toEqual(['alpha', 'beta']);
   });
@@ -369,9 +435,8 @@ describe('the sidebar list', () => {
         .props.onPress();
     });
     await settle();
-    const [folder] = useFoldersStore.getState().folders;
+    const [folder] = state.collections.getState().collections;
     expect(folder?.name).toBe('Work');
-    expect(state.storage.get('alia-folders:user-a')).toContain('"Work"');
     expect(
       sections()
         .flatMap((s) => s.folders ?? [])

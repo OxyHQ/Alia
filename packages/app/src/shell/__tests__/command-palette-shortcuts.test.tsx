@@ -33,6 +33,7 @@ vi.mock('@oxy.so/bloom/icons/RiTeamLine', () => ({ RiTeamLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiTimerLine', () => ({ RiTimerLine: () => null }));
 vi.mock('@gemies/sdk/runtime', () => ({
   useConversations: () => ({ data: undefined }),
+  useConversationCollections: () => ({ collections: [], pinned: [], favorites: [] }),
 }));
 vi.mock('@/shared/i18n/use-translation', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
@@ -40,10 +41,6 @@ vi.mock('@/shared/i18n/use-translation', () => ({
 vi.mock('@/features/chat/runtime/ui-store', () => ({
   useUIStore: (select: (s: { toggleShortcutsDialog: () => void }) => unknown) =>
     select({ toggleShortcutsDialog: () => {} }),
-}));
-vi.mock('@/features/projects/runtime/favorites-store', () => ({
-  useFavoritesStore: (select: (s: { favoriteConversationIds: string[] }) => unknown) =>
-    select({ favoriteConversationIds: [] }),
 }));
 
 import { CommandPalette } from '@/shell/command-palette';

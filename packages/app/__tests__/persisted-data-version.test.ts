@@ -23,6 +23,7 @@ const SHAPES: Record<string, string[]> = {
   conversation: ['src/shared/api/persisted-conversations.ts'],
   'alia-agent-profile': [],
   skills: ['src/features/skills/runtime/use-skills.ts'],
+  'conversation-collections': [],
 };
 
 /** Bump both together: `PERSISTED_DATA_VERSION`, and this to what the failure prints. */

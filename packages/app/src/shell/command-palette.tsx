@@ -17,7 +17,7 @@ import { RiTimerLine } from '@oxy.so/bloom/icons/RiTimerLine';
 import { useConversations } from '@gemies/sdk/runtime';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
-import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
+import { useConversationCollections } from '@gemies/sdk/runtime';
 import { isAliaChat } from '@/shell/sidebar-history';
 
 /** How many conversations the palette offers before the user types anything. */
@@ -32,7 +32,7 @@ export function CommandPalette() {
   const { t } = useTranslation();
   const { data: conversationsData } = useConversations();
   const toggleShortcutsDialog = useUIStore((s) => s.toggleShortcutsDialog);
-  const favoriteIds = useFavoritesStore((state) => state.favoriteConversationIds);
+  const favoriteIds = useConversationCollections().favorites;
 
   const conversations = React.useMemo(() => {
     if (!conversationsData?.pages) return [];
