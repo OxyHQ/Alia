@@ -53,7 +53,7 @@ app.use('/api/protected', createOxyAuthMiddleware(oxy));
 # Web (Vite)
 VITE_OXY_CLIENT_ID=oxy_dk_...
 VITE_OXY_API_URL=https://api.oxy.so
-VITE_API_URL=https://api.alia.onl
+VITE_API_URL=https://api.gemies.ai
 
 # Native (Expo)
 EXPO_PUBLIC_OXY_CLIENT_ID=oxy_dk_...

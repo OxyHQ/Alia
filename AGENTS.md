@@ -2,7 +2,7 @@
 
 La app del asistente de Oxy («el ChatGPT de Oxy»): app Expo (web, iOS y Android) y, mientras sus consumidores los necesiten, los paquetes publicados `@alia.onl/sdk` y `@alia.onl/server`, en un monorepo de bun workspaces.
 
-**El backend vive en [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** desde el 2026-11-12 (su [ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md)): la API (`api.alia.onl`), integrations, el computer host, sus despliegues, canaries, runbooks y ADRs. **Los cambios de backend van a OxyHQ/Gemies**, nunca a este repo.
+**El backend vive en [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** desde el 2026-11-12 (su [ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md)): la API (`api.gemies.ai`; `api.alia.onl` sirve la misma hasta que se retire), integrations, el computer host, sus despliegues, canaries, runbooks y ADRs. **Los cambios de backend van a OxyHQ/Gemies**, nunca a este repo.
 
 ## Comandos
 

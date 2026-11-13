@@ -16,7 +16,7 @@
 
 > [!IMPORTANT]
 > **The backend lives in [OxyHQ/Gemies](https://github.com/OxyHQ/Gemies)** since 2026-11-12:
-> the API behind `api.alia.onl`, the integrations service, the agents' computer host, their
+> the API behind `api.gemies.ai`, the integrations service, the agents' computer host, their
 > deploys, canaries, runbooks and architecture decision records
 > ([ADR 0034](https://github.com/OxyHQ/Gemies/blob/main/docs/adr/0034-gemies-and-alia.md)).
 > Backend changes go there, not here.
