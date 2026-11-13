@@ -11,15 +11,13 @@ import { Loading } from '@oxy.so/bloom/loading';
 import { Muted } from '@oxy.so/bloom/typography';
 import { useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { Linking, Platform } from 'react-native';
 
 /**
- * Links a chat channel (Telegram, Discord, ...) to the signed-in account.
+ * Links a system bot's chat (Discord) to the signed-in account.
  *
  * The channel link is the only flow here.
  */
 const CHANNEL_NAMES: Record<string, string> = {
-  telegram: 'Telegram',
   discord: 'Discord',
 };
 
@@ -31,12 +29,11 @@ export default function AuthorizeScreen() {
   const params = useLocalSearchParams();
   const { t } = useTranslation();
 
-  const app = typeof params.app === 'string' && params.app ? params.app : 'telegram';
+  const app = typeof params.app === 'string' && params.app ? params.app : 'discord';
   const channel = params.channel as string | undefined;
   const displayName = channelDisplayName(channel || app);
   const { authLoading, status, message, retry } = useChannelLink({
     token: params.token,
-    app,
     channelType: channel || app,
     displayName,
   });
@@ -49,16 +46,6 @@ export default function AuthorizeScreen() {
       </AuthContainer>
     );
   }
-
-  const requestNewLink = () => {
-    const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
-    const botUrl = `https://t.me/${botUsername}?start=link`;
-    if (Platform.OS === 'web') {
-      window.open(botUrl, '_blank');
-    } else {
-      Linking.openURL(botUrl);
-    }
-  };
 
   return (
     <>
@@ -107,11 +94,7 @@ export default function AuthorizeScreen() {
             media="circle"
             title={t('authorize.linkFailed')}
             description={message}
-            action={
-              message.includes('expired')
-                ? { label: t('authorize.requestNewLink'), onPress: requestNewLink }
-                : { label: t('common.tryAgain'), onPress: retry }
-            }
+            action={{ label: t('common.tryAgain'), onPress: retry }}
           />
         )}
       </AuthContainer>
