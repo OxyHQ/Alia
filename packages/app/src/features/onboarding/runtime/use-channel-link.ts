@@ -1,11 +1,8 @@
-import { createApiSocketSession } from '@/shared/api/socket-session';
 import apiClient from '@/shared/api/client';
-import config from '@/shared/platform/config';
 import { errorMessage as getErrorMessage } from '@/shared/api/error-utils';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useCallback, useEffect, useState } from 'react';
-import { io as socketIO } from 'socket.io-client';
 
 type ChannelLinkStatus = 'loading' | 'authorizing' | 'success' | 'error' | 'needLogin';
 
@@ -19,34 +16,29 @@ const API_ROUTES_BOTS = {
 };
 
 /**
- * Linking a chat channel (Telegram, Discord, ...) to the signed-in account,
- * from the one-time token the bot handed out.
+ * Linking a system bot's chat (Discord) to the signed-in account, from the one-time token the bot
+ * handed out. Checks the token, asks for sign-in when there is no session, then links.
  *
- * Checks the token, asks for sign-in when there is no session, then links.
- * For Telegram it also listens on the socket, so a link completed from the
- * bot's side lands here without a reload.
+ * Telegram is not linked here: a person's Telegram is a gemie's connected account, linked from the
+ * gemie's editor (ADR 0037).
  */
 export function useChannelLink({
   token,
-  app,
   channelType,
   displayName,
 }: {
   /** The route's `token` param, as expo-router hands it over. */
   token: string | string[] | undefined;
-  /** Which app the link is for; `telegram` also listens on the socket. */
-  app: string;
   channelType: string;
   displayName: string;
 }) {
   const { isLoading: authLoading, signIn } = useAuth();
-  const { isAuthenticated: isOxyAuth, user } = useOxy();
+  const { isAuthenticated: isOxyAuth } = useOxy();
   const { t } = useTranslation();
 
   const [status, setStatus] = useState<Status>('loading');
   const [message, setMessage] = useState('');
 
-  // Bot auth handler for all bot types (Telegram, Discord, etc.)
   const handleChannelAuth = useCallback(async () => {
     setStatus('authorizing');
 
@@ -107,38 +99,6 @@ export function useChannelLink({
       setMessage(t('authorize.missingToken'));
     }
   }, [authLoading, token, handleChannelAuth, t]);
-
-  // Real-time socket subscription for Telegram token linking
-  useEffect(() => {
-    if (app !== 'telegram' || typeof token !== 'string' || !token || !user?.id) return;
-
-    // The user is already authenticated on the authorize screen (it opens the
-    // in-app sign-in modal otherwise), so the connection carries the Oxy bearer
-    // token expected by the server's authSocket() middleware. The telegram token
-    // is the one-time pairing code, distinct from the auth token.
-    const session = createApiSocketSession();
-    const socket = socketIO(config.apiUrl, {
-      // Function form so a fresh token is read on every (re)connect.
-      auth: session.auth,
-      transports: ['websocket'],
-    });
-
-    session.bind(socket);
-
-    socket.on('connect', () => {
-      socket.emit('subscribe-telegram-token', token);
-    });
-
-    socket.on('telegram-linked', () => {
-      setStatus('success');
-      setMessage(t('authorize.linkSuccess', { app: 'Telegram' }));
-    });
-
-    return () => {
-      session.dispose();
-      socket.disconnect();
-    };
-  }, [app, token, user?.id, t]);
 
   return { authLoading, status, message, retry: handleChannelAuth };
 }
