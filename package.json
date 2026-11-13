@@ -38,7 +38,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@oxy.so/bloom": "21.1.1",
+    "@oxy.so/bloom": "21.2.0",
     "@oxy.so/core": "7.50.0",
     "@oxy.so/services": "14.21.0",
     "@tanstack/react-query": "^5.107.1",
