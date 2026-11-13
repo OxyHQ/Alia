@@ -23,14 +23,14 @@
     "build:ios": "eas build --platform ios"
   },
   "dependencies": {
-    "@gemies/sdk": "2.0.1",
+    "@gemies/sdk": "3.0.0",
     "@clarity.surf/sdk": "0.12.0",
     "@expo/app-integrity": "~58.0.2",
     "@expo/vector-icons": "^15.1.1",
     "@lottiefiles/dotlottie-react": "^0.20.0",
     "@lottiefiles/dotlottie-web": "0.81.0",
     "@oxy.so/app-preset": "6.6.0",
-    "@oxy.so/bloom": "19.10.3",
+    "@oxy.so/bloom": "20.0.0",
     "@oxy.so/contracts": "6.25.0",
     "@oxy.so/core": "7.48.0",
     "@oxy.so/expo-splash": "^1.1.0",
