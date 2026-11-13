@@ -1,11 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { Message } from '@gemies/sdk/model';
-import type {
-  GemieRuntimeHost,
-  GemieUsageFrame,
-  RoomEvent,
-  MessageReactionUpdate,
-} from '@gemies/sdk/runtime';
+import type { GemieRuntimeHost, GemieUsageFrame } from '@gemies/sdk/runtime';
 import { resolveFaviconUrl } from '@clarity.surf/sdk';
 import { useHaptics } from '@oxy.so/bloom/hooks';
 import { usePathname, useRouter } from 'expo-router';
@@ -17,7 +11,6 @@ import { useModelStore } from '@/features/chat/runtime/model-store';
 import type { UsageWarning } from '@/features/chat/runtime/use-credit-warnings';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { USER_MEMORY_QUERY_KEY } from '@/features/memory/runtime/use-user-data';
-import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
 import { queryKeys } from '@/shared/api/query-keys';
 import { collectDeviceInfo } from '@/shared/platform/device-info';
 
@@ -57,7 +50,7 @@ export function useAliaHost(): GemieRuntimeHost {
       onTurnStart: () => useStore.getState().setBottomChatHeightHandler(true),
       onOutput: () => haptic(),
       onUsage: (usage: GemieUsageFrame) => {
-        queryClient.setQueryData<CreditsInfo>(queryKeys.credits.info, (old) =>
+        queryClient.setQueriesData<CreditsInfo>({ queryKey: queryKeys.credits.info }, (old) =>
           old ? { ...old, credits: usage.credits_remaining ?? old.credits } : old,
         );
         // The balance is set from the frame; the rest (the usage window) is refetched.
@@ -102,41 +95,6 @@ export function useAliaHost(): GemieRuntimeHost {
         return true;
       },
       faviconUrl: resolveFaviconUrl,
-      // An agent wrote into THIS conversation on its own (a result, a check-in).
-      subscribeConversationMessages: (conversationId, listener) => {
-        const { socket, release } = acquireNotificationsSocket();
-        const onConversationMessage = (event: { conversationId?: string; message?: Message }) => {
-          if (event.conversationId === conversationId && event.message) listener(event.message);
-        };
-        socket.on('conversation:message', onConversationMessage);
-        return () => {
-          socket.off('conversation:message', onConversationMessage);
-          release();
-        };
-      },
-      subscribeConversationReactions: (conversationId, listener) => {
-        const { socket, release } = acquireNotificationsSocket();
-        const onReaction = (event: MessageReactionUpdate) => {
-          if (event?.conversationId === conversationId) listener(event);
-        };
-        socket.on('conversation:reaction', onReaction);
-        return () => {
-          socket.off('conversation:reaction', onReaction);
-          release();
-        };
-      },
-      // The replies a reaction starts run in the conversation's room.
-      subscribeRoomEvents: (conversationId, listener) => {
-        const { socket, release } = acquireNotificationsSocket();
-        const onGroupEvent = (event: RoomEvent) => {
-          if (event?.conversationId === conversationId) listener(event);
-        };
-        socket.on('group:event', onGroupEvent);
-        return () => {
-          socket.off('group:event', onGroupEvent);
-          release();
-        };
-      },
       // The new-chat screen is replaced by the conversation it started; any other screen
       // (a task described in words) keeps its place in the back stack.
       openConversation: (id) => {

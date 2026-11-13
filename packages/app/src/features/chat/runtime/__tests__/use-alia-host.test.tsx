@@ -30,15 +30,8 @@ vi.mock('@/features/chat/runtime/ui-store', () => ({ useUIStore: { getState: () 
 vi.mock('@/features/memory/runtime/use-user-data', () => ({
   USER_MEMORY_QUERY_KEY: ['user-memory'],
 }));
-vi.mock('@/features/notifications/runtime/notifications-socket', () => ({
-  acquireNotificationsSocket: vi.fn(() => ({
-    socket: { on: vi.fn(), off: vi.fn() },
-    release: vi.fn(),
-  })),
-}));
 vi.mock('@/shared/platform/device-info', () => ({ collectDeviceInfo: () => ({}) }));
 
-import { acquireNotificationsSocket } from '@/features/notifications/runtime/notifications-socket';
 import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -57,58 +50,6 @@ function host(): GemieRuntimeHost {
 
 const finish = (name: string) =>
   host().onToolResult?.({ toolCallId: 't1', name, output: {} } as never);
-
-describe('a conversation’s room (the replies a reaction starts)', () => {
-  it('listens to group:event on the notifications socket for its own conversation only, and lets go', () => {
-    const handlers = new Map<string, (event: unknown) => void>();
-    const release = vi.fn();
-    const socket = {
-      on: vi.fn((name: string, fn: (event: unknown) => void) => handlers.set(name, fn)),
-      off: vi.fn((name: string) => handlers.delete(name)),
-    };
-    vi.mocked(acquireNotificationsSocket).mockReturnValueOnce({ socket, release } as never);
-    const listener = vi.fn();
-    const unsubscribe = host().subscribeRoomEvents?.('c1', listener);
-    expect(socket.on).toHaveBeenCalledWith('group:event', expect.any(Function));
-
-    const mine = { conversationId: 'c1', chainId: 'p', event: 'group.idle', data: {} };
-    handlers.get('group:event')?.(mine);
-    handlers.get('group:event')?.({ ...mine, conversationId: 'other' });
-    expect(listener).toHaveBeenCalledTimes(1);
-    expect(listener).toHaveBeenCalledWith(mine);
-
-    unsubscribe?.();
-    expect(socket.off).toHaveBeenCalledWith('group:event', expect.any(Function));
-    expect(release).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('saved message reactions', () => {
-  it('subscribes only to the requested conversation and releases the socket', () => {
-    const handlers = new Map<string, (event: unknown) => void>();
-    const release = vi.fn();
-    const socket = {
-      on: vi.fn((name: string, fn: (event: unknown) => void) => handlers.set(name, fn)),
-      off: vi.fn((name: string) => handlers.delete(name)),
-    };
-    vi.mocked(acquireNotificationsSocket).mockReturnValueOnce({ socket, release } as never);
-    const listener = vi.fn();
-    const unsubscribe = host().subscribeConversationReactions?.('c1', listener);
-    const update = {
-      conversationId: 'c1',
-      messageId: 'm1',
-      reactions: ['❤️'],
-      revision: 1,
-      mutationId: 'mutation-1',
-    };
-    handlers.get('conversation:reaction')?.(update);
-    handlers.get('conversation:reaction')?.({ ...update, conversationId: 'other' });
-    expect(listener).toHaveBeenCalledExactlyOnceWith(update);
-    unsubscribe?.();
-    expect(socket.off).toHaveBeenCalledWith('conversation:reaction', expect.any(Function));
-    expect(release).toHaveBeenCalledOnce();
-  });
-});
 
 describe('a server tool finishing', () => {
   it('refreshes the memory document when it is rewritten, and nothing for other tools', () => {

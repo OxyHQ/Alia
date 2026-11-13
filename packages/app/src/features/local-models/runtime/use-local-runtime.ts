@@ -1,11 +1,10 @@
-import { createApiSocketSession } from '@/shared/api/socket-session';
 /**
  * Offer this device's own inference runtime to the account.
  *
  * Mounted once, high in the tree. While it is running and the person has turned
  * local models on, Alia's backend can serve a turn from a model on THIS machine:
  * the server assembles the turn exactly as it does for a hosted model, hands the
- * provider request down this socket, and this hook performs the ordinary
+ * provider request down the account's realtime connection, and this hook performs the ordinary
  * `fetch` to `localhost` that only this device can perform.
  *
  * It also means the person's OTHER devices can use it. The model list is
@@ -15,12 +14,11 @@ import { createApiSocketSession } from '@/shared/api/socket-session';
  *
  * The endpoint address never leaves this hook. What travels is bytes.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import { io as socketIO, type Socket } from 'socket.io-client';
+import { useGemieRealtime } from '@gemies/sdk/runtime';
 import { useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
-import config from '@/shared/platform/config';
 import { useLocalRuntimeStore } from '@/features/local-models/runtime/local-runtime-store';
 
 interface LocalModelsResponse {
@@ -153,7 +151,6 @@ export function useLocalRuntimeProbe() {
 }
 
 export function useLocalRuntime() {
-  const { isAuthenticated, user } = useOxy();
   const consent = useLocalRuntimeStore((state) => state.consent);
   const runtimeId = useLocalRuntimeStore((state) => state.runtimeId);
   const storedLabel = useLocalRuntimeStore((state) => state.label);
@@ -164,23 +161,14 @@ export function useLocalRuntime() {
   const probe = useLocalRuntimeProbe();
   const models = probe.data;
 
-  const socketRef = useRef<Socket | null>(null);
   /**
-   * Bumped every time the connection effect builds a socket.
-   *
-   * The announce effect below reads `socketRef.current`, which a ref cannot
-   * announce a change to. Its dependencies were `[models, runtimeId, label]`,
-   * and none of them moves when the SOCKET is replaced — so toggling consent
-   * off and on, or an auth flap, tore down socket A and built socket B while
-   * the announce effect did not re-run: React Query hands back the same
-   * `models` array reference, so nothing in that list changed. Socket B never
-   * received `subscribe-user-runtime` and never got a `connect` listener, and
-   * the device sat connected and invisible in the account's model picker until
-   * a probe happened to return a new array.
-   *
-   * A counter in state is what makes the socket's identity a dependency.
+   * The account's ONE realtime connection (`@gemies/sdk/runtime`), which this device's offer and
+   * the server's requests ride on: a runtime's lifetime is that connection's. Its identity is a
+   * dependency of the effects below, so a new connection is offered to as soon as it exists.
    */
-  const [socketEpoch, setSocketEpoch] = useState(0);
+  const realtime = useGemieRealtime();
+  const realtimeRef = useRef(realtime);
+  realtimeRef.current = realtime;
   /** One controller per in-flight run, so an aborted turn stops the local server too. */
   const runsRef = useRef(new Map<string, AbortController>());
 
@@ -194,7 +182,7 @@ export function useLocalRuntime() {
    */
   const serve = useCallback(
     async (request: { runId?: unknown; path?: unknown; method?: unknown; body?: unknown }) => {
-      const socket = socketRef.current;
+      const socket = realtimeRef.current;
       const runId = request.runId;
       if (!socket || typeof runId !== 'string') return;
 
@@ -211,13 +199,13 @@ export function useLocalRuntime() {
           body: typeof request.body === 'string' ? request.body : undefined,
           signal: controller.signal,
         });
-        socket.emit('user-runtime:head', { runId, status: response.status });
+        socket.send('user-runtime:head', { runId, status: response.status });
 
         const reader = response.body?.getReader();
         if (!reader) {
           // No streaming body to relay — hand the whole payload over as one frame
           // so a non-streaming request still gets an answer.
-          socket.emit('user-runtime:chunk', {
+          socket.send('user-runtime:chunk', {
             runId,
             data: new Uint8Array(await response.arrayBuffer()),
           });
@@ -225,15 +213,15 @@ export function useLocalRuntime() {
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
-            if (value) socket.emit('user-runtime:chunk', { runId, data: value });
+            if (value) socket.send('user-runtime:chunk', { runId, data: value });
           }
         }
-        socket.emit('user-runtime:end', { runId });
+        socket.send('user-runtime:end', { runId });
       } catch (error: unknown) {
         // An abort is the server or the person cancelling, and the run is already
         // being torn down at the other end; anything else is worth reporting.
         if (!controller.signal.aborted) {
-          socket.emit('user-runtime:error', {
+          socket.send('user-runtime:error', {
             runId,
             message: error instanceof Error ? error.message : 'The local runtime failed.',
           });
@@ -246,60 +234,49 @@ export function useLocalRuntime() {
   );
 
   useEffect(() => {
-    if (consent !== 'granted' || !isAuthenticated || !user?.id) return;
-
-    const session = createApiSocketSession();
-    const socket = socketIO(config.apiUrl, {
-      transports: ['websocket'],
-      // Function form so a fresh token is read on every (re)connect, matching
-      // every other socket in the app.
-      auth: session.auth,
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-    });
-    session.bind(socket, () => {
-      for (const controller of runsRef.current.values()) controller.abort();
-      runsRef.current.clear();
-    });
-    socketRef.current = socket;
-    setSocketEpoch((epoch) => epoch + 1);
-
-    socket.on('user-runtime:request', serve);
-    socket.on('user-runtime:abort', ({ runId }: { runId?: unknown }) => {
-      if (typeof runId === 'string') runsRef.current.get(runId)?.abort();
-    });
-
+    if (consent !== 'granted' || !realtime) return;
     const runs = runsRef.current;
-    return () => {
+    const stopAll = () => {
       for (const controller of runs.values()) controller.abort();
       runs.clear();
-      socket.removeAllListeners();
-      session.dispose();
-      socket.disconnect();
-      socketRef.current = null;
     };
-  }, [consent, isAuthenticated, user?.id, serve]);
+    const offRequest = realtime.listen(
+      'user-runtime:request',
+      (request) => void serve(request as Parameters<typeof serve>[0]),
+    );
+    const offAbort = realtime.listen('user-runtime:abort', (frame) => {
+      const runId = (frame as { runId?: unknown } | null)?.runId;
+      if (typeof runId === 'string') runs.get(runId)?.abort();
+    });
+    // A lost connection ends every run it was serving: the server has already failed them.
+    const offStatus = realtime.onStatus((connected) => {
+      if (!connected) stopAll();
+    });
+    return () => {
+      offRequest();
+      offAbort();
+      offStatus();
+      stopAll();
+      // The offer goes with this device's consent, not with the connection, which stays.
+      realtime.send('unsubscribe-user-runtime');
+    };
+  }, [consent, realtime, serve]);
 
   /**
-   * Announce the catalogue — on connect, and again whenever it changes.
+   * Announce the catalogue — now, on every reconnect, and again whenever it changes.
    *
-   * Separate from the connection effect on purpose: an `ollama pull` should
-   * reach the account's other devices without tearing down a socket that may be
-   * in the middle of serving a turn.
+   * Separate from the effect above on purpose: an `ollama pull` should reach the account's other
+   * devices without dropping the runs being served.
    */
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket || !models || models.length === 0) return;
-
-    const announce = () => socket.emit('subscribe-user-runtime', { id: runtimeId, label, models });
+    if (consent !== 'granted' || !realtime || !models || models.length === 0) return;
+    const announce = () =>
+      realtime.send('subscribe-user-runtime', { id: runtimeId, label, models });
     announce();
-    socket.on('connect', announce);
-    return () => {
-      socket.off('connect', announce);
-    };
-  }, [models, runtimeId, label, socketEpoch]);
+    return realtime.onStatus((connected) => {
+      if (connected) announce();
+    });
+  }, [consent, realtime, models, runtimeId, label]);
 
   useEffect(() => {
     if (models) setModels(models);

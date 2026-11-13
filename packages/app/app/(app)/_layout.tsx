@@ -7,12 +7,12 @@ import { useWorkspacePanelChrome, WorkspacePanel } from '@/shell/workspace-panel
 import { AliaSettingsProvider } from '@/features/settings/ui/alia-settings';
 import { ChatLabelsProvider } from '@/features/chat/ui/chat-labels-provider';
 import { Sidebar } from '@/shell/sidebar';
-import { useLocalRuntime } from '@/features/local-models/runtime/use-local-runtime';
 import { useNotificationSetup } from '@/features/notifications/runtime/use-notification-setup';
 import { useWelcomeSuggestions } from '@/features/chat/runtime/use-suggestions';
 import i18n from '@/shared/i18n';
 import { offlineConversations } from '@/features/chat/runtime/offline-conversations';
 import { restoreOpenerFocus } from '@gemies/sdk';
+import { AppRealtime } from '@/features/realtime/runtime/app-realtime';
 import { GemieRuntimeProvider, useComposerDraftStore, useThoughtStore } from '@gemies/sdk/runtime';
 import { fetch as expoFetch } from 'expo/fetch';
 import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
@@ -80,15 +80,6 @@ export default function AppLayout() {
 
   // Push notification registration, tap handling, and real-time subscription
   useNotificationSetup();
-
-  /**
-   * Offer this device's own models to the account, if the person turned that on.
-   *
-   * Mounted here and only here: it holds ONE socket that answers provider
-   * requests for a local model, and a second copy would be a second socket
-   * announcing the same runtime.
-   */
-  useLocalRuntime();
 
   // Load projects, folders, favorites, and pinned for the signed-in account,
   // and again whenever it changes. Each store namespaces its storage by this
@@ -236,6 +227,8 @@ export default function AppLayout() {
         speech={speech}
         host={aliaHost}
       >
+        {/* The account's realtime connection, inside the provider that holds it. */}
+        <AppRealtime />
         {/* Bloom's native portal: the settings modal, a tooltip and the media
           gallery draw themselves through it, and without a provider and an
           outlet they draw nothing at all — Settings did not open on Android

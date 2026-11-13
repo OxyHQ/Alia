@@ -384,6 +384,7 @@
     "chats": "Chats",
     "support": "Soporte",
     "shows": "Shows",
+    "unread": "{{count}} sin leer",
     "newConversation": "Nueva conversación",
     "chatOptions": "Opciones de {{title}}",
     "rename": "Renombrar",
@@ -1746,7 +1747,13 @@
         "communication": "Comunicación",
         "data": "Datos",
         "development": "Desarrollo",
-        "productivity": "Productividad"
+        "productivity": "Productividad",
+        "commerce": "Comercio",
+        "design": "Diseño",
+        "finance": "Finanzas",
+        "marketing": "Marketing",
+        "other": "Otros",
+        "search": "Búsqueda e investigación"
       },
       "connected": {
         "browse": "Explorar conectores",
@@ -1801,7 +1808,7 @@
         "categories": "Categorías",
         "connect": "Conectar",
         "connectAnother": "Añadir cuenta",
-        "description": "Conecta las apps con las que trabajas. Cada una es el servidor MCP del propio proveedor: inicias sesión con ellos y Gemies nunca ve tu contraseña.",
+        "description": "Conecta las apps con las que trabajas: los servidores MCP de los propios proveedores y cientos más del registro oficial de MCP. Oficial significa que lo publica el proveedor; Comunidad, que lo publica un desarrollador. Si alguno te pide iniciar sesión, la inicias con ellos y Gemies nunca ve tu contraseña.",
         "docs": "Más información",
         "empty": "Ahora mismo no hay conectores disponibles.",
         "featured": "Destacados",
@@ -1813,6 +1820,31 @@
         "connectedCount": {
           "one": "Conectado",
           "other": "{{count}} cuentas conectadas"
+        },
+        "allCount": {
+          "one": "Todos los conectores · 1",
+          "other": "Todos los conectores · {{count}}"
+        },
+        "filter": {
+          "noSignIn": "Sin inicio de sesión",
+          "official": "Oficiales",
+          "verified": "Verificados"
+        },
+        "filters": "Filtros",
+        "more": {
+          "one": "Mostrar 1 más",
+          "other": "Mostrar más (quedan {{count}})"
+        },
+        "results": {
+          "zero": "Sin resultados",
+          "one": "1 resultado",
+          "other": "{{count}} resultados"
+        },
+        "sort": "Ordenar por",
+        "sortBy": {
+          "featured": "Destacados",
+          "name": "Nombre",
+          "recent": "Actualizados recientemente"
         }
       },
       "usedBy": "Lo usan {{names}}",
@@ -1820,6 +1852,11 @@
         "zero": "Sin herramientas",
         "one": "1 herramienta",
         "other": "{{count}} herramientas"
+      },
+      "trust": {
+        "community": "Comunidad",
+        "official": "Oficial",
+        "verified": "Verificado"
       }
     }
   }

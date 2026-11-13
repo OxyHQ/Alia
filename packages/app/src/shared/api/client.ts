@@ -64,11 +64,6 @@ export function releaseApiClient(oxy: OxyServices): void {
   for (const listener of contextListeners) listener();
 }
 
-/** Socket handshakes read the same bound session; HTTP never copies its bearer. */
-export function socketAccessToken(signal: AbortSignal): Promise<string> {
-  if (!linked) return Promise.reject(new Error('The Oxy provider has not bound the product API'));
-  return linked.getAccessToken(config.apiUrl, { signal });
-}
 /** A serializable observation; it never contains a bearer or client instance. */
 export type ApiSessionOwner = { userId: string; bindingRevision: number; sessionEpoch: number };
 export function getApiSessionOwner(): ApiSessionOwner | null {

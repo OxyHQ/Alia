@@ -40,6 +40,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
+vi.mock('@oxy.so/bloom/badge', () => ({ Badge: () => null }));
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   const host =

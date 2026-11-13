@@ -55,7 +55,6 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   config.apiUrl = origin;
   const api = await import('../client');
-  const { createApiSocketSession } = await import('../socket-session');
   const oxy = new OxyServices({ baseURL: origin });
   api.bindApiClient(oxy);
   try {
@@ -69,7 +68,6 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     );
     oxy.session.setAccessToken(token('A', 1));
     oxy.http.setAuthRefreshHandler(async () => token('A'));
-    assert.equal(await api.socketAccessToken(new AbortController().signal), token('A'));
     assert.equal(api.hasApiSession(), true);
     assert.equal((await api.default.get('/private')).data.bearer, `Bearer ${token('A')}`);
     const capturedA = api.getApiSessionOwner();
@@ -108,17 +106,6 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     const aborted = new AbortController();
     aborted.abort();
     await assert.rejects(api.default.get('/private', { signal: aborted.signal }));
-    const socketSession = createApiSocketSession();
-    const disconnect = vi.fn();
-    socketSession.bind({ disconnect } as never);
-    let handshakeToken: string | undefined;
-    await new Promise<void>((resolve) =>
-      socketSession.auth((value) => {
-        handshakeToken = value.token;
-        resolve();
-      }),
-    );
-    assert.equal(handshakeToken, token('A', 2_000_000_001));
     const ready = new Promise<void>((resolve) => {
       arrived = resolve;
     });
@@ -127,15 +114,6 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     oxy.session.setAccessToken(token('B'));
     assert.equal(api.isCurrentApiSession(capturedA), false);
     assert.equal(api.getApiSessionOwner()?.userId, 'B');
-    assert.equal(disconnect.mock.calls.length, 1);
-    assert.equal(socketSession.signal.aborted, true);
-    let staleCallback = false;
-    socketSession.auth(() => {
-      staleCallback = true;
-    });
-    await Promise.resolve();
-    assert.equal(staleCallback, false);
-    socketSession.dispose();
     release?.();
     await assert.rejects(pending, { code: 'AUTH_SESSION_CHANGED' });
     assert.equal((await api.default.get('/private')).data.bearer, `Bearer ${token('B')}`);
@@ -147,7 +125,6 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     assert.equal(changes, 1);
     assert.equal(api.hasApiSession(), false);
     assert.equal(api.getApiSessionOwner(), null);
-    await assert.rejects(api.socketAccessToken(new AbortController().signal), /active Oxy session/);
     unsubscribe();
     api.releaseApiClient(oxy);
     await assert.rejects(api.default.get('/public'), /provider has not bound/);
@@ -161,46 +138,5 @@ test('real Axios/shared HTTP isolates anonymous, signed-in, switched and dispose
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
-  }
-});
-
-test('a pending socket refresh cannot authenticate the previous account after switching', async () => {
-  const api = await import('../client');
-  const { createApiSocketSession } = await import('../socket-session');
-  const token = (id: string, exp: number) =>
-    `e30.${Buffer.from(JSON.stringify({ userId: id, sessionId: id, exp })).toString('base64url')}.fixture`;
-  const oxy = new OxyServices({ baseURL: config.apiUrl });
-  oxy.session.setAccessToken(token('A', 1));
-  let release: (() => void) | undefined;
-  let arrived: (() => void) | undefined;
-  const ready = new Promise<void>((resolve) => {
-    arrived = resolve;
-  });
-  oxy.http.setAuthRefreshHandler(async () => {
-    arrived?.();
-    await new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    return token('A', 2_000_000_000);
-  });
-  api.bindApiClient(oxy);
-  const session = createApiSocketSession();
-  const disconnect = vi.fn();
-  session.bind({ disconnect } as never);
-  const callback = vi.fn();
-  try {
-    session.auth(callback);
-    await ready;
-    oxy.session.setAccessToken(token('B', 2_000_000_000));
-    release?.();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(callback.mock.calls.length, 0);
-    assert.equal(disconnect.mock.calls.length, 1);
-    assert.equal(oxy.session.userId, 'B');
-  } finally {
-    release?.();
-    session.dispose();
-    api.releaseApiClient(oxy);
-    oxy.dispose();
   }
 });

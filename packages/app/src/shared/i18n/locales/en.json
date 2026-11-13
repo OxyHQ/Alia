@@ -384,6 +384,7 @@
     "chats": "Chats",
     "support": "Support",
     "shows": "Shows",
+    "unread": "{{count}} unread",
     "newConversation": "New conversation",
     "chatOptions": "Options for {{title}}",
     "rename": "Rename",
@@ -1746,7 +1747,13 @@
         "communication": "Communication",
         "data": "Data",
         "development": "Development",
-        "productivity": "Productivity"
+        "productivity": "Productivity",
+        "commerce": "Commerce",
+        "design": "Design",
+        "finance": "Finance",
+        "marketing": "Marketing",
+        "other": "Other",
+        "search": "Search and research"
       },
       "connected": {
         "browse": "Browse connectors",
@@ -1801,7 +1808,7 @@
         "categories": "Categories",
         "connect": "Connect",
         "connectAnother": "Add account",
-        "description": "Connect the apps you work with. Each is the provider’s own MCP server: you sign in with them, and Gemies never sees your password.",
+        "description": "Connect the apps you work with: the providers’ own MCP servers, and hundreds more from the official MCP Registry. Official means the provider publishes it; Community means a developer does. When one asks you to sign in, you sign in with them, and Gemies never sees your password.",
         "docs": "About",
         "empty": "No connector is available right now.",
         "featured": "Featured",
@@ -1813,6 +1820,31 @@
         "connectedCount": {
           "one": "Connected",
           "other": "{{count}} accounts connected"
+        },
+        "allCount": {
+          "one": "All connectors · 1",
+          "other": "All connectors · {{count}}"
+        },
+        "filter": {
+          "noSignIn": "No sign-in",
+          "official": "Official",
+          "verified": "Verified"
+        },
+        "filters": "Filters",
+        "more": {
+          "one": "Show 1 more",
+          "other": "Show more ({{count}} left)"
+        },
+        "results": {
+          "zero": "No results",
+          "one": "1 result",
+          "other": "{{count}} results"
+        },
+        "sort": "Sort by",
+        "sortBy": {
+          "featured": "Featured",
+          "name": "Name",
+          "recent": "Recently updated"
         }
       },
       "usedBy": "Used by {{names}}",
@@ -1820,6 +1852,11 @@
         "zero": "No tools",
         "one": "1 tool",
         "other": "{{count}} tools"
+      },
+      "trust": {
+        "community": "Community",
+        "official": "Official",
+        "verified": "Verified"
       }
     }
   }

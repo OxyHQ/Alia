@@ -63,6 +63,8 @@ import { ProfileButton, useAuth, useOxy } from '@oxy.so/services/ui/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
+import { Badge } from '@oxy.so/bloom/badge';
+import { useRealtimeActivityStore } from '@gemies/sdk/realtime';
 import {
   Linking,
   Pressable,
@@ -124,6 +126,8 @@ function useSidebarProps() {
   const { t } = useTranslation();
   const chatId = useStore((state) => state.chatId);
   const streamingChatId = useConversationStore((state) => state.streamingConversationId);
+  // Who is working in which conversation, live, from the account's realtime connection.
+  const activeIds = useActiveConversationIds();
   const {
     data,
     fetchNextPage,
@@ -328,7 +332,8 @@ function useSidebarProps() {
 
   const row = React.useCallback(
     (conv: Conversation): SidebarTreeItem => {
-      const streaming = streamingChatId === conv.id;
+      const streaming = streamingChatId === conv.id || activeIds.has(conv.id);
+      const unread = conv.unreadCount ?? 0;
       const menu = isAuthenticated ? (
         <ConversationActions
           conversation={conv}
@@ -354,13 +359,12 @@ function useSidebarProps() {
         meta: shortTime(conv.updatedAt),
         onPrefetch: () => onHoverIntent(() => prefetchConversation(conv.id)),
         actions:
-          streaming && menu ? (
+          streaming || unread > 0 ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <StreamingIndicator />
+              {streaming ? <StreamingIndicator /> : null}
+              {unread > 0 ? <UnreadBadge count={unread} /> : null}
               {menu}
             </View>
-          ) : streaming ? (
-            <StreamingIndicator />
           ) : (
             (menu ?? undefined)
           ),
@@ -372,6 +376,7 @@ function useSidebarProps() {
       t,
       isAuthenticated,
       streamingChatId,
+      activeIds,
       projects,
       folders,
       pinnedIds,
@@ -745,4 +750,32 @@ function shortTime(date: Date): string {
   const weeks = Math.floor(days / 7);
   if (weeks < 52) return `${weeks}w`;
   return formatRelativeTime(date.toISOString());
+}
+
+/** A conversation's unread count, at the row's end (WhatsApp's green dot with a number). */
+function UnreadBadge({ count }: { count: number }) {
+  const { t } = useTranslation();
+  return (
+    <View accessibilityLabel={t('sidebar.unread', { count })}>
+      <Badge content={count > 99 ? '99+' : count} size="md" />
+    </View>
+  );
+}
+
+/**
+ * The conversations someone is working in right now (Alia thinking, writing, using a tool), from
+ * the account's realtime activity (`@gemies/sdk/realtime`): their rows show the streaming dot on
+ * every device, not only on the one that sent the turn. Stable between changes.
+ */
+function useActiveConversationIds(): ReadonlySet<string> {
+  const entries = useRealtimeActivityStore((s) => s.entries);
+  return React.useMemo(
+    () =>
+      new Set(
+        Object.values(entries).flatMap((entry) =>
+          entry.conversationId === null ? [] : [entry.conversationId],
+        ),
+      ),
+    [entries],
+  );
 }
