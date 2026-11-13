@@ -119,7 +119,7 @@ export default function NotificationsScreen() {
       }
       // If the notification has a conversationId, navigate to that conversation
       if (notification.conversationId) {
-        router.push(`/(app)/c/${notification.conversationId}`);
+        router.push(`/c/${notification.conversationId}`);
       }
     },
     [markAsRead, router],

@@ -39,7 +39,7 @@ export const NotificationsBell = React.memo(function NotificationsBell() {
       if (actionId !== 'open') return;
       const notification = notifications?.find((item) => item._id === notificationId);
       if (notification?.status !== 'read') markAsRead.mutate(notificationId);
-      if (notification?.conversationId) router.push(`/(app)/c/${notification.conversationId}`);
+      if (notification?.conversationId) router.push(`/c/${notification.conversationId}`);
     },
     [notifications, markAsRead, router],
   );

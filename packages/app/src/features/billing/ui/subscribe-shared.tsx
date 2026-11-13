@@ -81,7 +81,7 @@ export function SubscribeHeader({ title, t }: { title?: string; t: Translate }) 
     <PageHeader
       title={title}
       backLabel={t('subscribe.back')}
-      onBack={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/'))}
     />
   );
 }

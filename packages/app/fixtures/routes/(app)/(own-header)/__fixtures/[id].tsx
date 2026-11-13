@@ -8,8 +8,8 @@
  * Everything under it — the shell, the thread, the rows, the cards — is the production component
  * tree, so the harness measures whatever that tree currently is, before and after a refactor of it.
  *
- * The route name starts with `__`, which `(app)/_layout.tsx` already treats as
- * a chat route: it composes its own container, as the real chat pages do.
+ * It is in the `(own-header)` group, as the real chat pages are: it composes its own container, so
+ * `(app)/_layout.tsx` lets it through bare.
  *
  * The harness drives it through `window.__aliaFixture`:
  *
@@ -28,7 +28,7 @@
  */
 import { ChatHeaderActions } from '@/features/chat/ui/chat-header-actions';
 import { KeyboardFrame } from '@/features/chat/ui/chat-workspace';
-import { fixtureConversation, fixtureReply } from '../../../conversation';
+import { fixtureConversation, fixtureReply } from '../../../../conversation';
 import { GemieComposer, GemieThread } from '@gemies/sdk';
 import type { Message } from '@gemies/sdk/model';
 import { useComposerDraft, useComposerDraftStore, useTurnEdit } from '@gemies/sdk/runtime';

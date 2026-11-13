@@ -14,9 +14,9 @@ const read = (path: string) => readFileSync(join(APP, path), 'utf8');
  */
 describe('the workspace harness switches chats through the router', () => {
   it('the fixture page navigates with router.replace, as the sidebar opens a chat', () => {
-    const page = read('fixtures/routes/(app)/__fixtures/[id].tsx');
+    const page = read('fixtures/routes/(app)/(own-header)/__fixtures/[id].tsx');
     expect(page).toMatch(/navigate: \(id\) => router\.replace\(/);
-    expect(read('src/shell/sidebar.tsx')).toMatch(/router\.replace\(`\/\(app\)\/c\/\$\{id\}`\)/);
+    expect(read('src/shell/sidebar.tsx')).toMatch(/router\.replace\(`\/c\/\$\{id\}`\)/);
   });
 
   it('the harness routes through that seam and never through popstate', () => {

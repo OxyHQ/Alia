@@ -21,7 +21,7 @@ export default function OrgInviteScreen() {
           action={{
             label: t('invitePage.goToAlia'),
             icon: RiArrowRightLine,
-            onPress: () => router.replace('/(app)'),
+            onPress: () => router.replace('/'),
           }}
         />
       </AuthContainer>

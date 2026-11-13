@@ -104,7 +104,7 @@ export function useNotificationSetup() {
       if (typeof data?.agentHandle === 'string' && data.agentHandle) {
         void Linking.openURL(gemieThreadUrl(data.agentHandle));
       } else if (data?.conversationId) {
-        router.push(`/(app)/c/${data.conversationId}`);
+        router.push(`/c/${data.conversationId}`);
       }
     });
 
