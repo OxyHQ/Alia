@@ -95,8 +95,6 @@ const ALLOWED = new Set([
   // Messaging services, as their owners spell them.
   'WhatsApp',
   'Telegram',
-  'Signal',
-  'Gmail',
   // Languages, each named in itself: the picker must read the same whatever
   // language it is currently in, or nobody could find their way back.
   'English',

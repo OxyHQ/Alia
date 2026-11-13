@@ -236,27 +236,6 @@
         "oauth": "OAuth",
         "apiKey": "Clave de API",
         "none": "Ninguna"
-      },
-      "disconnect": "Desconectar",
-      "disconnectNamed": "Desconectar {{name}}",
-      "accounts": {
-        "title": "Cuentas conectadas",
-        "description": "Vincula tus cuentas de mensajería para que Alia pueda leer y responder en tu nombre.",
-        "empty": "Aún no hay cuentas conectadas. Conecta tu primera cuenta para empezar.",
-        "connectTitle": "Conectar cuenta",
-        "status": {
-          "connected": "Conectada",
-          "connecting": "Conectando",
-          "disconnected": "Desconectada",
-          "error": "Error",
-          "expired": "Caducada"
-        },
-        "connectingToast": "Conectando {{name}}",
-        "connectFailed": "No se pudo conectar la cuenta",
-        "disconnectTitle": "Desconectar cuenta",
-        "disconnectDescription": "¿Seguro que quieres desconectar esta cuenta? Puedes volver a conectarla cuando quieras.",
-        "disconnectedToast": "Cuenta desconectada",
-        "disconnectFailed": "No se pudo desconectar la cuenta"
       }
     },
     "assistant": {
@@ -1112,72 +1091,6 @@
     "endingSoon": "Queda un minuto de llamada",
     "dictationRemaining": "Quedan %{seconds} s de dictado"
   },
-  "gateways": {
-    "connectedAccounts": "Cuentas conectadas ({{count}})",
-    "scanQRCode": "Escanear código QR",
-    "generatingQR": "Generando código QR...",
-    "waitingForScan": "Esperando escaneo...",
-    "howItWorks": "Cómo funciona:",
-    "step1": "1. Toca \"Conectar\" abajo",
-    "step2": "2. Aparecerá un código QR",
-    "telegram": {
-      "title": "Pasarela de Telegram",
-      "subtitle": "Vincula tus cuentas de Telegram para que Alia responda como tú",
-      "connected": "¡Telegram conectado!",
-      "failedToConnect": "Error al iniciar la conexión de Telegram",
-      "disconnected": "Telegram desconectado",
-      "failedToDisconnect": "Error al desconectar Telegram",
-      "disconnectTitle": "Desconectar Telegram",
-      "disconnectDescription": "Esto desconectará {{name}} de Alia. Necesitarás escanear el código QR de nuevo para reconectar.",
-      "accountFallback": "Cuenta de Telegram",
-      "linkYour": "Vincula tu Telegram",
-      "linkDescription": "Conecta tu cuenta de Telegram para que Alia responda mensajes en tu nombre. Escanearás un código QR con tu teléfono, igual que Telegram Desktop.",
-      "connecting": "Conectando...",
-      "addAnother": "Agregar otro Telegram",
-      "connect": "Conectar Telegram",
-      "step3": "3. Abre Telegram > Ajustes > Dispositivos",
-      "step4": "4. Toca \"Vincular dispositivo de escritorio\" y escanea",
-      "scanInstructions": "Abre Telegram en tu teléfono, ve a Ajustes > Dispositivos > Vincular dispositivo de escritorio, luego escanea este código."
-    },
-    "signal": {
-      "title": "Pasarela de Signal",
-      "subtitle": "Vincula tus cuentas de Signal para que Alia responda como tú",
-      "connected": "¡Signal conectado!",
-      "failedToConnect": "Error al iniciar la vinculación de Signal",
-      "disconnected": "Signal desconectado",
-      "failedToDisconnect": "Error al desconectar Signal",
-      "disconnectTitle": "Desvincular Signal",
-      "disconnectDescription": "Esto desvinculará {{name}} de Alia. Necesitarás escanear el código QR de nuevo para reconectar.",
-      "accountFallback": "Cuenta de Signal",
-      "linkYour": "Vincula tu Signal",
-      "linkDescription": "Conecta tu cuenta de Signal para que Alia responda mensajes en tu nombre. Escanearás un código QR con tu teléfono, igual que Signal Desktop.",
-      "linking": "Vinculando...",
-      "addAnother": "Agregar otro Signal",
-      "connect": "Conectar Signal",
-      "step3": "3. Abre Signal > Ajustes > Dispositivos vinculados",
-      "step4": "4. Toca \"Vincular nuevo dispositivo\" y escanea",
-      "scanInstructions": "Abre Signal en tu teléfono, ve a Ajustes > Dispositivos vinculados > Vincular nuevo dispositivo, luego escanea este código."
-    },
-    "whatsapp": {
-      "title": "Pasarela de WhatsApp",
-      "subtitle": "Vincula tus cuentas de WhatsApp para que Alia responda como tú",
-      "connected": "¡WhatsApp conectado!",
-      "failedToConnect": "Error al iniciar la conexión de WhatsApp",
-      "disconnected": "WhatsApp desconectado",
-      "failedToDisconnect": "Error al desconectar WhatsApp",
-      "disconnectTitle": "Desconectar WhatsApp",
-      "disconnectDescription": "Esto desconectará {{name}} de Alia. Necesitarás escanear el código QR de nuevo para reconectar.",
-      "accountFallback": "Cuenta de WhatsApp",
-      "linkYour": "Vincula tu WhatsApp",
-      "linkDescription": "Conecta tu cuenta de WhatsApp para que Alia responda mensajes en tu nombre. Escanearás un código QR con tu teléfono, igual que WhatsApp Web.",
-      "connecting": "Conectando...",
-      "addAnother": "Agregar otro WhatsApp",
-      "connect": "Conectar WhatsApp",
-      "step3": "3. Abre WhatsApp > Dispositivos vinculados > Vincular un dispositivo",
-      "step4": "4. Escanea el código QR con tu teléfono",
-      "scanInstructions": "Abre WhatsApp en tu teléfono, ve a Ajustes > Dispositivos vinculados > Vincular un dispositivo, luego escanea este código."
-    }
-  },
   "thought": {
     "reasoning": "Razonamiento",
     "title": "Pensamiento",
@@ -1896,7 +1809,8 @@
       "removed": "{{platform}} quitado",
       "removeFailed": "No se ha podido quitar. Inténtalo de nuevo.",
       "cancel": "Cancelar",
-      "saveFailed": "No se ha podido guardar. Inténtalo de nuevo."
+      "saveFailed": "No se ha podido guardar. Inténtalo de nuevo.",
+      "retry": "Reintentar"
     }
   }
 }
