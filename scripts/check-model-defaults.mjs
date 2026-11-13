@@ -51,7 +51,7 @@ const ROOT = resolve(import.meta.dirname, '..');
  * this list. Those trees have since left this repository (the bots with
  * integrations, to OxyHQ/Gemies).
  */
-export const TREES = ['packages/app/app', 'packages/app/src', 'packages/alia-chat/src'];
+export const TREES = ['packages/app/app', 'packages/app/src'];
 
 /**
  * Every workspace that ships no client picker, and why.
@@ -62,15 +62,12 @@ export const TREES = ['packages/app/app', 'packages/app/src', 'packages/alia-cha
  * naming a workspace that no longer exists is as wrong as a workspace in
  * neither list.
  */
-export const NOT_A_CLIENT = {
-  'packages/alia-server':
-    'a transport. It streams whatever turn a backend hands it and never chooses, defaults or names a routing profile — `model` is an optional pass-through field on its request type.',
-};
+export const NOT_A_CLIENT = {};
 
 /**
  * A retired routing identifier: the product modes (`mode:*`) and routing
  * profiles (`route:*`, `profile:*`) Alia invented before it served real models.
- * Anchored, so a package name such as `alia-chat` is not mistaken for one.
+ * Anchored, so a package name is not mistaken for one.
  */
 const IDENTIFIER = /^(?:(?:mode|profile|route):[a-z0-9][a-z0-9-]*)$/;
 
@@ -183,11 +180,12 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    // Four workspaces since the backend (`api`, `integrations`, the computer
-    // host) moved to OxyHQ/Gemies on 2026-11-12: three walked, one transport.
-    ['workspaces', workspaces.length, 3],
-    ['TREES', TREES.length, 3],
-    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 1],
+    // One workspace, the app, since the backend (2026-11-12) and then the SDK
+    // and the server client (`@gemies/sdk`, `@gemies/server`) moved to
+    // OxyHQ/Gemies, which runs this census over them.
+    ['workspaces', workspaces.length, 1],
+    ['TREES', TREES.length, 2],
+    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 0],
   ];
   const partition = [
     ...counts

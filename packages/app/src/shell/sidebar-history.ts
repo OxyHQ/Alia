@@ -1,4 +1,4 @@
-import type { Conversation } from '@alia.onl/sdk/model';
+import type { Conversation } from '@gemies/sdk/model';
 
 /**
  * Whether a conversation is one of Alia's own chats, the only ones this app lists.

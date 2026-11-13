@@ -66,10 +66,7 @@ function readWorkspaces(): Workspace[] {
 }
 
 /** Typechecked by another job, which is named so a reader can go and look. */
-const CHECKED_ELSEWHERE: Readonly<Record<string, string>> = {
-  '@alia.onl/sdk': 'Lint & Test — "Typecheck SDK"',
-  '@alia.onl/server': 'Lint & Test — "Typecheck server SDK"',
-};
+const CHECKED_ELSEWHERE: Readonly<Record<string, string>> = {};
 
 /**
  * Has a `typecheck` script that does not pass yet.
@@ -144,10 +141,9 @@ function main(): void {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts: readonly [string, number, number][] = [
-    // Three since 2026-11-12, when `@alia/api`, `@alia/integrations` and
-    // `@alia/computer-host` moved to OxyHQ/Gemies with the backend.
-    ['workspaces', workspaces.length, 3],
-    ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 2],
+    // One: the app. The backend and the SDK live in OxyHQ/Gemies.
+    ['workspaces', workspaces.length, 1],
+    ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 0],
     ['EXCLUDED', Object.keys(EXCLUDED).length, 0],
     ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 0],
   ];

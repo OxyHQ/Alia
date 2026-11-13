@@ -15,7 +15,7 @@ import { APP_ROOT } from '@/shared/testing/app-root';
  * those capabilities were missing for its entire life.
  *
  * The cure is structural rather than a longer prop list: `/` and `/c/:id` are two
- * doors onto ONE `ConversationScreen`, which mounts the SDK's conversation (`AliaChatContent`,
+ * doors onto ONE `ConversationScreen`, which mounts the SDK's conversation (`GemieChatContent`,
  * the same one the bottom sheet mounts) and brings the app around it. So this file pins the doors:
  * the new-chat route names no conversation (that absence is what makes its first turn create
  * one, and what keeps its draft its own), shows the intro to the signed-out and the chat after,
@@ -133,7 +133,7 @@ describe('the two doors onto one chat', () => {
     (file) => {
       const source = route(file);
       expect(source).toContain("from '@/features/chat/ui/conversation-screen'");
-      expect(source).not.toMatch(/AliaThread|ThreadRow|useConversationThread/);
+      expect(source).not.toMatch(/GemieThread|ThreadRow|useConversationThread/);
     },
   );
 });

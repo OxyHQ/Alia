@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
  * a shape (rows, a header, a thread), and Bloom's skeleton draws it (`src/shared/ui/skeletons`, the
  * SDK's `ThreadSkeleton`): the screen holds its place and nothing moves when the data arrives. A
  * spinner is for an ACTION in progress (a step that is running, a message being answered), never
- * for a screen or a list.
+ * for a screen or a list. The SDK's own screens are held to the same in OxyHQ/Gemies.
  *
  * Source gates, like the other `__tests__/*.test.ts`: they read the files, so a new spinner fails
  * here, before review.
@@ -24,8 +24,7 @@ import { describe, expect, it } from 'vitest';
  */
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SDK = join(ROOT, '..', 'alia-chat', 'src');
-const DIRS = [join(ROOT, 'app'), join(ROOT, 'src'), SDK];
+const DIRS = [join(ROOT, 'app'), join(ROOT, 'src')];
 
 /** Files that may import Bloom's `Loading`, and the action each one shows it for. */
 const ACTION_SPINNERS = new Map<string, string>([
@@ -35,8 +34,6 @@ const ACTION_SPINNERS = new Map<string, string>([
   ],
   ['src/shell/sidebar-menus.tsx', 'the chat that is being answered right now (StreamingIndicator)'],
   ['src/features/shows/ui/episode-row.tsx', 'an episode being generated: the action itself'],
-  ['../alia-chat/src/components/voice/VoiceControls.tsx', 'a call connecting: the action itself'],
-  ['../alia-chat/src/components/thought/ToolStep.tsx', 'a tool call that is running'],
 ]);
 
 function sourceFiles(dir: string): string[] {

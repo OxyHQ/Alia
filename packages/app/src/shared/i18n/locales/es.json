@@ -573,7 +573,7 @@
     "yesterday": "Ayer",
     "newStretch": "Conversación nueva",
     "chattedWith": "Habló con %{name}",
-    "agentChatNotice": "Conversación entre agentes. Solo lectura.",
+    "agentChatNotice": "Conversación entre Gemies. Solo lectura.",
     "reactToMessage": "Reaccionar al mensaje",
     "groupWelcome": "Varias mentes, una conversación",
     "groupPlaceholder": "Escribe al grupo",
@@ -582,12 +582,12 @@
     "replyToMessage": "Responder al mensaje",
     "moreActions": "Más acciones del mensaje",
     "searchThreadPlaceholder": "Buscar en este hilo",
-    "searchThreadHint": "Busca todo lo que le has dicho a este agente, en todas las conversaciones.",
+    "searchThreadHint": "Busca todo lo que le has dicho a este Gemie, en todas las conversaciones.",
     "searchThreadSearching": "Buscando…",
     "searchThreadEmpty": "No hay coincidencias.",
     "searchThreadFailed": "No se pudo buscar.",
     "searchThreadYou": "Tú",
-    "searchThreadAgent": "Agente",
+    "searchThreadAgent": "Gemie",
     "backToLatest": "Volver a lo último",
     "newConversationOffer": "¿Empezar una conversación nueva?",
     "newConversationAccept": "Empezar una nueva",
@@ -671,7 +671,7 @@
       "openTask": "Abrir la tarea programada %{objective}"
     },
     "agentRun": {
-      "working": "Agente trabajando",
+      "working": "Gemie trabajando",
       "complete": "Tarea completada",
       "error": "Error",
       "completed": "Completada",
@@ -774,24 +774,24 @@
         "sendSignal": "Signal",
         "sendEmail": "Correo",
         "loadTools": "Cargando herramientas",
-        "agentSearch": "Buscando agentes",
+        "agentSearch": "Buscando Gemies",
         "userMemory": "Recordando",
         "shellExec": "Ejecutando comando",
         "fileEdit": "Editando archivo",
         "codeInterpreter": "Ejecutando código",
-        "consultAgent": "Consultando a un agente"
+        "consultAgent": "Consultando a un Gemie"
       },
       "done": {
         "browse": "Navegó",
         "webScraper": "Leyó la página",
         "generateFile": "Generó un archivo",
         "loadTools": "Cargó herramientas",
-        "agentSearch": "Buscó agentes",
+        "agentSearch": "Buscó Gemies",
         "userMemory": "Recordó",
         "shellExec": "Ejecutó un comando",
         "fileEdit": "Editó un archivo",
         "codeInterpreter": "Ejecutó código",
-        "consultAgent": "Consultó a un agente"
+        "consultAgent": "Consultó a un Gemie"
       }
     }
   },
@@ -1214,7 +1214,7 @@
     "input": "Entrada",
     "output": "Salida",
     "audit": {
-      "agent": "Agente: {{name}}",
+      "agent": "Gemie: {{name}}",
       "plan": "Plan",
       "planSteps": {
         "one": "1 paso",

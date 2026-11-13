@@ -3,7 +3,7 @@ import {
   isDeviceModelId,
   isPowerLevel,
   type PowerLevel,
-} from '@alia.onl/sdk/model';
+} from '@gemies/sdk/model';
 
 /** What `migrateModelState` returns; the store's persisted half. */
 export interface PersistedModelState {

@@ -45,7 +45,7 @@ export interface ChatHeaderActionsProps {
  * `DropdownMenu` behind the row's "more" glyph.
  *
  * Share mints the conversation's read-only link (`POST /conversations/:id/share`,
- * `docs/agent-embedding.md` §6) and hands it on; "Stop sharing" ends it. Both are
+ * Gemies `docs/agent-embedding.md` §6) and hands it on; "Stop sharing" ends it. Both are
  * offered only where the screen can honour them — never on a temporary chat. Bloom's
  * `AgentChatActions` always draws a share button, which is why this is a menu of
  * Alia's real actions instead.

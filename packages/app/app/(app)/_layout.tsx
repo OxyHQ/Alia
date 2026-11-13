@@ -12,8 +12,8 @@ import { useNotificationSetup } from '@/features/notifications/runtime/use-notif
 import { useWelcomeSuggestions } from '@/features/chat/runtime/use-suggestions';
 import i18n from '@/shared/i18n';
 import { offlineConversations } from '@/features/chat/runtime/offline-conversations';
-import { restoreOpenerFocus } from '@alia.onl/sdk';
-import { AliaRuntimeProvider, useComposerDraftStore, useThoughtStore } from '@alia.onl/sdk/runtime';
+import { restoreOpenerFocus } from '@gemies/sdk';
+import { GemieRuntimeProvider, useComposerDraftStore, useThoughtStore } from '@gemies/sdk/runtime';
 import { fetch as expoFetch } from 'expo/fetch';
 import { useAliaHost } from '@/features/chat/runtime/use-alia-host';
 import { useAliaSpeech } from '@/features/chat/runtime/use-alia-speech';
@@ -218,7 +218,7 @@ export default function AppLayout() {
     <AppErrorBoundary>
       {/* The conversation runtime is the SDK's; this is what the app tells it. Everything below
           — the sidebar's list and the open thread — reads the same conversations through it. */}
-      <AliaRuntimeProvider
+      <GemieRuntimeProvider
         apiUrl={config.apiUrl}
         offline={offlineConversations}
         // The streaming fetch: React Native's own cannot read a body as it arrives.
@@ -258,7 +258,7 @@ export default function AppLayout() {
             </ChatLabelsProvider>
           </AliaSettingsProvider>
         </PortalProvider>
-      </AliaRuntimeProvider>
+      </GemieRuntimeProvider>
     </AppErrorBoundary>
   );
 }

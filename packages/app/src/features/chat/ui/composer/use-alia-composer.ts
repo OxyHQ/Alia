@@ -1,11 +1,11 @@
 import { type ComposerAddMenu, useComposerAddMenu } from '@/features/chat/ui/composer/add-menu';
-import type { AliaAttachment, AliaComposerProps } from '@alia.onl/sdk';
+import type { GemieAttachment, GemieComposerProps } from '@gemies/sdk';
 import {
   type DraftTarget,
   useComposerDraft,
   useComposerDraftStore,
   useDraftAddress,
-} from '@alia.onl/sdk/runtime';
+} from '@gemies/sdk/runtime';
 import { usePowerLevelSelector } from '@/features/chat/ui/composer/power-level-options';
 import {
   buildTurnSelection,
@@ -25,7 +25,7 @@ import { useCallback, useMemo } from 'react';
  * Alia's composer, configured once for every screen that asks Alia something:
  * the chat, Automations, and the screens that create an agent or a skill.
  *
- * It returns the props the SDK's `AliaComposer` (Bloom's `ComposerPill`) takes
+ * It returns the props the SDK's `GemieComposer` (Bloom's `ComposerPill`) takes
  * beyond the draft itself — the power-level selector (the panel's mode pill),
  * the add menu, the attachments — plus the per-turn choices a send
  * carries (connector and skills), so every screen offers the same controls
@@ -66,7 +66,7 @@ export interface AliaComposerOptions {
 }
 
 type AliaComposerHostProps = Pick<
-  AliaComposerProps,
+  GemieComposerProps,
   | 'attachments'
   | 'onAddAttachment'
   | 'onRemoveAttachment'
@@ -99,7 +99,7 @@ export function useComposerMenu({
   const address = useDraftAddress(target);
   const { mcpServerId: connectorId, skillNames } = draft;
   const addAttachment = useCallback(
-    (attachment: AliaAttachment) =>
+    (attachment: GemieAttachment) =>
       useComposerDraftStore.getState().addAttachment(address, attachment),
     [address],
   );
@@ -158,7 +158,7 @@ export function useAliaComposer({
   const address = useDraftAddress(target);
   const { attachments, mcpServerId: connectorId, skillNames } = draft;
   const addAttachment = useCallback(
-    (attachment: AliaAttachment) =>
+    (attachment: GemieAttachment) =>
       useComposerDraftStore.getState().addAttachment(address, attachment),
     [address],
   );

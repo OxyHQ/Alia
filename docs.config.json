@@ -7,5 +7,5 @@
   "versions": ["main"],
   "defaultVersion": "main",
   "docsPath": "docs/",
-  "description": "Oxy's assistant app (web, iOS, Android) and the @alia.onl/sdk and @alia.onl/server packages. The backend lives in OxyHQ/Gemies."
+  "description": "Oxy's assistant app (web, iOS, Android), built on @gemies/sdk. The backend and the SDK live in OxyHQ/Gemies."
 }

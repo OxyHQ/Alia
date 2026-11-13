@@ -55,9 +55,6 @@ const EXPECTED = {
   // One OTA publish at a time: a newer pending push replaces an older one, and a
   // publish is never cancelled half-uploaded.
   'publish-update.yml': 'serialised',
-  // One npm release at a time: two dispatches of the same version would both
-  // pass the registry preflight and race to publish.
-  'release-packages.yml': 'serialised',
 };
 
 /**

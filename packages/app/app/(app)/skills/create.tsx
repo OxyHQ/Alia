@@ -1,4 +1,4 @@
-import { AliaComposer } from '@alia.onl/sdk';
+import { GemieComposer } from '@gemies/sdk';
 import { useComposerHost } from '@/features/chat/ui/composer/use-composer-host';
 import { useAliaComposer } from '@/features/chat/ui/composer/use-alia-composer';
 import { useCreateSkill, useGenerateSkillDraft } from '@/features/skills/runtime/use-skills';
@@ -65,7 +65,7 @@ export default function CreateSkillScreen() {
 
         {/* The chat's own composer: describing a skill is the same gesture as
           asking Alia anything. The ten-character floor stays in the handler. */}
-        <AliaComposer
+        <GemieComposer
           {...composerHost}
           {...composer.props}
           value={prompt}

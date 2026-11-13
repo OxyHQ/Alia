@@ -7,7 +7,7 @@ import { KeyboardAvoidingView } from '@/shared/platform/keyboard';
 
 /**
  * One native keyboard authority resizes the chat's frame, so the composer is never behind it.
- * Every chat screen stands in one — the conversation (the SDK's `AliaChatContent`) and the
+ * Every chat screen stands in one — the conversation (the SDK's `GemieChatContent`) and the
  * welcome and loading states around it.
  */
 export function KeyboardFrame({ children }: { children: ReactNode }) {
