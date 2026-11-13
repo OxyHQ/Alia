@@ -1,5 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   authenticated: true,
   props: null as any,
@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({
   opens: [] as any[],
   close: vi.fn(),
 }));
+// The settings chunk is preloaded on web only; here, nothing is preloaded behind the test's back.
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 vi.mock('@oxy.so/services/ui/client', () => ({
   useOxy: () => ({ isAuthenticated: state.authenticated }),
 }));
@@ -108,6 +110,7 @@ function Harness() {
 }
 beforeEach(() => {
   state.authenticated = true;
+  state.props = null;
   state.opens = [];
   state.close.mockClear();
 });
@@ -121,45 +124,55 @@ function mount() {
     );
   });
 }
-it('commits compact page mode before first deep link and every reopen', () => {
+// The modal is a lazy chunk: loaded once here, so the first `open()` mounts it within its act().
+beforeAll(async () => {
+  await import('@/features/settings/ui/alia-settings-modal');
+});
+async function open(...args: Parameters<AliaSettingsActions['open']>) {
+  await act(async () => actions.open(...args));
+}
+it('does not load the modal until settings are first opened', () => {
   mount();
-  act(() => actions.open());
+  expect(state.props).toBeNull();
+});
+it('commits compact page mode before first deep link and every reopen', async () => {
+  mount();
+  await open();
   expect(state.opens.at(-1)).toEqual({
     page: 'general',
     initialView: 'navigation',
   });
-  act(() => actions.open('accounts'));
+  await open('accounts');
   expect(state.opens.at(-1)).toEqual({ page: 'accounts', initialView: 'page' });
   act(() => actions.close());
-  act(() => actions.open());
-  act(() => actions.open('accounts'));
+  await open();
+  await open('accounts');
   expect(state.opens.at(-1)).toEqual({ page: 'accounts', initialView: 'page' });
 });
-it('does not expose private sections or deep links to a signed-out account', () => {
+it('does not expose private sections or deep links to a signed-out account', async () => {
   state.authenticated = false;
   mount();
-  act(() => actions.open('accounts'));
+  await open('accounts');
   expect(state.props.pages.accounts).toBeUndefined();
   expect(state.props.pages['connector-detail']).toBeUndefined();
   expect(state.opens.at(-1).page).toBe('general');
 });
-it('retains OAuth callback parameters after returning to the workspace', () => {
+it('retains OAuth callback parameters after returning to the workspace', async () => {
   mount();
-  act(() =>
-    actions.open('connector-detail', {
-      id: 'calendar',
-      mcp_oauth_code: 'fixture',
-      mcp_oauth_state: 'state',
-    }),
-  );
+  await open('connector-detail', {
+    id: 'calendar',
+    mcp_oauth_code: 'fixture',
+    mcp_oauth_state: 'state',
+  });
   expect(actions.params).toEqual({
     id: 'calendar',
     mcp_oauth_code: 'fixture',
     mcp_oauth_state: 'state',
   });
 });
-it('hands off SDK surfaces only after modal exit completes', () => {
+it('hands off SDK surfaces only after modal exit completes', async () => {
   mount();
+  await open();
   const account = vi.fn();
   act(() => actions.afterClose(account));
   expect(state.close).toHaveBeenCalledOnce();

@@ -1,44 +1,23 @@
-import { useTranslation } from '@/shared/i18n/use-translation';
+import { preloadable, usePreloadWhenIdle } from '@/shared/platform/preloadable';
 import { useDialogControl } from '@oxy.so/bloom/dialog';
-import { SettingsModal, type SettingsModalPage } from '@oxy.so/bloom/settings-modal';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AccountsSection } from './accounts-section';
-import { BillingSection } from './billing-section';
-import { ConnectorDetailSection } from './connector-detail-section';
-import { ConnectorsSection } from './connectors-section';
-import { GeneralSection } from './general-section';
-import { LocalModelsSection } from './local-models-section';
-import { MemorySection } from './memory-section';
-import { PersonalizationSection } from './personalization-section';
-import { ProactiveSection } from './proactive-section';
+import { Suspense, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { AliaSettingsModalProps } from './alia-settings-modal';
 import { SETTINGS_GROUPS } from './sections';
-import { SecuritySection } from './security-section';
-import { SkillsSection } from './skills-section';
-import { StorageSection } from './storage-section';
-import { UsageSection } from './usage-section';
+import { settingsPageIds } from './settings-pages';
 import { AliaSettingsContext } from './settings-context';
-import { WritingStyleSection } from './writing-style-section';
 
-const CONTENT: Record<string, ReactNode> = {
-  general: <GeneralSection />,
-  storage: <StorageSection />,
-  personalization: <PersonalizationSection />,
-  accounts: <AccountsSection />,
-  connectors: <ConnectorsSection />,
-  'local-models': <LocalModelsSection />,
-  usage: <BillingSection />,
-  limits: <UsageSection />,
-  security: <SecuritySection />,
-  memory: <MemorySection />,
-  proactive: <ProactiveSection />,
-  'writing-style': <WritingStyleSection />,
-  skills: <SkillsSection />,
-};
+/**
+ * The modal and its pages, in their own chunk: mounted at the first `open()` and fetched before
+ * that, once the page is idle, so opening it never waits.
+ */
+const AliaSettingsModal = preloadable<AliaSettingsModalProps>(() =>
+  import('./alia-settings-modal').then((module) => module.AliaSettingsModal),
+);
+
 export function AliaSettingsProvider({ children }: { children: ReactNode }) {
   const control = useDialogControl();
   const { isAuthenticated } = useOxy();
-  const { t } = useTranslation();
   const [page, setPage] = useState('general');
   const [request, setRequest] = useState({
     sequence: 0,
@@ -46,48 +25,11 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
   });
   const [params, setParams] = useState<Record<string, string>>({});
   const pending = useRef<(() => void) | null>(null);
-  const groups = useMemo(
-    () =>
-      SETTINGS_GROUPS.map((group) => ({
-        label: t(group.titleKey),
-        items: group.sections
-          .filter((section) => isAuthenticated || section.id === 'general')
-          .map((section) => ({
-            key: section.id,
-            page: section.id,
-            label: t(section.labelKey),
-            icon: section.icon,
-          })),
-      })).filter((group) => group.items.length),
-    [isAuthenticated, t],
-  );
-  const pages = useMemo(
-    () => ({
-      ...(isAuthenticated
-        ? {
-            'connector-detail': {
-              title: t('connectors.detailTitle'),
-              content: <ConnectorDetailSection />,
-            },
-          }
-        : {}),
-      ...Object.fromEntries(
-        groups.flatMap((group) =>
-          group.items.map((item) => [
-            item.key,
-            {
-              title: item.label,
-              content: CONTENT[item.key],
-            } satisfies SettingsModalPage,
-          ]),
-        ),
-      ),
-    }),
-    [groups, isAuthenticated, t],
-  );
+  usePreloadWhenIdle(AliaSettingsModal);
   const open = useCallback(
     (next?: string, nextParams: Record<string, string> = {}) => {
-      const target = next && next in pages ? next : 'general';
+      const target =
+        next && settingsPageIds(SETTINGS_GROUPS, isAuthenticated).has(next) ? next : 'general';
       setPage(target);
       setParams(nextParams);
       setRequest((previous) => ({
@@ -95,11 +37,8 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
         initialView: next ? 'page' : 'navigation',
       }));
     },
-    [pages],
+    [isAuthenticated],
   );
-  useEffect(() => {
-    if (request.sequence > 0) control.open();
-  }, [request, control]);
   const close = useCallback(() => control.close(), [control]);
   const afterClose = useCallback(
     (action: () => void) => {
@@ -108,6 +47,11 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
     },
     [control],
   );
+  const onClose = useCallback(() => {
+    const action = pending.current;
+    pending.current = null;
+    action?.();
+  }, []);
   const value = useMemo(
     () => ({ open, close, afterClose, params }),
     [open, close, afterClose, params],
@@ -115,21 +59,19 @@ export function AliaSettingsProvider({ children }: { children: ReactNode }) {
   return (
     <AliaSettingsContext.Provider value={value}>
       {children}
-      <SettingsModal
-        control={control}
-        groups={groups}
-        pages={pages}
-        page={page in pages ? page : 'general'}
-        onPageChange={setPage}
-        initialView={request.initialView}
-        labels={{ dialog: t('settings.title') }}
-        headerPresentation="floating"
-        onClose={() => {
-          const action = pending.current;
-          pending.current = null;
-          action?.();
-        }}
-      />
+      {request.sequence > 0 ? (
+        <Suspense fallback={null}>
+          <AliaSettingsModal
+            control={control}
+            isAuthenticated={isAuthenticated}
+            page={page}
+            onPageChange={setPage}
+            initialView={request.initialView}
+            openSequence={request.sequence}
+            onClose={onClose}
+          />
+        </Suspense>
+      ) : null}
     </AliaSettingsContext.Provider>
   );
 }
