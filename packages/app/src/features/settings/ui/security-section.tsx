@@ -1,4 +1,5 @@
 import apiClient from '@/shared/api/client';
+import { queryKeys } from '@/shared/api/query-keys';
 import { API_ROUTES } from '@/shared/api/routes';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { SettingsRowsSkeleton } from '@/shared/ui/skeletons';
@@ -13,7 +14,8 @@ import {
 } from '@oxy.so/bloom/settings-modal';
 import { SettingsSelect } from '@oxy.so/bloom/settings-modal/rows';
 import { toast } from '@oxy.so/bloom/toast';
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Platform, Share, View } from 'react-native';
 
 interface ThreatEntry {
@@ -35,42 +37,27 @@ interface AuditSummary {
 export function SecuritySection() {
   const { t } = useTranslation();
 
-  const [threats, setThreats] = useState<ThreatEntry[]>([]);
-  const [threatsLoading, setThreatsLoading] = useState(true);
+  // Queries, so a second visit draws the last threats and summary while they refresh.
+  const threatsQuery = useQuery({
+    queryKey: queryKeys.audit.threats,
+    queryFn: async () => {
+      const res = await apiClient.get(API_ROUTES.audit.threats, { params: { limit: 20 } });
+      return (res.data?.threats || []) as ThreatEntry[];
+    },
+  });
+  const summaryQuery = useQuery({
+    queryKey: queryKeys.audit.summary,
+    queryFn: async () => (await apiClient.get(API_ROUTES.audit.summary)).data as AuditSummary,
+  });
+  const threats = threatsQuery.data ?? [];
+  // A failed read shows the empty state, as it did before: only "nothing yet" is a skeleton.
+  const threatsLoading = threatsQuery.isPending && !threatsQuery.isError;
+  const summary = summaryQuery.data ?? null;
 
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const [exporting, setExporting] = useState(false);
-  const [summary, setSummary] = useState<AuditSummary | null>(null);
-
-  // Load threats
-  useEffect(() => {
-    loadThreats();
-    loadSummary();
-  }, []);
-
-  const loadThreats = useCallback(async () => {
-    try {
-      const res = await apiClient.get(API_ROUTES.audit.threats, {
-        params: { limit: 20 },
-      });
-      setThreats(res.data?.threats || []);
-    } catch {
-      // silent
-    } finally {
-      setThreatsLoading(false);
-    }
-  }, []);
-
-  const loadSummary = useCallback(async () => {
-    try {
-      const res = await apiClient.get(API_ROUTES.audit.summary);
-      setSummary(res.data);
-    } catch {
-      // silent
-    }
-  }, []);
 
   const handleExport = async () => {
     setExporting(true);

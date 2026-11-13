@@ -1,5 +1,6 @@
 import { errorBodyText } from '@/shared/api/error-utils';
 import { generateAPIUrl } from '@/shared/api/generate-api-url';
+import { queryKeys } from '@/shared/api/query-keys';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Button } from '@oxy.so/bloom/button';
 import { Dialog } from '@oxy.so/bloom/dialog';
@@ -16,7 +17,8 @@ import { confirm } from '@oxy.so/bloom/surfaces';
 import { TextFieldInput } from '@oxy.so/bloom/text-field';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
 interface WritingStyleProfile {
@@ -75,8 +77,7 @@ function splitList(value: string): string[] {
 export function WritingStyleSection() {
   const { isAuthenticated, oxyServices } = useOxy();
   const { t } = useTranslation();
-  const [profile, setProfile] = useState<WritingStyleProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
 
@@ -95,27 +96,22 @@ export function WritingStyleSection() {
     };
   }, [oxyServices]);
 
-  const fetchProfile = useCallback(async () => {
-    if (!isAuthenticated) return;
-    try {
-      setLoading(true);
-      const res = await fetch(generateAPIUrl('/writing-style'), {
-        headers: getHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProfile(data.writingStyle || null);
-      }
-    } catch (error) {
-      console.error('Failed to fetch writing style:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [isAuthenticated, getHeaders]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  // A query, so a second visit draws the last profile while it refreshes.
+  const profileQuery = useQuery({
+    queryKey: queryKeys.writingStyle,
+    enabled: isAuthenticated,
+    queryFn: async () => {
+      const res = await fetch(generateAPIUrl('/writing-style'), { headers: getHeaders() });
+      if (!res.ok) throw new Error(`writing-style ${res.status}`);
+      const data = await res.json();
+      return (data.writingStyle || null) as WritingStyleProfile | null;
+    },
+  });
+  const profile = profileQuery.data ?? null;
+  // A failed read shows the empty state, as before; only "nothing yet" is a skeleton.
+  const loading = isAuthenticated && profileQuery.isPending && !profileQuery.isError;
+  const setProfile = (next: WritingStyleProfile | null) =>
+    queryClient.setQueryData(queryKeys.writingStyle, next);
 
   const handleRefresh = async () => {
     setRefreshing(true);

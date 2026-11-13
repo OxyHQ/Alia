@@ -13,7 +13,7 @@ const { accountQueryOwnership, createAccountQueryPersistence } = require(
 
 afterEach(() => onlineManager.setOnline(true));
 
-it('persists the lists a returning person sees first, and nothing that holds messages or money', () => {
+it('persists what a returning person sees first, messages bounded, and nothing that holds money', () => {
   const client = new QueryClient();
   const policy = accountQueryOwnership(ALIA_ACCOUNT_QUERIES);
   const persisted = (queryKey: readonly unknown[]) =>
@@ -22,11 +22,13 @@ it('persists the lists a returning person sees first, and nothing that holds mes
     ['conversations', { agentId: undefined, app: undefined }],
     ['alia-agent-profile', 'a1'],
     ['skills', 'installed'],
+    // The recent conversations' last messages, within `bounds` (`persisted-conversations.ts`).
+    ['conversation', 'c1'],
   ]) {
     expect(persisted(queryKey), JSON.stringify(queryKey)).toBe(true);
   }
+  expect(ALIA_ACCOUNT_QUERIES.bounds.conversation.maxQueries).toBeGreaterThan(0);
   for (const queryKey of [
-    ['conversation', 'c1'],
     ['agents', 'mine'],
     ['billing', 'subscription', 'u1'],
     ['credits'],

@@ -39,7 +39,9 @@ export function bindApiClient(oxy: OxyServices): void {
   linked?.dispose();
   owner = oxy;
   bindingRevision += 1;
-  linked = oxy.createLinkedClient({ baseURL: config.apiUrl });
+  // The API sends `Cache-Control: no-store` on every response (Gemies' `no-store-by-default.ts`), so
+  // the browser may reuse its CORS preflight instead of sending one before every request.
+  linked = oxy.createLinkedClient({ baseURL: config.apiUrl, receiverSendsNoStore: true });
   let epoch = linked.client.getSessionEpoch();
   unsubscribe = linked.client.addTokenChangeListener(() => {
     const next = linked?.client.getSessionEpoch();

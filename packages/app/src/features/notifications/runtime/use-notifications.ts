@@ -32,7 +32,9 @@ export function useNotifications(limit = 30) {
       return res.data;
     },
     staleTime: 1000 * 30, // 30 seconds
-    refetchInterval: 1000 * 60, // Refresh every minute
+    // No polling: `use-notification-setup` invalidates ['notifications'] on every socket
+    // `notification`, and the tab coming back revalidates it.
+    refetchOnWindowFocus: true,
     retry: 2,
     enabled: isAuthenticated,
   });

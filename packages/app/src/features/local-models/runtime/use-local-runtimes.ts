@@ -23,12 +23,7 @@ interface LocalRuntime {
   models: LocalRuntimeModel[];
 }
 
-/**
- * Short, because a runtime's lifetime is a browser tab's lifetime.
- *
- * A stale list offers a model that answers with a refusal, so this is refetched
- * often enough that the picker greys out a closed tab rather than pretending.
- */
+/** How long a read of the account's runtimes is trusted before a mount or focus reads it again. */
 const REFRESH_MS = 30_000;
 
 function useLocalRuntimes() {
@@ -41,8 +36,12 @@ function useLocalRuntimes() {
       return response.data.runtimes ?? [];
     },
     enabled: isAuthenticated,
-    refetchInterval: REFRESH_MS,
+    // No polling (every 30 s on every chat, for a list that changes when a tab opens or closes).
+    // Read on mount and when the tab comes back; a request to a runtime that just left is
+    // answered with a refusal the composer shows. Realtime: the server knows when a runtime's
+    // socket connects or drops, and a `user-runtimes:changed` event would invalidate this key.
     staleTime: REFRESH_MS,
+    refetchOnWindowFocus: true,
     retry: false,
   });
 }

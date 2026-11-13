@@ -1,5 +1,6 @@
 import { useBillingActionScope } from './use-billing-action-scope';
-import { type ProductPlanCatalogue, oxyAccountIdSchema } from '@oxy.so/contracts';
+import type { ProductPlanCatalogue } from '@oxy.so/contracts';
+import { oxyAccountIdCheck, parseContract } from '@oxy.so/contracts/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOxy, useDisplayCurrency } from '@oxy.so/services/ui/client';
 import { authenticatedApiCall } from '@oxy.so/core';
@@ -146,8 +147,9 @@ export function useSubscription(product?: 'alia' | 'codea') {
   return useQuery({
     queryKey: [...queryKeys.billing.subscription(product), user?.id, activeSessionId],
     queryFn: () => fetchSubscription(product),
+    // Asked again on every mount (never shown from last week: it is not persisted), and the last
+    // answer of this session is drawn meanwhile instead of a skeleton.
     staleTime: 0,
-    gcTime: 0, // 2 minutes
     retry: 2,
     enabled: isAuthenticated && !!user?.id && !!activeSessionId,
   });
@@ -277,8 +279,8 @@ export function useProductCheckoutOptions() {
   return useQuery({
     queryKey: ['billing', 'product-checkout', user?.id, activeSessionId],
     enabled: isAuthenticated && !!user?.id,
+    // Refetched on every mount; this session's last answer is drawn meanwhile (memory only).
     staleTime: 0,
-    gcTime: 0,
     queryFn: async () => {
       const { data } = await apiClient.get<ProductCheckoutConfig>('/billing/product-checkout');
       if (!data.productId)
@@ -364,7 +366,7 @@ export function useCreateSubscriptionCheckout() {
       const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
         assertCurrent();
         return oxyServices.billing.startProductPlanCheckout({
-          expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
+          expectedSubjectAccountId: parseContract(oxyAccountIdCheck, user.id),
           productId,
           offerId: binding.offerId,
           offerVersion: binding.offerVersion,
@@ -460,8 +462,9 @@ export function useEntitlements() {
     undefined,
     {
       enabled: isAuthenticated && !!user?.id && !!activeSessionId,
+      // Refetched on every mount; this session's last answer gates the composer meanwhile, so a
+      // paid plan is not shown as free for a moment on every chat (memory only, never persisted).
       staleTime: 0,
-      gcTime: 0,
       placeholderData: FREE_ENTITLEMENTS,
       queryFn: async () => {
         const { data } = await apiClient.get('/billing/entitlements');

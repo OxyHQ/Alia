@@ -18,6 +18,7 @@ import {
   useQuery,
   useQueryClient,
   keepPreviousData,
+  type QueryClient,
 } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
@@ -130,13 +131,41 @@ export function useInstalledSkills() {
   });
 }
 
+/** A skill the catalogue or the shelf already listed, by id or name, from the cache. */
+function cachedSkill(client: QueryClient, idOrName: string): Skill | undefined {
+  const matches = (skill: Skill) => skill._id === idOrName || skill.name === idOrName;
+  const installed = client.getQueryData<InstalledSkill[]>(queryKeys.skills.installed);
+  const shelved = installed?.find(matches);
+  if (shelved) return shelved;
+  // The catalogue is cached as pages of rows (the infinite list) or as one `{ skills }` answer.
+  for (const [, data] of client.getQueriesData<unknown>({ queryKey: ['skills', 'catalogue'] })) {
+    const pages = (data as { pages?: unknown[] } | undefined)?.pages ?? [data];
+    for (const page of pages) {
+      const rows = Array.isArray(page) ? page : (page as { skills?: Skill[] } | undefined)?.skills;
+      const listed = (rows as Skill[] | undefined)?.find(matches);
+      if (listed) return listed;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * One skill, whole. Opened from the catalogue or the shelf, its row is already cached, so the
+ * screen draws the skill at once (`isPlaceholderData`: its instructions and files, which no list
+ * carries, are a skeleton until they arrive) instead of a skeleton of the whole page.
+ */
 export function useSkill(idOrName: string | undefined) {
+  const client = useQueryClient();
   return useQuery({
     queryKey: queryKeys.skills.detail(idOrName ?? ''),
     enabled: Boolean(idOrName),
     queryFn: async (): Promise<SkillDetail> => {
       const response = await apiClient.get(API_ROUTES.skills.get(idOrName!));
       return response.data;
+    },
+    placeholderData: () => {
+      const skill = idOrName ? cachedSkill(client, idOrName) : undefined;
+      return skill ? { skill, version: null, files: [] } : undefined;
     },
   });
 }
