@@ -30,7 +30,7 @@
     "@lottiefiles/dotlottie-react": "^0.20.0",
     "@lottiefiles/dotlottie-web": "0.81.0",
     "@oxy.so/app-preset": "6.6.0",
-    "@oxy.so/bloom": "19.10.1",
+    "@oxy.so/bloom": "19.10.3",
     "@oxy.so/contracts": "6.25.0",
     "@oxy.so/core": "7.48.0",
     "@oxy.so/expo-splash": "^1.1.0",
