@@ -213,11 +213,11 @@ function main() {
   // and "there is less" look identical without one.
   //
   // #244 found a walk of 245 files reporting OK while the bots all showed an
-  // alias. The walk is 433 files today (611 before the integrations tree moved
-  // to OxyHQ/Gemies with the backend); a floor of 200 still catches losing a
-  // whole tree of that size.
-  if (files.length < 200) {
-    console.error(`check-model-defaults: walked only ${files.length} files; expected 200+.`);
+  // alias. The walk is 199 files today (611 before the integrations tree moved
+  // to OxyHQ/Gemies with the backend, then the connectors UI to @gemies/sdk); a
+  // floor of 150 still catches losing a whole feature tree.
+  if (files.length < 150) {
+    console.error(`check-model-defaults: walked only ${files.length} files; expected 150+.`);
     process.exit(1);
   }
 
