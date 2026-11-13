@@ -3,8 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Settings › Connected accounts: the person's WhatsApp and Telegram accounts linked to Alia's gemie
- * (Gemies ADR 0035), drawn by the SDK's panel in this page's card.
+ * Settings › Connected accounts: the person's WhatsApp and Telegram accounts, connected once and
+ * granted to their gemies (Gemies ADR 0035 as amended), drawn by the SDK's panel in this page's card.
  */
 
 vi.mock('react-native', async () => {
@@ -17,9 +17,8 @@ vi.mock('react-native', async () => {
 vi.mock('@gemies/sdk/accounts', async () => {
   const ReactModule = await import('react');
   return {
-    ALIA_GEMIE_ID: '01a1cf00-cecf-7a24-868b-42b452105a6f',
-    GemieAccounts: (props: Record<string, unknown>) =>
-      ReactModule.createElement('GemieAccounts', props),
+    GemieConnectedAccounts: (props: Record<string, unknown>) =>
+      ReactModule.createElement('GemieConnectedAccounts', props),
   };
 });
 vi.mock('@oxy.so/bloom/settings-modal', async () => {
@@ -45,16 +44,13 @@ afterEach(() => {
 });
 
 describe('AccountsSection', () => {
-  it('draws the SDK panel for Alia’s gemie, in the app’s words', () => {
+  it('draws the SDK’s Settings panel, for the person and not for one gemie, in the app’s words', () => {
     act(() => {
       renderer = create(<AccountsSection />);
     });
-    const panel = renderer!.root.findByType('GemieAccounts' as never);
-    expect(panel.props).toMatchObject({
-      gemieId: '01a1cf00-cecf-7a24-868b-42b452105a6f',
-      name: 'Alia',
-    });
-    expect(panel.props.t('gemie.accounts.link')).toBe('t:gemie.accounts.link');
+    const panel = renderer!.root.findByType('GemieConnectedAccounts' as never);
+    expect(panel.props.gemieId).toBeUndefined();
+    expect(panel.props.t('gemie.accounts.connect')).toBe('t:gemie.accounts.connect');
     expect(renderer!.root.findByType('SettingsSection' as never).props.label).toBe(
       't:gemie.accounts.title',
     );
