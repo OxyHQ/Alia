@@ -79,7 +79,7 @@
     "i18n-js": "^4.5.3",
     "lightningcss": "1.33.0",
     "lottie-react-native": "~7.5.0",
-    "nativewind": "5.0.0-rc.0",
+    "nativewind": "5.0.0-rc.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
