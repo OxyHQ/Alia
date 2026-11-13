@@ -59,14 +59,17 @@ export default function NotificationsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { colors } = useTheme();
-  const { isAuthenticated, signIn } = useAuth();
+  const { isAuthenticated, isAuthResolved, signIn } = useAuth();
 
   const [pushEnabled, setPushEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
   const [pushLoading, setPushLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
 
-  const { data, isLoading } = useNotifications();
+  const { data, isPending } = useNotifications();
+  // The feed is on its way while the session is still being read, not only once its request is:
+  // before, a returning person saw "no notifications" for the moment the query was still disabled.
+  const feedPending = isPending && (isAuthenticated || !isAuthResolved);
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
   const dismiss = useDismissNotification();
@@ -190,7 +193,7 @@ export default function NotificationsScreen() {
       ) : null}
 
       {/* Notification feed */}
-      {isLoading ? (
+      {feedPending ? (
         <ListRowsSkeleton rows={5} mark="tile" />
       ) : notifications.length === 0 ? (
         <EmptyState

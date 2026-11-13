@@ -1,3 +1,6 @@
+import { PERSISTED_CONVERSATION } from './persisted-conversations';
+import { PERSISTED_DATA_STAMP } from './persisted-data-version';
+
 export const EMAIL_ALERTS_MUTATION_KEY = ['email-alerts-update'] as const;
 /**
  * Which of Alia's reads belong to the signed-in account and survive a restart, so the first frame
@@ -6,17 +9,23 @@ export const EMAIL_ALERTS_MUTATION_KEY = ['email-alerts-update'] as const;
  *
  * Persisted, per account (`oxy_account_queries:<account id>`: another account can never hydrate
  * them, and a sign-out deletes them):
- *  - `conversations`: the list the sidebar draws (titles and times, never the messages).
+ *  - `conversations`: the list the sidebar draws (titles and times).
+ *  - `conversation`: the last messages of the most recent conversations, bounded in count, length
+ *    and bytes and text only (`persisted-conversations.ts`), so reopening one draws at once.
  *  - `alia-agent-profile`: a gemie's profile as the SDK's chat draws it (name, look, greeting).
  *  - `skills`: the catalogue and the person's installed skills.
  *
- * NOT persisted, so they live in memory only: a conversation's messages, the thought panel's
- * reads, search results, billing (a subscription must never be shown from last week) and
- * anything signed. `useAccountLifecycle` drops all of Alia's queries when the account changes.
+ * Kept across deploys while `PERSISTED_DATA_STAMP` holds (`persisted-data-version.ts`).
+ *
+ * NOT persisted, so they live in memory only: the thought panel's reads, search results, billing
+ * (a subscription must never be shown from last week) and anything signed.
+ * `useAccountLifecycle` drops all of Alia's queries when the account changes.
  */
 export const ALIA_ACCOUNT_QUERIES = {
-  roots: ['conversations', 'alia-agent-profile', 'skills'],
+  roots: ['conversations', 'conversation', 'alia-agent-profile', 'skills'],
   mutationKeys: [EMAIL_ALERTS_MUTATION_KEY],
+  dataVersion: PERSISTED_DATA_STAMP,
+  bounds: { conversation: PERSISTED_CONVERSATION },
 } as const;
 
 export const queryKeys = {
@@ -49,6 +58,13 @@ export const queryKeys = {
   referrals: {
     info: ['referral-info'] as const,
     history: ['referral-history'] as const,
+  },
+  /** Settings > Writing style: the profile learnt from the person's messages (memory only). */
+  writingStyle: ['writing-style'] as const,
+  /** Settings > Security: recent threats and the audit summary (memory only). */
+  audit: {
+    threats: ['audit', 'threats'] as const,
+    summary: ['audit', 'summary'] as const,
   },
   suggestions: {
     welcome: ['suggestions', 'welcome'] as const,

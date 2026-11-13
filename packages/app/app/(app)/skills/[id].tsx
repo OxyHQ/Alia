@@ -19,7 +19,7 @@ import { RiExternalLinkLine } from '@oxy.so/bloom/icons/RiExternalLinkLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiPencilLine } from '@oxy.so/bloom/icons/RiPencilLine';
 import { RiPlayLine } from '@oxy.so/bloom/icons/RiPlayLine';
-import { DetailSkeleton } from '@/shared/ui/skeletons';
+import { DetailSkeleton, LinesSkeleton } from '@/shared/ui/skeletons';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { ResponsiveGrid } from '@oxy.so/bloom/grid';
 import { Switch } from '@oxy.so/bloom/switch';
@@ -93,6 +93,8 @@ export default function SkillDetailScreen() {
   }
 
   const { skill, version, files } = detail.data;
+  // Drawn from the catalogue's row: the body and files are on their way.
+  const partial = detail.isPlaceholderData;
   const shelf: InstalledSkill | undefined = (installed.data ?? []).find(
     (entry) => entry._id === skill._id,
   );
@@ -173,11 +175,17 @@ export default function SkillDetailScreen() {
       {skill.publisher ? (
         <Muted>{t('skills.untrusted', { publisher: skill.publisher })}</Muted>
       ) : null}
-      {version ? <ReplyMarkdown content={version.body} /> : null}
+      {partial ? (
+        <LinesSkeleton lines={6} />
+      ) : version ? (
+        <ReplyMarkdown content={version.body} />
+      ) : null}
     </View>,
     <View key="k4" className="gap-2">
       <Text variant="headline-semibold">{t('skills.files')}</Text>
-      {files.length === 0 ? (
+      {partial ? (
+        <LinesSkeleton lines={2} />
+      ) : files.length === 0 ? (
         <Muted>{t('skills.noFiles')}</Muted>
       ) : (
         <SettingsListGroup>
