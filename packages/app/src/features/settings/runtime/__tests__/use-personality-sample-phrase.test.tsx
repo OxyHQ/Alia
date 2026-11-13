@@ -101,6 +101,12 @@ describe('the personality sample names a model', () => {
     expect(fetchCalls[0].body).not.toHaveProperty('model');
   });
 
+  it('caps no output: a reasoning model would spend the cap thinking and say nothing', async () => {
+    await requestOneSample();
+
+    expect(fetchCalls[0].body).not.toHaveProperty('max_tokens');
+  });
+
   it('offers the model no tool: a greeting is words, never a call', async () => {
     await requestOneSample();
 
