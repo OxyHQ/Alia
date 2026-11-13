@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { toast } from '@oxy.so/bloom/toast';
-import { Image } from '@/shared/ui/image';
 import { RiCameraLine } from '@oxy.so/bloom/icons/RiCameraLine';
 import { RiImageLine } from '@oxy.so/bloom/icons/RiImageLine';
 import { RiAttachment2 } from '@oxy.so/bloom/icons/RiAttachment2';
@@ -11,13 +10,13 @@ import { RiBookOpenLine } from '@oxy.so/bloom/icons/RiBookOpenLine';
 import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 import { RiSearchLine } from '@oxy.so/bloom/icons/RiSearchLine';
 import type { ComposerPanelAddMenuGroup } from '@oxy.so/bloom/composer-panel';
-import { useTheme } from '@oxy.so/bloom/theme';
 import { useImagePicker, type ImagePickerAsset } from '@/shared/platform/use-image-picker';
 import { useDocumentPicker } from '@/shared/platform/use-document-picker';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { classifyIntake, MAX_ATTACHMENT_BYTES } from '@gemies/sdk/tools';
 import type { TurnSelectionOptions } from '@/features/chat/model/turn-selection';
 import type { GemieAttachment } from '@gemies/sdk';
+import { ConnectorLogo } from '@gemies/sdk/connectors';
 
 /**
  * The plus button's menu, as DATA.
@@ -78,14 +77,6 @@ const CONNECTOR_PREFIX = 'connector:';
  * connector's is a URL the server published — there is no component to hand
  * over, only artwork to draw.
  */
-function ConnectorMark({ icon }: { icon?: string }) {
-  const { colors } = useTheme();
-  if (icon !== undefined && /^https?:\/\//i.test(icon)) {
-    return <Image source={{ uri: icon }} className="h-6 w-6" contentFit="contain" />;
-  }
-  return <RiPlugLine width={24} height={24} fill={colors.textSecondary} />;
-}
-
 export interface ComposerAddMenuOptions {
   /** A picked file becomes an attachment. The composer owns the list. */
   addAttachment: (attachment: GemieAttachment) => void;
@@ -223,12 +214,7 @@ export function useComposerAddMenu(options: ComposerAddMenuOptions): ComposerAdd
           id: `${CONNECTOR_PREFIX}${connector.id}`,
           label: connector.label,
           description: t('composer.connectorTools', { count: connector.toolCount }),
-          image:
-            connector.icon === undefined ? (
-              <RiPlugLine width={24} height={24} />
-            ) : (
-              <ConnectorMark icon={connector.icon} />
-            ),
+          image: <ConnectorLogo name={connector.name} logoUrl={connector.logoUrl} size={24} />,
           checked: connector.selected,
         })),
       });

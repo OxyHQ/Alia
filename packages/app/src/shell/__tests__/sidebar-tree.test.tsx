@@ -106,6 +106,7 @@ vi.mock('@/features/notifications/runtime/use-notifications', () => ({
 }));
 
 // Glyphs are only handed to Bloom, never drawn here.
+vi.mock('@oxy.so/bloom/icons/RiPlugLine', () => ({ RiPlugLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiDeleteBinLine', () => ({ RiDeleteBinLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiEditLine', () => ({ RiEditLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiFolderLine', () => ({ RiFolderLine: () => null }));

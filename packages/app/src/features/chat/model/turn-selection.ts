@@ -24,7 +24,7 @@
  * Being a plain function it is also testable without mounting a composer.
  */
 
-import type { InstalledMcpServer } from '@/features/connections/runtime/use-mcp-servers';
+import type { Connection } from '@gemies/sdk/connectors';
 import type { InstalledSkill } from '@/features/skills/runtime/use-skills';
 
 /** One skill the person may name for the next message. */
@@ -40,9 +40,11 @@ interface TurnSkillOption {
 /** One connector whose tools the next message may reach. */
 interface TurnConnectorOption {
   id: string;
+  /** The connector and, when it has one, which of the person's accounts: `Notion · Work`. */
   label: string;
-  /** Remote URL or a glyph name; the menu decides how to draw it. */
-  icon?: string;
+  /** For `ConnectorLogo`: a path on the API's origin, or `null` for a monogram. */
+  name: string;
+  logoUrl: string | null;
   toolCount: number;
   selected: boolean;
 }
@@ -53,20 +55,11 @@ export interface TurnSelectionOptions {
 }
 
 /**
- * A connector whose tools a turn can actually reach.
- *
- * All four conditions, because each one alone is satisfiable by a server that
- * would answer nothing: disabled, not running, running on the person's own
- * machine rather than where the turn executes, or running and exporting no
- * tools.
+ * A connector whose tools a turn can actually reach: connected, and exporting tools. One that
+ * lost its connection, or exports none, would answer nothing.
  */
-export function isRunnableConnector(server: InstalledMcpServer): boolean {
-  return (
-    server.enabled &&
-    server.status === 'running' &&
-    server.runtime === 'server' &&
-    server.tools.length > 0
-  );
+export function isRunnableConnector(connection: Connection): boolean {
+  return connection.status === 'running' && connection.tools.length > 0;
 }
 
 /**
@@ -79,7 +72,7 @@ export function isRunnableConnector(server: InstalledMcpServer): boolean {
  */
 export function buildTurnSelection(input: {
   installedSkills: readonly InstalledSkill[];
-  installedConnectors: readonly InstalledMcpServer[];
+  installedConnectors: readonly Connection[];
   selectedSkillNames: readonly string[];
   selectedConnectorId: string | null;
 }): TurnSelectionOptions {
@@ -95,12 +88,15 @@ export function buildTurnSelection(input: {
         description: skill.description,
         selected: selectedSkills.has(skill.name),
       })),
-    connectors: input.installedConnectors.filter(isRunnableConnector).map((server) => ({
-      id: server._id,
-      label: server.displayName,
-      icon: server.icon,
-      toolCount: server.tools.length,
-      selected: input.selectedConnectorId === server._id,
+    connectors: input.installedConnectors.filter(isRunnableConnector).map((connection) => ({
+      id: connection._id,
+      label: connection.accountLabel
+        ? `${connection.displayName} · ${connection.accountLabel}`
+        : connection.displayName,
+      name: connection.displayName,
+      logoUrl: connection.logoUrl,
+      toolCount: connection.tools.length,
+      selected: input.selectedConnectorId === connection._id,
     })),
   };
 }

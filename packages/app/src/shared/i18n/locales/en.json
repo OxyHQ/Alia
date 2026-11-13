@@ -176,7 +176,6 @@
       "personalization": "Personalization",
       "memory": "Memory",
       "accounts": "Connected Accounts",
-      "connectors": "Connectors",
       "security": "Security",
       "writingStyle": "Writing Style",
       "localModels": "Local models",
@@ -229,33 +228,6 @@
       "creditsPerMonth": "{{count}} credits a month",
       "logout": "Log out",
       "logoutConfirm": "You will be signed out of Alia on this device. Your other devices stay signed in."
-    },
-    "connections": {
-      "catalog": "Connector catalog",
-      "viewDetails": "View details",
-      "noOutput": "No output available",
-      "noTools": "No tools available",
-      "notConnected": "Not connected",
-      "toolCount": {
-        "zero": "No tools enabled",
-        "one": "1 tool enabled",
-        "other": "{{count}} tools enabled"
-      },
-      "serverStatus": {
-        "installed": "Installed",
-        "running": "Running",
-        "stopped": "Stopped",
-        "error": "Error"
-      },
-      "capability": {
-        "read": "Read",
-        "readWrite": "Read, Write"
-      },
-      "auth": {
-        "oauth": "OAuth",
-        "apiKey": "API key",
-        "none": "None"
-      }
     },
     "assistant": {
       "memory": {
@@ -466,7 +438,8 @@
       "yellow": "Amber",
       "lime": "Green",
       "cyan": "Cyan"
-    }
+    },
+    "connectors": "Connectors"
   },
   "billing": {
     "title": "Billing",
@@ -1196,80 +1169,6 @@
     "newChat": "New chat",
     "closeDialog": "Close dialog"
   },
-  "connectors": {
-    "title": "Connectors",
-    "subtitle": "Connect apps and services so Alia can act on your behalf",
-    "searchPlaceholder": "Search connectors...",
-    "installed": "Installed",
-    "installedEmpty": "No connectors installed yet",
-    "connect": "Connect",
-    "install": "Install",
-    "installing": "Installing...",
-    "installName": "Install {{name}}",
-    "installEnvDescription": "This connector requires the following environment variables.",
-    "enterValue": "Enter {{name}}",
-    "installedToast": "{{name}} installed",
-    "installFailed": "Failed to install connector",
-    "connected": "Connected",
-    "connectFailed": "Failed to connect",
-    "oauthError": "Connection was cancelled or failed",
-    "noResults": "No connectors match your search",
-    "addCustom": "Add custom connector",
-    "addCustomTitle": "Add Custom Connector",
-    "addCustomDescription": "Connect to a remote MCP server using its URL.",
-    "nameLabel": "Name",
-    "namePlaceholder": "My Custom Connector",
-    "urlLabel": "Remote MCP Server URL",
-    "advancedSettings": "Advanced settings",
-    "headerNameLabel": "Header Name (optional)",
-    "headerValueLabel": "Header Value (optional)",
-    "customAdded": "{{name}} added",
-    "customExists": "A connector with this name already exists",
-    "customFailed": "Failed to add connector",
-    "adding": "Adding...",
-    "add": "Add",
-    "detailTitle": "Connector",
-    "back": "Connectors",
-    "notFound": "Connector not found",
-    "skills": "Skills",
-    "information": "Information",
-    "connectToSeeTools": "Connect to see available tools",
-    "capabilities": "Capabilities",
-    "transport": "Transport",
-    "authentication": "Authentication",
-    "website": "Website",
-    "status": "Status",
-    "uninstall": "Uninstall",
-    "uninstallTitle": "Uninstall connector?",
-    "uninstallDescription": "This removes {{name}} and its tools. You can reinstall it anytime.",
-    "uninstalledToast": "{{name}} uninstalled",
-    "uninstallFailed": "Failed to uninstall connector",
-    "installFromList": "Install from the Connectors list",
-    "examplePrompt": "summarize my recent activity",
-    "category": {
-      "featured": "Featured",
-      "productivity": "Productivity",
-      "development": "Developer",
-      "communication": "Communication",
-      "data": "Data",
-      "search": "Search",
-      "filesystem": "Filesystem"
-    },
-    "tab": {
-      "public": "Public",
-      "personal": "Personal"
-    },
-    "personalEmpty": "No personal connectors yet. Add one with +",
-    "device": {
-      "title": "Off on your computer",
-      "description": "Command connectors run only on your own computer, started by Alia for desktop — never on Alia's servers. These are turned off: turn one on to run it there again.",
-      "turnOn": "Turn on",
-      "turnOnTitle": "Turn on {{name}}?",
-      "turnOnDescription": "It runs this command on your computer while Alia for desktop is open: {{command}}",
-      "turnedOnToast": "{{name}} is on. It starts the next time Alia for desktop connects.",
-      "turnOnFailed": "Could not turn the connector on. Try again."
-    }
-  },
   "weather": {
     "toggleUnit": "Switch temperature unit",
     "condition": {
@@ -1826,6 +1725,88 @@
         "step1": "1. Open the Gemies bot in Telegram and press Start (or scan this code with your phone).",
         "step2": "2. In Telegram, go to Settings › Telegram Business › Chatbots, add the bot and choose which chats it may answer.",
         "waitingBusiness": "Telegram knows it is you. Now go to Telegram › Settings › Telegram Business › Chatbots and add the bot you just opened."
+      }
+    },
+    "connectors": {
+      "cancel": "Cancel",
+      "category": {
+        "communication": "Communication",
+        "data": "Data",
+        "development": "Development",
+        "productivity": "Productivity"
+      },
+      "connected": {
+        "browse": "Browse connectors",
+        "description": "The accounts you connected. Alia can use every one; other gemies only the ones you give them in their editor.",
+        "emptyDescription": "Connect Notion, Linear, Slack and more so your gemies can work with them.",
+        "emptyTitle": "Nothing connected yet",
+        "loadFailed": "Your connectors could not be loaded.",
+        "title": "Connected"
+      },
+      "custom": {
+        "add": "Add server",
+        "adding": "Adding…",
+        "advanced": "Advanced",
+        "cancel": "Cancel",
+        "description": "Your own remote MCP server, by its https address. If it asks you to sign in, you will be taken there.",
+        "failed": "The server could not be added.",
+        "headerName": "Header name",
+        "headerValue": "Header value",
+        "name": "Name",
+        "namePlaceholder": "My server",
+        "title": "Add a custom MCP server",
+        "url": "Server URL"
+      },
+      "disconnect": "Disconnect",
+      "disconnectDescription": "Gemies forgets this account and asks {{name}} to revoke its access. Gemies that used it lose its tools.",
+      "disconnectFailed": "It could not be disconnected right now. Try again.",
+      "disconnectTitle": "Disconnect {{name}}?",
+      "disconnected": "{{name}} is disconnected.",
+      "reconnect": "Reconnect",
+      "reconnectFailed": "{{name}} could not be reconnected.",
+      "reconnected": "{{name}} is connected again.",
+      "rename": "Rename",
+      "renameDescription": "How you tell this {{name}} account apart from the others.",
+      "renameFailed": "The name could not be saved.",
+      "renameLabel": "Account name",
+      "renameSave": "Save",
+      "renameTitle": "Name this account",
+      "signIn": {
+        "connected": "{{name}} is connected.",
+        "declined": "Sign-in was cancelled.",
+        "expired": "The sign-in took too long. Try again.",
+        "failed": "{{name}} could not be connected. Try again.",
+        "failedGeneric": "The connector could not be connected. Try again."
+      },
+      "status": {
+        "error": "Needs reconnecting",
+        "installed": "Not connected yet",
+        "running": "Connected"
+      },
+      "store": {
+        "all": "All",
+        "categories": "Categories",
+        "connect": "Connect",
+        "connectAnother": "Add account",
+        "description": "Connect the apps you work with. Each is the provider’s own MCP server: you sign in with them, and Gemies never sees your password.",
+        "docs": "About",
+        "empty": "No connector is available right now.",
+        "featured": "Featured",
+        "loadFailed": "Connectors could not be loaded.",
+        "noResults": "No connector matches “{{query}}”.",
+        "retry": "Retry",
+        "search": "Search connectors",
+        "title": "Connectors",
+        "connectedCount": {
+          "one": "Connected",
+          "other": "{{count}} accounts connected"
+        }
+      },
+      "usedBy": "Used by {{names}}",
+      "toolCount": {
+        "zero": "No tools",
+        "one": "1 tool",
+        "other": "{{count}} tools"
       }
     }
   }

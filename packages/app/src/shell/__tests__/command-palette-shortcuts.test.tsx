@@ -18,6 +18,7 @@ vi.mock('@oxy.so/bloom/command', () => ({
     return null;
   },
 }));
+vi.mock('@oxy.so/bloom/icons/RiPlugLine', () => ({ RiPlugLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiBankCardLine', () => ({ RiBankCardLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiBookOpenLine', () => ({ RiBookOpenLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiBookShelfLine', () => ({ RiBookShelfLine: () => null }));
