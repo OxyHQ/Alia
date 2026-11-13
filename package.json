@@ -35,7 +35,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@oxy.so/doctor": "1.8.0",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@oxy.so/bloom": "19.10.1",
