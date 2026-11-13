@@ -22,7 +22,15 @@ export const EMAIL_ALERTS_MUTATION_KEY = ['email-alerts-update'] as const;
  * `useAccountLifecycle` drops all of Alia's queries when the account changes.
  */
 export const ALIA_ACCOUNT_QUERIES = {
-  roots: ['conversations', 'conversation', 'alia-agent-profile', 'skills'],
+  // `conversation-collections`: folders, projects, pins and favourites, so the sidebar files by them
+  // from the first frame.
+  roots: [
+    'conversations',
+    'conversation',
+    'alia-agent-profile',
+    'skills',
+    'conversation-collections',
+  ],
   mutationKeys: [EMAIL_ALERTS_MUTATION_KEY],
   dataVersion: PERSISTED_DATA_STAMP,
   bounds: { conversation: PERSISTED_CONVERSATION },

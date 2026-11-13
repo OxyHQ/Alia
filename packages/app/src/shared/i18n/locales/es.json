@@ -359,6 +359,7 @@
     "security": "Seguridad"
   },
   "sidebar": {
+    "collectionsError": "No se pudo guardar ese cambio en tus carpetas. Inténtalo de nuevo.",
     "loadError": "No se ha podido actualizar la barra lateral.",
     "newChat": "Nueva conversación",
     "library": "Biblioteca",

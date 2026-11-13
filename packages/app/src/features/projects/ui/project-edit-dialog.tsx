@@ -1,5 +1,5 @@
 import { useTranslation } from '@/shared/i18n/use-translation';
-import type { Project } from '@/features/projects/runtime/projects-store';
+import type { Project } from '@/features/projects/runtime/collections';
 import { Chip, ChipRow, type ChipHue } from '@oxy.so/bloom/chip';
 import { Dialog } from '@oxy.so/bloom/dialog';
 import { Field } from '@oxy.so/bloom/field';

@@ -32,11 +32,12 @@ import {
   selectedItemForPath,
   sidebarSections,
 } from '@/shell/sidebar-history';
-import { useFavoritesStore } from '@/features/projects/runtime/favorites-store';
-import { useFoldersStore, type Folder } from '@/features/projects/runtime/folders-store';
+import {
+  type Folder,
+  type Project,
+  useAccountCollections,
+} from '@/features/projects/runtime/collections';
 import { useStore } from '@/features/chat/runtime/global-store';
-import { usePinnedStore } from '@/features/projects/runtime/pinned-store';
-import { useProjectsStore, type Project } from '@/features/projects/runtime/projects-store';
 import { useAiChatShell } from '@oxy.so/bloom/ai-chat';
 import { useHoverIntent } from '@/shell/hover-intent';
 import { ConversationSidebar } from '@oxy.so/bloom/conversation-sidebar';
@@ -140,28 +141,27 @@ function useSidebarProps() {
   } = useConversations();
   const { isAuthenticated } = useOxy();
   const { signIn } = useAuth();
-  const projects = useProjectsStore((state) => state.projects);
-  const toggleProject = useProjectsStore((state) => state.toggleProject);
-  const createProject = useProjectsStore((state) => state.createProject);
-  const updateProject = useProjectsStore((state) => state.updateProject);
-  const deleteProject = useProjectsStore((state) => state.deleteProject);
-  const addConversationToProject = useProjectsStore((state) => state.addConversationToProject);
-  const removeConversationFromProject = useProjectsStore(
-    (state) => state.removeConversationFromProject,
-  );
-  const folders = useFoldersStore((state) => state.folders);
-  const createFolder = useFoldersStore((state) => state.createFolder);
-  const updateFolder = useFoldersStore((state) => state.updateFolder);
-  const deleteFolder = useFoldersStore((state) => state.deleteFolder);
-  const toggleFolder = useFoldersStore((state) => state.toggleFolder);
-  const addConversationToFolder = useFoldersStore((state) => state.addConversationToFolder);
-  const removeConversationFromFolder = useFoldersStore(
-    (state) => state.removeConversationFromFolder,
-  );
-  const pinnedIds = usePinnedStore((state) => state.pinnedConversationIds);
-  const togglePin = usePinnedStore((state) => state.togglePin);
-  const favoriteIds = useFavoritesStore((state) => state.favoriteConversationIds);
-  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  // Folders, projects, pins and favourites: the account's, the same on every device.
+  const {
+    projects,
+    toggleProject,
+    createProject,
+    updateProject,
+    deleteProject,
+    addConversationToProject,
+    removeConversationFromProject,
+    folders,
+    createFolder,
+    updateFolder,
+    deleteFolder,
+    toggleFolder,
+    addConversationToFolder,
+    removeConversationFromFolder,
+    pinnedIds,
+    togglePin,
+    favoriteIds,
+    toggleFavorite,
+  } = useAccountCollections();
   // `mutateAsync` is stable across renders; the mutation object is not, and the
   // tree's rows (and their memoised menus) depend on this.
   const { mutateAsync: deleteConversation } = useDeleteConversation();
@@ -263,18 +263,12 @@ function useSidebarProps() {
         () => true,
         () => false,
       );
+      // Its pin, favourite and folder go with it on the server, which says so to every device.
       if (!deleted) return;
-      await fileConversation(conv.id, {});
-      if (usePinnedStore.getState().pinnedConversationIds.includes(conv.id)) {
-        await togglePin(conv.id);
-      }
-      if (useFavoritesStore.getState().favoriteConversationIds.includes(conv.id)) {
-        await toggleFavorite(conv.id);
-      }
       // Deleting the open chat leaves nothing to show; start a new one.
       if (chatId?.id === conv.id) router.replace('/');
     },
-    [t, deleteConversation, fileConversation, togglePin, toggleFavorite, chatId, router],
+    [t, deleteConversation, chatId, router],
   );
 
   const askDeleteProject = React.useCallback(

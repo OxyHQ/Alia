@@ -29,8 +29,7 @@ import { useModeSelection } from '@/features/chat/ui/composer/power-level-option
 import { ConversationActions } from '@/features/chat/ui/conversation-actions';
 import { NotificationsBell } from '@/features/notifications/ui/notifications-bell';
 import { useLocalModelOptions } from '@/features/local-models/runtime/use-local-runtimes';
-import { useFoldersStore } from '@/features/projects/runtime/folders-store';
-import { useProjectsStore } from '@/features/projects/runtime/projects-store';
+import { useAccountCollections } from '@/features/projects/runtime/collections';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { useColorScheme } from '@/shared/platform/useColorScheme';
 import { useScreenOnShow } from '@/shared/platform/use-screen-on-show';
@@ -123,8 +122,7 @@ export const ConversationScreen = ({ conversationId }: ConversationScreenProps) 
   }, [signIn]);
 
   // ── The breadcrumb: where the sidebar's tree files the chat, and its actions ──
-  const projects = useProjectsStore((state) => state.projects);
-  const folders = useFoldersStore((state) => state.folders);
+  const { projects, folders } = useAccountCollections();
   const projectName = conversationId
     ? (projects.find((p) => p.conversationIds.includes(conversationId))?.name ??
       folders.find((f) => f.conversationIds.includes(conversationId))?.name ??
