@@ -1809,7 +1809,8 @@
       "removed": "{{platform}} removed",
       "removeFailed": "Could not remove it. Try again.",
       "cancel": "Cancel",
-      "saveFailed": "Could not save. Try again."
+      "saveFailed": "Could not save. Try again.",
+      "retry": "Retry"
     }
   }
 }
