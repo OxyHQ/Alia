@@ -35,7 +35,7 @@ export default function SharedConversationScreen() {
           <PageHeader
             title={t('sharedConversation.title')}
             backLabel={t('sharedConversation.open')}
-            onBack={() => router.replace('/(app)')}
+            onBack={() => router.replace('/')}
           />
         }
       >

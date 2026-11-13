@@ -73,7 +73,7 @@ vi.mock('@/features/chat/ui/welcome-intro', async () => {
   };
 });
 
-import ChatPage from '../index';
+import ChatPage from '../(own-header)/index';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -126,7 +126,8 @@ describe('the new-chat route', () => {
 });
 
 describe('the two doors onto one chat', () => {
-  const route = (file: string) => readFileSync(join(APP_ROOT, 'app/(app)', file), 'utf8');
+  const route = (file: string) =>
+    readFileSync(join(APP_ROOT, 'app/(app)/(own-header)', file), 'utf8');
 
   it.each(['index.tsx', 'c/[id]/index.tsx'])(
     '%s mounts the conversation screen and draws no thread of its own',

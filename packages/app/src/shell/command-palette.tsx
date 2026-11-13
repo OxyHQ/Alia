@@ -58,7 +58,7 @@ export function CommandPalette() {
         group: t('dialogs.commandPalette.groupActions'),
         icon: RiChatNewLine,
         shortcut: '⌘⇧N',
-        onSelect: () => router.replace('/(app)'),
+        onSelect: () => router.replace('/'),
       },
       {
         id: 'connectors',
@@ -135,7 +135,7 @@ export function CommandPalette() {
       label: conv.title ?? '',
       group,
       icon: favoriteIds.includes(conv.id) ? RiStarFill : RiChat3Line,
-      onSelect: () => router.push(`/(app)/c/${conv.id}`),
+      onSelect: () => router.push(`/c/${conv.id}`),
     }));
 
     return [...actions, ...recents];
@@ -160,7 +160,7 @@ export function CommandPalette() {
 
       if (e.key === 'N' && meta && e.shiftKey) {
         e.preventDefault();
-        runCommand(() => router.replace('/(app)'));
+        runCommand(() => router.replace('/'));
         return;
       }
 

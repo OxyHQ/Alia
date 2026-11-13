@@ -430,7 +430,7 @@ describe('the sidebar list', () => {
     act(() => {
       props.onCreate();
     });
-    expect(state.replace).toHaveBeenCalledWith('/(app)');
+    expect(state.replace).toHaveBeenCalledWith('/');
   });
 
   it('filters the chats by what is typed', async () => {
@@ -450,7 +450,7 @@ describe('the sidebar list', () => {
     act(() => {
       state.sidebarProps!.onTreeItemPress({ key: 'beta' });
     });
-    expect(state.replace).toHaveBeenCalledWith('/(app)/c/beta');
+    expect(state.replace).toHaveBeenCalledWith('/c/beta');
   });
 
   it('keeps the links in the account menu signed in, so only Settings is a row under the history', async () => {

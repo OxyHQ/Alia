@@ -80,7 +80,7 @@ export default function InviteScreen() {
               action={{
                 label: t('invitePage.startChatting'),
                 icon: RiArrowRightLine,
-                onPress: () => router.replace('/(app)'),
+                onPress: () => router.replace('/'),
               }}
             />
           ) : error ? (
@@ -91,7 +91,7 @@ export default function InviteScreen() {
               action={{
                 label: t('invitePage.goToAlia'),
                 icon: RiArrowRightLine,
-                onPress: () => router.replace('/(app)'),
+                onPress: () => router.replace('/'),
               }}
             />
           ) : (

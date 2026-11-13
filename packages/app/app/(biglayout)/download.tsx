@@ -53,7 +53,7 @@ export default function DownloadScreen() {
           <PageHeader
             title={t('subscribe.download.title')}
             backLabel={t('subscribe.download.back')}
-            onBack={() => router.replace('/(app)')}
+            onBack={() => router.replace('/')}
           />
         }
       >

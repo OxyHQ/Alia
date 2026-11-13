@@ -199,7 +199,7 @@ function useSidebarProps() {
       }
       prefetchConversation(id);
       closeNav?.();
-      router.replace(`/(app)/c/${id}`);
+      router.replace(`/c/${id}`);
     },
     [router, queryClient, prefetchConversation, conversations, closeNav],
   );
@@ -268,7 +268,7 @@ function useSidebarProps() {
         await toggleFavorite(conv.id);
       }
       // Deleting the open chat leaves nothing to show; start a new one.
-      if (chatId?.id === conv.id) router.replace('/(app)');
+      if (chatId?.id === conv.id) router.replace('/');
     },
     [t, deleteConversation, fileConversation, togglePin, toggleFavorite, chatId, router],
   );
@@ -656,7 +656,7 @@ function useSidebarProps() {
 
   const newChat = React.useCallback(() => {
     closeNav?.();
-    router.replace('/(app)');
+    router.replace('/');
   }, [closeNav, router]);
 
   const props = {
@@ -667,7 +667,7 @@ function useSidebarProps() {
       wordmark: 'Alia',
       onPress: () => {
         closeNav?.();
-        router.replace('/(app)');
+        router.replace('/');
       },
     },
     // Alia's chats are a titled tree section; the flat list holds nothing.

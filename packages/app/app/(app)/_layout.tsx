@@ -34,14 +34,20 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/** Routes that compose their own `AiChatContainer` (theirs holds the composer). */
-const CHAT_ROUTES = new Set(['index', 'c/[id]/index']);
-
 /**
- * A chat route — or a local visual fixture (`__*.tsx`, never committed), which
- * mounts a chat screen and composes its own container the same way.
+ * Where a screen that draws its own frame lives: the `(own-header)` route group. A chat composes
+ * its own `AiChatContainer` (its header is the conversation's and the container holds the
+ * composer); under the shell's container it would have two headers, the shell's and its own.
+ *
+ * So which frame a screen has is where its FILE is, decided before it renders: the group adds
+ * nothing to a URL, and a group with no `_layout` is flattened into this navigator, its screens
+ * named `(own-header)/…`. A route option or a hook would only reach the layout after the screen's
+ * first render, and moving it out of the shell's container then remounts it. There is no list of
+ * routes here to forget a new screen in: `__tests__/one-header.test.ts` fails when a screen that
+ * draws a frame is outside the group, or one in it draws none.
  */
-const isChatRoute = (name: string) => CHAT_ROUTES.has(name) || name.startsWith('__');
+const OWN_HEADER_GROUP = '(own-header)';
+const drawsOwnHeader = (name: string) => name.split('/')[0] === OWN_HEADER_GROUP;
 
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
@@ -134,8 +140,8 @@ export default function AppLayout() {
   /**
    * Every page stands on the layout's surface: Bloom's `AiChatContainer`, with
    * Bloom's `PageHeader` as its header and no breadcrumb. A page draws no
-   * background and no corner of its own. The chat routes compose the same
-   * container themselves, because theirs carries the composer.
+   * background and no corner of its own. The screens in `(own-header)` draw
+   * their frame themselves (above), so they are let through bare.
    *
    * The header is the PAGE's: it declares its title, its back and its actions
    * with `<Stack.Screen options={…} />` (see `src/shared/ui/page-chrome.tsx`),
@@ -143,7 +149,7 @@ export default function AppLayout() {
    * name.
    */
   const screenLayout = ({ route, options, children }: ScreenLayoutProps) => {
-    if (isChatRoute(route.name)) return children;
+    if (drawsOwnHeader(route.name)) return children;
     const section = route.name.split('/')[0];
     const title =
       options.title ?? (PAGE_TITLES[section] ? i18n.t(PAGE_TITLES[section]) : undefined);
@@ -204,12 +210,15 @@ export default function AppLayout() {
         // Only the focused page is mounted: native-stack's web scene would keep every
         // visited page under it.
         <Navigator screenOptions={screenOptions}>
-          <Navigator.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
+          <Navigator.Screen
+            name="(own-header)/c/[id]/index"
+            options={{ title: i18n.t('nav.chat') }}
+          />
           <FocusedPage layout={screenLayout} />
         </Navigator>
       ) : (
         <Stack screenOptions={screenOptions} screenLayout={screenLayout}>
-          <Stack.Screen name="c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
+          <Stack.Screen name="(own-header)/c/[id]/index" options={{ title: i18n.t('nav.chat') }} />
         </Stack>
       )}
     </AiChatShell>
