@@ -33,7 +33,6 @@ const ACTION_SPINNERS = new Map<string, string>([
     'linking an account: an action the person started, with its own title and description',
   ],
   ['src/shell/sidebar-menus.tsx', 'the chat that is being answered right now (StreamingIndicator)'],
-  ['src/features/shows/ui/episode-row.tsx', 'an episode being generated: the action itself'],
 ]);
 
 function sourceFiles(dir: string): string[] {

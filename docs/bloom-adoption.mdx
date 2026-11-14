@@ -95,7 +95,7 @@ Every family #608 §2 names, against 4.20.0.
 | `message-media` | no | not applicable | Its blocks take their contrast from a chat bubble Alia does not draw; files are `item` rows (`file-card.tsx`). |
 | `chat-screen` | `ChatDateHeader`, `ScrollToBottomButton` | composition | Day lines inline in the thread; the jump to the latest in the composer's accessory. The messenger chrome has no counterpart. |
 | `chat-list` | no | not applicable | History is the `Sidebar` tree with its own search. |
-| `media-controls` | no | not applicable | The one player, a show episode, is a row with a play button (`episode-row.tsx`). |
+| `media-controls` | no | not applicable | Alia has no media to play: the only audio is a spoken reply, which `@gemies/sdk` plays. |
 | Infrastructure | `sidebar`, `page-header`, `button-group`, `segmented-control`, `field`, `dropdown-menu`, `context-menu`, `surfaces`, `toast`, `skeleton`, `error-boundary`, `theme`, `typography`, `icons` | direct reuse | One vocabulary; `AmbientField`'s literal colours are the declared exception. `control-surface`, `list` (`VirtualList`) and `motion` are not imported: nothing in the app needed them, and `VirtualList` cannot host the thread ([gap 3](#gap-3)). |
 
 ## 3. Contract gaps

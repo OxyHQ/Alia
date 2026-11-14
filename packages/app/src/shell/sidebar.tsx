@@ -45,7 +45,6 @@ import { RiPushpinLine } from '@oxy.so/bloom/icons/RiPushpinLine';
 import { RiCustomerServiceLine } from '@oxy.so/bloom/icons/RiCustomerServiceLine';
 import { RiFileTextLine } from '@oxy.so/bloom/icons/RiFileTextLine';
 import { RiGiftLine } from '@oxy.so/bloom/icons/RiGiftLine';
-import { RiMicLine } from '@oxy.so/bloom/icons/RiMicLine';
 import { RiPlugLine } from '@oxy.so/bloom/icons/RiPlugLine';
 import { RiRobot2Line } from '@oxy.so/bloom/icons/RiRobot2Line';
 import { RiSettings4Line } from '@oxy.so/bloom/icons/RiSettings4Line';
@@ -470,7 +469,6 @@ function useSidebarProps() {
 
   // New chat is the toolbar's "+", not a row.
   const items: SidebarNavItem[] = [
-    { key: 'shows', label: t('sidebar.shows'), icon: RiMicLine, onPress: () => go('/(app)/shows') },
     {
       key: 'connectors',
       label: t('sidebar.connectors'),

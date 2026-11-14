@@ -20,7 +20,7 @@ const { EmptyStateSticker } = await import('../empty-state-sticker');
 const render = () => {
   let renderer!: ReturnType<typeof create>;
   act(() => {
-    renderer = create(<EmptyStateSticker name="shows" />);
+    renderer = create(<EmptyStateSticker name="notifications" />);
   });
   return renderer.root;
 };

@@ -44,10 +44,9 @@ packages/app/
       testing/              stubs and helpers only tests import
 ```
 
-The features are `chat`, `voice`, `memory`, `library`, `projects`, `shows`,
-`skills`, `connections`, `local-models`, `billing`, `onboarding`,
-`notifications` and `settings`. A test sits in `__tests__/` beside the layer it
-mainly tests.
+The features are `chat`, `voice`, `memory`, `library`, `projects`, `skills`,
+`connections`, `local-models`, `billing`, `onboarding`, `notifications` and
+`settings`. A test sits in `__tests__/` beside the layer it mainly tests.
 
 The app is Alia's alone (Gemies ADR 0034): it talks only to the Alia gemie.
 The person's other gemies — their list, the catalogue, a gemie's page, editor
@@ -65,10 +64,9 @@ the shell. Between features, only these edges exist:
 
 | Feature | May import |
 | --- | --- |
-| shell | chat, library, memory, onboarding, projects, settings, shows |
+| shell | chat, library, memory, onboarding, projects, settings |
 | settings | billing, chat, connections, library, local-models, memory, notifications, skills |
 | chat | billing, connections, local-models, memory, notifications, projects, skills, voice |
-| shows | notifications |
 
 Every other feature imports only `shared/`. The graph has no cycle. When two
 features need the same type, it goes to `shared/contracts` rather than one
