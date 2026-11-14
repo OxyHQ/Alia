@@ -1,8 +1,8 @@
 /**
  * Retired vocabulary cannot return.
  *
- * Two retirements, each a clean cut with no compatibility code, so any trace of
- * them in the tree is either dead code or a lane coming back:
+ * Three retirements, each a clean cut with no compatibility code, so any trace
+ * of them in the tree is either dead code or a lane coming back:
  *
  *  1. The retired product routes (`<kaana|alia>-lite`, `<kaana|alia>-v1-*`).
  *  2. The native-product-agent lane (ADR 0020 §8): its manifest and bootstrap,
@@ -10,6 +10,10 @@
  *     tools `consultAgent` replaced, and the negotiated stream features. (The
  *     check that an agent carries no application binding, ADR 0021, lives with
  *     the agent schemas in OxyHQ/Gemies.)
+ *  3. Shows, the podcast series and episodes Alia generated (2026-11-14): podcasts
+ *     belong to Syra, which any agent reaches through Syra's MCP server. The
+ *     screens, their store, the `/shows` API routes, the realtime progress event
+ *     and the Syra URL the app played episodes from all went.
  *
  * Records of the past keep their words: changelogs are history, not code. Every pattern is
  * spelled in pieces so this file does not match itself.
@@ -33,10 +37,10 @@ const retiredProductRoutes = new RegExp(
 );
 
 /**
- * History that names the lane on purpose. The ADRs, audits and migration
+ * History that names a retirement on purpose. The ADRs, audits and migration
  * inventories that also did moved to OxyHQ/Gemies with the backend.
  */
-const laneHistory = [/(?:^|\/)CHANGELOG\.md$/];
+const history = [/(?:^|\/)CHANGELOG\.md$/];
 const retiredLane = new RegExp(
   [
     `native-${'product-agent'}`,
@@ -46,6 +50,18 @@ const retiredLane = new RegExp(
     `\\bask${'Agent'}\\b`,
     `\\bdelegateTo${'Agent'}\\b`,
     `\\bstream${'Features'}\\b`,
+  ].join('|'),
+  'g',
+);
+
+const retiredShows = new RegExp(
+  [
+    `features/${'shows'}`,
+    `/${'shows'}\\b`,
+    `\\buseShow${'Store'}\\b`,
+    `\\bshow_(?:${'series'}|${'episodes'}|${'preferences'})\\b`,
+    `\\bshow\\.${'progress'}\\b`,
+    `SYRA_${'API_URL'}`,
   ].join('|'),
   'g',
 );
@@ -67,8 +83,9 @@ for (const file of tracked) {
   if (!existsSync(url)) continue;
   const source = readFileSync(url, 'utf8');
   report(file, source, retiredProductRoutes, 'retired product route');
-  if (!laneHistory.some((history) => history.test(file))) {
+  if (!history.some((record) => record.test(file))) {
     report(file, source, retiredLane, 'retired native-product-agent lane, ADR 0020 §8');
+    report(file, source, retiredShows, 'retired shows: podcasts belong to Syra');
   }
 }
 

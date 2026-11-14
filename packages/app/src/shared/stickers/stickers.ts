@@ -26,10 +26,6 @@ const SPRING_THUMBSUP = '01a0eadb-c6a9-7c35-8433-c308f9a4ce03';
 const INTROVERT_WAVE = '01a0eadb-5dd8-70d1-b12b-5083a0c5b01a';
 /** 🍵 escape-from-reality (siptea) */
 const ESCAPE_SIPTEA = '01a0eadb-0917-74c4-be61-8fd534b4faea';
-/** 🥳 fearless-bird (partytime) */
-const BIRD_PARTYTIME = '01a0eadb-3895-7264-97c4-f7aaf2d722ef';
-/** 💻 escape-from-reality (laptop) */
-const ESCAPE_LAPTOP = '01a0eadb-07c7-7315-94aa-6d8639943c21';
 /** 😌 introvert-life (chilling) */
 const INTROVERT_CHILLING = '01a0eadb-6e8f-727e-b102-914aa907f2a5';
 
@@ -41,10 +37,6 @@ export const EMPTY_STATE_STICKERS = {
   tasksHistory: ESCAPE_SIPTEA,
   /** Notifications, none yet. */
   notifications: SPRING_THUMBSUP,
-  /** Shows, none yet. */
-  shows: BIRD_PARTYTIME,
-  /** One show, no episodes yet. */
-  showEpisodes: ESCAPE_LAPTOP,
   /** The skills catalogue, a search that matched none. */
   skillsNoResults: BLOB_SHRUGGING,
   /** The skills catalogue, nothing in it yet. */

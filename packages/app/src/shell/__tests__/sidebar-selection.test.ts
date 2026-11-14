@@ -12,7 +12,7 @@ describe('selectedItemForPath', () => {
   it.each([
     ['/tasks', 'tasks'],
     ['/skills/create', undefined],
-    ['/shows/9', 'shows'],
+    ['/tasks/9', 'tasks'],
     ['/notifications', 'notifications'],
   ])('%s selects %s', (path, key) => {
     expect(selectedItemForPath(path)).toBe(key);

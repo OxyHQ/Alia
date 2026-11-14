@@ -41,8 +41,8 @@ import { APP_ROOT } from '@/shared/testing/app-root';
 
 /** Feature → the features it may import. Anything not here imports only `shared/`. */
 const ALLOWED: Record<string, readonly string[]> = {
-  // memory and shows: the account lifecycle resets their stores (`src/shell/account-lifecycle.ts`).
-  shell: ['chat', 'library', 'memory', 'onboarding', 'projects', 'settings', 'shows'],
+  // memory: the account lifecycle resets its store (`src/shell/account-lifecycle.ts`).
+  shell: ['chat', 'library', 'memory', 'onboarding', 'projects', 'settings'],
   settings: ['billing', 'chat', 'library', 'local-models', 'memory', 'notifications', 'skills'],
   chat: ['billing', 'local-models', 'memory', 'notifications', 'projects', 'skills', 'voice'],
   // realtime: what the account's connection keeps live is those features' own (`useAppRealtime`).
@@ -299,7 +299,7 @@ describe('the feature tree', () => {
 
   it('read the app, so an empty tree cannot pass as a clean one', () => {
     expect(tree.filter((f) => f.path.startsWith('src/features/')).length).toBeGreaterThan(100);
-    expect(tree.filter((f) => f.path.startsWith('app/')).length).toBeGreaterThan(40);
+    expect(tree.filter((f) => f.path.startsWith('app/')).length).toBeGreaterThan(30);
   });
 
   it('breaks none of the rules', () => {

@@ -77,7 +77,6 @@ const COPY_KEYS = new Set([
 const ALLOWED = new Set([
   'Alia',
   'Alia \\ Oxy',
-  'Syra',
   'Oxy',
   // The Oxy personal bundle, a product name in every language.
   'Oxy One',
@@ -206,7 +205,7 @@ const FILES = DIRS.flatMap((dir) => sourceFiles(join(ROOT, dir))).filter(
 describe('user-visible copy', () => {
   it('is read from every screen and component', () => {
     // Without this the assertion below passes over nothing.
-    expect(FILES.length).toBeGreaterThan(100);
+    expect(FILES.length).toBeGreaterThan(80);
   });
 
   it('goes through t() rather than being written in English', () => {
