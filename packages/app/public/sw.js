@@ -1,6 +1,11 @@
 /**
  * Service Worker — handles web push notification display and click actions.
+ *
+ * The offline shell and the cache of this origin's hashed files come from the
+ * Oxy base worker, which `oxy-web-pwa` (@oxy.so/app-preset) writes into the
+ * export next to this file. It never stores a private or cross-origin response.
  */
+importScripts('/oxy-sw-base.js');
 
 self.addEventListener('push', (event) => {
   const data = event.data?.json() ?? {};
