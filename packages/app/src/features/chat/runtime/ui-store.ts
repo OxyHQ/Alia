@@ -48,7 +48,14 @@ interface UIState {
   setShortcutsDialogOpen: (open: boolean) => void;
   toggleShortcutsDialog: () => void;
   addCanvasArtifact: (artifact: CanvasArtifact) => void;
-  clearCanvasArtifacts: () => void;
+  /** The conversation on show, whose canvas `canvasArtifacts` is (`showConversation`). */
+  canvasConversationId: string | null;
+  /**
+   * Another conversation, or a new chat, is on show: its canvas starts empty rather than holding
+   * what was written in the one before. The conversation a new chat's first turn made keeps what
+   * that turn wrote.
+   */
+  showConversation: (conversationId: string | null) => void;
 
   /**
    * How wide the right panel is, in px, on a screen wide enough to show it
@@ -95,6 +102,7 @@ export const useUIStore = create<UIState>()(
         })),
       shortcutsDialogOpen: false,
       canvasArtifacts: [],
+      canvasConversationId: null,
       codePanelView: 'changes',
       rightPanelWidth: RIGHT_PANEL_DEFAULT_WIDTH,
 
@@ -117,7 +125,13 @@ export const useUIStore = create<UIState>()(
       addCanvasArtifact: (artifact) =>
         set((state) => ({ canvasArtifacts: [...state.canvasArtifacts, artifact] })),
 
-      clearCanvasArtifacts: () => set({ canvasArtifacts: [] }),
+      showConversation: (conversationId) =>
+        set((state) =>
+          state.canvasConversationId === conversationId ||
+          (state.canvasConversationId === null && conversationId !== null)
+            ? { canvasConversationId: conversationId }
+            : { canvasConversationId: conversationId, canvasArtifacts: [] },
+        ),
 
       setRightPanelWidth: (width) => set({ rightPanelWidth: clampRightPanelWidth(width) }),
     }),
