@@ -4,6 +4,7 @@ import {
   useMarkAsRead,
   useNotifications,
 } from '@/features/notifications/runtime/use-notifications';
+import { notificationHref } from '@/features/notifications/model/notification-center-items';
 import { notificationIcon } from '@/features/notifications/ui/notification-icons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { Admonition } from '@oxy.so/bloom/admonition';
@@ -25,7 +26,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { Muted, Text } from '@oxy.so/bloom/typography';
 import { useAuth } from '@oxy.so/services/ui/client';
 import * as ExpoNotifications from 'expo-notifications';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Platform, ScrollView, View } from 'react-native';
 
@@ -117,10 +118,9 @@ export default function NotificationsScreen() {
       if (notification.status !== 'read') {
         markAsRead.mutate(notification._id);
       }
-      // If the notification has a conversationId, navigate to that conversation
-      if (notification.conversationId) {
-        router.push(`/c/${notification.conversationId}`);
-      }
+      // Where it points: the page it names, else its conversation (`notificationHref`).
+      const href = notificationHref(notification);
+      if (href) router.push(href as Href);
     },
     [markAsRead, router],
   );

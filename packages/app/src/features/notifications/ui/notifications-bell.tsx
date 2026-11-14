@@ -3,12 +3,15 @@ import {
   useMarkAsRead,
   useNotifications,
 } from '@/features/notifications/runtime/use-notifications';
-import { notificationCenterItems } from '@/features/notifications/model/notification-center-items';
+import {
+  notificationCenterItems,
+  notificationHref,
+} from '@/features/notifications/model/notification-center-items';
 import { notificationIcon } from '@/features/notifications/ui/notification-icons';
 import { useTranslation } from '@/shared/i18n/use-translation';
 import { NotificationBell } from '@oxy.so/bloom/app-shell';
 import { useOxy } from '@oxy.so/services/ui/client';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
 import React from 'react';
 
 /**
@@ -39,7 +42,8 @@ export const NotificationsBell = React.memo(function NotificationsBell() {
       if (actionId !== 'open') return;
       const notification = notifications?.find((item) => item._id === notificationId);
       if (notification?.status !== 'read') markAsRead.mutate(notificationId);
-      if (notification?.conversationId) router.push(`/c/${notification.conversationId}`);
+      const href = notification ? notificationHref(notification) : null;
+      if (href) router.push(href as Href);
     },
     [notifications, markAsRead, router],
   );
