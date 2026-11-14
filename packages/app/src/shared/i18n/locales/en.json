@@ -657,7 +657,8 @@
     "consultFailed": "%{name} couldn't answer.",
     "shareFailed": "Couldn't create the share link.",
     "sharedFailed": "Couldn't load this conversation.",
-    "sharedGone": "This shared conversation is no longer available."
+    "sharedGone": "This shared conversation is no longer available.",
+    "taskUnfinished": "%{name} couldn't finish this task."
   },
   "credits": {
     "title": "Credits",
