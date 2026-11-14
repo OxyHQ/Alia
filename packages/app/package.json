@@ -15,10 +15,10 @@
     "setup-skia-web": "bun x setup-skia-web public",
     "check:web-bundle": "node scripts/check-web-bundle.mjs",
     "prebuild": "bun run generate-sitemap",
-    "build": "bun x expo export --platform web && bun run check:web-bundle",
+    "build": "bun x expo export --platform web && oxy-web-pwa dist --theme-color=#f9f2f6,#100d11 && bun run check:web-bundle",
     "test": "vitest run",
     "typecheck": "expo customize tsconfig.json && tsc --noEmit",
-    "build:production": "NODE_ENV=production bun x expo export --platform web --clear && bun run check:web-bundle",
+    "build:production": "NODE_ENV=production bun x expo export --platform web --clear && oxy-web-pwa dist --theme-color=#f9f2f6,#100d11 && bun run check:web-bundle",
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios"
   },
