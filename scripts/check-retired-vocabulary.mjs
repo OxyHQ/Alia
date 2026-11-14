@@ -14,6 +14,10 @@
  *     belong to Syra, which any agent reaches through Syra's MCP server. The
  *     screens, their store, the `/shows` API routes, the realtime progress event
  *     and the Syra URL the app played episodes from all went.
+ *  4. First-party permissions (oxy ADR 0066, 2026-11-14): Gemies acts for the
+ *     person with what Oxy's first-party registry declares, so there is no
+ *     channel task to renew and nothing to reauthorise. The screen, its hook and
+ *     the renewal handshake went; first-party never asks people for permissions.
  *
  * Records of the past keep their words: changelogs are history, not code. Every pattern is
  * spelled in pieces so this file does not match itself.
@@ -66,6 +70,17 @@ const retiredShows = new RegExp(
   'g',
 );
 
+const retiredFirstPartyPermissions = new RegExp(
+  [
+    `channels/${'reauthorize'}`,
+    `\\buseReauthorize${'Channels'}\\b`,
+    `\\buseChannelTask${'Renewal'}\\b`,
+    `\\brenewChannel${'Tasks'}\\b`,
+    `channel${'Reauthorize'}`,
+  ].join('|'),
+  'g',
+);
+
 const failures = [];
 
 function report(file, source, pattern, why) {
@@ -86,6 +101,12 @@ for (const file of tracked) {
   if (!history.some((record) => record.test(file))) {
     report(file, source, retiredLane, 'retired native-product-agent lane, ADR 0020 §8');
     report(file, source, retiredShows, 'retired shows: podcasts belong to Syra');
+    report(
+      file,
+      source,
+      retiredFirstPartyPermissions,
+      'first-party never asks people for permissions, oxy ADR 0066',
+    );
   }
 }
 

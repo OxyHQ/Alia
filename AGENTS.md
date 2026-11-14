@@ -29,6 +29,7 @@ bun run dev:app
 - Un `model` o id de proveedor nunca va fijo en código o env; los niveles de potencia los resuelve Oxy (`scripts/check-model-defaults.mjs`).
 - Una pantalla nunca espera tras un spinner: usa el esqueleto de Bloom (`__tests__/no-loading-screens.test.ts`).
 - Un fallo de inferencia se pinta como error tipado con reintento (`turn-failure.ts` de `@gemies/sdk`), nunca como respuesta.
+- Lo first-party nunca pide permisos a las personas: ni reautorizar canales, ni renovar tasks, ni consentimientos; Gemies actúa por la persona con lo que declara el registro de Oxy (ADR 0066 de oxy). Los permisos son solo para terceros.
 
 ## Límites
 
@@ -56,4 +57,4 @@ Pregunta antes de: cambiar un contrato entre productos Oxy; ver `docs/agent-rule
 
 Vienen del entorno (`.env`, secretos de GitHub), nunca se imprimen ni se commitean.
 
-Owner: OxyHQ. Last reviewed: 2026-11-12.
+Owner: OxyHQ. Last reviewed: 2026-11-14.
