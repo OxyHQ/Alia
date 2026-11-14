@@ -78,12 +78,12 @@
         "i18n-js": "^4.5.3",
         "lightningcss": "1.33.0",
         "lottie-react-native": "~7.5.0",
-        "nativewind": "5.0.0-rc.0",
+        "nativewind": "5.0.0-rc.1",
         "react": "19.3.0",
         "react-dom": "19.3.0",
         "react-native": "0.88.0",
         "react-native-audio-api": "0.13.6",
-        "react-native-css": "3.1.0-rc.0",
+        "react-native-css": "3.1.0-rc.1",
         "react-native-gesture-handler": "~3.3.0",
         "react-native-keyboard-controller": "1.22.7",
         "react-native-qrcode-svg": "^6.3.21",
@@ -133,11 +133,11 @@
     "expo-modules-jsi": "58.0.19",
     "expo-secure-store": "58.0.2",
     "lightningcss": "1.30.1",
-    "nativewind": "5.0.0-rc.0",
+    "nativewind": "5.0.0-rc.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
-    "react-native-css": "3.1.0-rc.0",
+    "react-native-css": "3.1.0-rc.1",
     "react-native-gesture-handler": "3.3.0",
     "react-native-keyboard-controller": "1.22.7",
     "react-native-reanimated": "4.7.1",
@@ -1269,7 +1269,7 @@
 
     "nanoid": ["nanoid@3.3.20", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ=="],
 
-    "nativewind": ["nativewind@5.0.0-rc.0", "", { "dependencies": { "tailwindcss-safe-area": "^1.1.0" }, "peerDependencies": { "react-native-css": "3.1.0-rc.0", "tailwindcss": ">4.1.11" } }, "sha512-CrESAPb428+EVNvGhUaMfbNllyk6lOnX1ZlVlNktCeae/4mIbb6x4SxN62Rg3cLHNRrRLYZEPYGmqkZ8fVIRZQ=="],
+    "nativewind": ["nativewind@5.0.0-rc.1", "", { "dependencies": { "tailwindcss-safe-area": "^1.1.0" }, "peerDependencies": { "react-native-css": "3.1.0-rc.1", "tailwindcss": ">4.1.11" } }, "sha512-mqFulM0aJajUwWPO1CXdTMHpOnxQGgCABFSbQ1GuxaOs0nk8GqmiQ2N1N5Lm7GbDvgBwVl7uzjCM6EyPzlNWKw=="],
 
     "negotiator": ["negotiator@1.0.0", "", {}, "sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg=="],
 
@@ -1389,7 +1389,7 @@
 
     "react-native-audio-api": ["react-native-audio-api@0.13.6", "", { "dependencies": { "semver": "^7.7.3" }, "peerDependencies": { "react": "*", "react-native": "*", "react-native-worklets": ">= 0.7.0" }, "optionalPeers": ["react-native-worklets"], "bin": { "setup-rn-audio-api-web": "scripts/setup-rn-audio-api-web.js" } }, "sha512-055JlxTaajdzcJCzyd+xnH1pJawNkt2NZ3RNoI2vv1QxYRh257W/dcDky/qf4/VMEFdpZFuFfVW1hv75OEh3gA=="],
 
-    "react-native-css": ["react-native-css@3.1.0-rc.0", "", { "dependencies": { "@types/debug": "^4.1.12", "babel-plugin-react-compiler": "^19.1.0-rc.2", "colorjs.io": "0.7.0", "comment-json": "^4.2.5", "debug": "^4.4.1" }, "peerDependencies": { "@expo/metro-config": ">=54", "lightningcss": ">=1.27.0", "react": ">=19", "react-native": ">=0.81" } }, "sha512-/wfPJ8pXiPxvHUs0QcocN3ViV4QJdnXpKukNirZJcJ/MeZKrStSEHm2rBq+KuZm8/2XDl4GfeuaVvJctYGtdgA=="],
+    "react-native-css": ["react-native-css@3.1.0-rc.1", "", { "dependencies": { "@types/debug": "^4.1.12", "babel-plugin-react-compiler": "^19.1.0-rc.2", "colorjs.io": "0.7.0", "comment-json": "^4.2.5", "debug": "^4.4.1" }, "peerDependencies": { "@expo/metro-config": ">=54", "lightningcss": ">=1.27.0", "react": ">=19", "react-native": ">=0.81" } }, "sha512-TT5NnkSK1TRlzbZWeJCyjYwEj7IWOZkGR+e42+PU5X6TQM/wW3CPplI44EbWyNz8QN0WeFzrkQTh3EvhO4cEWA=="],
 
     "react-native-drawer-layout": ["react-native-drawer-layout@4.2.12", "", { "dependencies": { "color": "^4.2.3", "use-latest-callback": "^0.2.4" }, "peerDependencies": { "react": ">= 18.2.0", "react-native": "*", "react-native-gesture-handler": ">= 2.0.0", "react-native-reanimated": ">= 2.0.0" } }, "sha512-qYmntEctkMSodN7pnC2llV21nswImLFPHJeT3PJXSJqZdU4jzDATR8iVi66sXkrtoOLJ2+EvXxgd7sMMpV4ViA=="],
 
