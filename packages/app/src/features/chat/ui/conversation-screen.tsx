@@ -132,7 +132,7 @@ export const ConversationScreen = ({ conversationId }: ConversationScreenProps) 
       t('sidebar.chats'))
     : undefined;
   const title = conversationDetails?.title;
-  // The header is the conversation's participants — Alia and the gemies she consulted — drawn by
+  // The header is the conversation's participants — Alia, or a group's members — drawn by
   // the SDK; the app draws no title of its own there.
   const chrome = useCallback(
     (chat: GemieChatState): GemieChatChrome => {
