@@ -22,11 +22,14 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data;
+  // The same order as the app's tap (`notificationHref`): a thread, a page of this app, a chat.
   const url = data?.agentHandle
     ? `/@${data.agentHandle}`
-    : data?.conversationId
-      ? `/c/${data.conversationId}`
-      : '/';
+    : typeof data?.path === 'string' && /^\/(?!\/)[\w\-.~!$&'()*+,;=:@%/?#]*$/.test(data.path)
+      ? data.path
+      : data?.conversationId
+        ? `/c/${data.conversationId}`
+        : '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // Prefer a focused/visible tab, then any matching tab

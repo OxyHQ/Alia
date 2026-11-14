@@ -1334,6 +1334,15 @@
     "deleteImageDescription": "Se eliminará de tu Biblioteca."
   },
   "pages": {
+    "channelReauthorize": {
+      "title": "Vuelve a autorizar tus canales",
+      "doneTitle": "Tus canales vuelven a funcionar",
+      "doneDescription": "Tus gemies pueden volver a usar tus apps en tus cuentas conectadas y tus bots, como antes.",
+      "nothingDescription": "No hacía falta nada: todos tus canales ya pueden usar tus apps.",
+      "failedTitle": "Algunos canales aún te necesitan",
+      "failedDescription": "No se han podido autorizar ahora. Inténtalo de nuevo, o abre el canal en Ajustes o en el editor de su gemie.",
+      "backToChat": "Volver a tus chats"
+    },
     "skills": {
       "installSkill": "Instalar %{name}",
       "installedSkill": "%{name} está instalada"

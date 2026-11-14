@@ -8,7 +8,8 @@
 import { useEffect, useRef } from 'react';
 import { Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
+import { type Href, useRouter } from 'expo-router';
+import { notificationHref } from '@/features/notifications/model/notification-center-items';
 import { useOxy } from '@oxy.so/services/ui/client';
 import apiClient from '@/shared/api/client';
 import i18n from '@/shared/i18n';
@@ -88,7 +89,7 @@ export function useNotificationSetup() {
     };
   }, [isAuthenticated, user?.id]);
 
-  // ── Notification tap handler (deep-link to conversation) ───────
+  // ── Notification tap handler (deep-link to its thread, page or conversation) ───────
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const Notifications = require('expo-notifications') as typeof import('expo-notifications');
@@ -99,8 +100,13 @@ export function useNotificationSetup() {
       // A gemie's message opens its thread in Gemies, where the gemies live; this app is Alia's.
       if (typeof data?.agentHandle === 'string' && data.agentHandle) {
         void Linking.openURL(gemieThreadUrl(data.agentHandle));
-      } else if (data?.conversationId) {
-        router.push(`/c/${data.conversationId}`);
+      } else {
+        const href = notificationHref({
+          data,
+          conversationId:
+            typeof data?.conversationId === 'string' ? data.conversationId : undefined,
+        });
+        if (href) router.push(href as Href);
       }
     });
 

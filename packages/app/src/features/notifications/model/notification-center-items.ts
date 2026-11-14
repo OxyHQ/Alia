@@ -13,7 +13,30 @@ export interface InboxNotification {
   status: 'pending' | 'sent' | 'read' | 'dismissed';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   conversationId?: string;
+  /** What the notice carries for its tap: `path`, a page of this app it opens. */
+  data?: Record<string, unknown> | null;
   createdAt: string;
+}
+
+/**
+ * A path of this app, as a browser resolves it: `/`, not followed by a second slash, then only the
+ * characters a URL path, query and fragment are made of. A browser reads `/\host` as `//host` and
+ * drops a tab or newline (`/\t/host` became `//host`), so a backslash, whitespace or control
+ * character never passes. `public/sw.js` keeps the same rule for a click with no app window open.
+ */
+export const APP_PATH = /^\/(?!\/)[\w\-.~!$&'()*+,;=:@%/?#]*$/;
+
+/**
+ * Where tapping a notice goes: the app page it names (`data.path`, e.g. the one-tap channel
+ * reauthorisation), else its conversation; `null` when it opens nothing. Only a path of this app
+ * ({@link APP_PATH}), so a notice can never send anyone elsewhere.
+ */
+export function notificationHref(
+  notification: Pick<InboxNotification, 'conversationId' | 'data'>,
+): string | null {
+  const path = notification.data?.path;
+  if (typeof path === 'string' && APP_PATH.test(path)) return path;
+  return notification.conversationId ? `/c/${notification.conversationId}` : null;
 }
 
 /** The types that are something a conversation or agent did, as opposed to a system notice. */
@@ -39,7 +62,7 @@ export function shortAge(createdAt: string, now: number = Date.now()): string {
 
 /**
  * The inbox the bell shows, in Bloom's shape. A notification is unread until
- * it is read or dismissed; an item with a conversation gets an "open" action
+ * it is read or dismissed; an item that opens something (`notificationHref`) gets an "open" action
  * that the screen maps to navigation.
  */
 export function notificationCenterItems(
@@ -65,8 +88,9 @@ export function notificationCenterItems(
     unread: notification.status !== 'read' && notification.status !== 'dismissed',
     status: STATUS_BY_PRIORITY[notification.priority],
     icon: iconFor(notification.type),
-    actions: notification.conversationId
-      ? [{ id: 'open', label: openLabel, appearance: 'subtle' }]
-      : undefined,
+    actions:
+      notificationHref(notification) !== null
+        ? [{ id: 'open', label: openLabel, appearance: 'subtle' }]
+        : undefined,
   }));
 }
