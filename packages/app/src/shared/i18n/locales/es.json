@@ -524,8 +524,11 @@
     "today": "Hoy",
     "yesterday": "Ayer",
     "newStretch": "Conversación nueva",
-    "chattedWith": "Habló con %{name}",
-    "agentChatNotice": "Conversación entre Gemies. Solo lectura.",
+    "betweenGemiesNotice": "Conversación entre Gemies. Solo lectura.",
+    "gemiesTalking": "%{from} está hablando con %{to}…",
+    "gemiesTalked": "%{from} habló con %{to}",
+    "gemieWriting": "%{name} está escribiendo…",
+    "gemiesOpen": "Ver la conversación",
     "reactToMessage": "Reaccionar al mensaje",
     "groupWelcome": "Varias mentes, una conversación",
     "groupPlaceholder": "Escribe al grupo",
@@ -645,7 +648,7 @@
     "stopReading": "Dejar de leer",
     "copied": "¡Copiado!",
     "turnActions": "Acciones del mensaje",
-    "consultFailed": "%{name} no pudo responder.",
+    "agentFailed": "%{name} no pudo responder.",
     "shareFailed": "No se pudo crear el enlace para compartir.",
     "sharedFailed": "No se pudo cargar esta conversación.",
     "sharedGone": "Esta conversación compartida ya no está disponible."
@@ -730,7 +733,7 @@
         "shellExec": "Ejecutando comando",
         "fileEdit": "Editando archivo",
         "codeInterpreter": "Ejecutando código",
-        "consultAgent": "Consultando a un Gemie"
+        "sendMessage": "Escribiendo a un Gemie"
       },
       "done": {
         "browse": "Navegó",
@@ -742,7 +745,7 @@
         "shellExec": "Ejecutó un comando",
         "fileEdit": "Editó un archivo",
         "codeInterpreter": "Ejecutó código",
-        "consultAgent": "Consultó a un Gemie"
+        "sendMessage": "Escribió a un Gemie"
       }
     }
   },

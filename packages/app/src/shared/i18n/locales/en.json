@@ -524,8 +524,11 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "newStretch": "New conversation",
-    "chattedWith": "Chatted with %{name}",
-    "agentChatNotice": "Conversation between Gemies. Read only.",
+    "betweenGemiesNotice": "Conversation between Gemies. Read only.",
+    "gemiesTalking": "%{from} is talking to %{to}…",
+    "gemiesTalked": "%{from} talked to %{to}",
+    "gemieWriting": "%{name} is writing…",
+    "gemiesOpen": "See the conversation",
     "reactToMessage": "React to message",
     "groupWelcome": "A few minds, one conversation",
     "groupPlaceholder": "Message the group",
@@ -645,7 +648,7 @@
     "stopReading": "Stop reading",
     "copied": "Copied!",
     "turnActions": "Message actions",
-    "consultFailed": "%{name} couldn't answer.",
+    "agentFailed": "%{name} couldn't answer.",
     "shareFailed": "Couldn't create the share link.",
     "sharedFailed": "Couldn't load this conversation.",
     "sharedGone": "This shared conversation is no longer available."
@@ -730,7 +733,7 @@
         "shellExec": "Running command",
         "fileEdit": "Editing file",
         "codeInterpreter": "Running code",
-        "consultAgent": "Consulting a Gemie"
+        "sendMessage": "Writing to a Gemie"
       },
       "done": {
         "browse": "Browsed",
@@ -742,7 +745,7 @@
         "shellExec": "Ran command",
         "fileEdit": "Edited file",
         "codeInterpreter": "Ran code",
-        "consultAgent": "Consulted a Gemie"
+        "sendMessage": "Wrote to a Gemie"
       }
     }
   },
