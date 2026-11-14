@@ -1809,7 +1809,7 @@
         "categories": "Categorías",
         "connect": "Conectar",
         "connectAnother": "Añadir cuenta",
-        "description": "Conecta las apps con las que trabajas: los servidores MCP de los propios proveedores y cientos más del registro oficial de MCP. Oficial significa que lo publica el proveedor; Comunidad, que lo publica un desarrollador. Si alguno te pide iniciar sesión, la inicias con ellos y Gemies nunca ve tu contraseña.",
+        "description": "Conecta las apps con las que trabajas: los servidores MCP de los propios proveedores y cientos más del registro oficial de MCP y del catálogo MCP de Docker. Oficial significa que lo publica el proveedor; Comunidad, que lo publica un desarrollador. Si alguno te pide iniciar sesión, la inicias con ellos y Gemies nunca ve tu contraseña.",
         "docs": "Más información",
         "empty": "Ahora mismo no hay conectores disponibles.",
         "featured": "Destacados",
