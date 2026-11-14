@@ -79,7 +79,7 @@ export function useAliaHost(): GemieRuntimeHost {
       },
       onArtifact: (artifact) => {
         const ui = useUIStore.getState();
-        ui.addCanvasArtifact(artifact as Parameters<typeof ui.addCanvasArtifact>[0]);
+        ui.addCanvasArtifact(artifact);
         ui.setRightPanel('canvas');
       },
       onContext: (conversationId, payload) => {

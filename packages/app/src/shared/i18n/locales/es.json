@@ -514,6 +514,14 @@
     "pickDocumentFailed": "No se ha podido elegir el documento. Inténtalo de nuevo."
   },
   "chat": {
+    "attachment": {
+      "photo": "Foto",
+      "sticker": "Sticker",
+      "voice": "Nota de voz",
+      "transcribe": "Transcripción",
+      "hideTranscript": "Ocultar transcripción",
+      "unavailable": "No se puede abrir este archivo"
+    },
     "newChat": "Nueva conversación",
     "messagePlaceholder": "Escribe un mensaje...",
     "sendButton": "Enviar",
