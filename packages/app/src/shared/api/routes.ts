@@ -64,29 +64,4 @@ export const API_ROUTES = {
 
   // Health check
   health: '/health',
-
-  /**
-   * Show series and episodes.
-   *
-   * Under `/shows`, not `/v1/shows`. `/v1` is a frozen compatibility surface
-   * that ADR 0004 closes to new routes, and shows are an Alia product resource
-   * — so they moved beside `/conversations` and `/skills`, which is
-   * where the workstream 1 inventory had already assigned them.
-   */
-  shows: {
-    voices: '/shows/voices',
-    preferences: '/shows/preferences',
-    series: {
-      list: '/shows/series',
-      create: '/shows/series',
-      get: (id: string) => `/shows/series/${id}`,
-      update: (id: string) => `/shows/series/${id}`,
-      delete: (id: string) => `/shows/series/${id}`,
-    },
-    episodes: {
-      create: (seriesId: string) => `/shows/series/${seriesId}/episodes`,
-      get: (id: string) => `/shows/episodes/${id}`,
-      delete: (id: string) => `/shows/episodes/${id}`,
-    },
-  },
 } as const;

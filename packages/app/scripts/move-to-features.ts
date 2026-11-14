@@ -315,27 +315,6 @@ const RULES: Array<[string, string]> = [
   ],
   ['components/project-edit-dialog.tsx', 'src/features/projects/ui/project-edit-dialog.tsx'],
 
-  // shows
-  ['components/show/', 'src/features/shows/ui/'],
-  ['lib/stores/show-store.ts', 'src/features/shows/runtime/show-store.ts'],
-  ['lib/hooks/use-show-progress.ts', 'src/features/shows/runtime/use-show-progress.ts'],
-  ['lib/hooks/use-episode-audio.ts', 'src/features/shows/runtime/use-episode-audio.ts'],
-  [
-    'lib/stores/__tests__/show-store.test.ts',
-    'src/features/shows/runtime/__tests__/show-store.test.ts',
-  ],
-  ...['use-episode-audio.test.tsx', 'use-episode-audio-player-import.test.tsx'].map(
-    (f): [string, string] => [
-      `lib/hooks/__tests__/${f}`,
-      `src/features/shows/runtime/__tests__/${f}`,
-    ],
-  ),
-  ['lib/utils/show-format.ts', 'src/features/shows/model/show-format.ts'],
-  [
-    'lib/utils/__tests__/show-format.test.ts',
-    'src/features/shows/model/__tests__/show-format.test.ts',
-  ],
-
   // skills
   ['lib/hooks/use-skills.ts', 'src/features/skills/runtime/use-skills.ts'],
   ...[

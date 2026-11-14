@@ -47,7 +47,6 @@ const drawsOwnHeader = (name: string) => name.split('/')[0] === OWN_HEADER_GROUP
 
 /** The crumb each page's section gets. */
 const PAGE_TITLES: Record<string, string> = {
-  shows: 'sidebar.shows',
   connectors: 'sidebar.connectors',
   notifications: 'sidebar.notifications',
 };

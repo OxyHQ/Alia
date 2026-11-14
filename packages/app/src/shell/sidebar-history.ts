@@ -59,11 +59,11 @@ export function flatConversations({
 }
 
 /** The primary sidebar rows that are routes, keyed by the first path segment they own. */
-const ROUTE_ITEMS = ['tasks', 'shows', 'notifications'] as const;
+const ROUTE_ITEMS = ['tasks', 'notifications'] as const;
 
 /**
  * The sidebar's selected primary row for a pathname: its first segment, when
- * that is one of the rows (`/shows/abc` selects Shows). A chat is selected
+ * that is one of the rows (`/tasks/abc` selects Tasks). A chat is selected
  * through the tree instead, and every other route selects nothing.
  */
 export function selectedItemForPath(pathname: string): string | undefined {

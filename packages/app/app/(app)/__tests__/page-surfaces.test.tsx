@@ -24,21 +24,8 @@ describe('the same opener on every top-level page', () => {
     expect(source).not.toContain('<DrawerToggle');
   });
 
-  for (const name of ['shows']) {
-    it(`${name}.tsx leaves the opener, the title and the surface to the layout`, () => {
-      const source = page(name);
-      expect(source).not.toMatch(/drawer-toggle/);
-      expect(source).not.toContain('<DrawerToggle');
-      expect(source).not.toContain('ContentPanel');
-      // Layout classes (rows, gaps, padding) are the page's; a page FRAME —
-      // a background, a border or rounded corners — is the layout's alone.
-      expect(source).not.toMatch(/surfaceClassName/);
-      expect(source).not.toMatch(/className="[^"]*\b(bg-|border|rounded)/);
-    });
-  }
-
   /**
-   * The other half of the pages above: the layout really does give every
+   * The other half of the page above: the layout really does give every
    * non-chat route the opener. `screenLayout` wraps it in `AiChatContainer`
    * with `ShellPageHeader` (Bloom's `PageHeader` carrying the phone's menu
    * button) as its header, and only the chat routes (which compose their own
@@ -48,7 +35,7 @@ describe('the same opener on every top-level page', () => {
     const layout = page('_layout');
     expect(layout).toContain('screenLayout={screenLayout}');
     expect(layout).toMatch(/<AiChatContainer[\s\S]*header=\{\s*<ShellPageHeader/);
-    expect(layout).toMatch(/shows: 'sidebar\.shows'/);
+    expect(layout).toMatch(/notifications: 'sidebar\.notifications'/);
   });
 
   it('notifications.tsx already has its own way out (a back control)', () => {
