@@ -33,7 +33,6 @@ import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
-import { useShowStore } from '@/features/shows/runtime/show-store';
 import { offlineConversations } from '@/features/chat/runtime/offline-conversations';
 import { currentAccountEpoch, isCurrentAccountEpoch } from '@/shared/state/account-epoch';
 import { resetAccountSession, useAccountLifecycle } from '@/shell/account-lifecycle';
@@ -70,7 +69,6 @@ function seedAccountA(client: QueryClient) {
     memory: { settings: { recallEnabled: false }, preferences: { voice: 'male' } },
   });
   useLibraryStore.setState({ files: [{ _id: 'f1' } as never] });
-  useShowStore.setState({ series: [{ id: 's1' } as never] });
   client.setQueryData(['conversations'], { pages: [{ conversations: [{ id: 'c1' }] }] });
   client.setQueryData(['accounts', 'current'], { id: 'A' });
 }
@@ -84,7 +82,6 @@ function expectNothingOfA() {
   expect(useStore.getState().ghostMode).toBe(false);
   expect(useUserDataStore.getState().memory).toBeNull();
   expect(useLibraryStore.getState().files).toEqual([]);
-  expect(useShowStore.getState().series).toEqual([]);
 }
 
 let client: QueryClient;

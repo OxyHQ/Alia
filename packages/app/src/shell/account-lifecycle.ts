@@ -7,7 +7,6 @@ import { useStore } from '@/features/chat/runtime/global-store';
 import { useUIStore } from '@/features/chat/runtime/ui-store';
 import { useLibraryStore } from '@/features/library/runtime/library-store';
 import { useUserDataStore } from '@/features/memory/runtime/user-data-store';
-import { useShowStore } from '@/features/shows/runtime/show-store';
 import {
   advanceAccountEpoch,
   bindAccountProjectionShell,
@@ -46,7 +45,6 @@ export function resetAccountSession(queryClient: QueryClient, next: string | nul
   useConversationStore.setState(useConversationStore.getInitialState(), true);
   useUserDataStore.setState(useUserDataStore.getInitialState(), true);
   useLibraryStore.setState(useLibraryStore.getInitialState(), true);
-  useShowStore.setState({ ...useShowStore.getInitialState(), activeGenerations: new Map() }, true);
 
   // Oxy owns the declared roots; this reset only covers the remaining product queries.
   if (next !== null) {

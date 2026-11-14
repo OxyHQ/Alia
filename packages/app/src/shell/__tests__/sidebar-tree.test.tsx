@@ -192,7 +192,6 @@ vi.mock('@oxy.so/bloom/icons/RiCustomerServiceLine', () => ({ RiCustomerServiceL
 vi.mock('@oxy.so/bloom/icons/RiFileTextLine', () => ({ RiFileTextLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiGiftLine', () => ({ RiGiftLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiListCheck3', () => ({ RiListCheck3: () => null }));
-vi.mock('@oxy.so/bloom/icons/RiMicLine', () => ({ RiMicLine: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiMoreFill', () => ({ RiMoreFill: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiNotification3Line', () => ({ RiNotification3Line: () => null }));
 vi.mock('@oxy.so/bloom/icons/RiRobot2Line', () => ({ RiRobot2Line: () => null }));

@@ -3,7 +3,7 @@
  * number that only ever grows.
  *
  * A read that writes its answer into a store as a side effect — the memory
- * document, the library, the shows list — cannot be un-sent when the account
+ * document, the library — cannot be un-sent when the account
  * changes, and axios has no idea the person it was asking for has gone. So
  * such a read takes the epoch before it awaits and writes only if the epoch is
  * still the same afterwards: a slow answer for A that lands after the switch
