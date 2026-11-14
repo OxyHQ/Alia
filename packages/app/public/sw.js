@@ -25,7 +25,7 @@ self.addEventListener('notificationclick', (event) => {
   // The same order as the app's tap (`notificationHref`): a thread, a page of this app, a chat.
   const url = data?.agentHandle
     ? `/@${data.agentHandle}`
-    : typeof data?.path === 'string' && data.path.startsWith('/') && !data.path.startsWith('//')
+    : typeof data?.path === 'string' && /^\/(?!\/)[\w\-.~!$&'()*+,;=:@%/?#]*$/.test(data.path)
       ? data.path
       : data?.conversationId
         ? `/c/${data.conversationId}`

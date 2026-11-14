@@ -19,15 +19,23 @@ export interface InboxNotification {
 }
 
 /**
+ * A path of this app, as a browser resolves it: `/`, not followed by a second slash, then only the
+ * characters a URL path, query and fragment are made of. A browser reads `/\host` as `//host` and
+ * drops a tab or newline (`/\t/host` became `//host`), so a backslash, whitespace or control
+ * character never passes. `public/sw.js` keeps the same rule for a click with no app window open.
+ */
+export const APP_PATH = /^\/(?!\/)[\w\-.~!$&'()*+,;=:@%/?#]*$/;
+
+/**
  * Where tapping a notice goes: the app page it names (`data.path`, e.g. the one-tap channel
  * reauthorisation), else its conversation; `null` when it opens nothing. Only a path of this app
- * (`/…`, never `//host`), so a notice can never send anyone elsewhere.
+ * ({@link APP_PATH}), so a notice can never send anyone elsewhere.
  */
 export function notificationHref(
   notification: Pick<InboxNotification, 'conversationId' | 'data'>,
 ): string | null {
   const path = notification.data?.path;
-  if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) return path;
+  if (typeof path === 'string' && APP_PATH.test(path)) return path;
   return notification.conversationId ? `/c/${notification.conversationId}` : null;
 }
 

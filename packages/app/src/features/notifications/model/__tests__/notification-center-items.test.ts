@@ -94,7 +94,14 @@ describe('notificationHref', () => {
       notificationHref(notice({ data: { path: '/channels/reauthorize' }, conversationId: 'c1' })),
     ).toBe('/channels/reauthorize');
     expect(notificationHref(notice({ conversationId: 'c1' }))).toBe('/c/c1');
-    for (const path of ['//evil.example/x', 'https://evil.example', 42]) {
+    for (const path of [
+      '//evil.example/x',
+      '/\\evil.example/x',
+      '/\t/evil.example/x',
+      '/\n/evil.example',
+      'https://evil.example',
+      42,
+    ]) {
       expect(notificationHref(notice({ data: { path } }))).toBeNull();
     }
     expect(notificationHref(notice())).toBeNull();
