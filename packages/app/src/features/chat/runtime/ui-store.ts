@@ -10,7 +10,8 @@ export type CodePanelView = 'changes' | 'preview';
 
 export interface CanvasArtifact {
   id: string;
-  type: 'code' | 'markdown' | 'table' | 'chart' | 'image';
+  /** What the SDK's canvas wrote (`code`, `image`, `deck`, `dashboard`…), drawn by its `CanvasComponent`. */
+  type: string;
   content: any;
   title?: string;
   timestamp: number;
