@@ -68,6 +68,14 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('@/features/billing/ui/usage-limit-dialog', () => ({
   UsageLimitDialog: (props: object) => React.createElement('UsageLimitDialog', props),
 }));
+// The screen tells the UI store which conversation is on show; the store persists to device storage.
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    getItem: vi.fn(async () => null),
+    setItem: vi.fn(async () => {}),
+    removeItem: vi.fn(async () => {}),
+  },
+}));
 vi.mock('@/features/chat/runtime/global-store', () => {
   const state = {
     get ghostMode() {
