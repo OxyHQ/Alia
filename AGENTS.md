@@ -26,7 +26,7 @@ bun run dev:app
 - Biome sustituye a ESLint/Prettier; `@ts-nocheck` y `@ts-expect-error` sin descripción los vigila `scripts/check-ts-directives.mjs` en CI.
 - Sobre `process.env` en Expo, solo `process.env.EXPO_PUBLIC_*` estático (Metro no inlinea otra cosa); lo hacen cumplir los plugins de `biome-plugins/`.
 - `bun.lock` va en el mismo commit que el `package.json` que lo cambia.
-- Un `model` o id de proveedor nunca va fijo en código o env; los niveles de potencia los resuelve Oxy (`scripts/check-model-defaults.mjs`).
+- Un `model` o id de proveedor nunca va fijo en código o env; los niveles de potencia los resuelve Kaana (`scripts/check-model-defaults.mjs`).
 - Una pantalla nunca espera tras un spinner: usa el esqueleto de Bloom (`__tests__/no-loading-screens.test.ts`).
 - Un fallo de inferencia se pinta como error tipado con reintento (`turn-failure.ts` de `@gemies/sdk`), nunca como respuesta.
 - Lo first-party nunca pide permisos a las personas: ni reautorizar canales, ni renovar tasks, ni consentimientos; Gemies actúa por la persona con lo que declara el registro de Oxy (ADR 0066 de oxy). Los permisos son solo para terceros.
