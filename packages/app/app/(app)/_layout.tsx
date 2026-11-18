@@ -2,6 +2,7 @@ import { NotificationsBell } from '@/features/notifications/ui/notifications-bel
 import { ShellPageHeader, type PageHeaderOptions } from '@/shared/ui/page-chrome';
 import { CommandPalette } from '@/shell/command-palette';
 import { AppErrorBoundary } from '@/shell/error-boundary';
+import { SupervisedAccountGate } from '@/shell/supervised-account-gate';
 import { KeyboardShortcutsDialog } from '@/shell/keyboard-shortcuts-dialog';
 import { useWorkspacePanelChrome, WorkspacePanel } from '@/shell/workspace-panel';
 import { AliaSettingsProvider } from '@/features/settings/ui/alia-settings';
@@ -203,51 +204,54 @@ export default function AppLayout() {
 
   return (
     <AppErrorBoundary>
-      {/* The conversation runtime is the SDK's; this is what the app tells it. Everything below
+      {/* A supervised account is told so here, in place of an assistant Oxy refuses it. */}
+      <SupervisedAccountGate>
+        {/* The conversation runtime is the SDK's; this is what the app tells it. Everything below
           — the sidebar's list and the open thread — reads the same conversations through it. */}
-      <GemieRuntimeProvider
-        apiUrl={config.apiUrl}
-        offline={offlineConversations}
-        // The streaming fetch: React Native's own cannot read a body as it arrives.
-        streamFetch={expoFetch as unknown as typeof fetch}
-        speech={speech}
-        host={aliaHost}
-      >
-        {/* The account's realtime connection, inside the provider that holds it. */}
-        <AppRealtime />
-        {/* Bloom's native portal: the settings modal, a tooltip and the media
+        <GemieRuntimeProvider
+          apiUrl={config.apiUrl}
+          offline={offlineConversations}
+          // The streaming fetch: React Native's own cannot read a body as it arrives.
+          streamFetch={expoFetch as unknown as typeof fetch}
+          speech={speech}
+          host={aliaHost}
+        >
+          {/* The account's realtime connection, inside the provider that holds it. */}
+          <AppRealtime />
+          {/* Bloom's native portal: the settings modal, a tooltip and the media
           gallery draw themselves through it, and without a provider and an
           outlet they draw nothing at all — Settings did not open on Android
           (docs/native-validation.mdx). The outlet sits INSIDE the settings
           provider, because what it renders reads its context from there: the
           settings pages call `useAliaSettings()`. On web both are no-ops and
           the portal goes to the document. Gate: native-portal-host.test.ts */}
-        <PortalProvider>
-          <AliaSettingsProvider>
-            <ChatLabelsProvider>
-              {/* Hides the app from a screen reader while a portaled modal is up
+          <PortalProvider>
+            <AliaSettingsProvider>
+              <ChatLabelsProvider>
+                {/* Hides the app from a screen reader while a portaled modal is up
               (TalkBack otherwise walks the chat behind Settings). */}
-              <OverlayInertBoundary>
-                {Platform.OS === 'web' ? (
-                  shell
-                ) : (
-                  // Android draws the app edge to edge and Bloom's shell takes no
-                  // safe area: without this its frame, the chat header's menu button
-                  // and the drawer all start under the status bar, where the system
-                  // takes the touch (the button did nothing to a tap on its top two
-                  // thirds). The strip above shows the root's background, which is
-                  // the shell's own surface colour. The chat keeps the bottom
-                  // inset itself (`conversation-screen.tsx`).
-                  <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
-                )}
-              </OverlayInertBoundary>
-              <CommandPalette />
-              <KeyboardShortcutsDialog />
-              <PortalOutlet />
-            </ChatLabelsProvider>
-          </AliaSettingsProvider>
-        </PortalProvider>
-      </GemieRuntimeProvider>
+                <OverlayInertBoundary>
+                  {Platform.OS === 'web' ? (
+                    shell
+                  ) : (
+                    // Android draws the app edge to edge and Bloom's shell takes no
+                    // safe area: without this its frame, the chat header's menu button
+                    // and the drawer all start under the status bar, where the system
+                    // takes the touch (the button did nothing to a tap on its top two
+                    // thirds). The strip above shows the root's background, which is
+                    // the shell's own surface colour. The chat keeps the bottom
+                    // inset itself (`conversation-screen.tsx`).
+                    <View style={{ flex: 1, paddingTop: insets.top }}>{shell}</View>
+                  )}
+                </OverlayInertBoundary>
+                <CommandPalette />
+                <KeyboardShortcutsDialog />
+                <PortalOutlet />
+              </ChatLabelsProvider>
+            </AliaSettingsProvider>
+          </PortalProvider>
+        </GemieRuntimeProvider>
+      </SupervisedAccountGate>
     </AppErrorBoundary>
   );
 }
