@@ -24,6 +24,11 @@
     "done": "Listo",
     "tryAgain": "Reintentar"
   },
+  "supervised": {
+    "title": "Alia no está disponible para cuentas supervisadas",
+    "description": "Esta cuenta está bajo supervisión, así que el asistente está desactivado para ella. Si está a la espera de un tutor, puedes invitar a uno desde Supervisión.",
+    "openSupervision": "Abrir Supervisión"
+  },
   "errors": {
     "emailRequired": "Por favor ingresa tu dirección de correo electrónico",
     "passwordRequired": "Por favor ingresa tu contraseña",

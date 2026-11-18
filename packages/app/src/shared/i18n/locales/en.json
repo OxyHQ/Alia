@@ -24,6 +24,11 @@
     "done": "Done",
     "tryAgain": "Try Again"
   },
+  "supervised": {
+    "title": "Alia isn't available for supervised accounts",
+    "description": "This account is under supervision, so the assistant is turned off for it. If it is waiting for a guardian, you can invite one from Supervision.",
+    "openSupervision": "Open Supervision"
+  },
   "errors": {
     "emailRequired": "Please enter your email address",
     "passwordRequired": "Please enter your password",
