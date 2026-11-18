@@ -10,14 +10,13 @@ comprobable; aquí está el texto completo. Antes de tocar un área lee su doc
   Un cambio de servidor, de rutas, de eventos del stream, de base de datos o de
   despliegue va allí. Aquí quedan la app, `@gemies/sdk` y `@gemies/server`.
   Las referencias a «ADR 00xx» en el código son la serie de Gemies.
-- **Tres papeles (ADR 0010):** Kaana = API de inferencia (solo modelos; las
-  credenciales de proveedor viven allí). Oxy = plataforma + Oxy Console (TODAS
-  las claves de API). Alia = el asistente; su API de producto la sirve el backend
+- **Tres papeles (ADR 0010):** Kaana = inferencia, selección de modelos, autorización del gasto y facturación
+  mediante Peable. Oxy = identidad y Oxy Console (custodia y gestión de claves). Alia = el asistente; su API de producto la sirve el backend
   en Gemies. Ninguna superficie de este repo guarda credenciales de proveedor ni
   claves de Kaana, y `alia_sk_*` está retirado.
 - **La gente elige niveles de potencia, no modelos (ADR 0014; ADR 0012):** en la UI el
-  usuario elige un nivel de potencia de Oxy — `auto` (por defecto), `instant`,
-  `medium`, `high`, `xhigh`, `pro`, `ultra` — y Oxy escoge el modelo; nunca una
+  usuario elige un nivel de potencia de Kaana — `auto` (por defecto), `instant`,
+  `medium`, `high`, `xhigh`, `pro`, `ultra` — y Kaana escoge el modelo; nunca una
   lista de modelos por nombre. Cero ids de modelo en código o env y cero listas
   curadas: sin nada elegido, la petición no lleva `model` y responde el valor por
   defecto del servidor. `scripts/check-model-defaults.mjs` lo hace cumplir en

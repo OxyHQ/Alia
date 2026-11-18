@@ -57,6 +57,34 @@ describe('a persisted conversation', () => {
     expect(kept).toEqual([{ type: 'text', text: 'look' }]);
   });
 
+  it('preserves independent reaction authors and their revision through a restart', () => {
+    const reactions = {
+      reactions: ['❤️'],
+      reactionRevision: 8,
+      reactionEntries: [
+        { emoji: '❤️', author: { kind: 'user', id: 'person' } },
+        { emoji: '❤️', author: { kind: 'agent', id: 'alia', name: 'Alia' } },
+        { emoji: '❤️', author: { kind: 'agent', id: 'peer', name: 'Salina' } },
+      ],
+    };
+    const original = conversation([
+      message(1, {
+        ...reactions,
+        content: [
+          { type: 'text', text: 'Gracias' },
+          { type: 'image', image: 'signed-image' },
+        ],
+      }),
+    ]);
+    const restored = reviveConversation(JSON.parse(JSON.stringify(trimConversation(original)))) as {
+      messages: object[];
+    };
+    expect(restored.messages[0]).toEqual({
+      ...message(1, reactions),
+      content: [{ type: 'text', text: 'Gracias' }],
+    });
+  });
+
   it('stays under its byte cap, dropping the oldest first', () => {
     const big = 'x'.repeat(20_000);
     const all = Array.from({ length: 20 }, (_, i) => message(i, { content: big }));
