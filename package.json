@@ -33,7 +33,7 @@
   ],
   "author": "",
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.8",
     "@oxy.so/doctor": "1.10.0",
     "typescript": "^5.9.3"
   },
@@ -41,8 +41,8 @@
     "@oxy.so/bloom": "21.7.1",
     "@oxy.so/core": "7.52.0",
     "@oxy.so/services": "14.21.0",
-    "@tanstack/react-query": "^5.107.1",
-    "@tanstack/react-query-persist-client": "^5.107.1",
+    "@tanstack/react-query": "^5.108.2",
+    "@tanstack/react-query-persist-client": "^5.108.2",
     "zustand": "^5.1.0"
   },
   "overrides": {
